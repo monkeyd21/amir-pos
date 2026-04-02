@@ -43,7 +43,7 @@ test.describe('Inventory', () => {
   test('should navigate to stock levels page', async ({ page }) => {
     await page.goto('/inventory/stock');
 
-    await expect(page.locator('h1:has-text("Stock"), text=Stock')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1').filter({ hasText: 'Stock' })).toBeVisible({ timeout: 10000 });
   });
 
   test('should navigate to transfers page', async ({ page }) => {

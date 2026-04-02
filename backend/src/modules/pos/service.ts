@@ -408,6 +408,49 @@ export class PosService {
     });
   }
 
+  async lookupBarcode(barcode: string, branchId: number) {
+    const variant = await prisma.productVariant.findFirst({
+      where: { barcode, isActive: true },
+      include: {
+        product: {
+          include: {
+            brand: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!variant) {
+      throw new AppError('Product not found for this barcode', 404);
+    }
+
+    // Get stock for this branch
+    const inventory = await prisma.inventory.findUnique({
+      where: {
+        variantId_branchId: {
+          variantId: variant.id,
+          branchId,
+        },
+      },
+    });
+
+    return {
+      variantId: variant.id,
+      barcode: variant.barcode,
+      sku: variant.sku,
+      size: variant.size,
+      color: variant.color,
+      productName: variant.product.name,
+      brand: variant.product.brand?.name,
+      category: variant.product.category?.name,
+      price: Number(variant.priceOverride ?? variant.product.basePrice),
+      costPrice: Number(variant.costOverride ?? variant.product.costPrice),
+      taxRate: Number(variant.product.taxRate),
+      stock: inventory?.quantity ?? 0,
+    };
+  }
+
   async holdCart(
     userId: number,
     branchId: number,

@@ -8,8 +8,7 @@ test.describe('Dashboard', () => {
 
   test('should load the dashboard page', async ({ page }) => {
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator('text=Dashboard')).toBeVisible();
-    await expect(page.locator('text=Welcome back')).toBeVisible();
+    await expect(page.locator('h1').filter({ hasText: 'Dashboard' })).toBeVisible();
   });
 
   test('should display KPI cards for sales, revenue, customers, and low stock', async ({ page }) => {

@@ -10,3 +10,4 @@ tmp/
 .idea/
 .vscode/
 *.tgz
+test-results/

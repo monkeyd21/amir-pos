@@ -21,6 +21,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "concurrently": "^8.2.2",
+    "jest-util": "^29.7.0",
     "typescript": "^5.4.0"
   }
 }

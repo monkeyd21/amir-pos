@@ -65,6 +65,18 @@ export class PosController {
     }
   }
 
+  async lookupBarcode(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const variant = await posService.lookupBarcode(
+        req.params.barcode,
+        req.user!.branchId
+      );
+      res.json({ success: true, data: variant });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async holdCart(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const held = await posService.holdCart(
