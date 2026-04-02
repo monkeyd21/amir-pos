@@ -40,6 +40,15 @@ export class InventoryController {
     }
   }
 
+  async listTransfers(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await inventoryService.listTransfers(req.query as any, req.user!.branchId);
+      res.json({ success: true, data: result.data, meta: result.meta });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createTransfer(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const transfer = await inventoryService.createTransfer(req.body, req.user!.userId);

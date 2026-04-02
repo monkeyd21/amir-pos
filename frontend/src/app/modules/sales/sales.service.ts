@@ -11,12 +11,12 @@ export class SalesService {
     return this.api.get<any>('/sales', params).pipe(map(res => res.data));
   }
 
-  getById(id: number): Observable<any> {
+  getById(id: string | number): Observable<any> {
     return this.api.get<any>(`/sales/${id}`).pipe(map(res => res.data));
   }
 
   processReturn(saleId: number, data: any): Observable<any> {
-    return this.api.post<any>(`/sales/${saleId}/returns`, data).pipe(map(res => res.data));
+    return this.api.post<any>(`/sales/${saleId}/return`, data).pipe(map(res => res.data));
   }
 
   processExchange(saleId: number, data: any): Observable<any> {

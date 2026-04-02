@@ -89,14 +89,16 @@ export class StockLevelsComponent implements OnInit {
   }
 
   getStockStatus(item: any): string {
+    const min = item.minStockLevel ?? item.minLevel ?? 0;
     if (item.quantity <= 0) return 'Out of Stock';
-    if (item.quantity <= item.minLevel) return 'Low Stock';
+    if (item.quantity <= min) return 'Low Stock';
     return 'In Stock';
   }
 
   getStockStatusClass(item: any): string {
+    const min = item.minStockLevel ?? item.minLevel ?? 0;
     if (item.quantity <= 0) return 'bg-red-100 text-red-700';
-    if (item.quantity <= item.minLevel) return 'bg-yellow-100 text-yellow-700';
+    if (item.quantity <= min) return 'bg-yellow-100 text-yellow-700';
     return 'bg-green-100 text-green-700';
   }
 

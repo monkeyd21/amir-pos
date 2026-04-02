@@ -104,6 +104,11 @@ import { BranchService, Branch } from '../../core/services/branch.service';
     :host {
       display: block;
     }
+    .mat-mdc-icon-button.mat-mdc-button-base {
+      width: 40px;
+      height: 40px;
+      padding: 8px;
+    }
   `]
 })
 export class HeaderComponent implements OnInit, OnDestroy {

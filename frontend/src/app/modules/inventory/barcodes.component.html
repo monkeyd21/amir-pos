@@ -1,80 +1,164 @@
-<div class="p-6">
+<div class="p-6 no-print">
   <div class="mb-6">
     <h1 class="text-2xl font-bold text-slate-800">Barcode Management</h1>
-    <p class="text-slate-500">Lookup and print barcodes</p>
+    <p class="text-slate-500">Look up products and print barcode labels</p>
   </div>
 
-  <!-- Lookup Section -->
+  <!-- Product Lookup -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-700 mb-4">Barcode Lookup</h3>
-    <div class="flex gap-4 items-end">
+    <h3 class="text-lg font-semibold text-slate-700 mb-4">Product Lookup</h3>
+    <div class="flex gap-4 items-center">
       <mat-form-field class="flex-1" appearance="outline">
-        <mat-label>Scan or enter barcode</mat-label>
-        <input matInput [(ngModel)]="lookupValue" (keyup.enter)="lookup()" placeholder="Enter barcode..." />
-        <mat-icon matSuffix>qr_code_scanner</mat-icon>
+        <mat-label>Scan barcode or type product name</mat-label>
+        <input matInput [(ngModel)]="searchValue"
+               (input)="onSearchInput()"
+               (keyup.enter)="onSearchEnter()"
+               [matAutocomplete]="searchAuto"
+               placeholder="e.g. 2000000000001 or Levis Jeans..."
+               autocomplete="off" />
+        <mat-icon matSuffix>search</mat-icon>
       </mat-form-field>
-      <button mat-flat-button color="primary" (click)="lookup()" [disabled]="lookupLoading" class="h-14">
+      <button mat-flat-button color="primary" (click)="onSearchEnter()" [disabled]="lookupLoading"
+              style="height: 56px; margin-bottom: 22px;">
         {{ lookupLoading ? 'Searching...' : 'Lookup' }}
       </button>
     </div>
+    <mat-autocomplete #searchAuto="matAutocomplete" (optionSelected)="selectProduct($event.option.value)">
+      @for (p of searchResults; track p.variantId) {
+        <mat-option [value]="p">
+          <span class="font-medium">{{ p.productName }}</span>
+          <span class="text-sm text-slate-500 ml-2">{{ p.size }} / {{ p.color }}</span>
+          <span class="text-xs text-slate-400 ml-2">{{ p.barcode }}</span>
+        </mat-option>
+      }
+    </mat-autocomplete>
 
     @if (lookupResult) {
-      <div class="mt-4 bg-slate-50 rounded-lg p-4">
-        <div class="grid grid-cols-2 gap-4">
+      <div class="mt-4 bg-slate-50 rounded-lg p-5">
+        <div class="flex justify-between items-start mb-4">
+          <h4 class="text-base font-semibold text-slate-800">{{ lookupResult.productName }}</h4>
+          <button mat-icon-button (click)="clearLookup()">
+            <mat-icon class="text-slate-400">close</mat-icon>
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
           <div>
-            <div class="text-sm text-slate-500">Product</div>
-            <div class="font-medium text-slate-800">{{ lookupResult.productName || lookupResult.name }}</div>
-          </div>
-          <div>
-            <div class="text-sm text-slate-500">Variant</div>
+            <div class="text-xs text-slate-500 uppercase">Variant</div>
             <div class="font-medium">{{ lookupResult.size }} / {{ lookupResult.color }}</div>
           </div>
           <div>
-            <div class="text-sm text-slate-500">SKU</div>
+            <div class="text-xs text-slate-500 uppercase">Barcode</div>
+            <div class="font-mono text-sm">{{ lookupResult.barcode }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 uppercase">SKU</div>
             <div class="font-mono text-sm">{{ lookupResult.sku }}</div>
           </div>
           <div>
-            <div class="text-sm text-slate-500">Price</div>
-            <div class="font-mono font-bold text-blue-600">{{ lookupResult.price | currency:'INR':'symbol':'1.2-2' }}</div>
+            <div class="text-xs text-slate-500 uppercase">Price</div>
+            <div class="font-bold text-blue-600">{{ lookupResult.price | currency:'INR':'symbol':'1.2-2' }}</div>
           </div>
           <div>
-            <div class="text-sm text-slate-500">Stock</div>
-            <div class="font-bold">{{ lookupResult.stock || lookupResult.quantity || 'N/A' }}</div>
+            <div class="text-xs text-slate-500 uppercase">Brand</div>
+            <div>{{ lookupResult.brand || 'N/A' }}</div>
           </div>
           <div>
-            <div class="text-sm text-slate-500">Barcode</div>
-            <div class="font-mono text-sm">{{ lookupResult.barcode }}</div>
+            <div class="text-xs text-slate-500 uppercase">Stock</div>
+            <div class="font-bold" [class.text-red-600]="lookupResult.stock <= 0" [class.text-green-600]="lookupResult.stock > 0">
+              {{ lookupResult.stock ?? 'N/A' }}
+            </div>
           </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+          <button mat-stroked-button color="primary" (click)="addToPrintQueue(lookupResult)">
+            <mat-icon>print</mat-icon> Add to Print Queue
+          </button>
         </div>
       </div>
     }
   </div>
 
-  <!-- Bulk Print Section -->
+  <!-- Print Queue -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-slate-700">Bulk Barcode Print</h3>
-      <button mat-flat-button color="primary" (click)="printBarcodes()" [disabled]="selectedVariants.size === 0">
-        <mat-icon>print</mat-icon> Print Selected ({{ selectedVariants.size }})
-      </button>
-    </div>
-    <p class="text-slate-500 text-sm">
-      Select product variants from the inventory to generate and print barcode labels.
-    </p>
-
-    <!-- Print Preview -->
-    @if (printItems.length > 0) {
-      <mat-divider class="my-4"></mat-divider>
-      <div class="grid grid-cols-3 gap-4 print:grid-cols-4">
-        @for (item of printItems; track item.barcode) {
-          <div class="border border-slate-200 rounded p-3 text-center">
-            <div class="font-mono text-xs mb-1">{{ item.barcode }}</div>
-            <div class="text-xs text-slate-500">{{ item.productName }}</div>
-            <div class="text-xs text-slate-400">{{ item.size }} / {{ item.color }}</div>
-            <div class="font-bold text-sm">{{ item.price | currency:'INR':'symbol':'1.2-2' }}</div>
-          </div>
+      <h3 class="text-lg font-semibold text-slate-700">Print Queue ({{ totalLabels }} labels)</h3>
+      <div class="flex gap-2">
+        @if (printQueue.length > 0) {
+          <button mat-stroked-button color="warn" (click)="clearQueue()">
+            Clear All
+          </button>
         }
+        <button mat-flat-button color="primary" (click)="printBarcodes()" [disabled]="printQueue.length === 0">
+          <mat-icon>print</mat-icon> Print Labels
+        </button>
       </div>
+    </div>
+
+    @if (printQueue.length === 0) {
+      <div class="text-center text-slate-400 py-8">
+        <p>No items in print queue. Search a product above and click "Add to Print Queue".</p>
+      </div>
+    } @else {
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 text-left text-slate-500">
+            <th class="py-2 font-medium">Product</th>
+            <th class="py-2 font-medium">Variant</th>
+            <th class="py-2 font-medium">Barcode</th>
+            <th class="py-2 font-medium">Price</th>
+            <th class="py-2 font-medium text-center">Copies</th>
+            <th class="py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of printQueue; track item.barcode; let i = $index) {
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+              <td class="py-3 font-medium text-slate-800">{{ item.productName }}</td>
+              <td class="py-3 text-slate-500">{{ item.size }} / {{ item.color }}</td>
+              <td class="py-3">
+                <svg [class]="'barcode-' + item.barcode" style="height: 30px;"></svg>
+                <div class="font-mono text-xs text-slate-400 mt-0.5">{{ item.barcode }}</div>
+              </td>
+              <td class="py-3 font-mono font-bold">{{ item.price | currency:'INR':'symbol':'1.2-2' }}</td>
+              <td class="py-3">
+                <div class="flex items-center justify-center gap-1">
+                  <button mat-icon-button (click)="item.copies = Math.max(1, item.copies - 1)" style="transform: scale(0.7);">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
+                  <span class="font-mono font-bold w-8 text-center">{{ item.copies }}</span>
+                  <button mat-icon-button (click)="item.copies = item.copies + 1" style="transform: scale(0.7);">
+                    <mat-icon>add_circle_outline</mat-icon>
+                  </button>
+                  @if (item.stock > 0) {
+                    <button mat-stroked-button class="ml-2 text-xs" style="line-height: 28px; height: 28px; font-size: 11px; padding: 0 8px;"
+                            (click)="item.copies = item.stock">
+                      All ({{ item.stock }})
+                    </button>
+                  }
+                </div>
+              </td>
+              <td class="py-3 text-right">
+                <button mat-icon-button color="warn" (click)="removeFromQueue(i)" style="transform: scale(0.8);">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
     }
   </div>
+</div>
+
+<!-- Print-only area: barcode sticker labels -->
+<div class="print-only">
+  @for (item of expandedQueue(); track $index) {
+    <div class="barcode-sticker">
+      <div class="sticker-product">{{ item.productName }}</div>
+      <div class="sticker-variant">{{ item.size }} / {{ item.color }}</div>
+      <svg class="print-label-barcode" [attr.data-barcode]="item.barcode"></svg>
+      <div class="sticker-barcode-text">{{ item.barcode }}</div>
+      <div class="sticker-price">{{ item.price | currency:'INR':'symbol':'1.2-2' }}</div>
+    </div>
+  }
 </div>

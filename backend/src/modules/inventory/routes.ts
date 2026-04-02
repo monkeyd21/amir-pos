@@ -22,6 +22,7 @@ router.post(
   validate(adjustStockSchema),
   inventoryController.adjust
 );
+router.get('/transfer', inventoryController.listTransfers);
 router.post(
   '/transfer',
   authorize('owner', 'manager'),

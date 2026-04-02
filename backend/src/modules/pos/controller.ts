@@ -65,6 +65,16 @@ export class PosController {
     }
   }
 
+  async searchProducts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const query = (req.query.q || req.query.query || '') as string;
+      const results = await posService.searchProducts(query, req.user!.branchId);
+      res.json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async lookupBarcode(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const variant = await posService.lookupBarcode(

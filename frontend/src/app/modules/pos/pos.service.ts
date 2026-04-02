@@ -75,8 +75,8 @@ export class PosService {
     return this.api.delete<any>(`/pos/held/${id}`).pipe(map(res => res.data));
   }
 
-  openSession(): Observable<any> {
-    return this.api.post<any>('/pos/sessions/open', {}).pipe(map(res => res.data));
+  openSession(data: { openingAmount: number; notes?: string } = { openingAmount: 0 }): Observable<any> {
+    return this.api.post<any>('/pos/sessions/open', data).pipe(map(res => res.data));
   }
 
   closeSession(data: any): Observable<any> {
@@ -85,6 +85,10 @@ export class PosService {
 
   getSession(): Observable<any> {
     return this.api.get<any>('/pos/sessions/current').pipe(map(res => res.data));
+  }
+
+  searchProducts(query: string): Observable<any> {
+    return this.api.get<any>('/pos/products/search', { q: query }).pipe(map(res => res.data));
   }
 
   searchCustomer(query: string): Observable<any> {

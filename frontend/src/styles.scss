@@ -187,6 +187,74 @@ html, body {
   border-radius: 12px !important;
 }
 
+// --- Print styles for barcode stickers ---
+.print-only {
+  display: none;
+}
+
+@media print {
+  // Hide everything except barcode stickers
+  body * {
+    visibility: hidden;
+  }
+  .no-print, .no-print * {
+    display: none !important;
+  }
+  .print-only {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 4mm;
+    padding: 5mm;
+    visibility: visible !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .print-only * {
+    visibility: visible !important;
+  }
+  .barcode-sticker {
+    width: 50mm;
+    height: 30mm;
+    border: 0.5px dashed #ccc;
+    padding: 2mm;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    page-break-inside: avoid;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .sticker-product {
+    font-size: 7pt;
+    font-weight: 600;
+    line-height: 1.2;
+    max-height: 2.4em;
+    overflow: hidden;
+  }
+  .sticker-variant {
+    font-size: 6pt;
+    color: #666;
+    margin-bottom: 1mm;
+  }
+  .print-label-barcode {
+    height: 12mm !important;
+    width: 42mm !important;
+  }
+  .sticker-barcode-text {
+    font-size: 7pt;
+    font-family: monospace;
+    letter-spacing: 1px;
+  }
+  .sticker-price {
+    font-size: 9pt;
+    font-weight: 700;
+    margin-top: 0.5mm;
+  }
+}
+
 // --- Snackbar improvements ---
 .mat-mdc-snack-bar-container {
   border-radius: 8px !important;

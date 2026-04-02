@@ -19,7 +19,8 @@ router.post('/sessions/open', validate(openSessionSchema), posController.openSes
 router.post('/sessions/close', validate(closeSessionSchema), posController.closeSession);
 router.get('/sessions/current', posController.currentSession);
 
-// Barcode lookup
+// Product search & barcode lookup
+router.get('/products/search', posController.searchProducts);
 router.get('/lookup/:barcode', posController.lookupBarcode);
 
 // Checkout

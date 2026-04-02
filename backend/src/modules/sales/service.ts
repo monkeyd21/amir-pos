@@ -97,6 +97,43 @@ export class SalesService {
     return sale;
   }
 
+  async getSaleBySaleNumber(saleNumber: string) {
+    const sale = await prisma.sale.findFirst({
+      where: { saleNumber },
+      include: {
+        branch: true,
+        customer: true,
+        user: { select: { id: true, firstName: true, lastName: true } },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { include: { brand: true, category: true } },
+              },
+            },
+            returnItems: true,
+          },
+        },
+        payments: true,
+        returns: {
+          include: {
+            items: {
+              include: {
+                variant: { include: { product: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new AppError('Sale not found', 404);
+    }
+
+    return sale;
+  }
+
   async getReceiptData(id: number) {
     const sale = await prisma.sale.findUnique({
       where: { id },

@@ -276,84 +276,60 @@ export class DashboardComponent implements OnInit, OnDestroy {
   kpiCards: KpiCard[] = [
     {
       title: "Today's Sales",
-      value: '47',
+      value: '0',
       icon: 'shopping_cart',
-      change: '+12%',
-      changeType: 'up',
+      change: '--',
+      changeType: 'neutral',
       color: '#2563EB',
       bgColor: '#EFF6FF',
       route: '/sales',
     },
     {
       title: "Today's Revenue",
-      value: '\u20B985,400',
+      value: '\u20B90',
       icon: 'account_balance',
-      change: '+8.2%',
-      changeType: 'up',
+      change: '--',
+      changeType: 'neutral',
       color: '#22C55E',
       bgColor: '#F0FDF4',
       route: '/accounting',
     },
     {
       title: 'Total Customers',
-      value: '1,284',
+      value: '0',
       icon: 'people',
-      change: '+3.1%',
-      changeType: 'up',
+      change: '--',
+      changeType: 'neutral',
       color: '#8B5CF6',
       bgColor: '#F5F3FF',
       route: '/customers',
     },
     {
       title: 'Low Stock Items',
-      value: '12',
+      value: '0',
       icon: 'warning',
-      change: '+4',
-      changeType: 'down',
+      change: '--',
+      changeType: 'neutral',
       color: '#F59E0B',
       bgColor: '#FFFBEB',
       route: '/inventory/stock',
     },
   ];
 
-  salesData = [
-    { label: 'Mon', amount: 12400 },
-    { label: 'Tue', amount: 18200 },
-    { label: 'Wed', amount: 15600 },
-    { label: 'Thu', amount: 22100 },
-    { label: 'Fri', amount: 19800 },
-    { label: 'Sat', amount: 28500 },
-    { label: 'Sun', amount: 17300 },
-  ];
+  salesData: { label: string; amount: number }[] = [];
 
   get maxSales(): number {
-    return Math.max(...this.salesData.map(d => d.amount));
+    const max = Math.max(...this.salesData.map(d => d.amount), 0);
+    return max || 1;
   }
 
   recentSalesColumns = ['id', 'customer', 'items', 'total', 'status', 'time'];
 
-  recentSales: RecentSale[] = [
-    { id: 'INV-001', customer: 'Rahul Sharma', items: 3, total: 4500, status: 'completed', time: '2 min ago' },
-    { id: 'INV-002', customer: 'Priya Patel', items: 1, total: 1200, status: 'completed', time: '15 min ago' },
-    { id: 'INV-003', customer: 'Amit Kumar', items: 5, total: 8900, status: 'pending', time: '32 min ago' },
-    { id: 'INV-004', customer: 'Sneha Gupta', items: 2, total: 3200, status: 'completed', time: '1 hr ago' },
-    { id: 'INV-005', customer: 'Walk-in Customer', items: 1, total: 750, status: 'refunded', time: '2 hrs ago' },
-  ];
+  recentSales: RecentSale[] = [];
 
-  topProducts: TopProduct[] = [
-    { name: 'Cotton Formal Shirt', sold: 24, revenue: 28800, category: 'Shirts' },
-    { name: 'Slim Fit Jeans', sold: 18, revenue: 25200, category: 'Jeans' },
-    { name: 'Printed Kurti Set', sold: 15, revenue: 22500, category: 'Ethnic Wear' },
-    { name: 'Polo T-Shirt', sold: 12, revenue: 10800, category: 'T-Shirts' },
-    { name: 'Chino Pants', sold: 10, revenue: 14000, category: 'Trousers' },
-  ];
+  topProducts: TopProduct[] = [];
 
-  lowStockItems = [
-    { name: 'White Formal Shirt (M)', sku: 'SHT-001-M', stock: 3, minStock: 10 },
-    { name: 'Blue Slim Jeans (32)', sku: 'JNS-012-32', stock: 2, minStock: 8 },
-    { name: 'Black Polo T-Shirt (L)', sku: 'TSH-008-L', stock: 1, minStock: 5 },
-    { name: 'Cotton Kurti (S)', sku: 'KRT-005-S', stock: 4, minStock: 10 },
-  ];
+  lowStockItems: { name: string; sku: string; stock: number; minStock: number }[] = [];
 
   ngOnInit(): void {
     this.loadDashboardData();
@@ -374,100 +350,55 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loadDashboardData(): void {
     this.loading = true;
 
-    // Load recent sales from the sales API as a secondary source
-    this.apiService.get<any>('/sales', { limit: 5, sort: 'createdAt', order: 'desc' }).pipe(
-      catchError(() => of(null)),
-      takeUntil(this.destroy$)
-    ).subscribe((response) => {
-      if (response && (response.data?.rows || response.data)) {
-        const sales = response.data?.rows || response.data;
-        if (Array.isArray(sales) && sales.length > 0) {
-          this.recentSales = sales.slice(0, 5).map((s: any) => ({
-            id: s.invoiceNumber || `INV-${s.id}`,
-            saleId: s.id,
-            customer: s.customer?.name || s.customerName || 'Walk-in Customer',
-            items: s.items?.length || s.itemCount || 0,
-            total: s.grandTotal || s.total || 0,
-            status: s.status || 'completed',
-            time: this.getTimeAgo(s.createdAt || s.saleDate),
-          }));
-        }
-      }
-    });
-
-    this.apiService.get<any>('/reports/daily-summary').pipe(
-      catchError(() => {
-        // If API is unavailable, keep using hardcoded fallback data
-        return of(null);
-      }),
-      takeUntil(this.destroy$)
-    ).subscribe((response) => {
+    forkJoin({
+      summary: this.apiService.get<any>('/reports/daily-summary').pipe(catchError(() => of(null))),
+      sales: this.apiService.get<any>('/sales', { limit: '5', sort: 'createdAt', order: 'desc' }).pipe(catchError(() => of(null))),
+      customers: this.apiService.get<any>('/customers', { limit: '1' }).pipe(catchError(() => of(null))),
+      lowStock: this.apiService.get<any>('/inventory', { lowStock: 'true', limit: '10' }).pipe(catchError(() => of(null))),
+    }).pipe(takeUntil(this.destroy$)).subscribe((results) => {
       this.loading = false;
-      if (response && response.data) {
-        const data = response.data;
 
-        // Update KPI cards with real data
-        if (data.todaySales !== undefined) {
-          this.kpiCards[0].value = String(data.todaySales);
-          this.kpiCards[0].change = data.salesChange || '+0%';
-          this.kpiCards[0].changeType = this.getChangeType(data.salesChange);
-        }
-        if (data.todayRevenue !== undefined) {
-          this.kpiCards[1].value = '\u20B9' + Number(data.todayRevenue).toLocaleString('en-IN');
-          this.kpiCards[1].change = data.revenueChange || '+0%';
-          this.kpiCards[1].changeType = this.getChangeType(data.revenueChange);
-        }
-        if (data.totalCustomers !== undefined) {
-          this.kpiCards[2].value = Number(data.totalCustomers).toLocaleString('en-IN');
-          this.kpiCards[2].change = data.customerChange || '+0%';
-          this.kpiCards[2].changeType = this.getChangeType(data.customerChange);
-        }
-        if (data.lowStockCount !== undefined) {
-          this.kpiCards[3].value = String(data.lowStockCount);
-          this.kpiCards[3].change = data.lowStockChange || '+0';
-          this.kpiCards[3].changeType = data.lowStockCount > 0 ? 'down' : 'neutral';
-        }
+      // KPI: Sales count & revenue from daily summary
+      if (results.summary?.data) {
+        const d = results.summary.data;
+        this.kpiCards[0].value = String(d.salesCount ?? 0);
+        this.kpiCards[1].value = '\u20B9' + Number(d.totalSales ?? 0).toLocaleString('en-IN');
+      }
 
-        // Update recent sales if provided
-        if (data.recentSales && data.recentSales.length > 0) {
-          this.recentSales = data.recentSales.map((s: any) => ({
-            id: s.invoiceNumber || s.id || 'N/A',
-            saleId: s.saleId || s.id || undefined,
-            customer: s.customerName || s.customer || 'Walk-in',
-            items: s.itemCount || s.items || 0,
-            total: s.total || s.grandTotal || 0,
-            status: s.status || 'completed',
-            time: s.timeAgo || s.time || '',
-          }));
-        }
+      // KPI: Total customers
+      if (results.customers?.meta) {
+        this.kpiCards[2].value = Number(results.customers.meta.total ?? 0).toLocaleString('en-IN');
+      }
 
-        // Update sales chart data if provided
-        if (data.salesChart && data.salesChart.length > 0) {
-          this.salesData = data.salesChart.map((d: any) => ({
-            label: d.label || d.day || '',
-            amount: d.amount || d.total || 0,
-          }));
-        }
+      // KPI: Low stock count + items list
+      if (results.lowStock?.data) {
+        const items = Array.isArray(results.lowStock.data) ? results.lowStock.data : [];
+        this.kpiCards[3].value = String(results.lowStock.meta?.total ?? items.length);
+        this.kpiCards[3].changeType = items.length > 0 ? 'down' : 'neutral';
+        this.lowStockItems = items.slice(0, 5).map((item: any) => ({
+          name: item.variant
+            ? `${item.variant.product?.name || 'Product'} (${item.variant.size || ''}/${item.variant.color || ''})`
+            : 'Unknown',
+          sku: item.variant?.sku || item.variant?.barcode || '',
+          stock: item.quantity ?? 0,
+          minStock: item.minQuantity ?? 0,
+        }));
+      }
 
-        // Update top products if provided
-        if (data.topProducts && data.topProducts.length > 0) {
-          this.topProducts = data.topProducts.map((p: any) => ({
-            name: p.name || p.productName || '',
-            sold: p.sold || p.quantity || 0,
-            revenue: p.revenue || p.total || 0,
-            category: p.category || '',
-          }));
-        }
-
-        // Update low stock items if provided
-        if (data.lowStockItems && data.lowStockItems.length > 0) {
-          this.lowStockItems = data.lowStockItems.map((item: any) => ({
-            name: item.name || item.productName || '',
-            sku: item.sku || item.barcode || '',
-            stock: item.stock || item.currentStock || 0,
-            minStock: item.minStock || item.reorderLevel || 0,
-          }));
-        }
+      // Recent sales
+      if (results.sales?.data) {
+        const sales = Array.isArray(results.sales.data) ? results.sales.data : [];
+        this.recentSales = sales.slice(0, 5).map((s: any) => ({
+          id: s.saleNumber || `#${s.id}`,
+          saleId: s.id,
+          customer: s.customer
+            ? `${s.customer.firstName} ${s.customer.lastName}`
+            : 'Walk-in Customer',
+          items: s.items?.length ?? 0,
+          total: Number(s.total ?? 0),
+          status: s.status || 'completed',
+          time: this.getTimeAgo(s.createdAt),
+        }));
       }
     });
   }

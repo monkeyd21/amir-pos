@@ -7,19 +7,11 @@ import { ApiService } from '../../core/services/api.service';
 export class BarcodeService {
   private api = inject(ApiService);
 
-  lookup(barcode: string): Observable<any> {
-    return this.api.get<any>(`/barcodes/lookup/${barcode}`).pipe(map(res => res.data));
+  lookupBarcode(barcode: string): Observable<any> {
+    return this.api.get<any>(`/pos/lookup/${barcode}`).pipe(map(res => res.data));
   }
 
-  generate(variantId: number): Observable<any> {
-    return this.api.post<any>('/barcodes/generate', { variantId }).pipe(map(res => res.data));
-  }
-
-  bulkGenerate(variantIds: number[]): Observable<any> {
-    return this.api.post<any>('/barcodes/bulk-generate', { variantIds }).pipe(map(res => res.data));
-  }
-
-  getByProduct(productId: number): Observable<any> {
-    return this.api.get<any>(`/barcodes/product/${productId}`).pipe(map(res => res.data));
+  searchProducts(query: string): Observable<any> {
+    return this.api.get<any>('/pos/products/search', { q: query }).pipe(map(res => res.data));
   }
 }

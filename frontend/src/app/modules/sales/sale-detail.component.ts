@@ -42,13 +42,15 @@ export class SaleDetailComponent implements OnInit {
   paymentColumns = ['method', 'amount', 'reference'];
 
   ngOnInit(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
+    const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadSale(id);
+    } else {
+      this.loading = false;
     }
   }
 
-  loadSale(id: number): void {
+  loadSale(id: string | number): void {
     this.loading = true;
     this.salesService.getById(id).subscribe({
       next: (res) => {

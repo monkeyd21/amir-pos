@@ -13,7 +13,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (branchData) {
     try {
       const branch = JSON.parse(branchData);
-      headers = headers.set('X-Branch-Id', branch.id);
+      headers = headers.set('X-Branch-Id', String(branch.id));
     } catch {
       // ignore invalid branch data
     }

@@ -57,7 +57,17 @@
               <div class="flex gap-4 items-start" [formGroupName]="$index">
                 <mat-form-field class="flex-1" appearance="outline">
                   <mat-label>Product / Variant</mat-label>
-                  <input matInput formControlName="productName" placeholder="Search or enter name" />
+                  <input matInput formControlName="productName" placeholder="Search product name..."
+                         (input)="onProductSearch($any($event.target).value)"
+                         [matAutocomplete]="prodAuto" />
+                  <mat-autocomplete #prodAuto="matAutocomplete" (optionSelected)="selectProduct($event.option.value, $index)">
+                    @for (p of productResults; track p.variantId) {
+                      <mat-option [value]="p">
+                        {{ p.productName }} - {{ p.size }}/{{ p.color }}
+                        <span class="text-xs text-slate-400 ml-2">(Stock: {{ p.stock }})</span>
+                      </mat-option>
+                    }
+                  </mat-autocomplete>
                 </mat-form-field>
                 <mat-form-field class="w-32" appearance="outline">
                   <mat-label>Quantity</mat-label>

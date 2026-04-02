@@ -14,7 +14,10 @@ export class SalesController {
 
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const sale = await salesService.getSaleById(parseInt(req.params.id));
+      const param = req.params.id;
+      const sale = /^\d+$/.test(param)
+        ? await salesService.getSaleById(parseInt(param))
+        : await salesService.getSaleBySaleNumber(param);
       res.json({ success: true, data: sale });
     } catch (error) {
       next(error);

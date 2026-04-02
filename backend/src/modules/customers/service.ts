@@ -3,15 +3,16 @@ import { AppError } from '../../middleware/errorHandler';
 import { getPagination, buildPaginationMeta } from '../../utils/helpers';
 
 export class CustomerService {
-  async list(query: { page?: string; limit?: string; search?: string }) {
+  async list(query: { page?: string; limit?: string; search?: string; query?: string }) {
     const { page, limit, skip } = getPagination(query);
     const where: any = {};
+    const searchTerm = query.search || query.query;
 
-    if (query.search) {
+    if (searchTerm) {
       where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { phone: { contains: query.search } },
+        { firstName: { contains: searchTerm, mode: 'insensitive' } },
+        { lastName: { contains: searchTerm, mode: 'insensitive' } },
+        { phone: { contains: searchTerm } },
       ];
     }
 

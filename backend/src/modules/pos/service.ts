@@ -94,11 +94,7 @@ export class PosService {
       include: { branch: true },
     });
 
-    if (!session) {
-      throw new AppError('No open session found', 404);
-    }
-
-    return session;
+    return session || null;
   }
 
   async checkout(
@@ -449,6 +445,48 @@ export class PosService {
       taxRate: Number(variant.product.taxRate),
       stock: inventory?.quantity ?? 0,
     };
+  }
+
+  async searchProducts(query: string, branchId: number) {
+    const variants = await prisma.productVariant.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { product: { name: { contains: query, mode: 'insensitive' } } },
+          { product: { brand: { name: { contains: query, mode: 'insensitive' } } } },
+          { sku: { contains: query, mode: 'insensitive' } },
+          { barcode: { contains: query } },
+        ],
+      },
+      include: {
+        product: {
+          include: {
+            brand: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+      take: 20,
+    });
+
+    const variantIds = variants.map((v) => v.id);
+    const inventories = await prisma.inventory.findMany({
+      where: { variantId: { in: variantIds }, branchId },
+    });
+    const stockMap = new Map(inventories.map((i) => [i.variantId, i.quantity]));
+
+    return variants.map((v) => ({
+      variantId: v.id,
+      barcode: v.barcode,
+      sku: v.sku,
+      size: v.size,
+      color: v.color,
+      productName: v.product.name,
+      brand: v.product.brand?.name,
+      category: v.product.category?.name,
+      price: Number(v.priceOverride ?? v.product.basePrice),
+      stock: stockMap.get(v.id) ?? 0,
+    }));
   }
 
   async holdCart(

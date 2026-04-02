@@ -10,7 +10,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { InventoryService } from './inventory.service';
+import { ApiService } from '../../core/services/api.service';
+import { Subject, debounceTime, switchMap, of } from 'rxjs';
 
 @Component({
   selector: 'app-transfer-create',
@@ -27,12 +30,14 @@ import { InventoryService } from './inventory.service';
     MatStepperModule,
     MatSnackBarModule,
     MatDividerModule,
+    MatAutocompleteModule,
   ],
   templateUrl: './transfer-create.component.html',
 })
 export class TransferCreateComponent implements OnInit {
   private fb = inject(FormBuilder);
   private inventoryService = inject(InventoryService);
+  private api = inject(ApiService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
 
@@ -40,6 +45,8 @@ export class TransferCreateComponent implements OnInit {
   itemsForm!: FormGroup;
   branches: any[] = [];
   loading = false;
+  productResults: any[] = [];
+  private searchSubject = new Subject<string>();
 
   ngOnInit(): void {
     this.branchForm = this.fb.group({
@@ -53,6 +60,25 @@ export class TransferCreateComponent implements OnInit {
     });
 
     this.loadBranches();
+    this.searchSubject.pipe(
+      debounceTime(300),
+      switchMap((q) => q.length < 2 ? of([]) : this.api.get<any>('/pos/products/search', { q }))
+    ).subscribe((res: any) => {
+      this.productResults = res?.data || [];
+    });
+  }
+
+  onProductSearch(query: string): void {
+    this.searchSubject.next(query);
+  }
+
+  selectProduct(product: any, index: number): void {
+    const item = this.items.at(index);
+    item.patchValue({
+      variantId: product.variantId,
+      productName: `${product.productName} - ${product.size}/${product.color}`,
+    });
+    this.productResults = [];
   }
 
   get items(): FormArray {

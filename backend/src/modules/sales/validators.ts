@@ -14,7 +14,7 @@ export const listSalesSchema = z.object({
 
 export const saleIdParamSchema = z.object({
   params: z.object({
-    id: z.string().regex(/^\d+$/),
+    id: z.string().min(1),
   }),
 });
 

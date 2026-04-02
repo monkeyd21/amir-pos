@@ -34,5 +34,6 @@ export const listCustomersSchema = z.object({
     page: z.string().optional(),
     limit: z.string().optional(),
     search: z.string().optional(),
+    query: z.string().optional(),
   }),
 });

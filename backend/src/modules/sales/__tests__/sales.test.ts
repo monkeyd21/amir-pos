@@ -386,4 +386,41 @@ describe('Sales Module', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // ─── GET /:id with sale number lookup ─────────────────────────
+  describe('GET /:id (sale number lookup)', () => {
+    it('should return a sale when looked up by sale number', async () => {
+      prismaMock.sale.findFirst.mockResolvedValue(fakeSale);
+
+      const res = await request(app)
+        .get(`${BASE}/SL-TEST-001`)
+        .set('Authorization', authHeader(testUsers.owner));
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.saleNumber).toBe('SL-TEST-001');
+    });
+
+    it('should return 404 for a non-existent sale number', async () => {
+      prismaMock.sale.findFirst.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get(`${BASE}/SL-NONEXIST-999`)
+        .set('Authorization', authHeader(testUsers.owner));
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should still work with a numeric id', async () => {
+      prismaMock.sale.findUnique.mockResolvedValue(fakeSale);
+
+      const res = await request(app)
+        .get(`${BASE}/1`)
+        .set('Authorization', authHeader(testUsers.owner));
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.saleNumber).toBe('SL-TEST-001');
+    });
+  });
 });

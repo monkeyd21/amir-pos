@@ -88,14 +88,30 @@ export class PosTerminalComponent implements OnInit {
   heldTransactions: HeldTransaction[] = [];
   showHeldPanel = false;
 
-  // Barcode
+  // Barcode & Product Search
   barcodeValue = '';
   loading = false;
+  productResults: any[] = [];
+  private searchTimeout: any;
 
   ngOnInit(): void {
+    this.ensureSession();
     this.setupCustomerSearch();
     this.loadHeldTransactions();
     this.focusBarcode();
+  }
+
+  private ensureSession(): void {
+    this.posService.getSession().subscribe({
+      next: (session) => {
+        if (!session) {
+          this.posService.openSession({ openingAmount: 0 }).subscribe();
+        }
+      },
+      error: () => {
+        this.posService.openSession({ openingAmount: 0 }).subscribe();
+      }
+    });
   }
 
   private setupCustomerSearch(): void {
@@ -118,6 +134,35 @@ export class PosTerminalComponent implements OnInit {
         this.barcodeInput.nativeElement.focus();
       }
     }, 100);
+  }
+
+  onSearchInput(): void {
+    const query = this.barcodeValue.trim();
+    clearTimeout(this.searchTimeout);
+
+    // Only search if it looks like a product name (not a barcode)
+    if (!query || query.length < 2 || /^\d+$/.test(query)) {
+      this.productResults = [];
+      return;
+    }
+
+    this.searchTimeout = setTimeout(() => {
+      this.posService.searchProducts(query).subscribe({
+        next: (results) => {
+          this.productResults = results || [];
+        },
+        error: () => {
+          this.productResults = [];
+        }
+      });
+    }, 300);
+  }
+
+  onProductSelected(product: any): void {
+    this.productResults = [];
+    this.addToCart(product, product.barcode);
+    this.barcodeValue = '';
+    this.focusBarcode();
   }
 
   onBarcodeScan(): void {
@@ -216,7 +261,7 @@ export class PosTerminalComponent implements OnInit {
   selectCustomer(customer: any): void {
     this.selectedCustomer = customer;
     this.loyaltyPoints = customer.loyaltyPoints || 0;
-    this.customerSearchCtrl.setValue(customer.name);
+    this.customerSearchCtrl.setValue(`${customer.firstName} ${customer.lastName}`);
     this.recalculate();
   }
 

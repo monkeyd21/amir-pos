@@ -155,6 +155,32 @@ export class InventoryService {
     });
   }
 
+  async listTransfers(query: { page?: string; limit?: string }, userBranchId: number) {
+    const { page, limit, skip } = getPagination(query);
+
+    const where: Prisma.StockTransferWhereInput = {
+      OR: [{ fromBranchId: userBranchId }, { toBranchId: userBranchId }],
+    };
+
+    const [transfers, total] = await Promise.all([
+      prisma.stockTransfer.findMany({
+        where,
+        include: {
+          items: { include: { variant: { include: { product: true } } } },
+          fromBranch: true,
+          toBranch: true,
+          creator: { select: { id: true, firstName: true, lastName: true } },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.stockTransfer.count({ where }),
+    ]);
+
+    return { data: transfers, meta: buildPaginationMeta(page, limit, total) };
+  }
+
   async createTransfer(data: {
     fromBranchId: number;
     toBranchId: number;

@@ -31,11 +31,11 @@
         </div>
         <div>
           <div class="text-sm text-slate-500">Cashier</div>
-          <div class="font-medium">{{ sale.cashierName || 'N/A' }}</div>
+          <div class="font-medium">{{ sale.user ? (sale.user.firstName + ' ' + sale.user.lastName) : 'N/A' }}</div>
         </div>
         <div>
           <div class="text-sm text-slate-500">Customer</div>
-          <div class="font-medium">{{ sale.customerName || 'Walk-in' }}</div>
+          <div class="font-medium">{{ sale.customer ? (sale.customer.firstName + ' ' + sale.customer.lastName) : 'Walk-in' }}</div>
         </div>
       </div>
     </div>
@@ -48,11 +48,11 @@
       <table mat-table [dataSource]="sale.items || []" class="w-full">
         <ng-container matColumnDef="product">
           <th mat-header-cell *matHeaderCellDef class="font-semibold">Product</th>
-          <td mat-cell *matCellDef="let item" class="font-medium">{{ item.productName || item.name }}</td>
+          <td mat-cell *matCellDef="let item" class="font-medium">{{ item.variant?.product?.name || item.productName || item.name }}</td>
         </ng-container>
         <ng-container matColumnDef="variant">
           <th mat-header-cell *matHeaderCellDef class="font-semibold">Variant</th>
-          <td mat-cell *matCellDef="let item" class="text-sm text-slate-500">{{ item.size }} / {{ item.color }}</td>
+          <td mat-cell *matCellDef="let item" class="text-sm text-slate-500">{{ item.variant?.size || item.size }} / {{ item.variant?.color || item.color }}</td>
         </ng-container>
         <ng-container matColumnDef="quantity">
           <th mat-header-cell *matHeaderCellDef class="font-semibold">Qty</th>

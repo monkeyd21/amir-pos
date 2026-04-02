@@ -8,31 +8,31 @@ export class InventoryService {
   private api = inject(ApiService);
 
   getStockLevels(params?: any): Observable<any> {
-    return this.api.get<any>('/inventory/stock', params).pipe(map(res => res.data));
+    return this.api.get<any>('/inventory', params).pipe(map(res => res.data));
   }
 
   adjustStock(data: any): Observable<any> {
-    return this.api.post<any>('/inventory/adjustments', data).pipe(map(res => res.data));
+    return this.api.post<any>('/inventory/adjust', data).pipe(map(res => res.data));
   }
 
   getTransfers(params?: any): Observable<any> {
-    return this.api.get<any>('/inventory/transfers', params).pipe(map(res => res.data));
+    return this.api.get<any>('/inventory/transfer', params).pipe(map(res => res.data));
   }
 
   getTransferById(id: number): Observable<any> {
-    return this.api.get<any>(`/inventory/transfers/${id}`).pipe(map(res => res.data));
+    return this.api.get<any>(`/inventory/transfer/${id}`).pipe(map(res => res.data));
   }
 
   createTransfer(data: any): Observable<any> {
-    return this.api.post<any>('/inventory/transfers', data).pipe(map(res => res.data));
+    return this.api.post<any>('/inventory/transfer', data).pipe(map(res => res.data));
   }
 
   approveTransfer(id: number): Observable<any> {
-    return this.api.patch<any>(`/inventory/transfers/${id}/approve`, {}).pipe(map(res => res.data));
+    return this.api.put<any>(`/inventory/transfer/${id}/approve`, {}).pipe(map(res => res.data));
   }
 
   receiveTransfer(id: number, data: any): Observable<any> {
-    return this.api.patch<any>(`/inventory/transfers/${id}/receive`, data).pipe(map(res => res.data));
+    return this.api.put<any>(`/inventory/transfer/${id}/receive`, data).pipe(map(res => res.data));
   }
 
   getBranches(): Observable<any> {
