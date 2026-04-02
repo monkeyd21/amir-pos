@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/**/*.{html,ts}'],
+  corePlugins: {
+    preflight: false, // Disable Tailwind's reset to avoid Angular Material conflicts
+  },
   theme: {
     extend: {
       colors: {

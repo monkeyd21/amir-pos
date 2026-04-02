@@ -113,6 +113,7 @@ export class SidebarComponent {
       children: [
         { label: 'Products', icon: 'category', route: '/inventory/products' },
         { label: 'Stock', icon: 'warehouse', route: '/inventory/stock' },
+        { label: 'Transfers', icon: 'swap_horiz', route: '/inventory/transfers' },
         { label: 'Barcodes', icon: 'qr_code', route: '/inventory/barcodes' },
       ]
     },
