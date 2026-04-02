@@ -96,8 +96,101 @@ html, body {
   background: #94A3B8;
 }
 
+// =============================================
 // Material overrides
+// =============================================
+
+// --- Fix Material form field styling (outlined appearance) ---
+.mat-mdc-form-field {
+  .mdc-text-field--outlined {
+    .mdc-notched-outline {
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing {
+        border-color: #e2e8f0 !important; // slate-200
+      }
+    }
+
+    &:hover .mdc-notched-outline {
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing {
+        border-color: #94a3b8 !important; // slate-400
+      }
+    }
+  }
+
+  // Fix the weird notch line in outlined fields
+  .mdc-notched-outline__notch {
+    border-right: none !important;
+  }
+}
+
+// Clean up form field spacing
+.mat-mdc-form-field-subscript-wrapper {
+  margin-bottom: 0;
+}
+
+// Better focus ring
+.mat-mdc-form-field.mat-focused {
+  .mdc-notched-outline {
+    .mdc-notched-outline__leading,
+    .mdc-notched-outline__notch,
+    .mdc-notched-outline__trailing {
+      border-color: #2563eb !important; // primary blue
+      border-width: 2px !important;
+    }
+  }
+}
+
+// Input text styling
+.mat-mdc-input-element {
+  font-size: 14px !important;
+}
+
+// Select styling
+.mat-mdc-select {
+  font-size: 14px !important;
+}
+
+// --- Button improvements ---
+.mat-mdc-raised-button.mat-primary {
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+}
+
+.mat-mdc-outlined-button {
+  border-radius: 8px !important;
+  text-transform: none !important;
+}
+
+// --- Card improvements ---
+.mat-mdc-card {
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+  border: 1px solid #e2e8f0;
+}
+
+// --- Table improvements ---
+.mat-mdc-table {
+  .mat-mdc-header-row {
+    background-color: #f8fafc;
+  }
+  .mat-mdc-row:hover {
+    background-color: #f1f5f9;
+  }
+}
+
+// --- Dialog improvements ---
+.mat-mdc-dialog-container {
+  border-radius: 12px !important;
+}
+
+// --- Snackbar improvements ---
 .mat-mdc-snack-bar-container {
+  border-radius: 8px !important;
+
   &.snackbar-success .mdc-snackbar__surface {
     background-color: var(--success) !important;
   }
