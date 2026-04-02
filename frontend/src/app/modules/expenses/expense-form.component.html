@@ -1,0 +1,89 @@
+<div class="p-6 max-w-3xl mx-auto">
+  <div class="flex items-center gap-3 mb-6">
+    <button mat-icon-button (click)="cancel()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">{{ mode === 'add' ? 'Add Expense' : 'Edit Expense' }}</h1>
+      <p class="text-slate-500">{{ mode === 'add' ? 'Record a new expense' : 'Update expense details' }}</p>
+    </div>
+  </div>
+
+  @if (loading && mode === 'edit') {
+    <div class="flex justify-center p-12">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+  } @else {
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <form [formGroup]="form" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Date</mat-label>
+            <input matInput [matDatepicker]="picker" formControlName="date" />
+            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-datepicker #picker></mat-datepicker>
+            @if (form.get('date')?.hasError('required') && form.get('date')?.touched) {
+              <mat-error>Date is required</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="categoryId">
+              @for (cat of categories; track cat.id) {
+                <mat-option [value]="cat.id">{{ cat.name }}</mat-option>
+              }
+            </mat-select>
+            @if (form.get('categoryId')?.hasError('required') && form.get('categoryId')?.touched) {
+              <mat-error>Category is required</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <mat-form-field class="w-full" appearance="outline">
+          <mat-label>Amount</mat-label>
+          <input matInput type="number" formControlName="amount" />
+          <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+          @if (form.get('amount')?.hasError('required') && form.get('amount')?.touched) {
+            <mat-error>Amount is required</mat-error>
+          }
+          @if (form.get('amount')?.hasError('min') && form.get('amount')?.touched) {
+            <mat-error>Amount must be greater than 0</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field class="w-full" appearance="outline">
+          <mat-label>Description</mat-label>
+          <input matInput formControlName="description" />
+          @if (form.get('description')?.hasError('required') && form.get('description')?.touched) {
+            <mat-error>Description is required</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="grid grid-cols-2 gap-4">
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Vendor</mat-label>
+            <input matInput formControlName="vendor" />
+          </mat-form-field>
+
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Receipt Number</mat-label>
+            <input matInput formControlName="receiptNumber" />
+          </mat-form-field>
+        </div>
+
+        <mat-form-field class="w-full" appearance="outline">
+          <mat-label>Notes</mat-label>
+          <textarea matInput formControlName="notes" rows="3"></textarea>
+        </mat-form-field>
+
+        <div class="flex justify-end gap-3 pt-4">
+          <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
+          <button mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+            {{ loading ? 'Saving...' : (mode === 'add' ? 'Create Expense' : 'Update Expense') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  }
+</div>

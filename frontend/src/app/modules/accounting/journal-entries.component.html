@@ -1,0 +1,147 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Journal Entries</h1>
+      <p class="text-slate-500">Record and view journal entries</p>
+    </div>
+    <button mat-flat-button color="primary" (click)="toggleForm()">
+      <mat-icon>{{ showForm ? 'close' : 'add' }}</mat-icon>
+      {{ showForm ? 'Cancel' : 'New Entry' }}
+    </button>
+  </div>
+
+  <!-- New Entry Form -->
+  @if (showForm) {
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+      <h3 class="text-lg font-semibold text-slate-700 mb-4">New Journal Entry</h3>
+      <form [formGroup]="form" class="space-y-4">
+        <div class="grid grid-cols-3 gap-4">
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Date</mat-label>
+            <input matInput [matDatepicker]="picker" formControlName="date" />
+            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-datepicker #picker></mat-datepicker>
+          </mat-form-field>
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Reference</mat-label>
+            <input matInput formControlName="reference" />
+          </mat-form-field>
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Description</mat-label>
+            <input matInput formControlName="description" />
+          </mat-form-field>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-semibold text-slate-700">Lines</h4>
+          <button mat-stroked-button type="button" (click)="addLine()">
+            <mat-icon>add</mat-icon> Add Line
+          </button>
+        </div>
+
+        <div formArrayName="lines">
+          @for (line of lines.controls; track $index) {
+            <div [formGroupName]="$index" class="grid grid-cols-[1fr_1fr_120px_120px_40px] gap-3 items-start mb-3">
+              <mat-form-field appearance="outline">
+                <mat-label>Account</mat-label>
+                <mat-select formControlName="accountId">
+                  @for (acc of accounts; track acc.id) {
+                    <mat-option [value]="acc.id">{{ acc.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Description</mat-label>
+                <input matInput formControlName="description" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Debit</mat-label>
+                <input matInput type="number" formControlName="debit" min="0" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Credit</mat-label>
+                <input matInput type="number" formControlName="credit" min="0" />
+              </mat-form-field>
+              <button mat-icon-button color="warn" (click)="removeLine($index)" [disabled]="lines.length <= 2" class="mt-1">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Totals -->
+        <div class="flex justify-end gap-8 text-sm font-semibold border-t border-slate-200 pt-3">
+          <div>
+            <span class="text-slate-500">Total Debit: </span>
+            <span class="font-mono text-slate-800">{{ totalDebit | currency:'INR':'symbol':'1.2-2' }}</span>
+          </div>
+          <div>
+            <span class="text-slate-500">Total Credit: </span>
+            <span class="font-mono text-slate-800">{{ totalCredit | currency:'INR':'symbol':'1.2-2' }}</span>
+          </div>
+          <div [class]="isBalanced ? 'text-green-600' : 'text-red-500'">
+            {{ isBalanced ? 'Balanced' : 'Not Balanced' }}
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4">
+          <button mat-stroked-button type="button" (click)="toggleForm()">Cancel</button>
+          <button mat-flat-button color="primary" (click)="save()" [disabled]="loading || !isBalanced">
+            {{ loading ? 'Saving...' : 'Create Entry' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  }
+
+  <!-- Entries Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading && !showForm) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Date</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.date | date:'mediumDate' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="reference">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Reference</th>
+          <td mat-cell *matCellDef="let row" class="font-mono text-sm">{{ row.reference || '-' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="description">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Description</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-600">{{ row.description }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="totalDebit">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Debit</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.totalDebit | currency:'INR':'symbol':'1.2-2' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="totalCredit">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Credit</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.totalCredit | currency:'INR':'symbol':'1.2-2' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-700">
+              {{ row.status || 'Posted' }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    }
+  </div>
+</div>

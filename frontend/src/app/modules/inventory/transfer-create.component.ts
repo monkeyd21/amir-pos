@@ -61,7 +61,7 @@ export class TransferCreateComponent implements OnInit {
 
   loadBranches(): void {
     this.inventoryService.getBranches().subscribe({
-      next: (res) => (this.branches = res.data || res || []),
+      next: (res) => (this.branches = Array.isArray(res) ? res : []),
     });
   }
 

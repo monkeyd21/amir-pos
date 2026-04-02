@@ -65,7 +65,7 @@ export class CommissionsComponent implements OnInit {
 
     this.employeeService.getCommissions(params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {
@@ -75,7 +75,7 @@ export class CommissionsComponent implements OnInit {
 
     this.employeeService.getCommissionSummary(params).subscribe({
       next: (res) => {
-        this.summaryCards = res.data || res || [];
+        this.summaryCards = Array.isArray(res) ? res : [];
       },
     });
   }

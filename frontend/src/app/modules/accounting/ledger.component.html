@@ -1,0 +1,81 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">General Ledger</h1>
+      <p class="text-slate-500">View account transactions</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+    <div class="flex flex-wrap gap-4 items-end">
+      <mat-form-field class="flex-1 min-w-[200px]" appearance="outline">
+        <mat-label>Search</mat-label>
+        <input matInput [formControl]="searchCtrl" placeholder="Description..." />
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+      <mat-form-field class="w-64" appearance="outline">
+        <mat-label>Account</mat-label>
+        <mat-select [(ngModel)]="accountFilter" (selectionChange)="applyFilter()">
+          <mat-option value="">All Accounts</mat-option>
+          @for (acc of accounts; track acc.id) {
+            <mat-option [value]="acc.id">{{ acc.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Date</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.date | date:'mediumDate' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="account">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Account</th>
+          <td mat-cell *matCellDef="let row" class="font-medium text-slate-800">{{ row.accountName || row.account?.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="description">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Description</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-600">{{ row.description }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="debit">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Debit</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">
+            @if (row.debit > 0) {
+              {{ row.debit | currency:'INR':'symbol':'1.2-2' }}
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="credit">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Credit</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">
+            @if (row.credit > 0) {
+              {{ row.credit | currency:'INR':'symbol':'1.2-2' }}
+            }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="balance">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Balance</th>
+          <td mat-cell *matCellDef="let row" class="font-mono font-bold">{{ row.balance | currency:'INR':'symbol':'1.2-2' }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    }
+  </div>
+</div>

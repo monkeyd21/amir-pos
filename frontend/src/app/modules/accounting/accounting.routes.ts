@@ -1,6 +1,11 @@
 import { Routes } from '@angular/router';
-import { PlaceholderComponent } from '../placeholder.component';
+import { LedgerComponent } from './ledger.component';
+import { JournalEntriesComponent } from './journal-entries.component';
+import { PnlStatementComponent } from './pnl-statement.component';
 
 export const ACCOUNTING_ROUTES: Routes = [
-  { path: '', component: PlaceholderComponent, data: { title: 'Accounting', icon: 'calculate' } },
+  { path: '', redirectTo: 'ledger', pathMatch: 'full' },
+  { path: 'ledger', component: LedgerComponent },
+  { path: 'journal-entries', component: JournalEntriesComponent },
+  { path: 'pnl', component: PnlStatementComponent },
 ];

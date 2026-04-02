@@ -42,4 +42,12 @@ export class ExpenseService {
   deleteCategory(id: number): Observable<any> {
     return this.api.delete<any>(`/expense-categories/${id}`).pipe(map(res => res.data));
   }
+
+  approve(id: number): Observable<any> {
+    return this.api.patch<any>(`/expenses/${id}/approve`, {}).pipe(map(res => res.data));
+  }
+
+  reject(id: number): Observable<any> {
+    return this.api.patch<any>(`/expenses/${id}/reject`, {}).pipe(map(res => res.data));
+  }
 }

@@ -45,7 +45,7 @@ export class BarcodesComponent {
     this.lookupLoading = true;
     this.barcodeService.lookup(this.lookupValue.trim()).subscribe({
       next: (res) => {
-        this.lookupResult = res.data || res;
+        this.lookupResult = res;
         this.lookupLoading = false;
       },
       error: () => {
@@ -72,7 +72,7 @@ export class BarcodesComponent {
 
     this.barcodeService.bulkGenerate([...this.selectedVariants]).subscribe({
       next: (res) => {
-        this.printItems = res.data || res || [];
+        this.printItems = Array.isArray(res) ? res : [];
         setTimeout(() => window.print(), 500);
       },
       error: () => {

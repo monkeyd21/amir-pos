@@ -72,8 +72,9 @@
       </button>
     </div>
 
+    <div formArrayName="variants">
     @for (variant of variants.controls; track $index) {
-      <div class="border border-slate-200 rounded-lg p-3 relative" [formGroupName]="$index" formArrayName="variants">
+      <div class="border border-slate-200 rounded-lg p-3 relative mb-3" [formGroupName]="$index">
         <button mat-icon-button color="warn" (click)="removeVariant($index)" class="absolute top-1 right-1 scale-75">
           <mat-icon>close</mat-icon>
         </button>
@@ -111,6 +112,7 @@
         </div>
       </div>
     }
+    </div>
 
     @if (variants.length === 0) {
       <div class="text-center text-slate-400 py-4">

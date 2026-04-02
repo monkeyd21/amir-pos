@@ -1,0 +1,66 @@
+<div class="p-6 max-w-3xl mx-auto">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">Expense Categories</h1>
+    <p class="text-slate-500">Manage expense categories</p>
+  </div>
+
+  <!-- Add/Edit Form -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-700 mb-4">
+      {{ editingId ? 'Edit Category' : 'Add Category' }}
+    </h3>
+    <form [formGroup]="form" class="flex gap-4 items-start">
+      <mat-form-field class="flex-1" appearance="outline">
+        <mat-label>Category Name</mat-label>
+        <input matInput formControlName="name" />
+        @if (form.get('name')?.hasError('required') && form.get('name')?.touched) {
+          <mat-error>Name is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="flex-1" appearance="outline">
+        <mat-label>Description</mat-label>
+        <input matInput formControlName="description" />
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="save()" class="mt-1">
+        {{ editingId ? 'Update' : 'Add' }}
+      </button>
+      @if (editingId) {
+        <button mat-stroked-button (click)="resetForm()" class="mt-1">Cancel</button>
+      }
+    </form>
+  </div>
+
+  <!-- Category List -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else if (categories.length === 0) {
+      <div class="text-center text-slate-400 py-12">No categories yet. Add one above.</div>
+    } @else {
+      <mat-list>
+        @for (cat of categories; track cat.id) {
+          <mat-list-item>
+            <div class="flex items-center justify-between w-full py-2">
+              <div>
+                <div class="font-medium text-slate-800">{{ cat.name }}</div>
+                @if (cat.description) {
+                  <div class="text-sm text-slate-500">{{ cat.description }}</div>
+                }
+              </div>
+              <div class="flex gap-1">
+                <button mat-icon-button (click)="editCategory(cat)">
+                  <mat-icon class="text-slate-500">edit</mat-icon>
+                </button>
+                <button mat-icon-button (click)="deleteCategory(cat)">
+                  <mat-icon class="text-red-500">delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          </mat-list-item>
+        }
+      </mat-list>
+    }
+  </div>
+</div>

@@ -64,7 +64,7 @@ export class TransfersComponent implements OnInit {
 
     this.inventoryService.getTransfers(params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {
