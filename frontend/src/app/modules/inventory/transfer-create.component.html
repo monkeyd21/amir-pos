@@ -1,0 +1,120 @@
+<div class="p-6 max-w-4xl mx-auto">
+  <div class="flex items-center gap-3 mb-6">
+    <button mat-icon-button (click)="cancel()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Create Stock Transfer</h1>
+      <p class="text-slate-500">Transfer inventory between branches</p>
+    </div>
+  </div>
+
+  <mat-stepper linear #stepper class="bg-white rounded-xl shadow-sm border border-slate-200">
+    <!-- Step 1: Select Branches -->
+    <mat-step [stepControl]="branchForm" label="Select Branches">
+      <form [formGroup]="branchForm" class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>From Branch</mat-label>
+            <mat-select formControlName="fromBranchId">
+              @for (branch of branches; track branch.id) {
+                <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>To Branch</mat-label>
+            <mat-select formControlName="toBranchId">
+              @for (branch of branches; track branch.id) {
+                <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+        <mat-form-field class="w-full" appearance="outline">
+          <mat-label>Notes</mat-label>
+          <textarea matInput formControlName="notes" rows="2"></textarea>
+        </mat-form-field>
+        <div class="flex justify-end">
+          <button mat-flat-button color="primary" matStepperNext [disabled]="branchForm.invalid">Next</button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 2: Add Items -->
+    <mat-step label="Add Items">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-slate-700">Transfer Items</h3>
+          <button mat-stroked-button (click)="addItem()">
+            <mat-icon>add</mat-icon> Add Item
+          </button>
+        </div>
+
+        <form [formGroup]="itemsForm">
+          @for (item of items.controls; track $index; let i = $index) {
+            <div class="border border-slate-200 rounded-lg p-4 mb-3" formArrayName="items">
+              <div class="flex gap-4 items-start" [formGroupName]="i">
+                <mat-form-field class="flex-1" appearance="outline">
+                  <mat-label>Product / Variant</mat-label>
+                  <input matInput formControlName="productName" placeholder="Search or enter name" />
+                </mat-form-field>
+                <mat-form-field class="w-32" appearance="outline">
+                  <mat-label>Quantity</mat-label>
+                  <input matInput type="number" formControlName="quantity" min="1" />
+                </mat-form-field>
+                <button mat-icon-button color="warn" (click)="removeItem(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (items.length === 0) {
+            <div class="text-center text-slate-400 py-8">
+              No items added. Click "Add Item" to start.
+            </div>
+          }
+        </form>
+
+        <mat-divider class="my-4"></mat-divider>
+        <div class="flex justify-between">
+          <button mat-stroked-button matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" matStepperNext [disabled]="items.length === 0">Next</button>
+        </div>
+      </div>
+    </mat-step>
+
+    <!-- Step 3: Review & Submit -->
+    <mat-step label="Review & Submit">
+      <div class="p-6">
+        <h3 class="text-lg font-semibold text-slate-700 mb-4">Review Transfer</h3>
+        <div class="bg-slate-50 rounded-lg p-4 mb-4 grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-sm text-slate-500">From Branch</div>
+            <div class="font-medium">{{ branchForm.value.fromBranchId }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">To Branch</div>
+            <div class="font-medium">{{ branchForm.value.toBranchId }}</div>
+          </div>
+        </div>
+
+        <div class="text-sm font-medium text-slate-600 mb-2">Items ({{ items.length }})</div>
+        @for (item of items.controls; track $index) {
+          <div class="flex justify-between border-b border-slate-100 py-2">
+            <span>{{ item.value.productName || 'Item ' + ($index + 1) }}</span>
+            <span class="font-mono">x{{ item.value.quantity }}</span>
+          </div>
+        }
+
+        <div class="flex justify-between mt-6">
+          <button mat-stroked-button matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" (click)="submit()" [disabled]="loading">
+            {{ loading ? 'Submitting...' : 'Submit Transfer' }}
+          </button>
+        </div>
+      </div>
+    </mat-step>
+  </mat-stepper>
+</div>

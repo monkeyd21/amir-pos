@@ -1,0 +1,128 @@
+<h2 mat-dialog-title class="text-xl font-bold text-slate-800">
+  {{ mode === 'add' ? 'Add Product' : 'Edit Product' }}
+</h2>
+
+<mat-dialog-content class="max-h-[70vh]">
+  <form [formGroup]="form" class="space-y-4 pt-2">
+    <!-- Basic Info -->
+    <div class="grid grid-cols-2 gap-4">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Product Name</mat-label>
+        <input matInput formControlName="name" />
+        @if (form.get('name')?.hasError('required') && form.get('name')?.touched) {
+          <mat-error>Name is required</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>SKU</mat-label>
+        <input matInput formControlName="sku" />
+        @if (form.get('sku')?.hasError('required') && form.get('sku')?.touched) {
+          <mat-error>SKU is required</mat-error>
+        }
+      </mat-form-field>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Brand</mat-label>
+        <mat-select formControlName="brandId">
+          @for (brand of brands; track brand.id) {
+            <mat-option [value]="brand.id">{{ brand.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Category</mat-label>
+        <mat-select formControlName="categoryId">
+          @for (cat of categories; track cat.id) {
+            <mat-option [value]="cat.id">{{ cat.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Description</mat-label>
+      <textarea matInput formControlName="description" rows="2"></textarea>
+    </mat-form-field>
+
+    <div class="grid grid-cols-3 gap-4">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Base Price</mat-label>
+        <input matInput type="number" formControlName="basePrice" />
+        <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Cost Price</mat-label>
+        <input matInput type="number" formControlName="costPrice" />
+        <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Tax Rate (%)</mat-label>
+        <input matInput type="number" formControlName="taxRate" />
+      </mat-form-field>
+    </div>
+
+    <!-- Variants Section -->
+    <mat-divider></mat-divider>
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-slate-700">Variants</h3>
+      <button mat-stroked-button type="button" (click)="addVariant()">
+        <mat-icon>add</mat-icon> Add Variant
+      </button>
+    </div>
+
+    @for (variant of variants.controls; track $index; let i = $index) {
+      <div class="border border-slate-200 rounded-lg p-3 relative" [formGroupName]="i" formArrayName="variants">
+        <button mat-icon-button color="warn" (click)="removeVariant(i)" class="absolute top-1 right-1 scale-75">
+          <mat-icon>close</mat-icon>
+        </button>
+        <div class="grid grid-cols-3 gap-3">
+          <mat-form-field appearance="outline">
+            <mat-label>Size</mat-label>
+            <mat-select formControlName="size">
+              @for (s of sizes; track s) {
+                <mat-option [value]="s">{{ s }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Color</mat-label>
+            <mat-select formControlName="color">
+              @for (c of colors; track c) {
+                <mat-option [value]="c">{{ c }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Price Adjustment</mat-label>
+            <input matInput type="number" formControlName="priceAdjustment" />
+          </mat-form-field>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <mat-form-field appearance="outline">
+            <mat-label>Variant SKU</mat-label>
+            <input matInput formControlName="sku" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Barcode</mat-label>
+            <input matInput formControlName="barcode" />
+          </mat-form-field>
+        </div>
+      </div>
+    }
+
+    @if (variants.length === 0) {
+      <div class="text-center text-slate-400 py-4">
+        No variants added. Click "Add Variant" to create size/color combinations.
+      </div>
+    }
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="pt-4">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+    {{ loading ? 'Saving...' : (mode === 'add' ? 'Create Product' : 'Update Product') }}
+  </button>
+</mat-dialog-actions>

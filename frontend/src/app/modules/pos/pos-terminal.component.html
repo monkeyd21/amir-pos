@@ -1,0 +1,342 @@
+<div class="h-screen flex flex-col bg-slate-50">
+  <!-- Top Bar -->
+  <div class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <button mat-icon-button (click)="exitPos()" matTooltip="Back to Dashboard">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <h1 class="text-xl font-bold text-slate-800">POS Terminal</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <button mat-stroked-button (click)="showHeldPanel = !showHeldPanel" class="relative">
+        <mat-icon>pause_circle</mat-icon>
+        <span class="ml-1">Held ({{ heldTransactions.length }})</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Panel - Cart (60%) -->
+    <div class="w-[60%] flex flex-col border-r border-slate-200 bg-white">
+      <!-- Barcode Input -->
+      <div class="p-4 border-b border-slate-100">
+        <mat-form-field class="w-full" appearance="outline">
+          <mat-label>Scan Barcode</mat-label>
+          <input
+            matInput
+            #barcodeInput
+            [(ngModel)]="barcodeValue"
+            (keyup.enter)="onBarcodeScan()"
+            placeholder="Scan or type barcode..."
+            class="text-lg"
+            autocomplete="off"
+          />
+          <mat-icon matSuffix class="text-slate-400">qr_code_scanner</mat-icon>
+        </mat-form-field>
+      </div>
+
+      <!-- Cart Items Table -->
+      <div class="flex-1 overflow-auto px-4">
+        @if (cartItems.length === 0) {
+          <div class="flex flex-col items-center justify-center h-full text-slate-400">
+            <mat-icon class="text-6xl mb-4" style="font-size: 64px; width: 64px; height: 64px;">shopping_cart</mat-icon>
+            <p class="text-lg">Scan a barcode to add items</p>
+          </div>
+        } @else {
+          <table mat-table [dataSource]="cartItems" class="w-full">
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Product</th>
+              <td mat-cell *matCellDef="let item">
+                <div class="font-medium text-slate-800">{{ item.name }}</div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="variant">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Variant</th>
+              <td mat-cell *matCellDef="let item">
+                <span class="text-sm text-slate-500">{{ item.variant }}</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="unitPrice">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Price</th>
+              <td mat-cell *matCellDef="let item" class="font-mono">
+                {{ item.unitPrice | currency:'INR':'symbol':'1.2-2' }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="quantity">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Qty</th>
+              <td mat-cell *matCellDef="let item; let i = index">
+                <div class="flex items-center gap-1">
+                  <button mat-icon-button color="primary" (click)="updateQuantity(i, -1)" class="scale-75">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
+                  <span class="font-bold text-lg w-8 text-center">{{ item.quantity }}</span>
+                  <button mat-icon-button color="primary" (click)="updateQuantity(i, 1)" class="scale-75">
+                    <mat-icon>add_circle_outline</mat-icon>
+                  </button>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="total">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Total</th>
+              <td mat-cell *matCellDef="let item" class="font-mono font-semibold">
+                {{ item.total | currency:'INR':'symbol':'1.2-2' }}
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let item; let i = index">
+                <button mat-icon-button color="warn" (click)="removeItem(i)" matTooltip="Remove">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+          </table>
+        }
+      </div>
+
+      <!-- Totals -->
+      <div class="border-t border-slate-200 p-4 bg-slate-50">
+        <div class="flex justify-between text-sm text-slate-600 mb-1">
+          <span>Subtotal</span>
+          <span class="font-mono">{{ subtotal | currency:'INR':'symbol':'1.2-2' }}</span>
+        </div>
+        <div class="flex justify-between text-sm text-slate-600 mb-1">
+          <span>Tax ({{ taxRate * 100 }}%)</span>
+          <span class="font-mono">{{ taxAmount | currency:'INR':'symbol':'1.2-2' }}</span>
+        </div>
+        @if (discountAmount > 0) {
+          <div class="flex justify-between text-sm text-green-600 mb-1">
+            <span>Discount</span>
+            <span class="font-mono">-{{ discountAmount | currency:'INR':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+        @if (loyaltyDiscount > 0) {
+          <div class="flex justify-between text-sm text-purple-600 mb-1">
+            <span>Loyalty Discount</span>
+            <span class="font-mono">-{{ loyaltyDiscount | currency:'INR':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+        <mat-divider class="my-2"></mat-divider>
+        <div class="flex justify-between text-xl font-bold text-slate-800">
+          <span>Total</span>
+          <span class="font-mono text-blue-600">{{ total | currency:'INR':'symbol':'1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel - Actions (40%) -->
+    <div class="w-[40%] flex flex-col overflow-auto bg-white">
+      <!-- Customer Section -->
+      <div class="p-4 border-b border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Customer</h3>
+        @if (!selectedCustomer) {
+          <mat-form-field class="w-full" appearance="outline">
+            <mat-label>Search customer (name/phone)</mat-label>
+            <input matInput [formControl]="customerSearchCtrl" [matAutocomplete]="customerAuto" />
+            <mat-icon matSuffix>person_search</mat-icon>
+          </mat-form-field>
+          <mat-autocomplete #customerAuto="matAutocomplete" (optionSelected)="selectCustomer($event.option.value)">
+            @for (c of customerResults; track c.id) {
+              <mat-option [value]="c">
+                <span class="font-medium">{{ c.name }}</span>
+                <span class="text-sm text-slate-500 ml-2">{{ c.phone }}</span>
+              </mat-option>
+            }
+          </mat-autocomplete>
+        } @else {
+          <div class="flex items-center justify-between bg-blue-50 rounded-lg p-3">
+            <div>
+              <div class="font-medium text-slate-800">{{ selectedCustomer.name }}</div>
+              <div class="text-sm text-slate-500">{{ selectedCustomer.phone || selectedCustomer.email }}</div>
+              @if (loyaltyPoints > 0) {
+                <div class="text-sm text-purple-600 mt-1">
+                  <mat-icon class="text-sm align-middle" style="font-size: 16px; width: 16px; height: 16px;">stars</mat-icon>
+                  {{ loyaltyPoints }} loyalty points
+                </div>
+              }
+            </div>
+            <button mat-icon-button (click)="clearCustomer()" matTooltip="Remove customer">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+          @if (loyaltyPoints > 0) {
+            <div class="mt-2">
+              <mat-slide-toggle [(ngModel)]="redeemLoyalty" (change)="recalculate()">
+                Redeem loyalty points
+              </mat-slide-toggle>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Discount Section -->
+      <div class="p-4 border-b border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Discount</h3>
+        <div class="flex gap-2">
+          <mat-form-field class="flex-1" appearance="outline">
+            <mat-label>Value</mat-label>
+            <input matInput type="number" [(ngModel)]="discountValue" (ngModelChange)="onDiscountChange()" min="0" />
+          </mat-form-field>
+          <mat-form-field class="w-32" appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="discountType" (ngModelChange)="onDiscountChange()">
+              <mat-option value="percent">%</mat-option>
+              <mat-option value="flat">Flat</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <!-- Payment Section -->
+      <div class="p-4 flex-1">
+        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Payment</h3>
+        <div class="bg-blue-50 rounded-lg p-3 mb-3 text-center">
+          <div class="text-sm text-slate-500">Amount Due</div>
+          <div class="text-2xl font-bold text-blue-600 font-mono">{{ total | currency:'INR':'symbol':'1.2-2' }}</div>
+        </div>
+
+        <mat-tab-group [(selectedIndex)]="paymentTabIndex" (selectedIndexChange)="onPaymentTabChange($event)">
+          <!-- Cash -->
+          <mat-tab label="Cash">
+            <div class="pt-3">
+              <mat-form-field class="w-full" appearance="outline">
+                <mat-label>Cash Amount</mat-label>
+                <input matInput type="number" [(ngModel)]="cashAmount" (ngModelChange)="calculateChange()" min="0" />
+                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+              </mat-form-field>
+              <div class="flex gap-2 mb-3">
+                <button mat-stroked-button (click)="cashAmount = total; calculateChange()" class="flex-1">Exact</button>
+                <button mat-stroked-button (click)="cashAmount = Math.ceil(total / 100) * 100; calculateChange()" class="flex-1">Round Up</button>
+                <button mat-stroked-button (click)="cashAmount = Math.ceil(total / 500) * 500; calculateChange()" class="flex-1">500</button>
+              </div>
+              @if (changeDue > 0) {
+                <div class="bg-green-50 rounded-lg p-3 text-center">
+                  <div class="text-sm text-green-600">Change Due</div>
+                  <div class="text-xl font-bold text-green-700 font-mono">{{ changeDue | currency:'INR':'symbol':'1.2-2' }}</div>
+                </div>
+              }
+            </div>
+          </mat-tab>
+
+          <!-- Card -->
+          <mat-tab label="Card">
+            <div class="pt-3">
+              <mat-form-field class="w-full" appearance="outline">
+                <mat-label>Card Amount</mat-label>
+                <input matInput type="number" [(ngModel)]="cardAmount" (ngModelChange)="calculateChange()" min="0" />
+                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+              </mat-form-field>
+              <mat-form-field class="w-full" appearance="outline">
+                <mat-label>Reference Number</mat-label>
+                <input matInput [(ngModel)]="cardReference" placeholder="Last 4 digits / Auth code" />
+              </mat-form-field>
+              <button mat-stroked-button (click)="cardAmount = total - cashAmount - upiAmount; calculateChange()" class="w-full">
+                Pay Remaining ({{ (total - cashAmount - upiAmount) | currency:'INR':'symbol':'1.2-2' }})
+              </button>
+            </div>
+          </mat-tab>
+
+          <!-- UPI -->
+          <mat-tab label="UPI">
+            <div class="pt-3">
+              <mat-form-field class="w-full" appearance="outline">
+                <mat-label>UPI Amount</mat-label>
+                <input matInput type="number" [(ngModel)]="upiAmount" (ngModelChange)="calculateChange()" min="0" />
+                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
+              </mat-form-field>
+              <mat-form-field class="w-full" appearance="outline">
+                <mat-label>UPI Reference</mat-label>
+                <input matInput [(ngModel)]="upiReference" placeholder="Transaction ID" />
+              </mat-form-field>
+              <button mat-stroked-button (click)="upiAmount = total - cashAmount - cardAmount; calculateChange()" class="w-full">
+                Pay Remaining ({{ (total - cashAmount - cardAmount) | currency:'INR':'symbol':'1.2-2' }})
+              </button>
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+
+        <!-- Payment Summary -->
+        @if (totalPaid > 0) {
+          <div class="mt-3 text-sm">
+            <div class="flex justify-between text-slate-600">
+              <span>Total Paid</span>
+              <span class="font-mono font-medium">{{ totalPaid | currency:'INR':'symbol':'1.2-2' }}</span>
+            </div>
+            <div class="flex justify-between" [class]="paymentComplete ? 'text-green-600' : 'text-red-500'">
+              <span>{{ paymentComplete ? 'Payment Complete' : 'Remaining' }}</span>
+              <span class="font-mono font-medium">
+                {{ paymentComplete ? '' : ((total - totalPaid) | currency:'INR':'symbol':'1.2-2') }}
+                {{ paymentComplete ? 'OK' : '' }}
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="p-4 border-t border-slate-200 bg-slate-50">
+        <div class="flex gap-2">
+          <button mat-stroked-button (click)="holdCart()" [disabled]="cartItems.length === 0" class="flex-1">
+            <mat-icon>pause</mat-icon> Hold
+          </button>
+          <button mat-stroked-button color="warn" (click)="clearCart()" [disabled]="cartItems.length === 0" class="flex-1">
+            <mat-icon>clear</mat-icon> Clear
+          </button>
+        </div>
+        <button
+          mat-flat-button
+          color="primary"
+          (click)="checkout()"
+          [disabled]="!paymentComplete || loading"
+          class="w-full mt-2 h-12 text-lg"
+        >
+          <mat-icon>shopping_cart_checkout</mat-icon>
+          <span class="ml-1">Checkout</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Held Transactions Panel -->
+    @if (showHeldPanel) {
+      <div class="absolute right-0 top-14 w-80 h-[calc(100vh-56px)] bg-white shadow-xl border-l border-slate-200 z-50 flex flex-col">
+        <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="font-semibold text-slate-800">Held Transactions</h3>
+          <button mat-icon-button (click)="showHeldPanel = false">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="flex-1 overflow-auto">
+          @if (heldTransactions.length === 0) {
+            <div class="p-4 text-center text-slate-400">No held transactions</div>
+          }
+          @for (held of heldTransactions; track held.id) {
+            <div class="p-3 border-b border-slate-100 hover:bg-slate-50">
+              <div class="flex justify-between items-start mb-1">
+                <div>
+                  <div class="font-medium text-slate-800">{{ held.customerName || 'Walk-in' }}</div>
+                  <div class="text-sm text-slate-500">{{ held.items?.length || 0 }} items</div>
+                </div>
+                <span class="font-mono font-bold text-blue-600">{{ held.total | currency:'INR':'symbol':'1.2-2' }}</span>
+              </div>
+              <div class="flex gap-2 mt-2">
+                <button mat-stroked-button color="primary" (click)="resumeHeld(held)" class="flex-1 text-sm">Resume</button>
+                <button mat-stroked-button color="warn" (click)="deleteHeld(held)" class="text-sm">
+                  <mat-icon class="scale-75">delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

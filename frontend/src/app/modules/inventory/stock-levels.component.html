@@ -1,0 +1,84 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Stock Levels</h1>
+      <p class="text-slate-500">Monitor inventory across branches</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+    <div class="flex flex-wrap gap-4 items-center">
+      <mat-form-field class="w-48" appearance="outline">
+        <mat-label>Branch</mat-label>
+        <mat-select [(ngModel)]="branchFilter" (selectionChange)="applyFilter()">
+          <mat-option value="">All Branches</mat-option>
+          @for (branch of branches; track branch.id) {
+            <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-slide-toggle [(ngModel)]="lowStockOnly" (change)="applyFilter()">
+        Low Stock Only
+      </mat-slide-toggle>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <ng-container matColumnDef="product">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Product</th>
+          <td mat-cell *matCellDef="let row" class="font-medium text-slate-800">{{ row.productName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="variant">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Variant</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.size }} / {{ row.color }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="branch">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Branch</th>
+          <td mat-cell *matCellDef="let row">{{ row.branchName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="quantity">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Quantity</th>
+          <td mat-cell *matCellDef="let row" class="font-mono font-bold">{{ row.quantity }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="minLevel">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Min Level</th>
+          <td mat-cell *matCellDef="let row" class="font-mono text-slate-500">{{ row.minLevel }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="text-xs font-medium px-2 py-1 rounded-full" [class]="getStockStatusClass(row)">
+              {{ getStockStatus(row) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <button mat-stroked-button color="primary" (click)="openAdjustDialog(row)" class="text-sm">
+              Adjust
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    }
+  </div>
+</div>

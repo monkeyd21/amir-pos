@@ -1,0 +1,80 @@
+<div class="p-6">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">Barcode Management</h1>
+    <p class="text-slate-500">Lookup and print barcodes</p>
+  </div>
+
+  <!-- Lookup Section -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-700 mb-4">Barcode Lookup</h3>
+    <div class="flex gap-4 items-end">
+      <mat-form-field class="flex-1" appearance="outline">
+        <mat-label>Scan or enter barcode</mat-label>
+        <input matInput [(ngModel)]="lookupValue" (keyup.enter)="lookup()" placeholder="Enter barcode..." />
+        <mat-icon matSuffix>qr_code_scanner</mat-icon>
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="lookup()" [disabled]="lookupLoading" class="h-14">
+        {{ lookupLoading ? 'Searching...' : 'Lookup' }}
+      </button>
+    </div>
+
+    @if (lookupResult) {
+      <div class="mt-4 bg-slate-50 rounded-lg p-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-sm text-slate-500">Product</div>
+            <div class="font-medium text-slate-800">{{ lookupResult.productName || lookupResult.name }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">Variant</div>
+            <div class="font-medium">{{ lookupResult.size }} / {{ lookupResult.color }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">SKU</div>
+            <div class="font-mono text-sm">{{ lookupResult.sku }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">Price</div>
+            <div class="font-mono font-bold text-blue-600">{{ lookupResult.price | currency:'INR':'symbol':'1.2-2' }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">Stock</div>
+            <div class="font-bold">{{ lookupResult.stock || lookupResult.quantity || 'N/A' }}</div>
+          </div>
+          <div>
+            <div class="text-sm text-slate-500">Barcode</div>
+            <div class="font-mono text-sm">{{ lookupResult.barcode }}</div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Bulk Print Section -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold text-slate-700">Bulk Barcode Print</h3>
+      <button mat-flat-button color="primary" (click)="printBarcodes()" [disabled]="selectedVariants.size === 0">
+        <mat-icon>print</mat-icon> Print Selected ({{ selectedVariants.size }})
+      </button>
+    </div>
+    <p class="text-slate-500 text-sm">
+      Select product variants from the inventory to generate and print barcode labels.
+    </p>
+
+    <!-- Print Preview -->
+    @if (printItems.length > 0) {
+      <mat-divider class="my-4"></mat-divider>
+      <div class="grid grid-cols-3 gap-4 print:grid-cols-4">
+        @for (item of printItems; track item.barcode) {
+          <div class="border border-slate-200 rounded p-3 text-center">
+            <div class="font-mono text-xs mb-1">{{ item.barcode }}</div>
+            <div class="text-xs text-slate-500">{{ item.productName }}</div>
+            <div class="text-xs text-slate-400">{{ item.size }} / {{ item.color }}</div>
+            <div class="font-bold text-sm">{{ item.price | currency:'INR':'symbol':'1.2-2' }}</div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

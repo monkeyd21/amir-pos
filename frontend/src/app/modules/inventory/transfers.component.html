@@ -1,0 +1,96 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Stock Transfers</h1>
+      <p class="text-slate-500">Transfer inventory between branches</p>
+    </div>
+    <button mat-flat-button color="primary" (click)="createTransfer()">
+      <mat-icon>swap_horiz</mat-icon> New Transfer
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+    <mat-form-field class="w-48" appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="statusFilter" (selectionChange)="loadTransfers()">
+        <mat-option value="">All</mat-option>
+        <mat-option value="pending">Pending</mat-option>
+        <mat-option value="approved">Approved</mat-option>
+        <mat-option value="in_transit">In Transit</mat-option>
+        <mat-option value="received">Received</mat-option>
+        <mat-option value="cancelled">Cancelled</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Transfer #</th>
+          <td mat-cell *matCellDef="let row" class="font-mono text-sm">TRF-{{ row.id }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="fromBranch">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">From</th>
+          <td mat-cell *matCellDef="let row">{{ row.fromBranchName || row.fromBranch?.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="toBranch">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">To</th>
+          <td mat-cell *matCellDef="let row">{{ row.toBranchName || row.toBranch?.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="items">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Items</th>
+          <td mat-cell *matCellDef="let row">{{ row.itemCount || row.items?.length || 0 }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="text-xs font-medium px-2 py-1 rounded-full" [class]="getStatusClass(row.status)">
+              {{ row.status | titlecase }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Created</th>
+          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.createdAt | date:'short' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <button mat-icon-button [matMenuTriggerFor]="actionMenu">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #actionMenu="matMenu">
+              @if (row.status === 'pending') {
+                <button mat-menu-item (click)="approveTransfer(row)">
+                  <mat-icon>check_circle</mat-icon> Approve
+                </button>
+              }
+              @if (row.status === 'approved' || row.status === 'in_transit') {
+                <button mat-menu-item (click)="receiveTransfer(row)">
+                  <mat-icon>inventory</mat-icon> Receive
+                </button>
+              }
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    }
+  </div>
+</div>

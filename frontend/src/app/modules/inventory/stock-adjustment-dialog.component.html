@@ -1,0 +1,53 @@
+<h2 mat-dialog-title class="text-xl font-bold text-slate-800">Stock Adjustment</h2>
+
+<mat-dialog-content>
+  <div class="bg-slate-50 rounded-lg p-3 mb-4">
+    <div class="text-sm text-slate-500">{{ data.stockItem.productName }}</div>
+    <div class="font-medium text-slate-800">{{ data.stockItem.size }} / {{ data.stockItem.color }}</div>
+    <div class="text-sm text-slate-500">Current Stock: <span class="font-bold text-slate-800">{{ data.stockItem.quantity }}</span></div>
+  </div>
+
+  <form [formGroup]="form" class="space-y-4">
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Adjustment Type</mat-label>
+      <mat-select formControlName="adjustmentType">
+        <mat-option value="add">Add Stock (+)</mat-option>
+        <mat-option value="subtract">Remove Stock (-)</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Quantity</mat-label>
+      <input matInput type="number" formControlName="quantity" min="1" />
+      @if (form.get('quantity')?.hasError('min')) {
+        <mat-error>Minimum quantity is 1</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="bg-blue-50 rounded-lg p-3 text-center">
+      <span class="text-sm text-slate-500">New Quantity: </span>
+      <span class="font-bold text-lg text-blue-600">{{ newQuantity }}</span>
+    </div>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Reason</mat-label>
+      <mat-select formControlName="reason">
+        @for (reason of reasons; track reason) {
+          <mat-option [value]="reason">{{ reason }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Notes</mat-label>
+      <textarea matInput formControlName="notes" rows="2"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+    {{ loading ? 'Saving...' : 'Apply Adjustment' }}
+  </button>
+</mat-dialog-actions>

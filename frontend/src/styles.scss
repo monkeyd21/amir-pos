@@ -1,0 +1,113 @@
+// Custom Theming for Angular Material
+@use '@angular/material' as mat;
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@include mat.core();
+
+$blue-palette: (
+  50: #EFF6FF,
+  100: #DBEAFE,
+  200: #BFDBFE,
+  300: #93C5FD,
+  400: #60A5FA,
+  500: #3B82F6,
+  600: #2563EB,
+  700: #1D4ED8,
+  800: #1E40AF,
+  900: #1E3A8A,
+  contrast: (
+    50: rgba(0, 0, 0, 0.87),
+    100: rgba(0, 0, 0, 0.87),
+    200: rgba(0, 0, 0, 0.87),
+    300: rgba(0, 0, 0, 0.87),
+    400: rgba(0, 0, 0, 0.87),
+    500: white,
+    600: white,
+    700: white,
+    800: white,
+    900: white,
+  )
+);
+
+$frontend-primary: mat.define-palette($blue-palette, 600);
+$frontend-accent: mat.define-palette(mat.$cyan-palette, A200, A100, A400);
+$frontend-warn: mat.define-palette(mat.$red-palette);
+
+$frontend-theme: mat.define-light-theme((
+  color: (
+    primary: $frontend-primary,
+    accent: $frontend-accent,
+    warn: $frontend-warn,
+  ),
+  typography: mat.define-typography-config(
+    $font-family: 'Inter, system-ui, -apple-system, sans-serif',
+  ),
+  density: 0
+));
+
+@include mat.all-component-themes($frontend-theme);
+
+// CSS Custom Properties
+:root {
+  --primary: #2563EB;
+  --primary-light: #3B82F6;
+  --primary-dark: #1D4ED8;
+  --sidebar-bg: #1E293B;
+  --sidebar-hover: #334155;
+  --sidebar-active: #2563EB;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --border-color: #E2E8F0;
+  --bg-content: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-content);
+  color: var(--text-primary);
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+// Material overrides
+.mat-mdc-snack-bar-container {
+  &.snackbar-success .mdc-snackbar__surface {
+    background-color: var(--success) !important;
+  }
+  &.snackbar-error .mdc-snackbar__surface {
+    background-color: var(--danger) !important;
+  }
+  &.snackbar-warning .mdc-snackbar__surface {
+    background-color: var(--warning) !important;
+  }
+  &.snackbar-info .mdc-snackbar__surface {
+    background-color: var(--info) !important;
+  }
+}
