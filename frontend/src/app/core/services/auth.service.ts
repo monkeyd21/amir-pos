@@ -4,18 +4,22 @@ import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import { ApiService } from './api.service';
 
 export interface User {
-  id: string;
+  id: number;
   email: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   role: string;
-  branchId?: string;
-  avatar?: string;
+  branchId?: number;
+  phone?: string;
 }
 
-export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: User;
+export interface ApiAuthResponse {
+  success: boolean;
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    user: User;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -28,12 +32,13 @@ export class AuthService {
     private router: Router
   ) {}
 
-  login(email: string, password: string, rememberMe = false): Observable<AuthResponse> {
-    return this.api.post<AuthResponse>('/auth/login', { email, password }).pipe(
+  login(email: string, password: string, rememberMe = false): Observable<ApiAuthResponse> {
+    return this.api.post<ApiAuthResponse>('/auth/login', { email, password }).pipe(
       tap((response) => {
-        this.storeTokens(response.accessToken, response.refreshToken);
-        this.storeUser(response.user);
-        this.currentUserSubject.next(response.user);
+        const { accessToken, refreshToken, user } = response.data;
+        this.storeTokens(accessToken, refreshToken);
+        this.storeUser(user);
+        this.currentUserSubject.next(user);
         if (rememberMe) {
           localStorage.setItem('rememberMe', 'true');
         }
@@ -50,13 +55,14 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
-  refreshToken(): Observable<AuthResponse> {
+  refreshToken(): Observable<ApiAuthResponse> {
     const refreshToken = localStorage.getItem('refreshToken');
-    return this.api.post<AuthResponse>('/auth/refresh', { refreshToken }).pipe(
+    return this.api.post<ApiAuthResponse>('/auth/refresh', { refreshToken }).pipe(
       tap((response) => {
-        this.storeTokens(response.accessToken, response.refreshToken);
-        this.storeUser(response.user);
-        this.currentUserSubject.next(response.user);
+        const { accessToken, refreshToken: newToken, user } = response.data;
+        this.storeTokens(accessToken, newToken);
+        this.storeUser(user);
+        this.currentUserSubject.next(user);
       })
     );
   }

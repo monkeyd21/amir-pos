@@ -67,11 +67,11 @@ import { BranchService, Branch } from '../../core/services/branch.service';
              [matMenuTriggerFor]="userMenu">
           <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
             <span class="text-white text-sm font-medium">
-              {{ currentUser?.name?.charAt(0)?.toUpperCase() || 'U' }}
+              {{ currentUser?.firstName?.charAt(0)?.toUpperCase() || 'U' }}
             </span>
           </div>
           <div class="hidden md:block">
-            <p class="text-sm font-medium text-slate-700 leading-tight">{{ currentUser?.name || 'User' }}</p>
+            <p class="text-sm font-medium text-slate-700 leading-tight">{{ (currentUser?.firstName || '') + ' ' + (currentUser?.lastName || '') }}</p>
             <p class="text-xs text-slate-400 leading-tight">{{ currentUser?.role || 'Staff' }}</p>
           </div>
           <mat-icon class="text-slate-400">arrow_drop_down</mat-icon>
