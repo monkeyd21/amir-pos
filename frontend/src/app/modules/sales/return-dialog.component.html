@@ -1,0 +1,54 @@
+<h2 mat-dialog-title class="text-xl font-bold text-slate-800">Process Return</h2>
+
+<mat-dialog-content class="max-h-[70vh]">
+  <form [formGroup]="form" class="space-y-4 pt-2">
+    <div class="bg-slate-50 rounded-lg p-3 mb-4">
+      <div class="text-sm text-slate-500">Sale: <span class="font-medium text-slate-800">{{ sale.saleNumber }}</span></div>
+    </div>
+
+    <div formArrayName="items">
+      <h3 class="text-sm font-semibold text-slate-500 uppercase mb-2">Select Items to Return</h3>
+      @for (item of items.controls; track $index; let i = $index) {
+        <div class="border border-slate-200 rounded-lg p-3 mb-2" [formGroupName]="i">
+          <div class="flex items-center gap-3">
+            <mat-checkbox formControlName="selected" (change)="toggleItem(i)"></mat-checkbox>
+            <div class="flex-1">
+              <div class="font-medium text-slate-800">{{ item.value.productName }}</div>
+              <div class="text-sm text-slate-500">Max qty: {{ item.value.maxQuantity }}</div>
+            </div>
+            <mat-form-field class="w-20" appearance="outline">
+              <mat-label>Qty</mat-label>
+              <input matInput type="number" formControlName="quantity" [max]="item.value.maxQuantity" min="1" />
+            </mat-form-field>
+            <mat-form-field class="w-36" appearance="outline">
+              <mat-label>Condition</mat-label>
+              <mat-select formControlName="condition">
+                <mat-option value="resellable">Resellable</mat-option>
+                <mat-option value="damaged">Damaged</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+        </div>
+      }
+    </div>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Return Reason</mat-label>
+      <textarea matInput formControlName="reason" rows="2" placeholder="Reason for return..."></textarea>
+    </mat-form-field>
+
+    <mat-divider></mat-divider>
+
+    <div class="bg-green-50 rounded-lg p-4 text-center">
+      <div class="text-sm text-green-600">Refund Amount</div>
+      <div class="text-2xl font-bold text-green-700 font-mono">{{ refundAmount | currency:'INR':'symbol':'1.2-2' }}</div>
+    </div>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="warn" (click)="submit()" [disabled]="loading">
+    {{ loading ? 'Processing...' : 'Process Return' }}
+  </button>
+</mat-dialog-actions>

@@ -1,0 +1,82 @@
+<h2 mat-dialog-title class="text-xl font-bold text-slate-800">Process Exchange</h2>
+
+<mat-dialog-content class="max-h-[70vh]">
+  <div class="space-y-4 pt-2">
+    <!-- Return Items -->
+    <h3 class="text-sm font-semibold text-slate-500 uppercase">Items to Return</h3>
+    <form [formGroup]="form">
+      <div formArrayName="returnItems">
+        @for (item of returnItems.controls; track $index; let i = $index) {
+          <div class="flex items-center gap-3 border-b border-slate-100 py-2" [formGroupName]="i">
+            <mat-checkbox formControlName="selected"></mat-checkbox>
+            <div class="flex-1">
+              <span class="font-medium">{{ item.value.productName }}</span>
+            </div>
+            <span class="font-mono text-sm">x{{ item.value.quantity }}</span>
+            <span class="font-mono font-bold">{{ item.value.unitPrice * item.value.quantity | currency:'INR':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </div>
+    </form>
+
+    <mat-divider></mat-divider>
+
+    <!-- New Items -->
+    <h3 class="text-sm font-semibold text-slate-500 uppercase">New Items</h3>
+    <div class="flex gap-2">
+      <mat-form-field class="flex-1" appearance="outline">
+        <mat-label>Scan barcode for new item</mat-label>
+        <input matInput [(ngModel)]="newItemBarcode" (keyup.enter)="addNewItem()" />
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="addNewItem()" class="h-14">Add</button>
+    </div>
+
+    @for (item of newItems; track $index; let i = $index) {
+      <div class="flex items-center gap-3 bg-blue-50 rounded-lg p-3 mb-2">
+        <div class="flex-1">
+          <div class="font-medium">{{ item.name }}</div>
+          <div class="text-sm text-slate-500 font-mono">{{ item.barcode }}</div>
+        </div>
+        <mat-form-field class="w-24" appearance="outline">
+          <mat-label>Price</mat-label>
+          <input matInput type="number" [(ngModel)]="item.price" />
+        </mat-form-field>
+        <mat-form-field class="w-20" appearance="outline">
+          <mat-label>Qty</mat-label>
+          <input matInput type="number" [(ngModel)]="item.quantity" min="1" />
+        </mat-form-field>
+        <button mat-icon-button color="warn" (click)="removeNewItem(i)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    }
+
+    <mat-divider></mat-divider>
+
+    <!-- Summary -->
+    <div class="bg-slate-50 rounded-lg p-4 space-y-2">
+      <div class="flex justify-between text-sm">
+        <span class="text-slate-500">Return Value</span>
+        <span class="font-mono">{{ returnTotal | currency:'INR':'symbol':'1.2-2' }}</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-slate-500">New Items Value</span>
+        <span class="font-mono">{{ newTotal | currency:'INR':'symbol':'1.2-2' }}</span>
+      </div>
+      <mat-divider></mat-divider>
+      <div class="flex justify-between font-bold text-lg">
+        <span>{{ priceDifference >= 0 ? 'Customer Pays' : 'Refund to Customer' }}</span>
+        <span class="font-mono" [class]="priceDifference >= 0 ? 'text-red-600' : 'text-green-600'">
+          {{ (priceDifference >= 0 ? priceDifference : -priceDifference) | currency:'INR':'symbol':'1.2-2' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="primary" (click)="submit()" [disabled]="loading">
+    {{ loading ? 'Processing...' : 'Process Exchange' }}
+  </button>
+</mat-dialog-actions>

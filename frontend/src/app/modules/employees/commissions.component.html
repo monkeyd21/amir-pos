@@ -1,0 +1,97 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Commissions</h1>
+      <p class="text-slate-500">Manage employee sales commissions</p>
+    </div>
+    <div class="flex gap-2 items-end">
+      <mat-form-field class="w-40" appearance="outline">
+        <mat-label>Period</mat-label>
+        <mat-select [(ngModel)]="selectedPeriod" (selectionChange)="loadCommissions()">
+          @for (p of periods; track p) {
+            <mat-option [value]="p">{{ p }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <button mat-flat-button color="primary" (click)="calculateCommissions()">
+        <mat-icon>calculate</mat-icon> Calculate
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  @if (summaryCards.length > 0) {
+    <div class="grid grid-cols-4 gap-4 mb-6">
+      @for (card of summaryCards; track card.employeeId) {
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <div class="text-sm text-slate-500">{{ card.employeeName }}</div>
+          <div class="text-xl font-bold text-blue-600 font-mono">{{ card.totalCommission | currency:'INR':'symbol':'1.0-0' }}</div>
+          <div class="text-xs text-slate-400">Sales: {{ card.totalSales | currency:'INR':'symbol':'1.0-0' }}</div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Table -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    @if (loading) {
+      <div class="flex justify-center p-12">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
+      <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <ng-container matColumnDef="employee">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Employee</th>
+          <td mat-cell *matCellDef="let row" class="font-medium">{{ row.employeeName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="period">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Period</th>
+          <td mat-cell *matCellDef="let row" class="text-sm">{{ row.period }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="salesAmount">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Sales</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.salesAmount | currency:'INR':'symbol':'1.0-0' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="commissionRate">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Rate</th>
+          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.commissionRate }}%</td>
+        </ng-container>
+
+        <ng-container matColumnDef="commissionAmount">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Commission</th>
+          <td mat-cell *matCellDef="let row" class="font-mono font-bold text-blue-600">{{ row.commissionAmount | currency:'INR':'symbol':'1.2-2' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="text-xs font-medium px-2 py-1 rounded-full"
+              [class]="row.status === 'paid' ? 'bg-green-100 text-green-700' :
+                       row.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                       'bg-slate-100 text-slate-700'">
+              {{ row.status | titlecase }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            @if (row.status === 'pending') {
+              <button mat-stroked-button color="primary" (click)="payCommission(row)" class="text-sm">
+                Mark Paid
+              </button>
+            }
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    }
+  </div>
+</div>

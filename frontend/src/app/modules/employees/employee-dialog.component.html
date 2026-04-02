@@ -1,0 +1,62 @@
+<h2 mat-dialog-title class="text-xl font-bold text-slate-800">
+  {{ mode === 'add' ? 'Add Employee' : 'Edit Employee' }}
+</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="space-y-4 pt-2">
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Full Name</mat-label>
+      <input matInput formControlName="name" />
+      @if (form.get('name')?.hasError('required') && form.get('name')?.touched) {
+        <mat-error>Name is required</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="grid grid-cols-2 gap-4">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Email</mat-label>
+        <input matInput formControlName="email" type="email" />
+        @if (form.get('email')?.hasError('email')) {
+          <mat-error>Invalid email</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Phone</mat-label>
+        <input matInput formControlName="phone" />
+      </mat-form-field>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Role</mat-label>
+        <mat-select formControlName="role">
+          @for (role of roles; track role) {
+            <mat-option [value]="role">{{ role | titlecase }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Branch</mat-label>
+        <mat-select formControlName="branchId">
+          @for (branch of branches; track branch.id) {
+            <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field class="w-full" appearance="outline">
+      <mat-label>Commission Rate (%)</mat-label>
+      <input matInput type="number" formControlName="commissionRate" min="0" max="100" />
+    </mat-form-field>
+
+    <mat-slide-toggle formControlName="isActive">Active</mat-slide-toggle>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button mat-dialog-close>Cancel</button>
+  <button mat-flat-button color="primary" (click)="save()" [disabled]="loading">
+    {{ loading ? 'Saving...' : (mode === 'add' ? 'Add Employee' : 'Update Employee') }}
+  </button>
+</mat-dialog-actions>

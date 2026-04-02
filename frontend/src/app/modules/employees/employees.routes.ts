@@ -1,6 +1,10 @@
 import { Routes } from '@angular/router';
-import { PlaceholderComponent } from '../placeholder.component';
+import { EmployeeListComponent } from './employee-list.component';
+import { AttendanceComponent } from './attendance.component';
+import { CommissionsComponent } from './commissions.component';
 
 export const EMPLOYEES_ROUTES: Routes = [
-  { path: '', component: PlaceholderComponent, data: { title: 'Employees', icon: 'badge' } },
+  { path: '', component: EmployeeListComponent },
+  { path: 'attendance', component: AttendanceComponent },
+  { path: 'commissions', component: CommissionsComponent },
 ];

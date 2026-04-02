@@ -1,0 +1,161 @@
+<div class="p-6 max-w-5xl mx-auto">
+  @if (loading) {
+    <div class="flex justify-center p-12">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+  } @else if (customer) {
+    <!-- Header -->
+    <div class="flex items-center gap-3 mb-6">
+      <button mat-icon-button (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div class="flex-1">
+        <h1 class="text-2xl font-bold text-slate-800">{{ customer.name }}</h1>
+        <p class="text-slate-500">Customer Profile</p>
+      </div>
+      <button mat-stroked-button (click)="editCustomer()">
+        <mat-icon>edit</mat-icon> Edit
+      </button>
+    </div>
+
+    <div class="grid grid-cols-3 gap-6 mb-6">
+      <!-- Profile Card -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+            <mat-icon class="text-blue-600" style="font-size: 32px; width: 32px; height: 32px;">person</mat-icon>
+          </div>
+          <div>
+            <div class="font-bold text-lg text-slate-800">{{ customer.name }}</div>
+            <span class="text-xs font-medium px-2 py-1 rounded-full border" [class]="getTierClass(customer.loyaltyTier)">
+              {{ customer.loyaltyTier || 'Bronze' }}
+            </span>
+          </div>
+        </div>
+        <div class="space-y-3 text-sm">
+          <div class="flex items-center gap-2 text-slate-600">
+            <mat-icon class="text-slate-400 scale-75">phone</mat-icon>
+            {{ customer.phone || 'N/A' }}
+          </div>
+          <div class="flex items-center gap-2 text-slate-600">
+            <mat-icon class="text-slate-400 scale-75">email</mat-icon>
+            {{ customer.email || 'N/A' }}
+          </div>
+          <div class="flex items-center gap-2 text-slate-600">
+            <mat-icon class="text-slate-400 scale-75">location_on</mat-icon>
+            {{ customer.address || 'N/A' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Loyalty Card -->
+      <div class="col-span-2 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl shadow-sm p-6 text-white">
+        <div class="flex justify-between items-start mb-6">
+          <div>
+            <div class="text-blue-200 text-sm">Loyalty Card</div>
+            <div class="font-bold text-2xl">{{ customer.name }}</div>
+          </div>
+          <div class="bg-white/20 rounded-lg px-3 py-1 text-sm font-medium">
+            {{ customer.loyaltyTier || 'Bronze' }}
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mb-4">
+          <div>
+            <div class="text-blue-200 text-xs">Points Balance</div>
+            <div class="font-bold text-2xl">{{ customer.loyaltyPoints || 0 }}</div>
+          </div>
+          <div>
+            <div class="text-blue-200 text-xs">Total Spent</div>
+            <div class="font-bold text-lg">{{ customer.totalSpent | currency:'INR':'symbol':'1.0-0' }}</div>
+          </div>
+          <div>
+            <div class="text-blue-200 text-xs">Total Purchases</div>
+            <div class="font-bold text-lg">{{ customer.totalPurchases || purchases.length || 0 }}</div>
+          </div>
+        </div>
+        <div class="mb-1 flex justify-between text-xs text-blue-200">
+          <span>Progress to {{ getNextTier() }}</span>
+          <span>{{ getTierProgress() | number:'1.0-0' }}%</span>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="getTierProgress()" class="rounded-full"></mat-progress-bar>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <mat-tab-group>
+        <!-- Purchase History -->
+        <mat-tab label="Purchase History">
+          <div class="p-4">
+            @if (purchases.length === 0) {
+              <div class="text-center text-slate-400 py-8">No purchase history</div>
+            } @else {
+              <table mat-table [dataSource]="purchases" class="w-full">
+                <ng-container matColumnDef="saleNumber">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Sale #</th>
+                  <td mat-cell *matCellDef="let row" class="font-mono text-sm text-blue-600">{{ row.saleNumber }}</td>
+                </ng-container>
+                <ng-container matColumnDef="date">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Date</th>
+                  <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.createdAt | date:'mediumDate' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="items">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Items</th>
+                  <td mat-cell *matCellDef="let row">{{ row.itemCount || row.items?.length || 0 }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Total</th>
+                  <td mat-cell *matCellDef="let row" class="font-mono font-bold">{{ row.total | currency:'INR':'symbol':'1.2-2' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
+                  <td mat-cell *matCellDef="let row">
+                    <span class="text-xs font-medium px-2 py-1 rounded-full bg-green-100 text-green-700">{{ row.status | titlecase }}</span>
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="purchaseColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: purchaseColumns;" class="hover:bg-slate-50"></tr>
+              </table>
+            }
+          </div>
+        </mat-tab>
+
+        <!-- Loyalty Transactions -->
+        <mat-tab label="Loyalty Transactions">
+          <div class="p-4">
+            @if (loyaltyTransactions.length === 0) {
+              <div class="text-center text-slate-400 py-8">No loyalty transactions</div>
+            } @else {
+              <table mat-table [dataSource]="loyaltyTransactions" class="w-full">
+                <ng-container matColumnDef="date">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Date</th>
+                  <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.createdAt | date:'mediumDate' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="type">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Type</th>
+                  <td mat-cell *matCellDef="let row">
+                    <span [class]="row.type === 'earned' ? 'text-green-600' : 'text-red-500'">
+                      {{ row.type | titlecase }}
+                    </span>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="points">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Points</th>
+                  <td mat-cell *matCellDef="let row" class="font-mono font-bold" [class]="row.type === 'earned' ? 'text-green-600' : 'text-red-500'">
+                    {{ row.type === 'earned' ? '+' : '-' }}{{ row.points }}
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="description">
+                  <th mat-header-cell *matHeaderCellDef class="font-semibold">Description</th>
+                  <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.description }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="loyaltyColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: loyaltyColumns;" class="hover:bg-slate-50"></tr>
+              </table>
+            }
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+  }
+</div>
