@@ -68,7 +68,7 @@ export class AttendanceComponent implements OnInit {
 
     this.employeeService.getAttendance(params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {
@@ -79,7 +79,7 @@ export class AttendanceComponent implements OnInit {
 
   loadEmployees(): void {
     this.employeeService.getAll().subscribe({
-      next: (res) => (this.employees = res.data || res || []),
+      next: (res) => (this.employees = Array.isArray(res) ? res : []),
     });
   }
 

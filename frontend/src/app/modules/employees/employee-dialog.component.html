@@ -35,6 +35,19 @@
       </mat-form-field>
     </div>
 
+    @if (mode === 'add') {
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput formControlName="password" type="password" />
+        @if (form.get('password')?.hasError('required') && form.get('password')?.touched) {
+          <mat-error>Password is required</mat-error>
+        }
+        @if (form.get('password')?.hasError('minlength') && form.get('password')?.touched) {
+          <mat-error>Minimum 6 characters</mat-error>
+        }
+      </mat-form-field>
+    }
+
     <div class="grid grid-cols-2 gap-4">
       <mat-form-field class="w-full" appearance="outline">
         <mat-label>Role</mat-label>
