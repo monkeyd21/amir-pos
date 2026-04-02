@@ -1,0 +1,659 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Branch ──────────────────────────────────────────
+
+model Branch {
+  id            Int      @id @default(autoincrement())
+  name          String
+  code          String   @unique
+  address       String?
+  phone         String?
+  email         String?
+  taxConfig     Json     @default("{}")
+  receiptHeader String?
+  receiptFooter String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users              User[]
+  inventory          Inventory[]
+  inventoryMovements InventoryMovement[]
+  transfersFrom      StockTransfer[]     @relation("TransferFrom")
+  transfersTo        StockTransfer[]     @relation("TransferTo")
+  sales              Sale[]
+  returns            Return[]
+  posSessions        PosSession[]
+  heldTransactions   HeldTransaction[]
+  journalEntries     JournalEntry[]
+  expenses           Expense[]
+  attendance         Attendance[]
+
+  @@map("branches")
+}
+
+// ─── User / Employee ─────────────────────────────────
+
+enum UserRole {
+  owner
+  manager
+  cashier
+  staff
+}
+
+model User {
+  id             Int      @id @default(autoincrement())
+  branchId       Int
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole @default(staff)
+  commissionRate Decimal  @default(0) @db.Decimal(5, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  branch             Branch              @relation(fields: [branchId], references: [id])
+  sales              Sale[]
+  returns            Return[]
+  posSessions        PosSession[]
+  heldTransactions   HeldTransaction[]
+  inventoryMovements InventoryMovement[]
+  transfersCreated   StockTransfer[]     @relation("TransferCreator")
+  transfersApproved  StockTransfer[]     @relation("TransferApprover")
+  journalEntries     JournalEntry[]
+  expensesCreated    Expense[]           @relation("ExpenseCreator")
+  expensesApproved   Expense[]           @relation("ExpenseApprover")
+  attendance         Attendance[]
+  commissions        Commission[]
+
+  @@map("users")
+}
+
+// ─── Brand ───────────────────────────────────────────
+
+model Brand {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  products Product[]
+
+  @@map("brands")
+}
+
+// ─── Category ────────────────────────────────────────
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  name      String
+  slug      String     @unique
+  parentId  Int?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@map("categories")
+}
+
+// ─── Product ─────────────────────────────────────────
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  brandId     Int
+  categoryId  Int
+  name        String
+  slug        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  costPrice   Decimal  @db.Decimal(10, 2)
+  taxRate     Decimal  @default(18) @db.Decimal(5, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand    Brand            @relation(fields: [brandId], references: [id])
+  category Category         @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id            Int      @id @default(autoincrement())
+  productId     Int
+  sku           String   @unique
+  size          String
+  color         String
+  barcode       String   @unique
+  priceOverride Decimal? @db.Decimal(10, 2)
+  costOverride  Decimal? @db.Decimal(10, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  product            Product             @relation(fields: [productId], references: [id])
+  inventory          Inventory[]
+  inventoryMovements InventoryMovement[]
+  saleItems          SaleItem[]
+  returnItems        ReturnItem[]
+  stockTransferItems StockTransferItem[]
+
+  @@map("product_variants")
+}
+
+// ─── Inventory ───────────────────────────────────────
+
+model Inventory {
+  id            Int      @id @default(autoincrement())
+  variantId     Int
+  branchId      Int
+  quantity      Int      @default(0)
+  minStockLevel Int      @default(5)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+  branch  Branch         @relation(fields: [branchId], references: [id])
+
+  @@unique([variantId, branchId])
+  @@map("inventory")
+}
+
+enum MovementType {
+  purchase
+  sale
+  return
+  transfer_in
+  transfer_out
+  adjustment
+}
+
+model InventoryMovement {
+  id            Int          @id @default(autoincrement())
+  variantId     Int
+  branchId      Int
+  type          MovementType
+  quantity      Int
+  referenceId   Int?
+  referenceType String?
+  notes         String?
+  createdBy     Int
+  createdAt     DateTime     @default(now())
+
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+  branch  Branch         @relation(fields: [branchId], references: [id])
+  user    User           @relation(fields: [createdBy], references: [id])
+
+  @@map("inventory_movements")
+}
+
+enum TransferStatus {
+  pending
+  in_transit
+  completed
+  cancelled
+}
+
+model StockTransfer {
+  id           Int            @id @default(autoincrement())
+  fromBranchId Int
+  toBranchId   Int
+  status       TransferStatus @default(pending)
+  createdBy    Int
+  approvedBy   Int?
+  createdAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  fromBranch Branch              @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  toBranch   Branch              @relation("TransferTo", fields: [toBranchId], references: [id])
+  creator    User                @relation("TransferCreator", fields: [createdBy], references: [id])
+  approver   User?               @relation("TransferApprover", fields: [approvedBy], references: [id])
+  items      StockTransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id               Int @id @default(autoincrement())
+  transferId       Int
+  variantId        Int
+  quantitySent     Int
+  quantityReceived Int @default(0)
+
+  transfer StockTransfer  @relation(fields: [transferId], references: [id])
+  variant  ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("stock_transfer_items")
+}
+
+// ─── Sales & POS ─────────────────────────────────────
+
+enum SaleStatus {
+  completed
+  returned
+  partially_returned
+  void
+}
+
+model Sale {
+  id                   Int        @id @default(autoincrement())
+  branchId             Int
+  customerId           Int?
+  userId               Int
+  saleNumber           String     @unique
+  status               SaleStatus @default(completed)
+  subtotal             Decimal    @db.Decimal(10, 2)
+  taxAmount            Decimal    @db.Decimal(10, 2)
+  discountAmount       Decimal    @default(0) @db.Decimal(10, 2)
+  total                Decimal    @db.Decimal(10, 2)
+  loyaltyPointsEarned  Int        @default(0)
+  loyaltyPointsRedeemed Int       @default(0)
+  notes                String?
+  createdAt            DateTime   @default(now())
+
+  branch   Branch     @relation(fields: [branchId], references: [id])
+  customer Customer?  @relation(fields: [customerId], references: [id])
+  user     User       @relation(fields: [userId], references: [id])
+  items    SaleItem[]
+  payments Payment[]
+  returns  Return[]
+  commissions Commission[]
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@index([branchId, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id               Int     @id @default(autoincrement())
+  saleId           Int
+  variantId        Int
+  quantity         Int
+  unitPrice        Decimal @db.Decimal(10, 2)
+  discount         Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount        Decimal @db.Decimal(10, 2)
+  total            Decimal @db.Decimal(10, 2)
+  returnedQuantity Int     @default(0)
+
+  sale        Sale           @relation(fields: [saleId], references: [id])
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  returnItems ReturnItem[]
+
+  @@map("sale_items")
+}
+
+enum PaymentMethod {
+  cash
+  card
+  upi
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  refunded
+}
+
+model Payment {
+  id              Int           @id @default(autoincrement())
+  saleId          Int
+  method          PaymentMethod
+  amount          Decimal       @db.Decimal(10, 2)
+  referenceNumber String?
+  status          PaymentStatus @default(completed)
+  createdAt       DateTime      @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@map("payments")
+}
+
+// ─── Returns ─────────────────────────────────────────
+
+enum ReturnType {
+  return
+  exchange
+}
+
+enum ReturnStatus {
+  pending
+  approved
+  completed
+}
+
+model Return {
+  id             Int          @id @default(autoincrement())
+  originalSaleId Int
+  branchId       Int
+  userId         Int
+  returnNumber   String       @unique
+  type           ReturnType
+  reason         String?
+  subtotal       Decimal      @db.Decimal(10, 2)
+  taxAmount      Decimal      @db.Decimal(10, 2)
+  total          Decimal      @db.Decimal(10, 2)
+  status         ReturnStatus @default(pending)
+  createdAt      DateTime     @default(now())
+
+  originalSale Sale         @relation(fields: [originalSaleId], references: [id])
+  branch       Branch       @relation(fields: [branchId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  items        ReturnItem[]
+
+  @@map("returns")
+}
+
+enum ItemCondition {
+  resellable
+  damaged
+}
+
+model ReturnItem {
+  id         Int           @id @default(autoincrement())
+  returnId   Int
+  saleItemId Int
+  variantId  Int
+  quantity   Int
+  unitPrice  Decimal       @db.Decimal(10, 2)
+  condition  ItemCondition @default(resellable)
+
+  returnRecord Return         @relation(fields: [returnId], references: [id])
+  saleItem     SaleItem       @relation(fields: [saleItemId], references: [id])
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("return_items")
+}
+
+// ─── POS Session ─────────────────────────────────────
+
+enum SessionStatus {
+  open
+  closed
+}
+
+model PosSession {
+  id             Int           @id @default(autoincrement())
+  branchId       Int
+  userId         Int
+  openingAmount  Decimal       @db.Decimal(10, 2)
+  closingAmount  Decimal?      @db.Decimal(10, 2)
+  expectedAmount Decimal?      @db.Decimal(10, 2)
+  status         SessionStatus @default(open)
+  openedAt       DateTime      @default(now())
+  closedAt       DateTime?
+  notes          String?
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("pos_sessions")
+}
+
+model HeldTransaction {
+  id         Int      @id @default(autoincrement())
+  branchId   Int
+  userId     Int
+  cartData   Json
+  customerId Int?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@map("held_transactions")
+}
+
+// ─── Customer & Loyalty ──────────────────────────────
+
+enum LoyaltyTier {
+  bronze
+  silver
+  gold
+  platinum
+}
+
+model Customer {
+  id           Int        @id @default(autoincrement())
+  firstName    String
+  lastName     String
+  phone        String     @unique
+  email        String?
+  address      String?
+  loyaltyPoints Int       @default(0)
+  loyaltyTier  LoyaltyTier @default(bronze)
+  totalSpent   Decimal    @default(0) @db.Decimal(12, 2)
+  visitCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sales              Sale[]
+  heldTransactions   HeldTransaction[]
+  loyaltyTransactions LoyaltyTransaction[]
+  messageLogs        MessageLog[]
+
+  @@map("customers")
+}
+
+enum LoyaltyTxType {
+  earned
+  redeemed
+  adjusted
+  expired
+}
+
+model LoyaltyTransaction {
+  id          Int          @id @default(autoincrement())
+  customerId  Int
+  saleId      Int?
+  points      Int
+  type        LoyaltyTxType
+  description String?
+  createdAt   DateTime     @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  sale     Sale?    @relation(fields: [saleId], references: [id])
+
+  @@map("loyalty_transactions")
+}
+
+model LoyaltyConfig {
+  id                 Int  @id @default(autoincrement())
+  pointsPerAmount    Int  @default(1)
+  amountPerPoint     Int  @default(100)
+  redemptionValue    Decimal @default(1) @db.Decimal(10, 2)
+  tierThresholds     Json @default("{\"silver\": 1000, \"gold\": 5000, \"platinum\": 20000}")
+  earningMultipliers Json @default("{\"bronze\": 1, \"silver\": 1.5, \"gold\": 2, \"platinum\": 3}")
+
+  @@map("loyalty_config")
+}
+
+// ─── Accounting ──────────────────────────────────────
+
+enum AccType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+}
+
+model Account {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  type      AccType
+  parentId  Int?
+  isSystem  Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  parent       Account?      @relation("AccountTree", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountTree")
+  journalLines JournalLine[]
+  expenseCategories ExpenseCategory[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id            Int      @id @default(autoincrement())
+  branchId      Int
+  entryNumber   String   @unique
+  date          DateTime
+  description   String
+  referenceType String?
+  referenceId   Int?
+  createdBy     Int
+  createdAt     DateTime @default(now())
+
+  branch Branch        @relation(fields: [branchId], references: [id])
+  user   User          @relation(fields: [createdBy], references: [id])
+  lines  JournalLine[]
+
+  @@index([branchId, date])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id          Int     @id @default(autoincrement())
+  entryId     Int
+  accountId   Int
+  debit       Decimal @default(0) @db.Decimal(12, 2)
+  credit      Decimal @default(0) @db.Decimal(12, 2)
+  description String?
+
+  entry   JournalEntry @relation(fields: [entryId], references: [id])
+  account Account      @relation(fields: [accountId], references: [id])
+
+  @@map("journal_lines")
+}
+
+// ─── Expenses ────────────────────────────────────────
+
+enum ExpStatus {
+  pending
+  approved
+  rejected
+}
+
+model Expense {
+  id            Int       @id @default(autoincrement())
+  branchId      Int
+  categoryId    Int
+  amount        Decimal   @db.Decimal(10, 2)
+  description   String
+  date          DateTime
+  paymentMethod String
+  receiptUrl    String?
+  status        ExpStatus @default(pending)
+  createdBy     Int
+  approvedBy    Int?
+  createdAt     DateTime  @default(now())
+
+  branch   Branch          @relation(fields: [branchId], references: [id])
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+  creator  User            @relation("ExpenseCreator", fields: [createdBy], references: [id])
+  approver User?           @relation("ExpenseApprover", fields: [approvedBy], references: [id])
+
+  @@map("expenses")
+}
+
+model ExpenseCategory {
+  id        Int      @id @default(autoincrement())
+  name      String
+  accountId Int?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  account  Account?  @relation(fields: [accountId], references: [id])
+  expenses Expense[]
+
+  @@map("expense_categories")
+}
+
+// ─── Employee Management ─────────────────────────────
+
+model Attendance {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  branchId    Int
+  clockIn     DateTime
+  clockOut    DateTime?
+  hoursWorked Decimal?  @db.Decimal(5, 2)
+  date        DateTime  @db.Date
+  createdAt   DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, date])
+  @@map("attendance")
+}
+
+enum CommStatus {
+  pending
+  paid
+}
+
+model Commission {
+  id             Int        @id @default(autoincrement())
+  userId         Int
+  saleId         Int
+  amount         Decimal    @db.Decimal(10, 2)
+  rate           Decimal    @db.Decimal(5, 2)
+  status         CommStatus @default(pending)
+  payPeriodStart DateTime   @db.Date
+  payPeriodEnd   DateTime   @db.Date
+  createdAt      DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@map("commissions")
+}
+
+// ─── Messaging ───────────────────────────────────────
+
+enum MsgType {
+  whatsapp
+  sms
+}
+
+enum MsgStatus {
+  pending
+  sent
+  delivered
+  failed
+}
+
+model MessageLog {
+  id               Int       @id @default(autoincrement())
+  customerId       Int
+  type             MsgType
+  template         String
+  payload          Json
+  status           MsgStatus @default(pending)
+  providerResponse Json?
+  createdAt        DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("message_logs")
+}
