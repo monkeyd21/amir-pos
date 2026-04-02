@@ -15,9 +15,11 @@
     "build": "npm run build --workspaces",
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:seed": "npm run db:seed --workspace=backend",
-    "db:generate": "npm run db:generate --workspace=backend"
+    "db:generate": "npm run db:generate --workspace=backend",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "concurrently": "^8.2.2",
     "typescript": "^5.4.0"
   }
