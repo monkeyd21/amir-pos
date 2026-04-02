@@ -72,9 +72,9 @@
       </button>
     </div>
 
-    @for (variant of variants.controls; track $index; let i = $index) {
-      <div class="border border-slate-200 rounded-lg p-3 relative" [formGroupName]="i" formArrayName="variants">
-        <button mat-icon-button color="warn" (click)="removeVariant(i)" class="absolute top-1 right-1 scale-75">
+    @for (variant of variants.controls; track $index) {
+      <div class="border border-slate-200 rounded-lg p-3 relative" [formGroupName]="$index" formArrayName="variants">
+        <button mat-icon-button color="warn" (click)="removeVariant($index)" class="absolute top-1 right-1 scale-75">
           <mat-icon>close</mat-icon>
         </button>
         <div class="grid grid-cols-3 gap-3">

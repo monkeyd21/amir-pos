@@ -48,6 +48,8 @@ import { PosService, CartItem, PaymentLine, HeldTransaction } from './pos.servic
 export class PosTerminalComponent implements OnInit {
   @ViewChild('barcodeInput') barcodeInput!: ElementRef<HTMLInputElement>;
 
+  Math = Math;
+
   private posService = inject(PosService);
   private snackBar = inject(MatSnackBar);
   private router = inject(Router);
