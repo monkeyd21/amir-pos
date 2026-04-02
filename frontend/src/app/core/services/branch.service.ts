@@ -33,8 +33,14 @@ export class BranchService {
   }
 
   switchBranch(branch: Branch): void {
+    const previous = this.currentBranchSubject.value;
     localStorage.setItem('currentBranch', JSON.stringify(branch));
     this.currentBranchSubject.next(branch);
+
+    // Reload the page if switching to a different branch so all data refreshes
+    if (previous && previous.id !== branch.id) {
+      window.location.reload();
+    }
   }
 
   private getStoredBranch(): Branch | null {

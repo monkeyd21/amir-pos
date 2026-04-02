@@ -67,7 +67,7 @@ export class CustomerListComponent implements OnInit {
     this.loading = true;
     this.customerService.getAll().subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {

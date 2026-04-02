@@ -16,7 +16,7 @@ export class EmployeeService {
   }
 
   create(data: any): Observable<any> {
-    return this.api.post<any>('/employees', data).pipe(map(res => res.data));
+    return this.api.post<any>('/users', data).pipe(map(res => res.data));
   }
 
   update(id: number, data: any): Observable<any> {

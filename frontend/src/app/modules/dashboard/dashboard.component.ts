@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -6,9 +6,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { Subject, takeUntil, catchError, of, forkJoin } from 'rxjs';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
 import { CurrencyPipe } from '../../shared/pipes/currency.pipe';
+import { ApiService } from '../../core/services/api.service';
+import { BranchService } from '../../core/services/branch.service';
 
 interface KpiCard {
   title: string;
@@ -23,6 +27,7 @@ interface KpiCard {
 
 interface RecentSale {
   id: string;
+  saleId?: number;
   customer: string;
   items: number;
   total: number;
@@ -47,6 +52,7 @@ interface TopProduct {
     MatTableModule,
     MatButtonModule,
     MatChipsModule,
+    MatProgressSpinnerModule,
     PageHeaderComponent,
     StatusBadgeComponent,
     CurrencyPipe,
@@ -56,6 +62,12 @@ interface TopProduct {
       title="Dashboard"
       subtitle="Welcome back! Here's your business overview.">
     </app-page-header>
+
+    <!-- Loading indicator -->
+    <div *ngIf="loading" class="flex items-center gap-2 mb-4 text-sm text-slate-400">
+      <mat-spinner diameter="16"></mat-spinner>
+      <span>Refreshing data...</span>
+    </div>
 
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -89,7 +101,7 @@ interface TopProduct {
 
     <!-- Charts & Tables Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-      <!-- Sales Chart Placeholder -->
+      <!-- Sales Chart -->
       <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6">
         <div class="flex items-center justify-between mb-6">
           <h3 class="text-lg font-semibold text-slate-800">Sales Overview</h3>
@@ -106,26 +118,33 @@ interface TopProduct {
             </button>
           </div>
         </div>
-        <!-- Simple bar chart visualization -->
+        <!-- Colored bar chart -->
         <div class="flex items-end gap-3 h-48">
-          <div *ngFor="let day of salesData" class="flex-1 flex flex-col items-center gap-2">
+          <div *ngFor="let day of salesData; let i = index" class="flex-1 flex flex-col items-center gap-2">
             <span class="text-xs text-slate-500 font-medium">{{ day.amount | currency }}</span>
-            <div class="w-full bg-blue-600 rounded-t-lg transition-all duration-500"
+            <div class="w-full rounded-t-lg transition-all duration-500 hover:opacity-80 cursor-pointer"
                  [style.height.%]="(day.amount / maxSales) * 100"
-                 [style.min-height.px]="4">
+                 [style.min-height.px]="4"
+                 [style.background]="getBarGradient(i)"
+                 (click)="navigateTo('/sales')">
             </div>
-            <span class="text-xs text-slate-400">{{ day.label }}</span>
+            <span class="text-xs text-slate-400 font-medium">{{ day.label }}</span>
           </div>
         </div>
       </div>
 
       <!-- Top Products -->
       <div class="bg-white rounded-xl border border-slate-200 p-6">
-        <h3 class="text-lg font-semibold text-slate-800 mb-4">Top Products</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-slate-800">Top Products</h3>
+          <button mat-button color="primary" class="text-sm" (click)="navigateTo('/inventory/products')">View All</button>
+        </div>
         <div class="space-y-4">
           <div *ngFor="let product of topProducts; let i = index"
-               class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-500">
+               class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-lg p-1 -mx-1 transition-colors"
+               (click)="navigateTo('/inventory/products')">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white"
+                 [style.background-color]="rankColors[i] || '#94A3B8'">
               {{ i + 1 }}
             </div>
             <div class="flex-1 min-w-0">
@@ -178,19 +197,25 @@ interface TopProduct {
           </ng-container>
 
           <tr mat-header-row *matHeaderRowDef="recentSalesColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: recentSalesColumns;" class="hover:bg-slate-50"></tr>
+          <tr mat-row *matRowDef="let row; columns: recentSalesColumns;"
+              class="hover:bg-slate-50 cursor-pointer"
+              (click)="navigateToSale(row)"></tr>
         </table>
       </div>
 
       <!-- Low Stock Alerts -->
       <div class="bg-white rounded-xl border border-slate-200 p-6">
-        <div class="flex items-center gap-2 mb-4">
-          <mat-icon class="text-amber-500">warning</mat-icon>
-          <h3 class="text-lg font-semibold text-slate-800">Low Stock Alerts</h3>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <mat-icon class="text-amber-500">warning</mat-icon>
+            <h3 class="text-lg font-semibold text-slate-800">Low Stock Alerts</h3>
+          </div>
+          <button mat-button color="primary" class="text-sm" (click)="navigateTo('/inventory/stock')">View All</button>
         </div>
         <div class="space-y-3">
           <div *ngFor="let item of lowStockItems"
-               class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
+               class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100 cursor-pointer hover:bg-amber-100/50 transition-colors"
+               (click)="navigateTo('/inventory/stock')">
             <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
               <mat-icon class="text-amber-600 text-lg">inventory</mat-icon>
             </div>
@@ -219,12 +244,33 @@ interface TopProduct {
     }
   `]
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private router: Router;
-  selectedPeriod = '7D';
+  private apiService: ApiService;
+  private branchService: BranchService;
+  private destroy$ = new Subject<void>();
 
-  constructor(router: Router) {
+  selectedPeriod = '7D';
+  loading = false;
+
+  // Bar chart color palette
+  barColors = [
+    ['#3B82F6', '#60A5FA'],
+    ['#8B5CF6', '#A78BFA'],
+    ['#EC4899', '#F472B6'],
+    ['#F59E0B', '#FBBF24'],
+    ['#10B981', '#34D399'],
+    ['#2563EB', '#3B82F6'],
+    ['#6366F1', '#818CF8'],
+  ];
+
+  // Rank badge colors for top products
+  rankColors = ['#F59E0B', '#94A3B8', '#CD7F32', '#6366F1', '#8B5CF6'];
+
+  constructor(router: Router, apiService: ApiService, branchService: BranchService) {
     this.router = router;
+    this.apiService = apiService;
+    this.branchService = branchService;
   }
 
   kpiCards: KpiCard[] = [
@@ -310,11 +356,155 @@ export class DashboardComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    // In production, these would be API calls
-    // this.loadDashboardData();
+    this.loadDashboardData();
+
+    // Reload dashboard data when branch changes
+    this.branchService.currentBranch$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.loadDashboardData();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadDashboardData(): void {
+    this.loading = true;
+
+    // Load recent sales from the sales API as a secondary source
+    this.apiService.get<any>('/sales', { limit: 5, sort: 'createdAt', order: 'desc' }).pipe(
+      catchError(() => of(null)),
+      takeUntil(this.destroy$)
+    ).subscribe((response) => {
+      if (response && (response.data?.rows || response.data)) {
+        const sales = response.data?.rows || response.data;
+        if (Array.isArray(sales) && sales.length > 0) {
+          this.recentSales = sales.slice(0, 5).map((s: any) => ({
+            id: s.invoiceNumber || `INV-${s.id}`,
+            saleId: s.id,
+            customer: s.customer?.name || s.customerName || 'Walk-in Customer',
+            items: s.items?.length || s.itemCount || 0,
+            total: s.grandTotal || s.total || 0,
+            status: s.status || 'completed',
+            time: this.getTimeAgo(s.createdAt || s.saleDate),
+          }));
+        }
+      }
+    });
+
+    this.apiService.get<any>('/reports/daily-summary').pipe(
+      catchError(() => {
+        // If API is unavailable, keep using hardcoded fallback data
+        return of(null);
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe((response) => {
+      this.loading = false;
+      if (response && response.data) {
+        const data = response.data;
+
+        // Update KPI cards with real data
+        if (data.todaySales !== undefined) {
+          this.kpiCards[0].value = String(data.todaySales);
+          this.kpiCards[0].change = data.salesChange || '+0%';
+          this.kpiCards[0].changeType = this.getChangeType(data.salesChange);
+        }
+        if (data.todayRevenue !== undefined) {
+          this.kpiCards[1].value = '\u20B9' + Number(data.todayRevenue).toLocaleString('en-IN');
+          this.kpiCards[1].change = data.revenueChange || '+0%';
+          this.kpiCards[1].changeType = this.getChangeType(data.revenueChange);
+        }
+        if (data.totalCustomers !== undefined) {
+          this.kpiCards[2].value = Number(data.totalCustomers).toLocaleString('en-IN');
+          this.kpiCards[2].change = data.customerChange || '+0%';
+          this.kpiCards[2].changeType = this.getChangeType(data.customerChange);
+        }
+        if (data.lowStockCount !== undefined) {
+          this.kpiCards[3].value = String(data.lowStockCount);
+          this.kpiCards[3].change = data.lowStockChange || '+0';
+          this.kpiCards[3].changeType = data.lowStockCount > 0 ? 'down' : 'neutral';
+        }
+
+        // Update recent sales if provided
+        if (data.recentSales && data.recentSales.length > 0) {
+          this.recentSales = data.recentSales.map((s: any) => ({
+            id: s.invoiceNumber || s.id || 'N/A',
+            saleId: s.saleId || s.id || undefined,
+            customer: s.customerName || s.customer || 'Walk-in',
+            items: s.itemCount || s.items || 0,
+            total: s.total || s.grandTotal || 0,
+            status: s.status || 'completed',
+            time: s.timeAgo || s.time || '',
+          }));
+        }
+
+        // Update sales chart data if provided
+        if (data.salesChart && data.salesChart.length > 0) {
+          this.salesData = data.salesChart.map((d: any) => ({
+            label: d.label || d.day || '',
+            amount: d.amount || d.total || 0,
+          }));
+        }
+
+        // Update top products if provided
+        if (data.topProducts && data.topProducts.length > 0) {
+          this.topProducts = data.topProducts.map((p: any) => ({
+            name: p.name || p.productName || '',
+            sold: p.sold || p.quantity || 0,
+            revenue: p.revenue || p.total || 0,
+            category: p.category || '',
+          }));
+        }
+
+        // Update low stock items if provided
+        if (data.lowStockItems && data.lowStockItems.length > 0) {
+          this.lowStockItems = data.lowStockItems.map((item: any) => ({
+            name: item.name || item.productName || '',
+            sku: item.sku || item.barcode || '',
+            stock: item.stock || item.currentStock || 0,
+            minStock: item.minStock || item.reorderLevel || 0,
+          }));
+        }
+      }
+    });
+  }
+
+  getBarGradient(index: number): string {
+    const colors = this.barColors[index % this.barColors.length];
+    return `linear-gradient(to top, ${colors[0]}, ${colors[1]})`;
+  }
+
+  private getChangeType(change: string | undefined): 'up' | 'down' | 'neutral' {
+    if (!change) return 'neutral';
+    if (change.startsWith('+') && change !== '+0%' && change !== '+0') return 'up';
+    if (change.startsWith('-')) return 'down';
+    return 'neutral';
+  }
+
+  private getTimeAgo(dateStr: string | undefined): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs} hr${diffHrs > 1 ? 's' : ''} ago`;
+    const diffDays = Math.floor(diffHrs / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   }
 
   navigateTo(route: string): void {
     this.router.navigate([route]);
+  }
+
+  navigateToSale(sale: RecentSale): void {
+    // Use the numeric saleId if available (from API), otherwise use the display id
+    const id = sale.saleId || sale.id;
+    this.router.navigate(['/sales', id]);
   }
 }

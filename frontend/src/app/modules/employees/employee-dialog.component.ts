@@ -43,7 +43,7 @@ export class EmployeeDialogComponent implements OnInit {
   ) {
     this.mode = data.mode;
     const emp = data.employee;
-    this.form = this.fb.group({
+    const formConfig: any = {
       firstName: [emp?.firstName || '', Validators.required],
       lastName: [emp?.lastName || '', Validators.required],
       email: [emp?.email || '', [Validators.required, Validators.email]],
@@ -52,12 +52,16 @@ export class EmployeeDialogComponent implements OnInit {
       branchId: [emp?.branchId || ''],
       commissionRate: [emp?.commissionRate || 0, [Validators.min(0), Validators.max(100)]],
       isActive: [emp?.isActive !== false],
-    });
+    };
+    if (this.mode === 'add') {
+      formConfig['password'] = ['', [Validators.required, Validators.minLength(6)]];
+    }
+    this.form = this.fb.group(formConfig);
   }
 
   ngOnInit(): void {
     this.employeeService.getBranches().subscribe({
-      next: (res) => (this.branches = res.data || res || []),
+      next: (res) => (this.branches = Array.isArray(res) ? res : []),
     });
   }
 

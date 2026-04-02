@@ -64,7 +64,7 @@ export class CustomerDetailComponent implements OnInit {
   loadCustomer(id: number): void {
     this.customerService.getById(id).subscribe({
       next: (res) => {
-        this.customer = res.data || res;
+        this.customer = res;
         this.loading = false;
       },
       error: () => {
@@ -76,13 +76,13 @@ export class CustomerDetailComponent implements OnInit {
 
   loadPurchaseHistory(id: number): void {
     this.customerService.getPurchaseHistory(id).subscribe({
-      next: (res) => (this.purchases = res.data || res || []),
+      next: (res) => (this.purchases = Array.isArray(res) ? res : []),
     });
   }
 
   loadLoyaltyTransactions(id: number): void {
     this.customerService.getLoyaltyTransactions(id).subscribe({
-      next: (res) => (this.loyaltyTransactions = res.data || res || []),
+      next: (res) => (this.loyaltyTransactions = Array.isArray(res) ? res : []),
     });
   }
 

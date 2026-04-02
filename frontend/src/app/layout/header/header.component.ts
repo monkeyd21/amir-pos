@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatDividerModule } from '@angular/material/divider';
+import { Subject, takeUntil, catchError, of } from 'rxjs';
 import { AuthService, User } from '../../core/services/auth.service';
 import { BranchService, Branch } from '../../core/services/branch.service';
 
@@ -51,9 +52,14 @@ import { BranchService, Branch } from '../../core/services/branch.service';
         </div>
         <mat-menu #branchMenu="matMenu">
           <button mat-menu-item *ngFor="let branch of branches"
-                  (click)="onBranchSwitch(branch)">
-            <mat-icon>store</mat-icon>
+                  (click)="onBranchSwitch(branch)"
+                  [class.bg-blue-50]="currentBranch?.id === branch.id">
+            <mat-icon>{{ currentBranch?.id === branch.id ? 'check_circle' : 'store' }}</mat-icon>
             <span>{{ branch.name }}</span>
+          </button>
+          <button mat-menu-item *ngIf="branchLoadError" (click)="loadBranches()" class="text-slate-400">
+            <mat-icon>refresh</mat-icon>
+            <span>Retry loading branches</span>
           </button>
         </mat-menu>
 
@@ -100,10 +106,12 @@ import { BranchService, Branch } from '../../core/services/branch.service';
     }
   `]
 })
-export class HeaderComponent implements OnInit {
+export class HeaderComponent implements OnInit, OnDestroy {
   currentUser: User | null = null;
   currentBranch: Branch | null = null;
   branches: Branch[] = [];
+  branchLoadError = false;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private authService: AuthService,
@@ -111,19 +119,59 @@ export class HeaderComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.authService.currentUser$.subscribe((user) => {
+    this.authService.currentUser$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe((user) => {
       this.currentUser = user;
     });
 
-    this.branchService.currentBranch$.subscribe((branch) => {
+    this.branchService.currentBranch$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe((branch) => {
       this.currentBranch = branch;
     });
 
-    this.branchService.branches$.subscribe((branches) => {
+    this.branchService.branches$.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe((branches) => {
       this.branches = branches;
+      // Auto-select first branch if none selected
+      if (!this.currentBranch && branches.length > 0) {
+        this.branchService.switchBranch(branches[0]);
+      }
     });
 
-    this.branchService.getBranches().subscribe();
+    this.loadBranches();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadBranches(): void {
+    this.branchLoadError = false;
+    this.branchService.getBranches().pipe(
+      catchError(() => {
+        this.branchLoadError = true;
+        // Provide fallback branches when API is unavailable
+        const fallback: Branch[] = [
+          { id: '1', name: 'Main Store', code: 'MAIN', isActive: true },
+        ];
+        return of(fallback);
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe((branches) => {
+      if (this.branchLoadError && branches.length > 0) {
+        // Manually update subjects with fallback data if API failed
+        // The BranchService tap handler won't fire on our fallback `of()`,
+        // so we set branches directly here
+        this.branches = branches;
+        if (!this.currentBranch) {
+          this.branchService.switchBranch(branches[0]);
+        }
+      }
+    });
   }
 
   onBranchSwitch(branch: Branch): void {

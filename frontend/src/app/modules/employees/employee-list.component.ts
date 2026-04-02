@@ -67,7 +67,7 @@ export class EmployeeListComponent implements OnInit {
     this.loading = true;
     this.employeeService.getAll().subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {

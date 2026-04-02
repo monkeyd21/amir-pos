@@ -72,7 +72,7 @@ export class StockLevelsComponent implements OnInit {
 
     this.inventoryService.getStockLevels(params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {
@@ -84,7 +84,7 @@ export class StockLevelsComponent implements OnInit {
 
   loadBranches(): void {
     this.inventoryService.getBranches().subscribe({
-      next: (res) => (this.branches = res.data || res || []),
+      next: (res) => (this.branches = Array.isArray(res) ? res : []),
     });
   }
 

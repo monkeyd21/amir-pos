@@ -108,7 +108,7 @@ export class PosTerminalComponent implements OnInit {
         })
       )
       .subscribe((results: any) => {
-        this.customerResults = results.data || results || [];
+        this.customerResults = Array.isArray(results) ? results : results?.data || [];
       });
   }
 
@@ -127,7 +127,7 @@ export class PosTerminalComponent implements OnInit {
     this.loading = true;
     this.posService.lookupBarcode(barcode).subscribe({
       next: (res) => {
-        const product = res.data || res;
+        const product = res;
         this.addToCart(product, barcode);
         this.barcodeValue = '';
         this.loading = false;
@@ -311,7 +311,7 @@ export class PosTerminalComponent implements OnInit {
   loadHeldTransactions(): void {
     this.posService.getHeldTransactions().subscribe({
       next: (res) => {
-        this.heldTransactions = res.data || res || [];
+        this.heldTransactions = Array.isArray(res) ? res : [];
       },
       error: () => {},
     });

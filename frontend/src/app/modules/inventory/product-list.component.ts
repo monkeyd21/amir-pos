@@ -79,7 +79,7 @@ export class ProductListComponent implements OnInit {
 
     this.productService.getAll(params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.dataSource.data = Array.isArray(res) ? res : [];
         this.loading = false;
       },
       error: () => {
@@ -91,10 +91,10 @@ export class ProductListComponent implements OnInit {
 
   loadFilters(): void {
     this.productService.getBrands().subscribe({
-      next: (res) => (this.brands = res.data || res || []),
+      next: (res) => (this.brands = Array.isArray(res) ? res : []),
     });
     this.productService.getCategories().subscribe({
-      next: (res) => (this.categories = res.data || res || []),
+      next: (res) => (this.categories = Array.isArray(res) ? res : []),
     });
   }
 

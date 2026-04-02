@@ -121,10 +121,10 @@ export class ProductDialogComponent implements OnInit {
 
   private loadDropdowns(): void {
     this.productService.getBrands().subscribe({
-      next: (res) => (this.brands = res.data || res || []),
+      next: (res) => (this.brands = Array.isArray(res) ? res : []),
     });
     this.productService.getCategories().subscribe({
-      next: (res) => (this.categories = res.data || res || []),
+      next: (res) => (this.categories = Array.isArray(res) ? res : []),
     });
   }
 
