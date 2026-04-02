@@ -44,7 +44,8 @@ export class EmployeeDialogComponent implements OnInit {
     this.mode = data.mode;
     const emp = data.employee;
     this.form = this.fb.group({
-      name: [emp?.name || '', Validators.required],
+      firstName: [emp?.firstName || '', Validators.required],
+      lastName: [emp?.lastName || '', Validators.required],
       email: [emp?.email || '', [Validators.required, Validators.email]],
       phone: [emp?.phone || ''],
       role: [emp?.role || '', Validators.required],

@@ -98,7 +98,7 @@ export class EmployeeListComponent implements OnInit {
   }
 
   deleteEmployee(employee: any): void {
-    if (confirm(`Delete employee "${employee.name}"?`)) {
+    if (confirm(`Delete employee "${employee.firstName} ${employee.lastName}"?`)) {
       this.employeeService.delete(employee.id).subscribe({
         next: () => {
           this.snackBar.open('Employee deleted', 'Close', { duration: 2000 });

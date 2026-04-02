@@ -42,7 +42,7 @@
         <mat-select [(ngModel)]="employeeFilter" (selectionChange)="loadAttendance()">
           <mat-option value="">All</mat-option>
           @for (emp of employees; track emp.id) {
-            <mat-option [value]="emp.id">{{ emp.name }}</mat-option>
+            <mat-option [value]="emp.id">{{ emp.firstName }} {{ emp.lastName }}</mat-option>
           }
         </mat-select>
       </mat-form-field>

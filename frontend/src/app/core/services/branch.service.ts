@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap, map } from 'rxjs';
 import { ApiService } from './api.service';
 
 export interface Branch {
@@ -22,7 +22,8 @@ export class BranchService {
   constructor(private api: ApiService) {}
 
   getBranches(): Observable<Branch[]> {
-    return this.api.get<Branch[]>('/branches').pipe(
+    return this.api.get<any>('/branches').pipe(
+      map((res) => res.data || res || []),
       tap((branches) => this.branchesSubject.next(branches))
     );
   }

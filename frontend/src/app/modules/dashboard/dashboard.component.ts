@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
@@ -17,6 +18,7 @@ interface KpiCard {
   changeType: 'up' | 'down' | 'neutral';
   color: string;
   bgColor: string;
+  route: string;
 }
 
 interface RecentSale {
@@ -58,7 +60,8 @@ interface TopProduct {
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <div *ngFor="let card of kpiCards"
-           class="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
+           class="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+           (click)="navigateTo(card.route)">
         <div class="flex items-start justify-between">
           <div>
             <p class="text-sm text-slate-500 font-medium">{{ card.title }}</p>
@@ -144,7 +147,7 @@ interface TopProduct {
       <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 class="text-lg font-semibold text-slate-800">Recent Sales</h3>
-          <button mat-button color="primary" class="text-sm">View All</button>
+          <button mat-button color="primary" class="text-sm" (click)="navigateTo('/sales')">View All</button>
         </div>
         <table mat-table [dataSource]="recentSales" class="w-full">
           <ng-container matColumnDef="id">
@@ -217,7 +220,12 @@ interface TopProduct {
   `]
 })
 export class DashboardComponent implements OnInit {
+  private router: Router;
   selectedPeriod = '7D';
+
+  constructor(router: Router) {
+    this.router = router;
+  }
 
   kpiCards: KpiCard[] = [
     {
@@ -228,6 +236,7 @@ export class DashboardComponent implements OnInit {
       changeType: 'up',
       color: '#2563EB',
       bgColor: '#EFF6FF',
+      route: '/sales',
     },
     {
       title: "Today's Revenue",
@@ -237,6 +246,7 @@ export class DashboardComponent implements OnInit {
       changeType: 'up',
       color: '#22C55E',
       bgColor: '#F0FDF4',
+      route: '/accounting',
     },
     {
       title: 'Total Customers',
@@ -246,6 +256,7 @@ export class DashboardComponent implements OnInit {
       changeType: 'up',
       color: '#8B5CF6',
       bgColor: '#F5F3FF',
+      route: '/customers',
     },
     {
       title: 'Low Stock Items',
@@ -255,6 +266,7 @@ export class DashboardComponent implements OnInit {
       changeType: 'down',
       color: '#F59E0B',
       bgColor: '#FFFBEB',
+      route: '/inventory/stock',
     },
   ];
 
@@ -300,5 +312,9 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     // In production, these would be API calls
     // this.loadDashboardData();
+  }
+
+  navigateTo(route: string): void {
+    this.router.navigate([route]);
   }
 }

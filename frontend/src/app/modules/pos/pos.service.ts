@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ApiService } from '../../core/services/api.service';
 
 export interface CartItem {
@@ -51,42 +52,42 @@ export class PosService {
   private api = inject(ApiService);
 
   lookupBarcode(barcode: string): Observable<any> {
-    return this.api.get(`/pos/lookup/${barcode}`);
+    return this.api.get<any>(`/pos/lookup/${barcode}`).pipe(map(res => res.data));
   }
 
   checkout(payload: CheckoutPayload): Observable<any> {
-    return this.api.post('/pos/checkout', payload);
+    return this.api.post<any>('/pos/checkout', payload).pipe(map(res => res.data));
   }
 
   holdTransaction(transaction: any): Observable<any> {
-    return this.api.post('/pos/hold', transaction);
+    return this.api.post<any>('/pos/hold', transaction).pipe(map(res => res.data));
   }
 
   getHeldTransactions(): Observable<any> {
-    return this.api.get('/pos/held');
+    return this.api.get<any>('/pos/held').pipe(map(res => res.data));
   }
 
   resumeTransaction(id: string): Observable<any> {
-    return this.api.get(`/pos/held/${id}`);
+    return this.api.get<any>(`/pos/held/${id}`).pipe(map(res => res.data));
   }
 
   deleteHeldTransaction(id: string): Observable<any> {
-    return this.api.delete(`/pos/held/${id}`);
+    return this.api.delete<any>(`/pos/held/${id}`).pipe(map(res => res.data));
   }
 
   openSession(): Observable<any> {
-    return this.api.post('/pos/sessions/open', {});
+    return this.api.post<any>('/pos/sessions/open', {}).pipe(map(res => res.data));
   }
 
   closeSession(data: any): Observable<any> {
-    return this.api.post('/pos/sessions/close', data);
+    return this.api.post<any>('/pos/sessions/close', data).pipe(map(res => res.data));
   }
 
   getSession(): Observable<any> {
-    return this.api.get('/pos/sessions/current');
+    return this.api.get<any>('/pos/sessions/current').pipe(map(res => res.data));
   }
 
   searchCustomer(query: string): Observable<any> {
-    return this.api.get('/customers/search', { query });
+    return this.api.get<any>('/customers/search', { query }).pipe(map(res => res.data));
   }
 }

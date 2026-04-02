@@ -28,7 +28,7 @@
       <table mat-table [dataSource]="dataSource" matSort class="w-full">
         <ng-container matColumnDef="name">
           <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Name</th>
-          <td mat-cell *matCellDef="let row" class="font-medium text-slate-800">{{ row.name }}</td>
+          <td mat-cell *matCellDef="let row" class="font-medium text-slate-800">{{ row.firstName }} {{ row.lastName }}</td>
         </ng-container>
 
         <ng-container matColumnDef="role">
