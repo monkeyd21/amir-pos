@@ -56,7 +56,7 @@ export async function sendWhatsAppTemplate(message: WhatsAppMessage): Promise<{
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    const data: any = await response.json();
 
     if (response.ok) {
       return {
@@ -112,7 +112,7 @@ export async function sendWhatsAppText(message: WhatsAppTextMessage): Promise<{
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    const data: any = await response.json();
 
     if (response.ok) {
       return {

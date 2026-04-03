@@ -195,7 +195,7 @@ export class MessagingService {
         }),
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       return {
         success: response.ok,
