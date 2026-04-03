@@ -31,16 +31,7 @@ const app = express();
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: config.nodeEnv === 'production' ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
-    },
-  } : false,
+  contentSecurityPolicy: false,
 }));
 app.use(cors({
   origin: config.nodeEnv === 'production' ? true : config.frontendUrl,
