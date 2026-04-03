@@ -39,7 +39,9 @@ COPY --from=builder /app/backend/package.json ./package.json
 COPY --from=builder /app/shared/dist ../shared/dist
 COPY --from=builder /app/shared/package.json ../shared/package.json
 
-# Copy seed script and its dependencies for first-run seeding
+# Copy Prisma CLI and seed dependencies (pinned to project version, not latest)
+COPY --from=builder /app/backend/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=builder /app/backend/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/backend/prisma/seed.ts ./prisma/seed.ts
 COPY --from=builder /app/node_modules/ts-node ./node_modules/ts-node
 COPY --from=builder /app/node_modules/typescript ./node_modules/typescript
@@ -54,10 +56,10 @@ EXPOSE 3000
 COPY <<'EOF' /app/start.sh
 #!/bin/sh
 set -e
-npx prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy
 if [ "$SEED_DB" = "true" ]; then
   echo "Seeding database..."
-  npx ts-node prisma/seed.ts
+  ./node_modules/.bin/ts-node prisma/seed.ts
   echo "Seeding complete. Set SEED_DB=false in Railway to skip on next deploy."
 fi
 node dist/server.js
