@@ -22,6 +22,7 @@ RUN cd backend && npx tsc --outDir seed-dist --rootDir . prisma/seed.ts --esModu
 
 # Stage 2: Production deps only
 FROM node:20-alpine AS deps
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY shared/package.json ./shared/
@@ -33,6 +34,7 @@ RUN cd backend && npx prisma generate
 
 # Stage 3: Final image
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # All production node_modules (hoisted by npm workspaces)
