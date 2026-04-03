@@ -11,6 +11,7 @@
             <mat-checkbox formControlName="selected"></mat-checkbox>
             <div class="flex-1">
               <span class="font-medium">{{ item.value.productName }}</span>
+              <span class="text-sm text-slate-500 ml-2">{{ item.value.variantLabel }}</span>
             </div>
             <span class="font-mono text-sm">x{{ item.value.quantity }}</span>
             <span class="font-mono font-bold">{{ item.value.unitPrice * item.value.quantity | currency:'INR':'symbol':'1.2-2' }}</span>
@@ -35,7 +36,7 @@
       <div class="flex items-center gap-3 bg-blue-50 rounded-lg p-3 mb-2">
         <div class="flex-1">
           <div class="font-medium">{{ item.name }}</div>
-          <div class="text-sm text-slate-500 font-mono">{{ item.barcode }}</div>
+          <div class="text-sm text-slate-500">{{ item.variantLabel }} &bull; <span class="font-mono">{{ item.barcode }}</span></div>
         </div>
         <mat-form-field class="w-24" appearance="outline">
           <mat-label>Price</mat-label>

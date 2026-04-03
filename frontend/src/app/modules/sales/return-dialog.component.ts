@@ -45,21 +45,28 @@ export class ReturnDialogComponent {
     @Inject(MAT_DIALOG_DATA) public data: any
   ) {
     this.sale = data.sale;
+
+    const returnableItems = (this.sale.items || [])
+      .filter((item: any) => (item.quantity - (item.returnedQuantity || 0)) > 0)
+      .map((item: any) => {
+        const returnable = item.quantity - (item.returnedQuantity || 0);
+        return this.fb.group({
+          saleItemId: [item.id],
+          productName: [item.variant?.product?.name || item.productName || item.name || 'Unknown'],
+          variantLabel: [`${item.variant?.size || item.size || ''} / ${item.variant?.color || item.color || ''}`],
+          selected: [false],
+          quantity: [{ value: 0, disabled: true }],
+          maxQuantity: [returnable],
+          originalQty: [item.quantity],
+          returnedQty: [item.returnedQuantity || 0],
+          condition: ['resellable'],
+          unitPrice: [item.unitPrice],
+        });
+      });
+
     this.form = this.fb.group({
       reason: ['', Validators.required],
-      items: this.fb.array(
-        (this.sale.items || []).map((item: any) =>
-          this.fb.group({
-            saleItemId: [item.id],
-            productName: [item.productName || item.name],
-            selected: [false],
-            quantity: [{ value: 0, disabled: true }],
-            maxQuantity: [item.quantity],
-            condition: ['resellable'],
-            unitPrice: [item.unitPrice],
-          })
-        )
-      ),
+      items: this.fb.array(returnableItems),
     });
   }
 
@@ -118,7 +125,6 @@ export class ReturnDialogComponent {
           this.dialogRef.close(true);
         },
         error: () => {
-          this.snackBar.open('Failed to process return', 'Close', { duration: 3000 });
           this.loading = false;
         },
       });

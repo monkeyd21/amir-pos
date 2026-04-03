@@ -38,7 +38,7 @@ export class SaleDetailComponent implements OnInit {
 
   sale: any = null;
   loading = true;
-  itemColumns = ['product', 'variant', 'quantity', 'unitPrice', 'total'];
+  itemColumns = ['product', 'variant', 'quantity', 'returned', 'unitPrice', 'total'];
   paymentColumns = ['method', 'amount', 'reference'];
 
   ngOnInit(): void {
@@ -72,10 +72,26 @@ export class SaleDetailComponent implements OnInit {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-700';
       case 'refunded': return 'bg-red-100 text-red-700';
-      case 'partial_refund': return 'bg-yellow-100 text-yellow-700';
+      case 'partially_returned': return 'bg-orange-100 text-orange-700';
+      case 'partial_refund': return 'bg-orange-100 text-orange-700';
       case 'exchanged': return 'bg-purple-100 text-purple-700';
+      case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'cancelled': return 'bg-slate-100 text-slate-500';
       default: return 'bg-slate-100 text-slate-700';
     }
+  }
+
+  formatStatus(status: string): string {
+    const labels: Record<string, string> = {
+      completed: 'Completed',
+      refunded: 'Refunded',
+      partially_returned: 'Partially Returned',
+      partial_refund: 'Partial Refund',
+      exchanged: 'Exchanged',
+      pending: 'Pending',
+      cancelled: 'Cancelled',
+    };
+    return labels[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
   openReturnDialog(): void {

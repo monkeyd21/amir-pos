@@ -1,6 +1,6 @@
 import { Component, Inject, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +11,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { SalesService } from './sales.service';
+import { ApiService } from '../../core/services/api.service';
 
 @Component({
   selector: 'app-exchange-dialog',
@@ -34,12 +35,13 @@ import { SalesService } from './sales.service';
 export class ExchangeDialogComponent {
   private fb = inject(FormBuilder);
   private salesService = inject(SalesService);
+  private api = inject(ApiService);
   private snackBar = inject(MatSnackBar);
 
   form: FormGroup;
   sale: any;
   loading = false;
-  newItems: Array<{ barcode: string; name: string; price: number; quantity: number }> = [];
+  newItems: Array<{ barcode: string; name: string; variantLabel: string; price: number; quantity: number }> = [];
   newItemBarcode = '';
 
   constructor(
@@ -47,18 +49,22 @@ export class ExchangeDialogComponent {
     @Inject(MAT_DIALOG_DATA) public data: any
   ) {
     this.sale = data.sale;
+    const returnableItems = (this.sale.items || [])
+      .filter((item: any) => (item.quantity - (item.returnedQuantity || 0)) > 0)
+      .map((item: any) => {
+        const returnable = item.quantity - (item.returnedQuantity || 0);
+        return this.fb.group({
+          saleItemId: [item.id],
+          productName: [item.variant?.product?.name || item.productName || item.name || 'Unknown'],
+          variantLabel: [`${item.variant?.size || item.size || ''} / ${item.variant?.color || item.color || ''}`],
+          selected: [false],
+          quantity: [returnable],
+          unitPrice: [item.unitPrice],
+        });
+      });
+
     this.form = this.fb.group({
-      returnItems: this.fb.array(
-        (this.sale.items || []).map((item: any) =>
-          this.fb.group({
-            saleItemId: [item.id],
-            productName: [item.productName || item.name],
-            selected: [false],
-            quantity: [item.quantity],
-            unitPrice: [item.unitPrice],
-          })
-        )
-      ),
+      returnItems: this.fb.array(returnableItems),
     });
   }
 
@@ -84,14 +90,25 @@ export class ExchangeDialogComponent {
   }
 
   addNewItem(): void {
-    if (!this.newItemBarcode.trim()) return;
-    this.newItems.push({
-      barcode: this.newItemBarcode.trim(),
-      name: 'Scanned Item',
-      price: 0,
-      quantity: 1,
-    });
+    const barcode = this.newItemBarcode.trim();
+    if (!barcode) return;
     this.newItemBarcode = '';
+
+    this.api.get<any>(`/pos/lookup/${barcode}`).subscribe({
+      next: (res: any) => {
+        const p = res.data;
+        this.newItems.push({
+          barcode: p.barcode,
+          name: p.productName,
+          variantLabel: `${p.size || ''} / ${p.color || ''}`,
+          price: p.price,
+          quantity: 1,
+        });
+      },
+      error: () => {
+        this.snackBar.open('Product not found for this barcode', 'Close', { duration: 3000 });
+      },
+    });
   }
 
   removeNewItem(index: number): void {
@@ -128,7 +145,6 @@ export class ExchangeDialogComponent {
           this.dialogRef.close(true);
         },
         error: () => {
-          this.snackBar.open('Failed to process exchange', 'Close', { duration: 3000 });
           this.loading = false;
         },
       });

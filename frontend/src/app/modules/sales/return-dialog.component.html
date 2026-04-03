@@ -14,7 +14,12 @@
             <mat-checkbox formControlName="selected" (change)="toggleItem($index)"></mat-checkbox>
             <div class="flex-1">
               <div class="font-medium text-slate-800">{{ item.value.productName }}</div>
-              <div class="text-sm text-slate-500">Max qty: {{ item.value.maxQuantity }}</div>
+              <div class="text-sm text-slate-500">
+                {{ item.value.variantLabel }} &bull; Returnable: {{ item.value.maxQuantity }}
+                @if (item.value.returnedQty > 0) {
+                  <span class="text-orange-600">({{ item.value.returnedQty }} already returned)</span>
+                }
+              </div>
             </div>
             <mat-form-field class="w-20" appearance="outline">
               <mat-label>Qty</mat-label>
