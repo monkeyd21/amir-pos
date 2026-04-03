@@ -1,0 +1,13 @@
+node_modules
+dist
+.angular
+.git
+.github
+.claude
+e2e
+test-results
+demo-screenshots
+coverage
+*.log
+.env
+.DS_Store

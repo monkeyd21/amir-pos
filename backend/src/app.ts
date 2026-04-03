@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
@@ -30,7 +31,10 @@ const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
+app.use(cors({
+  origin: config.nodeEnv === 'production' ? true : config.frontendUrl,
+  credentials: true,
+}));
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -60,8 +64,18 @@ app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/employees', employeeRoutes);
 app.use('/api/v1/messaging', messagingRoutes);
 
+// Serve Angular frontend in production
+if (config.nodeEnv === 'production') {
+  const publicPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(publicPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+} else {
+  app.use(notFoundHandler);
+}
+
 // Error handling
-app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;
