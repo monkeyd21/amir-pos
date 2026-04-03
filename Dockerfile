@@ -40,8 +40,8 @@ COPY --from=builder /app/shared/dist ../shared/dist
 COPY --from=builder /app/shared/package.json ../shared/package.json
 
 # Copy Prisma CLI and seed dependencies (pinned to project version, not latest)
-COPY --from=builder /app/backend/node_modules/.bin/prisma ./node_modules/.bin/prisma
-COPY --from=builder /app/backend/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/backend/prisma/seed.ts ./prisma/seed.ts
 COPY --from=builder /app/node_modules/ts-node ./node_modules/ts-node
 COPY --from=builder /app/node_modules/typescript ./node_modules/typescript
