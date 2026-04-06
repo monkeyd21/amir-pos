@@ -3,6 +3,33 @@ import { AuthRequest } from '../../middleware/auth';
 import { employeeService } from './service';
 
 export class EmployeeController {
+  async list(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await employeeService.list(req.query as any);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async create(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const employee = await employeeService.create(req.body);
+      res.status(201).json({ success: true, data: employee });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async update(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const employee = await employeeService.update(parseInt(req.params.id), req.body);
+      res.json({ success: true, data: employee });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async clockIn(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const branchId = req.body.branchId || req.user!.branchId;

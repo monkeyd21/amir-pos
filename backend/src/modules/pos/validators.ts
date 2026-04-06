@@ -53,3 +53,21 @@ export const heldIdParamSchema = z.object({
     id: z.string().regex(/^\d+$/),
   }),
 });
+
+export const createUpiPaymentSchema = z.object({
+  body: z.object({
+    items: z.array(z.object({
+      barcode: z.string().min(1),
+      quantity: z.number().int().positive(),
+    })).min(1),
+    customerId: z.number().int().positive().optional(),
+    discountAmount: z.number().min(0).optional(),
+    notes: z.string().optional(),
+  }),
+});
+
+export const checkUpiPaymentSchema = z.object({
+  params: z.object({
+    intentId: z.string().min(1),
+  }),
+});

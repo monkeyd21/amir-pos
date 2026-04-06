@@ -84,7 +84,15 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.chart?.destroy();
   }
 
+  private weeklySalesData: { labels: string[]; values: number[] } = { labels: [], values: [] };
+
   private loadData(): void {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(today.getDate() - 6);
+
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
     forkJoin({
       summary: this.api.get<ApiResponse<DailySummary>>('/reports/daily-summary'),
       sales: this.api.get<ApiResponse<SaleItem[]>>('/sales', {
@@ -96,10 +104,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       lowStock: this.api.get<ApiResponse<InventoryItem[]>>('/inventory', {
         lowStock: true,
       }),
+      weeklySales: this.api.get<ApiResponse<any>>('/reports/sales', {
+        startDate: formatDate(weekAgo),
+        endDate: formatDate(today),
+      }),
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: ({ summary, sales, customers, lowStock }) => {
+        next: ({ summary, sales, customers, lowStock, weeklySales }) => {
           this.totalSales = summary.data?.totalSales ?? 0;
           this.totalRevenue = summary.data?.totalRevenue ?? 0;
 
@@ -109,6 +121,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           this.lowStockItems = lowStock.data ?? [];
           this.lowStockCount = lowStock.meta?.total ?? this.lowStockItems.length;
 
+          this.weeklySalesData = this.buildWeeklyData(weeklySales.data?.dailyBreakdown ?? [], weekAgo);
+
           this.loading = false;
           setTimeout(() => this.initChart(), 0);
         },
@@ -116,6 +130,27 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           this.loading = false;
         },
       });
+  }
+
+  private buildWeeklyData(
+    dailyBreakdown: { date: string; total: number; count: number }[],
+    startDate: Date
+  ): { labels: string[]; values: number[] } {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dataMap = new Map(dailyBreakdown.map((d) => [d.date, d.total]));
+
+    const labels: string[] = [];
+    const values: number[] = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      labels.push(dayNames[d.getDay()]);
+      values.push(dataMap.get(key) || 0);
+    }
+
+    return { labels, values };
   }
 
   private initChart(): void {
@@ -130,18 +165,23 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     gradient.addColorStop(1, 'rgba(70, 95, 255, 0.05)');
 
     this.chart = new Chart(canvas, {
-      type: 'bar',
+      type: 'line',
       data: {
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        labels: this.weeklySalesData.labels,
         datasets: [
           {
-            label: 'Sales',
-            data: [12, 19, 8, 15, 22, 30, 18],
+            label: 'Revenue',
+            data: this.weeklySalesData.values,
             backgroundColor: gradient,
             borderColor: '#465fff',
-            borderWidth: 1,
-            borderRadius: 6,
-            borderSkipped: false,
+            borderWidth: 2,
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: '#465fff',
+            pointBorderColor: '#1a1b2e',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
           },
         ],
       },
@@ -158,6 +198,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             borderWidth: 1,
             cornerRadius: 8,
             padding: 12,
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.parsed.y || 0;
+                return ' ' + new Intl.NumberFormat('en-IN', {
+                  style: 'currency',
+                  currency: 'INR',
+                  maximumFractionDigits: 0,
+                }).format(val);
+              },
+            },
           },
         },
         scales: {
@@ -168,7 +218,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           },
           y: {
             grid: { color: 'rgba(68, 70, 86, 0.3)' },
-            ticks: { color: '#8f8fa2', font: { size: 11 } },
+            ticks: {
+              color: '#8f8fa2',
+              font: { size: 11 },
+              callback: (value) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value)),
+            },
             border: { display: false },
           },
         },

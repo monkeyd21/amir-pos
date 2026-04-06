@@ -2,6 +2,7 @@ import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { generateNumber } from '../../utils/helpers';
 import { MovementType, PaymentMethod } from '@prisma/client';
+import { getPaymentGateway } from '../../services/payment-gateway';
 
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
@@ -546,6 +547,370 @@ export class PosService {
     await prisma.heldTransaction.delete({ where: { id } });
 
     return held;
+  }
+
+  async createUpiPayment(
+    data: {
+      items: { barcode: string; quantity: number }[];
+      customerId?: number;
+      discountAmount?: number;
+      notes?: string;
+    },
+    userId: number,
+    branchId: number
+  ) {
+    // 1. Verify user has an open session
+    const session = await prisma.posSession.findFirst({
+      where: { userId, status: 'open' },
+    });
+
+    if (!session) {
+      throw new AppError('No open POS session. Open a session before checkout.', 400);
+    }
+
+    // 2. Resolve barcodes to variants
+    const barcodes = data.items.map((i) => i.barcode);
+    const variants = await prisma.productVariant.findMany({
+      where: { barcode: { in: barcodes }, isActive: true },
+      include: { product: true },
+    });
+
+    const variantByBarcode = new Map(variants.map((v) => [v.barcode, v]));
+
+    for (const item of data.items) {
+      if (!variantByBarcode.has(item.barcode)) {
+        throw new AppError(`Barcode not found: ${item.barcode}`, 400);
+      }
+    }
+
+    // 3. Check stock and calculate totals
+    const cartItems: Array<{
+      variantId: number;
+      quantity: number;
+      unitPrice: number;
+      costPrice: number;
+      taxRate: number;
+    }> = [];
+
+    for (const item of data.items) {
+      const variant = variantByBarcode.get(item.barcode)!;
+
+      const inventory = await prisma.inventory.findUnique({
+        where: {
+          variantId_branchId: {
+            variantId: variant.id,
+            branchId,
+          },
+        },
+      });
+
+      if (!inventory || inventory.quantity < item.quantity) {
+        throw new AppError(
+          `Insufficient stock for ${variant.product.name} (${variant.size}/${variant.color}). Available: ${inventory?.quantity ?? 0}, Requested: ${item.quantity}`,
+          400
+        );
+      }
+
+      const unitPrice = Number(variant.priceOverride ?? variant.product.basePrice);
+      const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
+      const taxRate = Number(variant.product.taxRate);
+
+      cartItems.push({
+        variantId: variant.id,
+        quantity: item.quantity,
+        unitPrice,
+        costPrice,
+        taxRate,
+      });
+    }
+
+    // 4. Calculate totals
+    const discountAmount = data.discountAmount || 0;
+    let subtotal = 0;
+    let totalTax = 0;
+
+    for (const item of cartItems) {
+      const lineSubtotal = item.unitPrice * item.quantity;
+      const lineTax = lineSubtotal * (item.taxRate / 100);
+      subtotal += lineSubtotal;
+      totalTax += lineTax;
+    }
+
+    subtotal = Math.round(subtotal * 100) / 100;
+    totalTax = Math.round(totalTax * 100) / 100;
+    const totalBeforeDiscount = subtotal + totalTax;
+    const saleTotal = Math.round((totalBeforeDiscount - discountAmount) * 100) / 100;
+
+    if (saleTotal < 0) {
+      throw new AppError('Discount exceeds sale total', 400);
+    }
+
+    // 5. Validate customer exists if provided
+    if (data.customerId) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: data.customerId },
+      });
+      if (!customer) {
+        throw new AppError('Customer not found', 404);
+      }
+    }
+
+    // 6. Create QR payment via gateway
+    const intentId = `UPI-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    const gatewayResponse = await getPaymentGateway().createQRPayment({
+      orderId: intentId,
+      amount: saleTotal,
+      expiresInSeconds: 300,
+    });
+
+    // 7. Persist intent
+    await prisma.upiPaymentIntent.create({
+      data: {
+        intentId,
+        providerOrderId: gatewayResponse.providerOrderId,
+        branchId,
+        userId,
+        amount: saleTotal,
+        qrCodeUrl: gatewayResponse.qrCodeUrl,
+        upiLink: gatewayResponse.upiLink,
+        cartSnapshot: cartItems as any,
+        customerId: data.customerId || null,
+        discountAmount,
+        expiresAt: gatewayResponse.expiresAt,
+      },
+    });
+
+    return {
+      intentId,
+      qrCodeUrl: gatewayResponse.qrCodeUrl,
+      upiLink: gatewayResponse.upiLink,
+      amount: saleTotal,
+      expiresAt: gatewayResponse.expiresAt,
+    };
+  }
+
+  async checkUpiPaymentStatus(intentId: string, userId: number) {
+    const intent = await prisma.upiPaymentIntent.findUnique({
+      where: { intentId },
+    });
+
+    if (!intent) {
+      throw new AppError('Payment intent not found', 404);
+    }
+
+    if (intent.userId !== userId) {
+      throw new AppError('Unauthorized', 403);
+    }
+
+    // Already completed
+    if (intent.status === 'completed' && intent.saleId) {
+      const sale = await prisma.sale.findUnique({
+        where: { id: intent.saleId },
+        select: { id: true, saleNumber: true },
+      });
+      return { status: 'completed', saleId: sale?.id, saleNumber: sale?.saleNumber };
+    }
+
+    // Already failed/expired
+    if (intent.status === 'failed' || intent.status === 'expired') {
+      return { status: intent.status };
+    }
+
+    // Check with provider
+    const providerStatus = await getPaymentGateway().getPaymentStatus(intent.providerOrderId);
+
+    if (providerStatus.status === 'completed') {
+      const sale = await this._completeUpiSale(intent, providerStatus.utrNumber);
+      return { status: 'completed', saleId: sale.id, saleNumber: sale.saleNumber };
+    }
+
+    if (providerStatus.status === 'failed' || providerStatus.status === 'expired') {
+      await prisma.upiPaymentIntent.update({
+        where: { id: intent.id },
+        data: { status: providerStatus.status },
+      });
+      return { status: providerStatus.status };
+    }
+
+    return { status: 'pending' };
+  }
+
+  async handleUpiWebhook(headers: Record<string, string>, rawBody: string) {
+    const result = getPaymentGateway().verifyWebhook(headers, rawBody);
+
+    if (!result.isValid) {
+      throw new AppError('Invalid webhook signature', 400);
+    }
+
+    const intent = await prisma.upiPaymentIntent.findUnique({
+      where: { intentId: result.orderId },
+    });
+
+    if (intent && intent.status === 'pending') {
+      if (result.status === 'completed') {
+        await this._completeUpiSale(intent, result.utrNumber);
+      } else if (result.status === 'failed') {
+        await prisma.upiPaymentIntent.update({
+          where: { id: intent.id },
+          data: { status: 'failed' },
+        });
+      }
+    }
+  }
+
+  private async _completeUpiSale(
+    intent: {
+      id: number;
+      intentId: string;
+      branchId: number;
+      userId: number;
+      amount: any;
+      saleId: number | null;
+      cartSnapshot: any;
+      customerId: number | null;
+      discountAmount: any;
+    },
+    utrNumber?: string
+  ) {
+    // Idempotency guard
+    if (intent.saleId) {
+      const existing = await prisma.sale.findUnique({ where: { id: intent.saleId } });
+      if (existing) return existing;
+    }
+
+    const cartItems = intent.cartSnapshot as Array<{
+      variantId: number;
+      quantity: number;
+      unitPrice: number;
+      costPrice: number;
+      taxRate: number;
+    }>;
+
+    const saleTotal = Number(intent.amount);
+    const discountAmount = Number(intent.discountAmount);
+
+    return prisma.$transaction(async (tx) => {
+      // Calculate line items
+      let subtotal = 0;
+      let totalTax = 0;
+      const itemsForCreation: Array<{
+        variantId: number;
+        quantity: number;
+        unitPrice: number;
+        discount: number;
+        taxAmount: number;
+        total: number;
+      }> = [];
+
+      for (const item of cartItems) {
+        const lineSubtotal = item.unitPrice * item.quantity;
+        const lineTax = lineSubtotal * (item.taxRate / 100);
+        const lineTotal = lineSubtotal + lineTax;
+
+        subtotal += lineSubtotal;
+        totalTax += lineTax;
+
+        itemsForCreation.push({
+          variantId: item.variantId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: 0,
+          taxAmount: Math.round(lineTax * 100) / 100,
+          total: Math.round(lineTotal * 100) / 100,
+        });
+      }
+
+      subtotal = Math.round(subtotal * 100) / 100;
+      totalTax = Math.round(totalTax * 100) / 100;
+
+      // Create the sale
+      const saleNumber = generateNumber('SL');
+
+      const sale = await tx.sale.create({
+        data: {
+          branchId: intent.branchId,
+          userId: intent.userId,
+          customerId: intent.customerId,
+          saleNumber,
+          subtotal,
+          taxAmount: totalTax,
+          discountAmount,
+          total: saleTotal,
+          notes: `UPI payment - Intent: ${intent.intentId}`,
+          items: {
+            create: itemsForCreation,
+          },
+          payments: {
+            create: [{
+              method: 'upi' as PaymentMethod,
+              amount: saleTotal,
+              referenceNumber: utrNumber || intent.intentId,
+            }],
+          },
+        },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: { product: true },
+              },
+            },
+          },
+          payments: true,
+          customer: true,
+        },
+      });
+
+      // Deduct inventory and create movement records
+      for (const item of cartItems) {
+        await tx.inventory.update({
+          where: {
+            variantId_branchId: {
+              variantId: item.variantId,
+              branchId: intent.branchId,
+            },
+          },
+          data: { quantity: { decrement: item.quantity } },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: item.variantId,
+            branchId: intent.branchId,
+            type: MovementType.sale,
+            quantity: -item.quantity,
+            referenceId: sale.id,
+            referenceType: 'sale',
+            createdBy: intent.userId,
+          },
+        });
+      }
+
+      // Update customer visit/spend if provided
+      if (intent.customerId) {
+        await tx.customer.update({
+          where: { id: intent.customerId },
+          data: {
+            visitCount: { increment: 1 },
+            totalSpent: { increment: saleTotal },
+          },
+        });
+      }
+
+      // Update UPI intent
+      await tx.upiPaymentIntent.update({
+        where: { id: intent.id },
+        data: {
+          saleId: sale.id,
+          status: 'completed',
+          utrNumber: utrNumber || null,
+          completedAt: new Date(),
+        },
+      });
+
+      return sale;
+    });
   }
 }
 

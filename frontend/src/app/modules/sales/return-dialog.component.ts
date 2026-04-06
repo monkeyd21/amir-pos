@@ -11,7 +11,6 @@ interface ReturnItem {
   color: string;
   maxQuantity: number;
   quantity: number;
-  reason: string;
   condition: string;
   selected: boolean;
   unitPrice: number;
@@ -31,6 +30,7 @@ export class ReturnDialogComponent implements OnInit {
 
   items: ReturnItem[] = [];
   submitting = false;
+  reason = 'changed_mind';
 
   reasons = [
     { value: 'defective', label: 'Defective' },
@@ -41,8 +41,7 @@ export class ReturnDialogComponent implements OnInit {
   ];
 
   conditions = [
-    { value: 'new', label: 'New / Unused' },
-    { value: 'worn', label: 'Worn' },
+    { value: 'resellable', label: 'Resellable / Like New' },
     { value: 'damaged', label: 'Damaged' },
   ];
 
@@ -59,8 +58,7 @@ export class ReturnDialogComponent implements OnInit {
       color: item.variant?.color || '-',
       maxQuantity: item.quantity - (item.returnedQuantity || 0),
       quantity: 1,
-      reason: 'changed_mind',
-      condition: 'new',
+      condition: 'resellable',
       selected: false,
       unitPrice: item.unitPrice || 0,
     }));
@@ -104,10 +102,10 @@ export class ReturnDialogComponent implements OnInit {
     this.submitting = true;
 
     const body = {
+      reason: this.reason,
       items: this.selectedItems.map((item) => ({
         saleItemId: item.saleItemId,
         quantity: item.quantity,
-        reason: item.reason,
         condition: item.condition,
       })),
     };

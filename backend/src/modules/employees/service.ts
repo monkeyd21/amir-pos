@@ -1,8 +1,140 @@
+import bcrypt from 'bcryptjs';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { getPagination, buildPaginationMeta } from '../../utils/helpers';
 
 export class EmployeeService {
+  // ─── Employee CRUD ─────────────────────────────────
+
+  async list(query: { page?: string; limit?: string; search?: string }) {
+    const { page, limit, skip } = getPagination(query);
+    const where: any = {};
+
+    if (query.search) {
+      where.OR = [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { phone: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [employees, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
+          commissionRate: true,
+          createdAt: true,
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const data = employees.map((e) => ({
+      ...e,
+      status: e.isActive ? 'active' : 'inactive',
+    }));
+
+    return { data, meta: buildPaginationMeta(page, limit, total) };
+  }
+
+  async create(body: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    role: string;
+    branchId?: number;
+  }) {
+    const existing = await prisma.user.findUnique({ where: { email: body.email } });
+    if (existing) throw new AppError('Email already in use', 400);
+
+    // Default password — employee should change on first login
+    const passwordHash = await bcrypt.hash('changeme123', 12);
+
+    const user = await prisma.user.create({
+      data: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        email: body.email,
+        phone: body.phone || null,
+        role: body.role as any,
+        branchId: body.branchId || 1,
+        passwordHash,
+        commissionRate: 0,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        branch: { select: { id: true, name: true } },
+        createdAt: true,
+      },
+    });
+
+    return user;
+  }
+
+  async update(
+    id: number,
+    body: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+      branchId?: number;
+    }
+  ) {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) throw new AppError('Employee not found', 404);
+
+    if (body.email && body.email !== user.email) {
+      const existing = await prisma.user.findUnique({ where: { email: body.email } });
+      if (existing) throw new AppError('Email already in use', 400);
+    }
+
+    const data: any = {};
+    if (body.firstName !== undefined) data.firstName = body.firstName;
+    if (body.lastName !== undefined) data.lastName = body.lastName;
+    if (body.email !== undefined) data.email = body.email;
+    if (body.phone !== undefined) data.phone = body.phone;
+    if (body.role !== undefined) data.role = body.role;
+    if (body.branchId !== undefined) data.branchId = body.branchId;
+
+    return prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        branch: { select: { id: true, name: true } },
+        createdAt: true,
+      },
+    });
+  }
+
   // ─── Attendance ─────────────────────────────────────
 
   async clockIn(userId: number, branchId: number) {

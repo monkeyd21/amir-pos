@@ -23,8 +23,38 @@
         <p class="mt-1 text-sm text-on-surface-variant ml-9">{{ formatDate(selectedDate) }}</p>
       </div>
 
-      <!-- Date Picker -->
+      <!-- Date Picker & Clock Actions -->
       <div class="flex items-center gap-3">
+        <button
+          (click)="clockIn()"
+          [disabled]="clockingIn"
+          class="flex items-center gap-2 px-5 py-3 rounded-xl bg-green-500/15 text-green-400 font-medium text-sm hover:bg-green-500/25 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          @if (clockingIn) {
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          } @else {
+            <span class="material-symbols-outlined text-lg">login</span>
+          }
+          Clock In
+        </button>
+        <button
+          (click)="clockOut()"
+          [disabled]="clockingOut"
+          class="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500/15 text-amber-400 font-medium text-sm hover:bg-amber-500/25 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          @if (clockingOut) {
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          } @else {
+            <span class="material-symbols-outlined text-lg">logout</span>
+          }
+          Clock Out
+        </button>
         <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Date</label>
         <input
           type="date"

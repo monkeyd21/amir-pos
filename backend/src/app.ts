@@ -26,8 +26,12 @@ import accountingRoutes from './modules/accounting/routes';
 import reportRoutes from './modules/reports/routes';
 import employeeRoutes from './modules/employees/routes';
 import messagingRoutes from './modules/messaging/routes';
+import { posController } from './modules/pos/controller';
 
 const app = express();
+
+// Payment webhook (needs raw body for signature verification) — must be before JSON parser
+app.post('/api/v1/webhooks/payment', express.raw({ type: 'application/json' }), posController.handlePaymentWebhook);
 
 // Middleware
 app.use(helmet({

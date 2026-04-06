@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Inventory Management | OmniRetail ERP</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0b1326;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(49, 57, 77, 0.6);
+            backdrop-filter: blur(24px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#2d3449",
+                        "surface-container-high": "#222a3d",
+                        "inverse-surface": "#dae2fd",
+                        "primary": "#bbc3ff",
+                        "tertiary-fixed": "#ffdbcc",
+                        "on-secondary-fixed-variant": "#364186",
+                        "on-surface-variant": "#c5c5d8",
+                        "on-secondary-fixed": "#03105a",
+                        "on-primary": "#001b96",
+                        "surface-container-low": "#131b2e",
+                        "on-surface": "#dae2fd",
+                        "on-primary-fixed-variant": "#0029d2",
+                        "surface-tint": "#bbc3ff",
+                        "on-tertiary-container": "#fff6f3",
+                        "on-tertiary": "#571f00",
+                        "secondary": "#bbc3ff",
+                        "on-secondary": "#1e296e",
+                        "on-background": "#dae2fd",
+                        "secondary-fixed": "#dfe0ff",
+                        "primary-fixed-dim": "#bbc3ff",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#351000",
+                        "primary-container": "#465fff",
+                        "surface": "#0b1326",
+                        "secondary-fixed-dim": "#bbc3ff",
+                        "on-error": "#690005",
+                        "surface-container": "#171f33",
+                        "secondary-container": "#384389",
+                        "primary-fixed": "#dfe0ff",
+                        "outline": "#8f8fa2",
+                        "on-secondary-container": "#a9b3ff",
+                        "surface-dim": "#0b1326",
+                        "tertiary-fixed-dim": "#ffb695",
+                        "outline-variant": "#444656",
+                        "error-container": "#93000a",
+                        "inverse-primary": "#2e48eb",
+                        "inverse-on-surface": "#283044",
+                        "surface-container-lowest": "#060e20",
+                        "on-primary-container": "#f9f7ff",
+                        "on-primary-fixed": "#000d5f",
+                        "surface-bright": "#31394d",
+                        "on-tertiary-fixed-variant": "#7b2f00",
+                        "error": "#ffb4ab",
+                        "tertiary": "#ffb695",
+                        "surface-variant": "#2d3449",
+                        "tertiary-container": "#c14d00",
+                        "background": "#0b1326"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="text-on-surface">
+<!-- SideNavBar -->
+<aside class="flex flex-col h-full py-6 bg-[#131b2e] h-screen w-64 fixed left-0 top-0 z-50">
+<div class="px-6 mb-10 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container">inventory_2</span>
+</div>
+<div>
+<h1 class="text-xl font-black text-[#dae2fd] leading-tight">Global Retail</h1>
+<p class="text-xs text-on-surface-variant uppercase tracking-widest font-semibold">Enterprise HQ</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-2 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">point_of_sale</span>
+<span class="text-sm font-medium">POS</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#dae2fd] bg-[#171f33] border-l-4 border-[#465FFF] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-sm font-bold">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-sm font-medium">Sales</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-sm font-medium">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="text-sm font-medium">Employees</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-sm font-medium">Expenses</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">account_balance</span>
+<span class="text-sm font-medium">Accounting</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-sm font-medium">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] transition-all duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+<div class="px-4 mt-6">
+<button class="w-full py-4 bg-gradient-to-br from-primary-container to-inverse-primary text-on-primary-container font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">add</span>
+<span>New Sale</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-8 h-16 bg-[#0b1326] sticky top-0 z-40">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+<input class="w-full bg-surface-container-lowest border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary-container text-on-surface" placeholder="Search catalog..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">help_center</span>
+</button>
+<div class="flex items-center gap-3 pl-4 border-l border-outline-variant/20">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold text-on-surface leading-none">System Admin</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Administrator</p>
+</div>
+<img alt="Administrator profile" class="w-9 h-9 rounded-full ring-2 ring-primary-container/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDd5mwQIBoFeBvbfNCaqbMnwHndJwPsuVJSNcjfMsJtHs0-DWQvzbkMFhLNTQT4YOLwVPoFV5jzFdxczaxwSbn5p5Qe96_r2c_ueCsNQdqBkejhQ7RMVWgbAsghsGL0bWFj1bsx8abqb5kr96P8eFWoPZEoQU4hw2CQWGf0SV0sNWaO4jjnR3mAKIugMPl15DFUni-5ApnuSp1_so-zOQbKCM_NodeLi163UD7E6OHW2IyAao5ZRVAMS3z6ekkuflzChRTu0nAeeYk"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-8">
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h2 class="text-3xl font-extrabold tracking-tight text-on-surface">Inventory Levels</h2>
+<p class="text-on-surface-variant mt-1">Real-time stock monitoring across all branches</p>
+</div>
+<!-- Filter Bar -->
+<div class="flex flex-wrap items-center gap-4 bg-surface-container-low p-4 rounded-xl shadow-inner">
+<div class="flex items-center gap-2 px-3 py-2 bg-surface-container rounded-lg border-b-2 border-outline-variant/20 focus-within:border-primary transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">store</span>
+<select class="bg-transparent border-none p-0 text-sm focus:ring-0 text-on-surface w-32 cursor-pointer">
+<option>Main Warehouse</option>
+<option>Downtown Branch</option>
+<option>Eastside Mall</option>
+</select>
+</div>
+<div class="flex items-center gap-3 px-4 py-2">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Low Stock Only</span>
+<button class="relative inline-flex h-6 w-11 items-center rounded-full bg-surface-container-highest transition-colors focus:outline-none ring-1 ring-primary/20">
+<span class="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-primary-container transition-transform"></span>
+</button>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface text-sm font-bold rounded-lg transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        Advanced Filters
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Stats (Contextual) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+<div class="bg-surface-container p-6 rounded-xl relative overflow-hidden group">
+<div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-8xl">check_circle</span>
+</div>
+<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Healthy Stock</p>
+<p class="text-4xl font-extrabold text-on-surface">1,248</p>
+<div class="w-full h-1 bg-surface-container-highest mt-4 overflow-hidden">
+<div class="h-full bg-primary-container w-4/5"></div>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl relative overflow-hidden group">
+<div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-8xl">warning</span>
+</div>
+<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 text-tertiary">Low Alerts</p>
+<p class="text-4xl font-extrabold text-on-surface">42</p>
+<div class="w-full h-1 bg-surface-container-highest mt-4 overflow-hidden">
+<div class="h-full bg-tertiary w-1/4"></div>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl relative overflow-hidden group border border-error-container/20">
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-8xl text-error">cancel</span>
+</div>
+<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Out of Stock</p>
+<p class="text-4xl font-extrabold text-on-surface">15</p>
+<div class="w-full h-1 bg-surface-container-highest mt-4 overflow-hidden">
+<div class="h-full bg-error w-1/12"></div>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl relative overflow-hidden group">
+<div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-8xl">local_shipping</span>
+</div>
+<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">In Transit</p>
+<p class="text-4xl font-extrabold text-on-surface">512</p>
+<div class="w-full h-1 bg-surface-container-highest mt-4 overflow-hidden">
+<div class="h-full bg-secondary w-1/2"></div>
+</div>
+</div>
+</div>
+<!-- Main Data Table Container -->
+<div class="bg-surface-container rounded-xl overflow-hidden shadow-2xl">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Product</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Variant</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">SKU</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Current Stock</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Min Level</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Row 1: Low Stock Alert -->
+<tr class="hover:bg-surface-container-high transition-colors bg-tertiary-container/5">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Signature Wool Blazer</p><p class="text-[10px] text-on-surface-variant">Men's Apparel • FW24</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Navy / XL</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">BLZ-2024-NV-XL</td>
+<td class="px-6 py-3">
+<span class="font-bold text-tertiary text-sm">12</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">25</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                    Low Stock
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 2: OK Stock -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Cloud-Step Runner</p><p class="text-[10px] text-on-surface-variant">Footwear • Performance</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Red / 42</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">RUN-CSR-RD-42</td>
+<td class="px-6 py-3">
+<span class="font-bold text-on-surface text-sm">148</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">50</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    OK
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 3: Out of Stock -->
+<tr class="hover:bg-surface-container-high transition-colors bg-error-container/5">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Essential Tee</p><p class="text-[10px] text-on-surface-variant">Basics • Organic Cotton</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">White / M</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">TSH-ORG-WH-M</td>
+<td class="px-6 py-3">
+<span class="font-bold text-error text-sm">0</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">100</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-error-container text-on-error-container text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                    Out
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 4: Healthy Stock -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Slim Fit Denim</p><p class="text-[10px] text-on-surface-variant">Bottoms • Selvedge</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Indigo / 32</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">DNM-SLM-IN-32</td>
+<td class="px-6 py-3">
+<span class="font-bold text-on-surface text-sm">84</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">20</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    OK
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 5: Low Stock Alert -->
+<tr class="hover:bg-surface-container-high transition-colors bg-tertiary-container/5">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Arctic Parka</p><p class="text-[10px] text-on-surface-variant">Outerwear • Winter</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Black / L</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">PRK-ARC-BK-L</td>
+<td class="px-6 py-3">
+<span class="font-bold text-tertiary text-sm">8</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">15</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                    Low Stock
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 6: OK Stock -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Silk Scarf</p><p class="text-[10px] text-on-surface-variant">Accessories • Luxe</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Floral / OS</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">ACC-SILK-FL-OS</td>
+<td class="px-6 py-3">
+<span class="font-bold text-on-surface text-sm">312</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">40</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    OK
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 7: OK Stock -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Oxford Button-Down</p><p class="text-[10px] text-on-surface-variant">Shirts • Classic</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">White / L</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">SHR-OXF-WH-L</td>
+<td class="px-6 py-3">
+<span class="font-bold text-on-surface text-sm">45</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">30</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    OK
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 8: Low Stock Alert -->
+<tr class="hover:bg-surface-container-high transition-colors bg-tertiary-container/5">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Canvas Tote</p><p class="text-[10px] text-on-surface-variant">Bags • Sustainable</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Cream / OS</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">BAG-CAN-CR-OS</td>
+<td class="px-6 py-3">
+<span class="font-bold text-tertiary text-sm">18</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">30</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                    Low Stock
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 9: OK Stock -->
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Chino Shorts</p><p class="text-[10px] text-on-surface-variant">Bottoms • Summer</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Tan / 34</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">SHT-CHN-TN-34</td>
+<td class="px-6 py-3">
+<span class="font-bold text-on-surface text-sm">92</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">20</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-container/20 text-primary text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    OK
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+<!-- Row 10: Out of Stock -->
+<tr class="hover:bg-surface-container-high transition-colors bg-error-container/5">
+<td class="px-6 py-3"><div><p class="font-bold text-on-surface text-sm">Leather Belt</p><p class="text-[10px] text-on-surface-variant">Accessories • Essential</p></div></td>
+<td class="px-6 py-3">
+<span class="px-2 py-0.5 bg-surface-container-highest rounded text-[10px] font-medium uppercase">Brown / 36</span>
+</td>
+<td class="px-6 py-3 font-mono text-[10px] text-on-surface-variant">ACC-BLT-BR-36</td>
+<td class="px-6 py-3">
+<span class="font-bold text-error text-sm">0</span>
+</td>
+<td class="px-6 py-3 text-on-surface-variant text-sm">25</td>
+<td class="px-6 py-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-error-container text-on-error-container text-[10px] font-black uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                    Out
+                                </span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="px-3 py-1.5 bg-surface-container-highest hover:bg-primary-container hover:text-on-primary-container transition-all text-[10px] font-bold rounded-lg uppercase tracking-widest">Adjust</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination / Footer Table -->
+<div class="px-6 py-4 bg-surface-container-low flex items-center justify-between">
+<p class="text-xs text-on-surface-variant">Showing 1 to 10 of 215 products</p>
+<div class="flex gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary-container text-on-primary-container text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors text-xs font-bold">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors text-xs font-bold">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB for Global Action (Mobile Support or Quick Transaction) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-primary-container to-inverse-primary text-on-primary-container rounded-full shadow-2xl flex items-center justify-center hover:scale-105 transition-transform z-50">
+<span class="material-symbols-outlined">add_shopping_cart</span>
+</button>
+</body></html>

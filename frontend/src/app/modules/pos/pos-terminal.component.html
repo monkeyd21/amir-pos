@@ -409,5 +409,17 @@
       </div>
 
     </div>
+
+    @if (showUpiDialog && upiIntent) {
+      <app-upi-qr-dialog
+        [intentId]="upiIntent.intentId"
+        [qrCodeUrl]="upiIntent.qrCodeUrl"
+        [upiLink]="upiIntent.upiLink"
+        [amount]="upiIntent.amount"
+        [expiresAt]="upiIntent.expiresAt"
+        (paymentComplete)="onUpiPaymentComplete($event)"
+        (cancelled)="onUpiPaymentCancel()"
+      />
+    }
   </div>
 }

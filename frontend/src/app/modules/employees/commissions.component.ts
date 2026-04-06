@@ -18,11 +18,18 @@ interface CommissionRecord {
     id: number;
     saleNumber: string;
     totalAmount: number;
+    total?: number;
   };
   amount: number;
   rate: number;
   status: string;
   createdAt: string;
+}
+
+interface Employee {
+  id: number;
+  firstName: string;
+  lastName: string;
 }
 
 interface ApiResponse<T> {
@@ -41,7 +48,15 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   records: CommissionRecord[] = [];
+  employees: Employee[] = [];
   loading = true;
+  payingId: number | null = null;
+
+  // Filters
+  filterStatus = '';
+  filterEmployeeId = '';
+  filterStartDate = '';
+  filterEndDate = '';
 
   page = 1;
   limit = 20;
@@ -53,6 +68,7 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.loadEmployees();
     this.loadCommissions();
   }
 
@@ -61,13 +77,33 @@ export class CommissionsComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  loadEmployees(): void {
+    this.api
+      .get<ApiResponse<Employee[]>>('/employees', { limit: 200 })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.employees = res.data || [];
+        },
+        error: () => {
+          // Silently fail — dropdown just won't have options
+        },
+      });
+  }
+
   loadCommissions(): void {
     this.loading = true;
+    const params: any = {
+      page: this.page,
+      limit: this.limit,
+    };
+    if (this.filterStatus) params.status = this.filterStatus;
+    if (this.filterEmployeeId) params.userId = this.filterEmployeeId;
+    if (this.filterStartDate) params.startDate = this.filterStartDate;
+    if (this.filterEndDate) params.endDate = this.filterEndDate;
+
     this.api
-      .get<ApiResponse<CommissionRecord[]>>('/employees/commissions', {
-        page: this.page,
-        limit: this.limit,
-      })
+      .get<ApiResponse<CommissionRecord[]>>('/employees/commissions', params)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -83,8 +119,65 @@ export class CommissionsComponent implements OnInit, OnDestroy {
       });
   }
 
+  onFilterChange(): void {
+    this.page = 1;
+    this.loadCommissions();
+  }
+
+  clearFilters(): void {
+    this.filterStatus = '';
+    this.filterEmployeeId = '';
+    this.filterStartDate = '';
+    this.filterEndDate = '';
+    this.page = 1;
+    this.loadCommissions();
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!(this.filterStatus || this.filterEmployeeId || this.filterStartDate || this.filterEndDate);
+  }
+
+  markAsPaid(record: CommissionRecord): void {
+    if (this.payingId) return;
+    this.payingId = record.id;
+
+    this.api
+      .put<ApiResponse<CommissionRecord>>(`/employees/commissions/${record.id}/pay`, {})
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.payingId = null;
+          this.notify.success(
+            `Commission for ${record.employee?.firstName} ${record.employee?.lastName} marked as paid`
+          );
+          this.loadCommissions();
+        },
+        error: (err) => {
+          this.payingId = null;
+          const msg = err.error?.error || err.error?.message || 'Failed to mark commission as paid';
+          this.notify.error(msg);
+        },
+      });
+  }
+
   get totalCommissions(): number {
     return this.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+  }
+
+  get pendingCommissions(): number {
+    return this.records
+      .filter((r) => r.status?.toLowerCase() === 'pending')
+      .reduce((sum, r) => sum + (r.amount || 0), 0);
+  }
+
+  get paidCommissions(): number {
+    return this.records
+      .filter((r) => r.status?.toLowerCase() === 'paid')
+      .reduce((sum, r) => sum + (r.amount || 0), 0);
+  }
+
+  getSaleTotal(record: CommissionRecord): number | null {
+    return record.sale?.totalAmount ?? record.sale?.total ?? null;
   }
 
   getStatusClasses(status: string): string {

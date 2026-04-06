@@ -17,6 +17,11 @@ const router = Router();
 
 router.use(authenticate);
 
+// Employee CRUD
+router.get('/', (req, res, next) => employeeController.list(req, res, next));
+router.post('/', authorize('owner', 'manager'), (req, res, next) => employeeController.create(req, res, next));
+router.put('/:id', authorize('owner', 'manager'), (req, res, next) => employeeController.update(req, res, next));
+
 // Attendance
 router.post('/attendance/clock-in', validate(clockInSchema), (req, res, next) =>
   employeeController.clockIn(req, res, next)

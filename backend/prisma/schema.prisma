@@ -35,6 +35,7 @@ model Branch {
   journalEntries     JournalEntry[]
   expenses           Expense[]
   attendance         Attendance[]
+  upiPaymentIntents  UpiPaymentIntent[]
 
   @@map("branches")
 }
@@ -75,6 +76,7 @@ model User {
   expensesApproved   Expense[]           @relation("ExpenseApprover")
   attendance         Attendance[]
   commissions        Commission[]
+  upiPaymentIntents  UpiPaymentIntent[]
 
   @@map("users")
 }
@@ -274,6 +276,7 @@ model Sale {
   returns  Return[]
   commissions Commission[]
   loyaltyTransactions LoyaltyTransaction[]
+  upiPaymentIntent UpiPaymentIntent?
 
   @@index([branchId, createdAt])
   @@map("sales")
@@ -447,6 +450,7 @@ model Customer {
   heldTransactions   HeldTransaction[]
   loyaltyTransactions LoyaltyTransaction[]
   messageLogs        MessageLog[]
+  upiPaymentIntents  UpiPaymentIntent[]
 
   @@map("customers")
 }
@@ -656,4 +660,35 @@ model MessageLog {
   customer Customer @relation(fields: [customerId], references: [id])
 
   @@map("message_logs")
+}
+
+// ─── UPI Payment Intents ────────────────────────────
+
+model UpiPaymentIntent {
+  id               Int      @id @default(autoincrement())
+  intentId         String   @unique
+  providerOrderId  String
+  provider         String   @default("cashfree")
+  branchId         Int
+  userId           Int
+  amount           Decimal  @db.Decimal(10, 2)
+  status           String   @default("pending")
+  qrCodeUrl        String   @db.Text
+  upiLink          String   @db.Text
+  utrNumber        String?
+  saleId           Int?     @unique
+  cartSnapshot     Json
+  customerId       Int?
+  discountAmount   Decimal  @default(0) @db.Decimal(10, 2)
+  expiresAt        DateTime
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+
+  branch           Branch   @relation(fields: [branchId], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
+  sale             Sale?    @relation(fields: [saleId], references: [id])
+  customer         Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([status, expiresAt])
+  @@map("upi_payment_intents")
 }

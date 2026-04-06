@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { posService } from './service';
 
@@ -135,6 +135,35 @@ export class PosController {
     } catch (error) {
       next(error);
     }
+  }
+  async createUpiPayment(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await posService.createUpiPayment(
+        req.body, req.user!.userId, req.user!.branchId
+      );
+      res.status(201).json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
+  async checkUpiPaymentStatus(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await posService.checkUpiPaymentStatus(
+        req.params.intentId, req.user!.userId
+      );
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
+  async handlePaymentWebhook(req: Request, res: Response) {
+    try {
+      await posService.handleUpiWebhook(
+        req.headers as Record<string, string>,
+        req.body.toString()
+      );
+    } catch (error) {
+      console.error('Webhook error:', error);
+    }
+    res.json({ success: true }); // Always 200 to ACK
   }
 }
 

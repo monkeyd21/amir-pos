@@ -8,6 +8,8 @@ import {
   checkoutSchema,
   holdCartSchema,
   heldIdParamSchema,
+  createUpiPaymentSchema,
+  checkUpiPaymentSchema,
 } from './validators';
 
 const router = Router();
@@ -18,6 +20,10 @@ router.use(authenticate);
 router.post('/sessions/open', validate(openSessionSchema), posController.openSession);
 router.post('/sessions/close', validate(closeSessionSchema), posController.closeSession);
 router.get('/sessions/current', posController.currentSession);
+
+// UPI payments
+router.post('/upi/create', authorize('owner', 'manager', 'cashier'), validate(createUpiPaymentSchema), posController.createUpiPayment);
+router.get('/upi/:intentId/status', validate(checkUpiPaymentSchema), posController.checkUpiPaymentStatus);
 
 // Product search & barcode lookup
 router.get('/products/search', posController.searchProducts);

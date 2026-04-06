@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ClothingERP - Product Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#bbc3ff",
+                    "surface-container": "#171f33",
+                    "secondary-container": "#384389",
+                    "on-background": "#dae2fd",
+                    "inverse-on-surface": "#283044",
+                    "surface-dim": "#0b1326",
+                    "inverse-surface": "#dae2fd",
+                    "outline": "#8f8fa2",
+                    "on-primary-container": "#f9f7ff",
+                    "background": "#0b1326",
+                    "surface-container-lowest": "#060e20",
+                    "surface-container-high": "#222a3d",
+                    "on-secondary": "#1e296e",
+                    "on-tertiary-fixed-variant": "#7b2f00",
+                    "on-primary": "#001b96",
+                    "surface-bright": "#31394d",
+                    "outline-variant": "#444656",
+                    "on-error": "#690005",
+                    "primary-fixed": "#dfe0ff",
+                    "tertiary-fixed": "#ffdbcc",
+                    "surface": "#0b1326",
+                    "on-surface-variant": "#c5c5d8",
+                    "surface-container-highest": "#2d3449",
+                    "secondary-fixed": "#dfe0ff",
+                    "primary-fixed-dim": "#bbc3ff",
+                    "inverse-primary": "#2e48eb",
+                    "on-tertiary": "#571f00",
+                    "surface-container-low": "#131b2e",
+                    "tertiary": "#ffb695",
+                    "surface-variant": "#2d3449",
+                    "primary-container": "#465fff",
+                    "on-secondary-container": "#a9b3ff",
+                    "error": "#ffb4ab",
+                    "tertiary-container": "#c14d00",
+                    "secondary": "#bbc3ff",
+                    "error-container": "#93000a",
+                    "on-primary-fixed-variant": "#0029d2",
+                    "on-primary-fixed": "#000d5f",
+                    "on-surface": "#dae2fd",
+                    "on-secondary-fixed": "#03105a",
+                    "surface-tint": "#bbc3ff",
+                    "on-tertiary-container": "#fff6f3",
+                    "on-error-container": "#ffdad6",
+                    "on-secondary-fixed-variant": "#364186",
+                    "tertiary-fixed-dim": "#ffb695",
+                    "secondary-fixed-dim": "#bbc3ff",
+                    "on-tertiary-fixed": "#351000"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b1326; color: #dae2fd; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex min-h-screen bg-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Shared Component) -->
+<aside class="flex flex-col fixed left-0 top-0 h-full border-r border-[#222a3d]/15 bg-[#131b2e] w-64 z-40 transition-all duration-300 ease-in-out">
+<div class="p-6 flex items-center space-x-3">
+<div class="h-10 w-10 bg-primary-container rounded-lg flex items-center justify-center text-white font-black text-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">app_registration</span>
+</div>
+<div>
+<h2 class="text-lg font-black text-[#465FFF] uppercase tracking-tighter">Main Branch</h2>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60">Admin Terminal</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1 mt-4">
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-xs font-bold uppercase tracking-widest">Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">point_of_sale</span>
+<span class="text-xs font-bold uppercase tracking-widest">POS</span>
+</a>
+<!-- Active State: Inventory / Products -->
+<a class="flex items-center space-x-3 px-4 py-3 text-[#dae2fd] bg-[#465FFF] rounded-lg mx-0 group shadow-lg shadow-primary-container/20" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="text-xs font-bold uppercase tracking-widest">Inventory</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-xs font-bold uppercase tracking-widest">Sales</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-xs font-bold uppercase tracking-widest">Customers</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="text-xs font-bold uppercase tracking-widest">Employees</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-xs font-bold uppercase tracking-widest">Expenses</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">account_balance</span>
+<span class="text-xs font-bold uppercase tracking-widest">Accounting</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="text-xs font-bold uppercase tracking-widest">Reports</span>
+</a>
+<div class="pt-10">
+<a class="flex items-center space-x-3 px-4 py-3 text-[#c5c5d8] hover:text-[#dae2fd] hover:bg-[#171f33] transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-xs font-bold uppercase tracking-widest">Settings</span>
+</a>
+</div>
+</nav>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 flex-1 flex flex-col min-w-0">
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center px-8 h-16 w-full z-30 sticky top-0 bg-[#0b1326] tonal-layering via surface-container-low border-b border-outline-variant/5">
+<div class="flex items-center space-x-6">
+<span class="text-xl font-bold text-[#dae2fd] tracking-tight uppercase">ClothingERP</span>
+<div class="hidden md:flex bg-surface-container-low rounded-lg items-center px-3 py-1.5 w-64 border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder:text-outline/50 w-full" placeholder="Global search..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 text-[#c5c5d8] hover:bg-[#222a3d] rounded-lg transition-colors duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-[#c5c5d8] hover:bg-[#222a3d] rounded-lg transition-colors duration-200">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-surface-container-highest overflow-hidden border border-primary/20">
+<img alt="User Profile" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCl_Iwbyq2bmR4X8j5cN0gMbuQwGQ_KyXR-KU2K3m3UvjKoqS-RoVDrtX-XZsur0W-tuPBRY7zUwwBFUL0IhpXEZx44yF7o9M5E5Mx1fN8l2HpG9nZKG8TT9K_RkjB7s2PsdHJp6Wlx52VcWj9UxKRTfWd_mUd4rVs3uXXKZctG0z80x8sac165tuF6w7SPBJ7I_JLDCgdxM8u3UTA6HpYFio1KgO7ist62lwvcI4vVKPHjvKOFx0uounlNC01Pjdzmdy7pumjTyzA"/>
+</div>
+</div>
+</header>
+<section class="p-8 max-w-7xl mx-auto w-full space-y-6">
+<!-- Header Section -->
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface">Products</h1>
+<p class="text-on-surface-variant text-sm">Manage your inventory catalog and product variants.</p>
+</div>
+<button class="bg-gradient-to-br from-primary-container to-primary text-on-primary font-bold px-5 py-2.5 rounded-lg flex items-center space-x-2 shadow-lg shadow-primary-container/25 hover:scale-[1.02] transition-transform text-sm">
+<span class="material-symbols-outlined text-lg">add</span>
+<span>Add Product</span>
+</button>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface-container-low p-2 rounded-xl flex flex-wrap items-center gap-2">
+<div class="flex-1 min-w-[240px] relative bg-surface-container-lowest rounded-lg">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline/60 text-sm">search</span>
+<input class="w-full bg-transparent border-none pl-9 pr-4 py-2 focus:ring-1 focus:ring-primary/30 text-xs" placeholder="Search products by name or SKU..." type="text"/>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-lowest border-none py-2 px-3 rounded-lg text-xs text-on-surface-variant focus:ring-1 focus:ring-primary/30 cursor-pointer">
+<option>All Brands</option>
+<option>Basics</option>
+<option>Raw</option>
+<option>Urban</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-outline/40 text-sm">expand_more</span>
+</div>
+<div class="relative min-w-[140px]">
+<select class="w-full appearance-none bg-surface-container-lowest border-none py-2 px-3 rounded-lg text-xs text-on-surface-variant focus:ring-1 focus:ring-primary/30 cursor-pointer">
+<option>Category</option>
+<option>T-Shirts</option>
+<option>Jeans</option>
+<option>Outerwear</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-outline/40 text-sm">expand_more</span>
+</div>
+<button class="px-3 py-2 text-on-surface-variant hover:text-primary transition-colors text-xs font-semibold flex items-center space-x-1">
+<span class="material-symbols-outlined text-xs">close</span>
+<span>Clear</span>
+</button>
+</div>
+<!-- Data Table Container -->
+<div class="bg-surface-container rounded-xl overflow-hidden border border-outline-variant/5 shadow-2xl">
+<table class="w-full text-left border-collapse table-fixed">
+<colgroup>
+<col class="w-[30%]"/>
+<col class="w-[12%]"/>
+<col class="w-[12%]"/>
+<col class="w-[12%]"/>
+<col class="w-[12%]"/>
+<col class="w-[12%]"/>
+<col class="w-[10%]"/>
+</colgroup>
+<thead>
+<tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase">Product Name</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase">SKU</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase">Brand</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase">Category</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase text-right">Price</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase text-center">Variants</th>
+<th class="px-5 py-3 text-[10px] font-bold tracking-[0.15em] text-on-surface-variant uppercase text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Essential White Tee</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">CW-001</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Basics</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">T-Shirts</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$25.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">12</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Slim Fit Denim</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">SD-042</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Raw</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Jeans</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$89.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">8</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Oversized Hoodie</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">OH-099</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Urban</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Outerwear</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$65.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">6</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Classic Bomber Jacket</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">BJ-102</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Urban</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Outerwear</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$120.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">4</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Organic Cotton Shorts</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">OS-501</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Basics</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Bottoms</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$35.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">10</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Graphic Tech Tee</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">GT-221</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Urban</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">T-Shirts</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$45.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">15</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 7 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Raw Selvedge Jeans</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">RJ-980</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Raw</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Jeans</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$145.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">5</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 8 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Linen Blend Shirt</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">LB-443</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Basics</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Shirts</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$55.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">7</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 9 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Quilted Vest</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">QV-119</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Urban</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Outerwear</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$79.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">3</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 10 -->
+<tr class="hover:bg-surface-container-high/40 transition-colors group">
+<td class="px-5 py-2.5">
+<div class="flex items-center">
+<span class="font-semibold text-on-surface text-xs truncate">Vintage Wash Crew</span>
+</div>
+</td>
+<td class="px-5 py-2.5">
+<span class="bg-surface-container-lowest px-1.5 py-0.5 rounded text-[10px] font-mono text-outline">VW-330</span>
+</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Raw</td>
+<td class="px-5 py-2.5 text-xs text-on-surface-variant">Outerwear</td>
+<td class="px-5 py-2.5 text-xs font-bold text-on-surface text-right">$50.00</td>
+<td class="px-5 py-2.5 text-center">
+<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary-container/10 border border-primary/20 text-[9px] font-bold text-primary">9</span>
+</td>
+<td class="px-5 py-2.5 text-right">
+<button class="p-1.5 hover:bg-surface-container-highest rounded-full transition-colors text-outline">
+<span class="material-symbols-outlined text-lg">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination Footer -->
+<div class="px-5 py-3.5 flex items-center justify-between bg-surface-container-low/30 border-t border-outline-variant/5">
+<p class="text-[10px] text-on-surface-variant font-medium">
+                        Showing <span class="text-on-surface">1</span> to <span class="text-on-surface">10</span> of <span class="text-on-surface">240</span> results
+                    </p>
+<div class="flex items-center space-x-1.5">
+<button class="p-1 hover:bg-surface-container-high rounded text-outline disabled:opacity-30 disabled:cursor-not-allowed">
+<span class="material-symbols-outlined text-lg">chevron_left</span>
+</button>
+<div class="flex space-x-1">
+<button class="h-6 w-6 flex items-center justify-center rounded bg-primary text-on-primary text-[10px] font-bold shadow-md shadow-primary/20">1</button>
+<button class="h-6 w-6 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant text-[10px] font-bold transition-colors">2</button>
+<button class="h-6 w-6 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant text-[10px] font-bold transition-colors">3</button>
+<span class="px-1 text-outline text-[10px]">...</span>
+<button class="h-6 w-6 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant text-[10px] font-bold transition-colors">24</button>
+</div>
+<button class="p-1 hover:bg-surface-container-high rounded text-outline">
+<span class="material-symbols-outlined text-lg">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dashboard Accents -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+<div class="bg-surface-container-low p-5 rounded-xl border-l-4 border-primary">
+<h4 class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Total Inventory Value</h4>
+<div class="flex items-baseline space-x-2">
+<span class="text-2xl font-black text-on-surface">$248.5K</span>
+<span class="text-[10px] text-primary font-bold">+4.2%</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded-xl border-l-4 border-outline-variant/30">
+<h4 class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Low Stock Alerts</h4>
+<div class="flex items-baseline space-x-2">
+<span class="text-2xl font-black text-on-surface">12</span>
+<span class="text-[10px] text-on-surface-variant uppercase">SKUs requiring action</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded-xl border-l-4 border-outline-variant/30">
+<h4 class="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Active Variants</h4>
+<div class="flex items-baseline space-x-2">
+<span class="text-2xl font-black text-on-surface">1,842</span>
+<span class="text-[10px] text-on-surface-variant uppercase">Global count</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+</body></html>

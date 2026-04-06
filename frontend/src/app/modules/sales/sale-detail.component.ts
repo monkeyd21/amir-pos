@@ -7,6 +7,7 @@ import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.com
 import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
 import { ReturnDialogComponent } from './return-dialog.component';
 import { ExchangeDialogComponent } from './exchange-dialog.component';
+import { ReceiptPrintService } from '../../shared/receipt-print.service';
 
 interface SaleItem {
   id: number;
@@ -76,7 +77,8 @@ export class SaleDetailComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private api: ApiService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private receiptPrint: ReceiptPrintService
   ) {}
 
   ngOnInit(): void {
@@ -102,6 +104,12 @@ export class SaleDetailComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/sales']);
+  }
+
+  printReceipt(): void {
+    if (this.sale) {
+      this.receiptPrint.printReceipt(this.sale.id);
+    }
   }
 
   formatCurrency(amount: number): string {

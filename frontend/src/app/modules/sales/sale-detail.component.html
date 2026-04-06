@@ -21,8 +21,15 @@
       </div>
     </div>
 
-    @if (canReturn) {
-      <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3">
+      <button
+        (click)="printReceipt()"
+        class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-lg">print</span>
+        Print Receipt
+      </button>
+      @if (canReturn) {
         <button
           (click)="openExchangeDialog()"
           class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer"
@@ -37,8 +44,8 @@
           <span class="material-symbols-outlined text-lg">undo</span>
           Process Return
         </button>
-      </div>
-    }
+      }
+    </div>
   </div>
 
   <!-- Info Cards Row -->

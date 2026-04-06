@@ -6,6 +6,8 @@ import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of }
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService, User } from '../../core/services/auth.service';
+import { UpiQrDialogComponent } from './upi-qr-dialog.component';
+import { ReceiptPrintService } from '../../shared/receipt-print.service';
 
 interface ProductVariant {
   // flat fields from POS search endpoint
@@ -57,7 +59,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-pos-terminal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, UpiQrDialogComponent],
   templateUrl: './pos-terminal.component.html',
 })
 export class PosTerminalComponent implements OnInit, OnDestroy {
@@ -82,6 +84,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
   cashTendered: number | null = null;
 
   checkoutLoading = false;
+  showUpiDialog = false;
+  upiIntent: { intentId: string; qrCodeUrl: string; upiLink: string; amount: number; expiresAt: string } | null = null;
   customerId: number | null = null;
   customerName = '';
 
@@ -96,7 +100,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
   constructor(
     private api: ApiService,
     private notify: NotificationService,
-    private auth: AuthService
+    private auth: AuthService,
+    private receiptPrint: ReceiptPrintService
   ) {}
 
   ngOnInit(): void {
@@ -331,6 +336,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
   completeSale(): void {
     if (!this.canCheckout) return;
 
+    if (this.paymentMethod === 'upi') {
+      this.initiateUpiPayment();
+      return;
+    }
+
     this.checkoutLoading = true;
 
     const body: any = {
@@ -355,9 +365,13 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (res) => {
           this.checkoutLoading = false;
+          const saleId = res.data?.sale?.id || res.data?.id;
           this.notify.success(
             `Sale completed! ${res.data?.saleNumber || ''}`
           );
+          if (saleId) {
+            this.receiptPrint.printReceipt(saleId);
+          }
           this.resetCart();
         },
         error: (err) => {
@@ -367,6 +381,46 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
           );
         },
       });
+  }
+
+  private initiateUpiPayment(): void {
+    this.checkoutLoading = true;
+
+    const body: any = {
+      items: this.cart.map((item) => ({ barcode: item.barcode, quantity: item.quantity })),
+    };
+
+    if (this.customerId) body.customerId = this.customerId;
+    if (this.discount > 0) body.discountAmount = this.discount;
+
+    this.api.post<ApiResponse<any>>('/pos/upi/create', body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.checkoutLoading = false;
+          this.upiIntent = res.data;
+          this.showUpiDialog = true;
+        },
+        error: (err) => {
+          this.checkoutLoading = false;
+          this.notify.error(err.error?.error || 'Failed to create UPI payment');
+        },
+      });
+  }
+
+  onUpiPaymentComplete(event: { saleNumber: string; saleId: number }): void {
+    this.showUpiDialog = false;
+    this.upiIntent = null;
+    this.notify.success('Payment received! Sale: ' + event.saleNumber);
+    if (event.saleId) {
+      this.receiptPrint.printReceipt(event.saleId);
+    }
+    this.resetCart();
+  }
+
+  onUpiPaymentCancel(): void {
+    this.showUpiDialog = false;
+    this.upiIntent = null;
   }
 
   private resetCart(): void {

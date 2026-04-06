@@ -38,6 +38,8 @@ export class AttendanceComponent implements OnInit, OnDestroy {
 
   records: AttendanceRecord[] = [];
   loading = true;
+  clockingIn = false;
+  clockingOut = false;
   selectedDate: string = new Date().toISOString().split('T')[0];
 
   constructor(
@@ -76,6 +78,44 @@ export class AttendanceComponent implements OnInit, OnDestroy {
 
   onDateChange(): void {
     this.loadAttendance();
+  }
+
+  clockIn(): void {
+    if (this.clockingIn) return;
+    this.clockingIn = true;
+    this.api
+      .post<ApiResponse<any>>('/employees/attendance/clock-in', { branchId: 1 })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.clockingIn = false;
+          this.notify.success('Clocked in successfully');
+          this.loadAttendance();
+        },
+        error: (err) => {
+          this.clockingIn = false;
+          this.notify.error(err.error?.error || 'Failed to clock in');
+        },
+      });
+  }
+
+  clockOut(): void {
+    if (this.clockingOut) return;
+    this.clockingOut = true;
+    this.api
+      .post<ApiResponse<any>>('/employees/attendance/clock-out', {})
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.clockingOut = false;
+          this.notify.success('Clocked out successfully');
+          this.loadAttendance();
+        },
+        error: (err) => {
+          this.clockingOut = false;
+          this.notify.error(err.error?.error || 'Failed to clock out');
+        },
+      });
   }
 
   getStatusClasses(status: string): string {
