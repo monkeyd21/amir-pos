@@ -1,66 +1,160 @@
-<div class="p-6 max-w-3xl mx-auto">
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-slate-800">Expense Categories</h1>
-    <p class="text-slate-500">Manage expense categories</p>
+<!-- Loading State -->
+@if (loading) {
+  <div class="flex items-center justify-center h-[60vh]">
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      <p class="text-sm text-on-surface-variant">Loading categories...</p>
+    </div>
   </div>
+}
 
-  <!-- Add/Edit Form -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-    <h3 class="text-lg font-semibold text-slate-700 mb-4">
-      {{ editingId ? 'Edit Category' : 'Add Category' }}
-    </h3>
-    <form [formGroup]="form" class="flex gap-4 items-start">
-      <mat-form-field class="flex-1" appearance="outline">
-        <mat-label>Category Name</mat-label>
-        <input matInput formControlName="name" />
-        @if (form.get('name')?.hasError('required') && form.get('name')?.touched) {
-          <mat-error>Name is required</mat-error>
-        }
-      </mat-form-field>
-      <mat-form-field class="flex-1" appearance="outline">
-        <mat-label>Description</mat-label>
-        <input matInput formControlName="description" />
-      </mat-form-field>
-      <button mat-flat-button color="primary" (click)="save()" class="mt-1">
-        {{ editingId ? 'Update' : 'Add' }}
-      </button>
-      @if (editingId) {
-        <button mat-stroked-button (click)="resetForm()" class="mt-1">Cancel</button>
-      }
-    </form>
-  </div>
+@if (!loading) {
+  <div class="space-y-8 max-w-3xl">
 
-  <!-- Category List -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    @if (loading) {
-      <div class="flex justify-center p-12">
-        <mat-spinner diameter="40"></mat-spinner>
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <a routerLink="/expenses" class="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">arrow_back</span>
+          </a>
+          <h1 class="text-3xl font-headline font-bold text-on-surface">Expense Categories</h1>
+        </div>
+        <p class="mt-1 text-sm text-on-surface-variant ml-9">Organize expenses by category.</p>
       </div>
-    } @else if (categories.length === 0) {
-      <div class="text-center text-slate-400 py-12">No categories yet. Add one above.</div>
-    } @else {
-      <mat-list>
+      <button
+        (click)="openAddDialog()"
+        class="gradient-cta text-on-primary-container font-bold px-6 py-3 rounded-xl shadow-glow-sm hover:shadow-glow active:scale-[0.98] transition-all flex items-center gap-2"
+      >
+        <span class="material-symbols-outlined text-xl">add</span>
+        Add Category
+      </button>
+    </div>
+
+    <!-- Categories Grid -->
+    @if (categories.length === 0) {
+      <div class="bg-surface-container rounded-xl p-16 text-center">
+        <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2 block">category</span>
+        <p class="text-sm text-on-surface-variant">No categories yet</p>
+        <button
+          (click)="openAddDialog()"
+          class="inline-flex items-center gap-2 mt-4 text-sm text-primary hover:text-primary-container transition-colors"
+        >
+          <span class="material-symbols-outlined text-lg">add</span>
+          Create your first category
+        </button>
+      </div>
+    }
+
+    @if (categories.length > 0) {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         @for (cat of categories; track cat.id) {
-          <mat-list-item>
-            <div class="flex items-center justify-between w-full py-2">
-              <div>
-                <div class="font-medium text-slate-800">{{ cat.name }}</div>
-                @if (cat.description) {
-                  <div class="text-sm text-slate-500">{{ cat.description }}</div>
-                }
+          <div class="bg-surface-container rounded-xl p-6 border border-outline-variant/10 hover:border-outline-variant/20 transition-colors group">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-primary-container/10 flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-primary text-xl">label</span>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-on-surface">{{ cat.name }}</h3>
+                  @if (cat.description) {
+                    <p class="text-[11px] text-on-surface-variant mt-0.5">{{ cat.description }}</p>
+                  }
+                  @if (cat._count?.expenses != null) {
+                    <p class="text-[10px] text-on-surface-variant/60 mt-1">
+                      {{ cat._count?.expenses }} expense{{ cat._count?.expenses !== 1 ? 's' : '' }}
+                    </p>
+                  }
+                </div>
               </div>
-              <div class="flex gap-1">
-                <button mat-icon-button (click)="editCategory(cat)">
-                  <mat-icon class="text-slate-500">edit</mat-icon>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  (click)="openEditDialog(cat)"
+                  class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                >
+                  <span class="material-symbols-outlined text-lg">edit</span>
                 </button>
-                <button mat-icon-button (click)="deleteCategory(cat)">
-                  <mat-icon class="text-red-500">delete</mat-icon>
+                <button
+                  (click)="deleteCategory(cat)"
+                  class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                >
+                  <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
               </div>
             </div>
-          </mat-list-item>
+          </div>
         }
-      </mat-list>
+      </div>
     }
   </div>
-</div>
+}
+
+<!-- Add/Edit Category Dialog -->
+@if (showDialog) {
+  <div
+    class="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="glass-panel w-full max-w-md rounded-2xl border border-outline-variant/10 shadow-ambient overflow-hidden">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-8 py-6 border-b border-outline-variant/10">
+        <h2 class="text-xl font-headline font-bold text-on-surface">
+          {{ editingCategory ? 'Edit Category' : 'Add Category' }}
+        </h2>
+        <button
+          (click)="closeDialog()"
+          class="w-9 h-9 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+        >
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <!-- Form -->
+      <div class="p-8 space-y-6">
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Name</label>
+          <input
+            [(ngModel)]="categoryName"
+            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm"
+            placeholder="Category name"
+            (keyup.enter)="saveCategory()"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Description</label>
+          <input
+            [(ngModel)]="categoryDescription"
+            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm"
+            placeholder="Optional description"
+          />
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
+          <button
+            (click)="closeDialog()"
+            class="px-6 py-3 rounded-xl bg-surface-container border border-outline-variant/20 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            (click)="saveCategory()"
+            [disabled]="!categoryName.trim() || saving"
+            class="gradient-cta text-on-primary-container font-bold px-6 py-3 rounded-xl shadow-glow-sm hover:shadow-glow active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+          >
+            @if (saving) {
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Saving...
+            } @else {
+              <span class="material-symbols-outlined text-lg">check</span>
+              {{ editingCategory ? 'Update' : 'Create' }}
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

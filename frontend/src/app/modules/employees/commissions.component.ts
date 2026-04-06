@@ -1,111 +1,144 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
-import { MatCardModule } from '@angular/material/card';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { EmployeeService } from './employee.service';
+import { RouterModule } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface CommissionRecord {
+  id: number;
+  employee: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+  sale?: {
+    id: number;
+    saleNumber: string;
+    totalAmount: number;
+  };
+  amount: number;
+  rate: number;
+  status: string;
+  createdAt: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-commissions',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatCardModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './commissions.component.html',
 })
-export class CommissionsComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class CommissionsComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private employeeService = inject(EmployeeService);
-  private snackBar = inject(MatSnackBar);
+  records: CommissionRecord[] = [];
+  loading = true;
 
-  displayedColumns = ['employee', 'period', 'salesAmount', 'commissionRate', 'commissionAmount', 'status', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
+  page = 1;
+  limit = 20;
+  total = 0;
 
-  summaryCards: any[] = [];
-  selectedPeriod = '';
-  periods = ['2026-01', '2026-02', '2026-03', '2026-04'];
+  constructor(
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadCommissions();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   loadCommissions(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.selectedPeriod) params.period = this.selectedPeriod;
-
-    this.employeeService.getCommissions(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
-    });
-
-    this.employeeService.getCommissionSummary(params).subscribe({
-      next: (res) => {
-        this.summaryCards = Array.isArray(res) ? res : [];
-      },
-    });
+    this.api
+      .get<ApiResponse<CommissionRecord[]>>('/employees/commissions', {
+        page: this.page,
+        limit: this.limit,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.records = res.data || [];
+          this.total = res.meta?.total ?? this.records.length;
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.records = [];
+          this.notify.error('Failed to load commissions');
+        },
+      });
   }
 
-  calculateCommissions(): void {
-    if (!this.selectedPeriod) {
-      this.snackBar.open('Select a period first', 'Close', { duration: 3000 });
-      return;
+  get totalCommissions(): number {
+    return this.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+  }
+
+  getStatusClasses(status: string): string {
+    switch (status?.toLowerCase()) {
+      case 'paid':
+        return 'bg-green-500/10 text-green-400';
+      case 'pending':
+        return 'bg-yellow-500/10 text-yellow-400';
+      case 'cancelled':
+        return 'bg-red-500/10 text-red-400';
+      default:
+        return 'bg-surface-variant/30 text-on-surface-variant';
     }
+  }
 
-    this.employeeService.calculateCommissions({ period: this.selectedPeriod }).subscribe({
-      next: () => {
-        this.snackBar.open('Commissions calculated', 'Close', { duration: 2000 });
-        this.loadCommissions();
-      },
-      error: () => {
-        this.snackBar.open('Failed to calculate commissions', 'Close', { duration: 3000 });
-      },
+  formatStatus(status: string): string {
+    return status
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     });
   }
 
-  payCommission(commission: any): void {
-    this.employeeService.payCommission(commission.id).subscribe({
-      next: () => {
-        this.snackBar.open('Commission marked as paid', 'Close', { duration: 2000 });
-        this.loadCommissions();
-      },
-      error: () => {
-        this.snackBar.open('Failed to pay commission', 'Close', { duration: 3000 });
-      },
-    });
+  get totalPages(): number {
+    return Math.ceil(this.total / this.limit);
+  }
+
+  prevPage(): void {
+    if (this.page > 1) {
+      this.page--;
+      this.loadCommissions();
+    }
+  }
+
+  nextPage(): void {
+    if (this.page < this.totalPages) {
+      this.page++;
+      this.loadCommissions();
+    }
   }
 }

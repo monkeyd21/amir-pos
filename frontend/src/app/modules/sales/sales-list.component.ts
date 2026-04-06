@@ -1,20 +1,31 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormControl, FormGroup, FormBuilder } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { SalesService } from './sales.service';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+
+interface Sale {
+  id: number;
+  saleNumber: string;
+  customer: { firstName: string; lastName: string } | null;
+  items: any[];
+  total: number;
+  subtotal?: number;
+  payments?: { method: string; amount: string | number }[];
+  paymentMethod?: string;
+  status: string;
+  createdAt: string;
+}
+
+interface SalesResponse {
+  success: boolean;
+  data: Sale[];
+  meta: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-sales-list',
@@ -22,117 +33,197 @@ import { SalesService } from './sales.service';
   imports: [
     CommonModule,
     FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
+    StatusBadgeComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './sales-list.component.html',
 })
 export class SalesListComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  sales: Sale[] = [];
+  loading = true;
+  showFilters = false;
 
-  private salesService = inject(SalesService);
-  private router = inject(Router);
-  private fb = inject(FormBuilder);
-  private snackBar = inject(MatSnackBar);
+  // Pagination
+  currentPage = 1;
+  pageSize = 15;
+  totalItems = 0;
 
-  displayedColumns = ['saleNumber', 'date', 'customer', 'items', 'total', 'paymentMethod', 'status', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
+  // Filters
+  statusFilter = '';
+  paymentMethodFilter = '';
+  startDate = '';
+  endDate = '';
 
-  filterForm = this.fb.group({
-    dateFrom: [null as Date | null],
-    dateTo: [null as Date | null],
-    status: [''],
-    branchId: [''],
-  });
+  statuses = ['completed', 'pending', 'cancelled', 'returned', 'partially_returned'];
+  paymentMethods = ['cash', 'card', 'upi'];
 
-  branches: any[] = [];
+  // Dropdown state
+  openMenuId: number | null = null;
+
+  constructor(
+    private api: ApiService,
+    private router: Router,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadSales();
-    this.loadBranches();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
   }
 
   loadSales(): void {
     this.loading = true;
-    const params: any = {};
-    const f = this.filterForm.value;
-    if (f.dateFrom) params.dateFrom = f.dateFrom.toISOString();
-    if (f.dateTo) params.dateTo = f.dateTo.toISOString();
-    if (f.status) params.status = f.status;
-    if (f.branchId) params.branchId = f.branchId;
+    const params: Record<string, string | number | boolean> = {
+      page: this.currentPage,
+      limit: this.pageSize,
+    };
+    if (this.statusFilter) params['status'] = this.statusFilter;
+    if (this.paymentMethodFilter) params['paymentMethod'] = this.paymentMethodFilter;
+    if (this.startDate) params['startDate'] = this.startDate;
+    if (this.endDate) params['endDate'] = this.endDate;
 
-    this.salesService.getAll(params).subscribe({
+    this.api.get<SalesResponse>('/sales', params).subscribe({
       next: (res) => {
-        this.dataSource.data = res.data || res || [];
+        this.sales = res.data || [];
+        this.totalItems = res.meta?.total || 0;
         this.loading = false;
       },
       error: () => {
+        this.notify.error('Failed to load sales');
         this.loading = false;
-        this.snackBar.open('Failed to load sales', 'Close', { duration: 3000 });
       },
-    });
-  }
-
-  loadBranches(): void {
-    this.salesService.getBranches().subscribe({
-      next: (res) => (this.branches = res.data || res || []),
     });
   }
 
   applyFilters(): void {
+    this.currentPage = 1;
     this.loadSales();
   }
 
   clearFilters(): void {
-    this.filterForm.reset();
+    this.statusFilter = '';
+    this.paymentMethodFilter = '';
+    this.startDate = '';
+    this.endDate = '';
+    this.applyFilters();
+  }
+
+  toggleFilters(): void {
+    this.showFilters = !this.showFilters;
+  }
+
+  viewSale(sale: Sale): void {
+    this.router.navigate(['/sales', sale.saleNumber || sale.id]);
+  }
+
+  getCustomerName(sale: Sale): string {
+    if (sale.customer) {
+      return `${sale.customer.firstName} ${sale.customer.lastName}`.trim();
+    }
+    return 'Walk-in Customer';
+  }
+
+  getItemsSummary(sale: Sale): string {
+    if (!sale.items || sale.items.length === 0) return '-';
+    const names = sale.items.map(
+      (item: any) => item.variant?.product?.name || item.productName || item.name || 'Item'
+    );
+    const text = names.slice(0, 2).join(', ');
+    if (names.length > 2) return `${text} +${names.length - 2} more`;
+    return text;
+  }
+
+  getPaymentMethod(sale: Sale): string {
+    return sale.payments?.[0]?.method || sale.paymentMethod || '';
+  }
+
+  formatPaymentMethod(method: string): string {
+    if (!method) return '-';
+    return method.toUpperCase();
+  }
+
+  formatStatus(value: string): string {
+    if (!value) return '';
+    return value
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  }
+
+  // Pagination
+  get totalPages(): number {
+    return Math.ceil(this.totalItems / this.pageSize);
+  }
+
+  get pages(): number[] {
+    const total = this.totalPages;
+    const current = this.currentPage;
+    const pages: number[] = [];
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, current + 2);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    this.currentPage = page;
     this.loadSales();
   }
 
-  viewSale(sale: any): void {
-    this.router.navigate(['/sales', sale.id]);
+  toggleMenu(saleId: number, event: Event): void {
+    event.stopPropagation();
+    this.openMenuId = this.openMenuId === saleId ? null : saleId;
   }
 
-  getStatusClass(status: string): string {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'refunded': return 'bg-red-100 text-red-700';
-      case 'partially_returned': return 'bg-orange-100 text-orange-700';
-      case 'partial_refund': return 'bg-orange-100 text-orange-700';
-      case 'exchanged': return 'bg-purple-100 text-purple-700';
-      case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'cancelled': return 'bg-slate-100 text-slate-500';
-      default: return 'bg-slate-100 text-slate-700';
-    }
+  closeMenu(): void {
+    this.openMenuId = null;
   }
 
-  formatStatus(status: string): string {
-    const labels: Record<string, string> = {
-      completed: 'Completed',
-      refunded: 'Refunded',
-      partially_returned: 'Partially Returned',
-      partial_refund: 'Partial Refund',
-      exchanged: 'Exchanged',
-      pending: 'Pending',
-      cancelled: 'Cancelled',
-    };
-    return labels[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  exportCsv(): void {
+    this.notify.info('Exporting sales data...');
+    // Build CSV from current data
+    const headers = ['Sale Number', 'Customer', 'Total', 'Payment', 'Status', 'Date'];
+    const rows = this.sales.map((s) => [
+      s.saleNumber,
+      this.getCustomerName(s),
+      s.total,
+      s.paymentMethod,
+      s.status,
+      this.formatDate(s.createdAt),
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sales-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.notify.success('CSV exported successfully');
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!(this.statusFilter || this.paymentMethodFilter || this.startDate || this.endDate);
   }
 }

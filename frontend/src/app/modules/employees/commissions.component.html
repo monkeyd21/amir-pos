@@ -1,97 +1,143 @@
-<div class="p-6">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-800">Commissions</h1>
-      <p class="text-slate-500">Manage employee sales commissions</p>
-    </div>
-    <div class="flex gap-2 items-end">
-      <mat-form-field class="w-40" appearance="outline">
-        <mat-label>Period</mat-label>
-        <mat-select [(ngModel)]="selectedPeriod" (selectionChange)="loadCommissions()">
-          @for (p of periods; track p) {
-            <mat-option [value]="p">{{ p }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      <button mat-flat-button color="primary" (click)="calculateCommissions()">
-        <mat-icon>calculate</mat-icon> Calculate
-      </button>
+<!-- Loading State -->
+@if (loading) {
+  <div class="flex items-center justify-center h-[60vh]">
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      <p class="text-sm text-on-surface-variant">Loading commissions...</p>
     </div>
   </div>
+}
 
-  <!-- Summary Cards -->
-  @if (summaryCards.length > 0) {
-    <div class="grid grid-cols-4 gap-4 mb-6">
-      @for (card of summaryCards; track card.employeeId) {
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <div class="text-sm text-slate-500">{{ card.employeeName }}</div>
-          <div class="text-xl font-bold text-blue-600 font-mono">{{ card.totalCommission | currency:'INR':'symbol':'1.0-0' }}</div>
-          <div class="text-xs text-slate-400">Sales: {{ card.totalSales | currency:'INR':'symbol':'1.0-0' }}</div>
+@if (!loading) {
+  <div class="space-y-8">
+
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <a routerLink="/employees" class="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span class="material-symbols-outlined text-xl">arrow_back</span>
+          </a>
+          <h1 class="text-3xl font-headline font-bold text-on-surface">Commissions</h1>
         </div>
-      }
-    </div>
-  }
-
-  <!-- Table -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    @if (loading) {
-      <div class="flex justify-center p-12">
-        <mat-spinner diameter="40"></mat-spinner>
+        <p class="mt-1 text-sm text-on-surface-variant ml-9">Track sales commissions for your team.</p>
       </div>
-    } @else {
-      <table mat-table [dataSource]="dataSource" matSort class="w-full">
-        <ng-container matColumnDef="employee">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Employee</th>
-          <td mat-cell *matCellDef="let row" class="font-medium">{{ row.employeeName }}</td>
-        </ng-container>
+    </div>
 
-        <ng-container matColumnDef="period">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Period</th>
-          <td mat-cell *matCellDef="let row" class="text-sm">{{ row.period }}</td>
-        </ng-container>
+    <!-- Summary KPI -->
+    @if (records.length > 0) {
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
+          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary-container"></div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Commissions</p>
+          <p class="text-2xl font-headline font-bold text-primary">{{ formatCurrency(totalCommissions) }}</p>
+        </div>
+        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
+          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-green-400"></div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Records</p>
+          <p class="text-2xl font-headline font-bold text-on-surface">{{ total }}</p>
+        </div>
+        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
+          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-tertiary"></div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Avg per Sale</p>
+          <p class="text-2xl font-headline font-bold text-on-surface">
+            {{ records.length > 0 ? formatCurrency(totalCommissions / records.length) : formatCurrency(0) }}
+          </p>
+        </div>
+      </div>
+    }
 
-        <ng-container matColumnDef="salesAmount">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Sales</th>
-          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.salesAmount | currency:'INR':'symbol':'1.0-0' }}</td>
-        </ng-container>
+    <!-- Commissions Table -->
+    <div class="bg-surface-container rounded-xl overflow-hidden">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="bg-surface-container-low/50">
+            <th class="th-label">Employee</th>
+            <th class="th-label">Sale</th>
+            <th class="th-label text-right">Sale Amount</th>
+            <th class="th-label text-center">Rate</th>
+            <th class="th-label text-right">Commission</th>
+            <th class="th-label">Date</th>
+            <th class="th-label">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-outline-variant/10">
+          @for (record of records; track record.id) {
+            <tr class="hover:bg-surface-container-high/40 transition-colors">
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-3">
+                  <div class="w-9 h-9 rounded-full bg-primary-container/15 flex items-center justify-center shrink-0">
+                    <span class="text-xs font-bold text-primary">
+                      {{ (record.employee?.firstName || '?')[0] }}{{ (record.employee?.lastName || '?')[0] }}
+                    </span>
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">
+                      {{ record.employee?.firstName }} {{ record.employee?.lastName }}
+                    </p>
+                    <p class="text-[11px] text-on-surface-variant capitalize">{{ record.employee?.role }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5 text-sm text-primary font-medium">
+                {{ record.sale?.saleNumber || '---' }}
+              </td>
+              <td class="px-6 py-5 text-sm text-on-surface-variant text-right">
+                {{ record.sale?.totalAmount ? formatCurrency(record.sale!.totalAmount) : '---' }}
+              </td>
+              <td class="px-6 py-5 text-sm text-on-surface-variant text-center">
+                {{ record.rate ? (record.rate * 100).toFixed(1) + '%' : '---' }}
+              </td>
+              <td class="px-6 py-5 text-sm font-headline font-bold text-on-surface text-right">
+                {{ formatCurrency(record.amount) }}
+              </td>
+              <td class="px-6 py-5 text-sm text-on-surface-variant">
+                {{ formatDate(record.createdAt) }}
+              </td>
+              <td class="px-6 py-5">
+                <span class="status-pill" [ngClass]="getStatusClasses(record.status)">
+                  {{ formatStatus(record.status) }}
+                </span>
+              </td>
+            </tr>
+          }
 
-        <ng-container matColumnDef="commissionRate">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Rate</th>
-          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.commissionRate }}%</td>
-        </ng-container>
-
-        <ng-container matColumnDef="commissionAmount">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Commission</th>
-          <td mat-cell *matCellDef="let row" class="font-mono font-bold text-blue-600">{{ row.commissionAmount | currency:'INR':'symbol':'1.2-2' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
-          <td mat-cell *matCellDef="let row">
-            <span class="text-xs font-medium px-2 py-1 rounded-full"
-              [class]="row.status === 'paid' ? 'bg-green-100 text-green-700' :
-                       row.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                       'bg-slate-100 text-slate-700'">
-              {{ row.status | titlecase }}
-            </span>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            @if (row.status === 'pending') {
-              <button mat-stroked-button color="primary" (click)="payCommission(row)" class="text-sm">
-                Mark Paid
-              </button>
-            }
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+          @if (records.length === 0) {
+            <tr>
+              <td colspan="7" class="px-8 py-16 text-center">
+                <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2 block">paid</span>
+                <p class="text-sm text-on-surface-variant">No commission records found</p>
+              </td>
+            </tr>
+          }
+        </tbody>
       </table>
-      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages > 1) {
+      <div class="flex items-center justify-between">
+        <p class="text-sm text-on-surface-variant">
+          Showing {{ (page - 1) * limit + 1 }}–{{ page * limit > total ? total : page * limit }} of {{ total }}
+        </p>
+        <div class="flex items-center gap-2">
+          <button
+            (click)="prevPage()"
+            [disabled]="page <= 1"
+            class="px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/20 text-sm text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <span class="material-symbols-outlined text-lg">chevron_left</span>
+          </button>
+          <span class="px-3 py-2 text-sm text-on-surface font-medium">{{ page }} / {{ totalPages }}</span>
+          <button
+            (click)="nextPage()"
+            [disabled]="page >= totalPages"
+            class="px-3 py-2 rounded-lg bg-surface-container border border-outline-variant/20 text-sm text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <span class="material-symbols-outlined text-lg">chevron_right</span>
+          </button>
+        </div>
+      </div>
     }
   </div>
-</div>
+}

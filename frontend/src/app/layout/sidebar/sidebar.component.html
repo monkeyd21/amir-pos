@@ -1,0 +1,39 @@
+<aside class="flex flex-col h-full py-6 bg-[#131b2e] w-64 fixed left-0 top-0 z-40">
+  <!-- Logo -->
+  <div class="px-6 mb-10 flex items-center gap-3">
+    <div class="w-10 h-10 bg-[#465fff] rounded-xl flex items-center justify-center">
+      <span class="material-symbols-outlined text-white icon-filled">store</span>
+    </div>
+    <div>
+      <h2 class="text-xl font-black text-[#dae2fd] leading-tight font-[Manrope]">Atelier</h2>
+      <p class="text-[10px] text-[#c5c5d8] uppercase tracking-widest">Fashion ERP</p>
+    </div>
+  </div>
+
+  <!-- Main Nav -->
+  <nav class="flex-1 px-4 space-y-1">
+    @for (item of mainNav; track item.path) {
+      <a
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
+        [routerLink]="item.path"
+        routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
+        [routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }"
+      >
+        <span class="material-symbols-outlined text-[20px]">{{ item.icon }}</span>
+        <span class="text-sm font-medium">{{ item.label }}</span>
+      </a>
+    }
+
+    <!-- Settings separated -->
+    <div class="mt-8">
+      <a
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
+        [routerLink]="settingsNav.path"
+        routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
+      >
+        <span class="material-symbols-outlined text-[20px]">{{ settingsNav.icon }}</span>
+        <span class="text-sm font-medium">{{ settingsNav.label }}</span>
+      </a>
+    </div>
+  </nav>
+</aside>

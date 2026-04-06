@@ -1,130 +1,178 @@
-<div class="p-6 max-w-4xl mx-auto">
-  <div class="flex items-center gap-3 mb-6">
-    <button mat-icon-button (click)="cancel()">
-      <mat-icon>arrow_back</mat-icon>
-    </button>
-    <div>
-      <h1 class="text-2xl font-bold text-slate-800">Create Stock Transfer</h1>
-      <p class="text-slate-500">Transfer inventory between branches</p>
+<!-- Page Header -->
+<app-page-header title="Create Transfer" subtitle="Move inventory between branches">
+  <a
+    routerLink="/inventory/transfers"
+    class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 rounded-lg transition-colors no-underline cursor-pointer"
+  >
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to Transfers
+  </a>
+</app-page-header>
+
+<div class="max-w-3xl space-y-6">
+  <!-- Branch Selection -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <h3 class="text-sm font-headline font-bold text-on-surface tracking-tight mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg text-primary">swap_horiz</span>
+      Transfer Route
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="label-upper mb-1.5 block">From Branch *</label>
+        <select
+          [(ngModel)]="fromBranchId"
+          class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors appearance-none cursor-pointer"
+        >
+          <option [ngValue]="null">Select source branch</option>
+          @for (branch of branches; track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="label-upper mb-1.5 block">To Branch *</label>
+        <select
+          [(ngModel)]="toBranchId"
+          class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors appearance-none cursor-pointer"
+        >
+          <option [ngValue]="null">Select destination branch</option>
+          @for (branch of branches; track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </div>
     </div>
+    @if (fromBranchId && toBranchId && fromBranchId === toBranchId) {
+      <p class="mt-3 text-xs text-error flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-sm">error</span>
+        Source and destination branches must be different
+      </p>
+    }
   </div>
 
-  <mat-stepper linear #stepper class="bg-white rounded-xl shadow-sm border border-slate-200">
-    <!-- Step 1: Select Branches -->
-    <mat-step [stepControl]="branchForm" label="Select Branches">
-      <form [formGroup]="branchForm" class="p-6 space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <mat-form-field class="w-full" appearance="outline">
-            <mat-label>From Branch</mat-label>
-            <mat-select formControlName="fromBranchId">
-              @for (branch of branches; track branch.id) {
-                <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field class="w-full" appearance="outline">
-            <mat-label>To Branch</mat-label>
-            <mat-select formControlName="toBranchId">
-              @for (branch of branches; track branch.id) {
-                <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        </div>
-        <mat-form-field class="w-full" appearance="outline">
-          <mat-label>Notes</mat-label>
-          <textarea matInput formControlName="notes" rows="2"></textarea>
-        </mat-form-field>
-        <div class="flex justify-end">
-          <button mat-flat-button color="primary" matStepperNext [disabled]="branchForm.invalid">Next</button>
-        </div>
-      </form>
-    </mat-step>
+  <!-- Items -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <h3 class="text-sm font-headline font-bold text-on-surface tracking-tight mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg text-primary">inventory_2</span>
+      Transfer Items
+    </h3>
 
-    <!-- Step 2: Add Items -->
-    <mat-step label="Add Items">
-      <div class="p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-slate-700">Transfer Items</h3>
-          <button mat-stroked-button (click)="addItem()">
-            <mat-icon>add</mat-icon> Add Item
-          </button>
+    <!-- Product Search -->
+    <div class="relative mb-4">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-on-surface-variant/50">
+        search
+      </span>
+      <input
+        type="text"
+        [value]="searchQuery"
+        (input)="onSearchInput($event)"
+        (blur)="showResults && closeSearch()"
+        placeholder="Search products to add..."
+        class="w-full pl-10 pr-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+      />
+      @if (searching) {
+        <div class="absolute right-3 top-1/2 -translate-y-1/2">
+          <div class="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
         </div>
+      }
 
-        <form [formGroup]="itemsForm">
-          @for (item of items.controls; track $index) {
-            <div class="border border-slate-200 rounded-lg p-4 mb-3" formArrayName="items">
-              <div class="flex gap-4 items-start" [formGroupName]="$index">
-                <mat-form-field class="flex-1" appearance="outline">
-                  <mat-label>Product / Variant</mat-label>
-                  <input matInput formControlName="productName" placeholder="Search product name..."
-                         (input)="onProductSearch($any($event.target).value)"
-                         [matAutocomplete]="prodAuto" />
-                  <mat-autocomplete #prodAuto="matAutocomplete" (optionSelected)="selectProduct($event.option.value, $index)">
-                    @for (p of productResults; track p.variantId) {
-                      <mat-option [value]="p">
-                        {{ p.productName }} - {{ p.size }}/{{ p.color }}
-                        <span class="text-xs text-slate-400 ml-2">(Stock: {{ p.stock }})</span>
-                      </mat-option>
-                    }
-                  </mat-autocomplete>
-                </mat-form-field>
-                <mat-form-field class="w-32" appearance="outline">
-                  <mat-label>Quantity</mat-label>
-                  <input matInput type="number" formControlName="quantity" min="1" />
-                </mat-form-field>
-                <button mat-icon-button color="warn" (click)="removeItem($index)">
-                  <mat-icon>delete</mat-icon>
-                </button>
+      <!-- Search Results Dropdown -->
+      @if (showResults) {
+        <div class="absolute left-0 right-0 top-full mt-1 bg-surface-container border border-outline-variant/20 rounded-xl shadow-ambient z-20 max-h-60 overflow-y-auto">
+          @for (variant of searchResults; track variant.id) {
+            <button
+              (mousedown)="selectVariant(variant); $event.preventDefault()"
+              class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-container-high/60 transition-colors cursor-pointer border-b border-outline-variant/5 last:border-0"
+            >
+              <div>
+                <p class="text-sm font-medium text-on-surface">{{ variant.product?.name || 'Unknown' }}</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                  @if (getVariantLabel(variant)) {
+                    <span class="text-xs text-on-surface-variant">{{ getVariantLabel(variant) }}</span>
+                  }
+                  <code class="text-[10px] font-mono text-on-surface-variant/60">{{ variant.sku }}</code>
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-base text-primary">add_circle</span>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Items List -->
+    @if (items.length === 0) {
+      <div class="text-center py-8">
+        <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">add_shopping_cart</span>
+        <p class="text-sm text-on-surface-variant/50">Search and add products to transfer</p>
+      </div>
+    } @else {
+      <div class="space-y-2">
+        @for (item of items; track item.variantId; let i = $index) {
+          <div class="flex items-center gap-4 px-4 py-3 bg-surface-container-lowest/60 rounded-xl border border-outline-variant/5">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">{{ item.productName }}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                @if (item.variantLabel) {
+                  <span class="text-xs text-on-surface-variant">{{ item.variantLabel }}</span>
+                }
+                <code class="text-[10px] font-mono text-on-surface-variant/60">{{ item.sku }}</code>
               </div>
             </div>
-          }
-
-          @if (items.length === 0) {
-            <div class="text-center text-slate-400 py-8">
-              No items added. Click "Add Item" to start.
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-on-surface-variant mr-1">Qty</label>
+              <input
+                type="number"
+                [value]="item.quantity"
+                (change)="updateQuantity(i, $event)"
+                min="1"
+                class="w-20 px-3 py-1.5 text-sm text-center font-body bg-surface-container text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+              />
             </div>
-          }
-        </form>
-
-        <mat-divider class="my-4"></mat-divider>
-        <div class="flex justify-between">
-          <button mat-stroked-button matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext [disabled]="items.length === 0">Next</button>
-        </div>
-      </div>
-    </mat-step>
-
-    <!-- Step 3: Review & Submit -->
-    <mat-step label="Review & Submit">
-      <div class="p-6">
-        <h3 class="text-lg font-semibold text-slate-700 mb-4">Review Transfer</h3>
-        <div class="bg-slate-50 rounded-lg p-4 mb-4 grid grid-cols-2 gap-4">
-          <div>
-            <div class="text-sm text-slate-500">From Branch</div>
-            <div class="font-medium">{{ branchForm.value.fromBranchId }}</div>
-          </div>
-          <div>
-            <div class="text-sm text-slate-500">To Branch</div>
-            <div class="font-medium">{{ branchForm.value.toBranchId }}</div>
-          </div>
-        </div>
-
-        <div class="text-sm font-medium text-slate-600 mb-2">Items ({{ items.length }})</div>
-        @for (item of items.controls; track $index) {
-          <div class="flex justify-between border-b border-slate-100 py-2">
-            <span>{{ item.value.productName || 'Item ' + ($index + 1) }}</span>
-            <span class="font-mono">x{{ item.value.quantity }}</span>
+            <button
+              (click)="removeItem(i)"
+              class="p-1.5 rounded-lg hover:bg-error-container/20 transition-colors cursor-pointer"
+            >
+              <span class="material-symbols-outlined text-base text-error/70 hover:text-error">close</span>
+            </button>
           </div>
         }
-
-        <div class="flex justify-between mt-6">
-          <button mat-stroked-button matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" (click)="submit()" [disabled]="loading">
-            {{ loading ? 'Submitting...' : 'Submit Transfer' }}
-          </button>
-        </div>
       </div>
-    </mat-step>
-  </mat-stepper>
+    }
+  </div>
+
+  <!-- Notes -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <h3 class="text-sm font-headline font-bold text-on-surface tracking-tight mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg text-primary">notes</span>
+      Notes
+    </h3>
+    <textarea
+      [(ngModel)]="notes"
+      rows="3"
+      placeholder="Optional transfer notes..."
+      class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors resize-none"
+    ></textarea>
+  </div>
+
+  <!-- Submit -->
+  <div class="flex items-center justify-end gap-3 pb-6">
+    <a
+      routerLink="/inventory/transfers"
+      class="px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors no-underline cursor-pointer"
+    >
+      Cancel
+    </a>
+    <button
+      (click)="onSubmit()"
+      [disabled]="!isValid || saving"
+      class="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      @if (saving) {
+        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+      }
+      <span class="material-symbols-outlined text-lg">send</span>
+      Create Transfer
+    </button>
+  </div>
 </div>

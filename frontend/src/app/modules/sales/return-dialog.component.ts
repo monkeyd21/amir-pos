@@ -1,132 +1,126 @@
-import { Component, Inject, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { SalesService } from './sales.service';
+import { FormsModule } from '@angular/forms';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface ReturnItem {
+  saleItemId: number;
+  productName: string;
+  size: string;
+  color: string;
+  maxQuantity: number;
+  quantity: number;
+  reason: string;
+  condition: string;
+  selected: boolean;
+  unitPrice: number;
+}
 
 @Component({
   selector: 'app-return-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatCheckboxModule,
-    MatDividerModule,
-    MatSnackBarModule,
-  ],
+  imports: [CommonModule, FormsModule],
   templateUrl: './return-dialog.component.html',
 })
-export class ReturnDialogComponent {
-  private fb = inject(FormBuilder);
-  private salesService = inject(SalesService);
-  private snackBar = inject(MatSnackBar);
+export class ReturnDialogComponent implements OnInit {
+  @Input() sale: any;
+  @Input() returnableItems: any[] = [];
+  @Output() close = new EventEmitter<void>();
+  @Output() returnComplete = new EventEmitter<void>();
 
-  form: FormGroup;
-  sale: any;
-  loading = false;
+  items: ReturnItem[] = [];
+  submitting = false;
+
+  reasons = [
+    { value: 'defective', label: 'Defective' },
+    { value: 'wrong_size', label: 'Wrong Size' },
+    { value: 'not_as_described', label: 'Not as Described' },
+    { value: 'changed_mind', label: 'Changed Mind' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  conditions = [
+    { value: 'new', label: 'New / Unused' },
+    { value: 'worn', label: 'Worn' },
+    { value: 'damaged', label: 'Damaged' },
+  ];
 
   constructor(
-    public dialogRef: MatDialogRef<ReturnDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
-  ) {
-    this.sale = data.sale;
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
-    const returnableItems = (this.sale.items || [])
-      .filter((item: any) => (item.quantity - (item.returnedQuantity || 0)) > 0)
-      .map((item: any) => {
-        const returnable = item.quantity - (item.returnedQuantity || 0);
-        return this.fb.group({
-          saleItemId: [item.id],
-          productName: [item.variant?.product?.name || item.productName || item.name || 'Unknown'],
-          variantLabel: [`${item.variant?.size || item.size || ''} / ${item.variant?.color || item.color || ''}`],
-          selected: [false],
-          quantity: [{ value: 0, disabled: true }],
-          maxQuantity: [returnable],
-          originalQty: [item.quantity],
-          returnedQty: [item.returnedQuantity || 0],
-          condition: ['resellable'],
-          unitPrice: [item.unitPrice],
-        });
-      });
-
-    this.form = this.fb.group({
-      reason: ['', Validators.required],
-      items: this.fb.array(returnableItems),
-    });
+  ngOnInit(): void {
+    this.items = this.returnableItems.map((item) => ({
+      saleItemId: item.id,
+      productName: item.variant?.product?.name || item.productName || item.name || 'Unknown',
+      size: item.variant?.size || '-',
+      color: item.variant?.color || '-',
+      maxQuantity: item.quantity - (item.returnedQuantity || 0),
+      quantity: 1,
+      reason: 'changed_mind',
+      condition: 'new',
+      selected: false,
+      unitPrice: item.unitPrice || 0,
+    }));
   }
 
-  get items(): FormArray {
-    return this.form.get('items') as FormArray;
+  get selectedItems(): ReturnItem[] {
+    return this.items.filter((i) => i.selected);
   }
 
   get refundAmount(): number {
-    return this.items.controls.reduce((sum, ctrl) => {
-      const val = ctrl.value;
-      if (val.selected) {
-        return sum + (ctrl.get('quantity')?.value || 0) * val.unitPrice;
-      }
-      return sum;
-    }, 0);
+    return this.selectedItems.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0
+    );
   }
 
-  toggleItem(index: number): void {
-    const ctrl = this.items.at(index);
-    const selected = ctrl.get('selected')?.value;
-    if (selected) {
-      ctrl.get('quantity')?.enable();
-      ctrl.get('quantity')?.setValue(ctrl.get('maxQuantity')?.value);
-    } else {
-      ctrl.get('quantity')?.disable();
-      ctrl.get('quantity')?.setValue(0);
+  get canSubmit(): boolean {
+    return this.selectedItems.length > 0 && !this.submitting;
+  }
+
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
+  }
+
+  onClose(): void {
+    this.close.emit();
+  }
+
+  onBackdropClick(event: Event): void {
+    if (event.target === event.currentTarget) {
+      this.onClose();
     }
   }
 
   submit(): void {
-    if (this.form.invalid) return;
+    if (!this.canSubmit) return;
+    this.submitting = true;
 
-    const selectedItems = this.items.controls
-      .filter((ctrl) => ctrl.value.selected)
-      .map((ctrl) => ({
-        saleItemId: ctrl.value.saleItemId,
-        quantity: ctrl.get('quantity')?.value,
-        condition: ctrl.value.condition,
-      }));
+    const body = {
+      items: this.selectedItems.map((item) => ({
+        saleItemId: item.saleItemId,
+        quantity: item.quantity,
+        reason: item.reason,
+        condition: item.condition,
+      })),
+    };
 
-    if (selectedItems.length === 0) {
-      this.snackBar.open('Select at least one item to return', 'Close', { duration: 3000 });
-      return;
-    }
-
-    this.loading = true;
-    this.salesService
-      .processReturn(this.sale.id, {
-        reason: this.form.value.reason,
-        items: selectedItems,
-        refundAmount: this.refundAmount,
-      })
-      .subscribe({
-        next: () => {
-          this.snackBar.open('Return processed successfully', 'Close', { duration: 2000 });
-          this.dialogRef.close(true);
-        },
-        error: () => {
-          this.loading = false;
-        },
-      });
+    this.api.post(`/sales/${this.sale.id}/return`, body).subscribe({
+      next: () => {
+        this.submitting = false;
+        this.returnComplete.emit();
+      },
+      error: () => {
+        this.notify.error('Failed to process return');
+        this.submitting = false;
+      },
+    });
   }
 }

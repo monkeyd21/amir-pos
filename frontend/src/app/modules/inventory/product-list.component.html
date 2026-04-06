@@ -1,112 +1,207 @@
-<div class="p-6">
-  <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-800">Products</h1>
-      <p class="text-slate-500">Manage your product catalog</p>
-    </div>
-    <button mat-flat-button color="primary" (click)="openAddDialog()">
-      <mat-icon>add</mat-icon> Add Product
+<!-- Page Header -->
+<app-page-header title="Products" subtitle="Manage your product catalog and variants">
+  <button
+    (click)="openAddProduct()"
+    class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+  >
+    <span class="material-symbols-outlined text-lg">add</span>
+    Add Product
+  </button>
+</app-page-header>
+
+<!-- Filter Bar -->
+<div class="flex flex-wrap items-center gap-3 mb-6">
+  <div class="w-72">
+    <app-search-input
+      placeholder="Search products..."
+      [value]="search"
+      (searchChange)="onSearch($event)"
+    ></app-search-input>
+  </div>
+
+  <select
+    [value]="selectedBrandId ?? ''"
+    (change)="onBrandChange($event)"
+    class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border-0 border-b-2 border-transparent rounded-lg focus:border-b-primary focus:outline-none transition-colors appearance-none cursor-pointer"
+  >
+    <option value="">All Brands</option>
+    @for (brand of brands; track brand.id) {
+      <option [value]="brand.id">{{ brand.name }}</option>
+    }
+  </select>
+
+  <select
+    [value]="selectedCategoryId ?? ''"
+    (change)="onCategoryChange($event)"
+    class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border-0 border-b-2 border-transparent rounded-lg focus:border-b-primary focus:outline-none transition-colors appearance-none cursor-pointer"
+  >
+    <option value="">All Categories</option>
+    @for (cat of categories; track cat.id) {
+      <option [value]="cat.id">{{ cat.name }}</option>
+    }
+  </select>
+
+  @if (hasFilters) {
+    <button
+      (click)="clearFilters()"
+      class="inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium font-body text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 rounded-lg transition-colors cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-base">filter_alt_off</span>
+      Clear
     </button>
-  </div>
+  }
+</div>
 
-  <!-- Filters -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-    <div class="flex flex-wrap gap-4 items-end">
-      <mat-form-field class="flex-1 min-w-[200px]" appearance="outline">
-        <mat-label>Search products</mat-label>
-        <input matInput [formControl]="searchCtrl" placeholder="Name, SKU..." />
-        <mat-icon matSuffix>search</mat-icon>
-      </mat-form-field>
-      <mat-form-field class="w-48" appearance="outline">
-        <mat-label>Brand</mat-label>
-        <mat-select [(ngModel)]="brandFilter" (selectionChange)="applyFilter()">
-          <mat-option value="">All Brands</mat-option>
-          @for (brand of brands; track brand.id) {
-            <mat-option [value]="brand.id">{{ brand.name }}</mat-option>
+<!-- Loading -->
+@if (loading) {
+  <app-loading-spinner message="Loading products..."></app-loading-spinner>
+}
+
+<!-- Empty State -->
+@if (!loading && products.length === 0) {
+  <app-empty-state
+    icon="inventory_2"
+    title="No products found"
+    [message]="hasFilters ? 'Try adjusting your filters' : 'Get started by adding your first product'"
+    [actionText]="hasFilters ? '' : 'Add Product'"
+    (actionClick)="openAddProduct()"
+  ></app-empty-state>
+}
+
+<!-- Data Table -->
+@if (!loading && products.length > 0) {
+  <div class="bg-surface-container/60 backdrop-blur-sm border border-outline-variant/10 rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-outline-variant/10">
+            <th class="th-label text-left">Product Name</th>
+            <th class="th-label text-left">SKU</th>
+            <th class="th-label text-left">Brand</th>
+            <th class="th-label text-left">Category</th>
+            <th class="th-label text-right">Price</th>
+            <th class="th-label text-center">Variants</th>
+            <th class="th-label text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (product of products; track product.id) {
+            <tr
+              (click)="viewProduct(product)"
+              class="border-b border-outline-variant/5 hover:bg-surface-container-high/30 transition-colors cursor-pointer"
+            >
+              <!-- Product Name -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-semibold text-on-surface">{{ product.name }}</span>
+              </td>
+              <!-- SKU -->
+              <td class="px-6 py-4">
+                <code class="px-2 py-0.5 text-xs font-mono bg-surface-container-lowest rounded">{{ product.variants?.[0]?.sku || product.slug || '—' }}</code>
+              </td>
+              <!-- Brand -->
+              <td class="px-6 py-4 text-sm text-on-surface-variant">
+                {{ product.brand?.name || '—' }}
+              </td>
+              <!-- Category -->
+              <td class="px-6 py-4 text-sm text-on-surface-variant">
+                {{ product.category?.name || '—' }}
+              </td>
+              <!-- Price -->
+              <td class="px-6 py-4 text-right">
+                <span class="text-sm font-bold text-on-surface">{{ formatCurrency(product.basePrice) }}</span>
+              </td>
+              <!-- Variants -->
+              <td class="px-6 py-4 text-center">
+                <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-xs font-bold font-label bg-primary-container/20 text-primary rounded-full">
+                  {{ product._count?.variants || product.variants?.length || 0 }}
+                </span>
+              </td>
+              <!-- Actions -->
+              <td class="px-6 py-4 text-right">
+                <div class="relative inline-block">
+                  <button
+                    (click)="toggleMenu(product.id); $event.stopPropagation()"
+                    class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-lg text-on-surface-variant">more_vert</span>
+                  </button>
+                  @if (activeMenuId === product.id) {
+                    <div
+                      class="absolute right-0 top-full mt-1 w-40 bg-surface-container border border-outline-variant/20 rounded-xl shadow-ambient z-20 py-1"
+                      (mouseleave)="closeMenu()"
+                    >
+                      <button
+                        (click)="editProduct(product); $event.stopPropagation()"
+                        class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-body text-on-surface hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+                      >
+                        <span class="material-symbols-outlined text-base text-on-surface-variant">edit</span>
+                        Edit
+                      </button>
+                      <button
+                        (click)="deleteProduct(product); $event.stopPropagation()"
+                        class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-body text-error hover:bg-error-container/10 transition-colors cursor-pointer"
+                      >
+                        <span class="material-symbols-outlined text-base">delete</span>
+                        Delete
+                      </button>
+                    </div>
+                  }
+                </div>
+              </td>
+            </tr>
           }
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field class="w-48" appearance="outline">
-        <mat-label>Category</mat-label>
-        <mat-select [(ngModel)]="categoryFilter" (selectionChange)="applyFilter()">
-          <mat-option value="">All Categories</mat-option>
-          @for (cat of categories; track cat.id) {
-            <mat-option [value]="cat.id">{{ cat.name }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      <button mat-stroked-button (click)="clearFilters()">
-        <mat-icon>clear</mat-icon> Clear
-      </button>
-    </div>
-  </div>
-
-  <!-- Table -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    @if (loading) {
-      <div class="flex justify-center p-12">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-    } @else {
-      <table mat-table [dataSource]="dataSource" matSort class="w-full">
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold text-slate-600">Name</th>
-          <td mat-cell *matCellDef="let row">
-            <div class="font-medium text-slate-800">{{ row.name }}</div>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="sku">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold text-slate-600">SKU</th>
-          <td mat-cell *matCellDef="let row" class="font-mono text-sm text-slate-500">{{ row.sku }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="brand">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold text-slate-600">Brand</th>
-          <td mat-cell *matCellDef="let row">{{ row.brand?.name || row.brandName || '-' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="category">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold text-slate-600">Category</th>
-          <td mat-cell *matCellDef="let row">{{ row.category?.name || row.categoryName || '-' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="price">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold text-slate-600">Price</th>
-          <td mat-cell *matCellDef="let row" class="font-mono">{{ row.basePrice | currency:'INR':'symbol':'1.2-2' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="variants">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Variants</th>
-          <td mat-cell *matCellDef="let row">
-            <span class="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full">
-              {{ row.variantCount || row.variants?.length || 0 }}
-            </span>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-icon-button [matMenuTriggerFor]="rowMenu">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-            <mat-menu #rowMenu="matMenu">
-              <button mat-menu-item (click)="openEditDialog(row)">
-                <mat-icon>edit</mat-icon> Edit
-              </button>
-              <button mat-menu-item (click)="deleteProduct(row)" class="text-red-600">
-                <mat-icon>delete</mat-icon> Delete
-              </button>
-            </mat-menu>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50 cursor-pointer"></tr>
+        </tbody>
       </table>
-      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages > 1) {
+      <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10">
+        <p class="text-xs text-on-surface-variant font-body">
+          Showing {{ (page - 1) * limit + 1 }}–{{ page * limit > total ? total : page * limit }} of {{ total }}
+        </p>
+        <div class="flex items-center gap-1">
+          <button
+            (click)="goToPage(page - 1)"
+            [disabled]="page === 1"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_left</span>
+          </button>
+          @for (p of pages; track p) {
+            <button
+              (click)="goToPage(p)"
+              class="min-w-[32px] h-8 px-2 text-xs font-semibold font-body rounded-lg transition-colors cursor-pointer"
+              [class]="p === page ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-high/60'"
+            >
+              {{ p }}
+            </button>
+          }
+          <button
+            (click)="goToPage(page + 1)"
+            [disabled]="page === totalPages"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_right</span>
+          </button>
+        </div>
+      </div>
     }
   </div>
-</div>
+
+  <!-- Bottom Stats -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+      <p class="label-upper mb-2">Total Inventory Value</p>
+      <p class="text-2xl font-headline font-extrabold text-on-surface">{{ formatCurrency(totalInventoryValue) }}</p>
+    </div>
+    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+      <p class="label-upper mb-2">Low Stock Alerts</p>
+      <p class="text-2xl font-headline font-extrabold text-tertiary">{{ lowStockAlerts }}</p>
+    </div>
+    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+      <p class="label-upper mb-2">Active Variants</p>
+      <p class="text-2xl font-headline font-extrabold text-on-surface">{{ activeVariants }}</p>
+    </div>
+  </div>
+}

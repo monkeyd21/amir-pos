@@ -1,64 +1,100 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { SalesService } from './sales.service';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
 import { ReturnDialogComponent } from './return-dialog.component';
 import { ExchangeDialogComponent } from './exchange-dialog.component';
+
+interface SaleItem {
+  id: number;
+  variant?: {
+    product?: { name: string };
+    size?: string;
+    color?: string;
+    sku?: string;
+  };
+  productName?: string;
+  name?: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal?: number;
+  returnedQuantity?: number;
+}
+
+interface SaleReturn {
+  id: number;
+  items: any[];
+  reason?: string;
+  condition?: string;
+  refundAmount: number;
+  createdAt: string;
+}
+
+interface Sale {
+  id: number;
+  saleNumber: string;
+  customer: { id: number; firstName: string; lastName: string; email?: string; phone?: string } | null;
+  user: { firstName: string; lastName: string } | null;
+  items: SaleItem[];
+  returns: SaleReturn[];
+  total: number;
+  subtotal?: number;
+  payments?: { method: string; amount: string | number }[];
+  paymentMethod?: string;
+  status: string;
+  createdAt: string;
+  notes?: string;
+}
+
+interface SaleResponse {
+  success: boolean;
+  data: Sale;
+}
 
 @Component({
   selector: 'app-sale-detail',
   standalone: true,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTableModule,
-    MatDividerModule,
-    MatChipsModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
+    StatusBadgeComponent,
+    LoadingSpinnerComponent,
+    ReturnDialogComponent,
+    ExchangeDialogComponent,
   ],
   templateUrl: './sale-detail.component.html',
 })
 export class SaleDetailComponent implements OnInit {
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
-  private salesService = inject(SalesService);
-  private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
-
-  sale: any = null;
+  sale: Sale | null = null;
   loading = true;
-  itemColumns = ['product', 'variant', 'quantity', 'returned', 'unitPrice', 'total'];
-  paymentColumns = ['method', 'amount', 'reference'];
+  showReturnDialog = false;
+  showExchangeDialog = false;
+
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadSale(id);
-    } else {
-      this.loading = false;
     }
   }
 
-  loadSale(id: string | number): void {
+  loadSale(id: string): void {
     this.loading = true;
-    this.salesService.getById(id).subscribe({
+    this.api.get<SaleResponse>(`/sales/${id}`).subscribe({
       next: (res) => {
-        this.sale = res.data || res;
+        this.sale = res.data;
         this.loading = false;
       },
       error: () => {
-        this.snackBar.open('Failed to load sale', 'Close', { duration: 3000 });
+        this.notify.error('Failed to load sale details');
         this.loading = false;
       },
     });
@@ -68,51 +104,104 @@ export class SaleDetailComponent implements OnInit {
     this.router.navigate(['/sales']);
   }
 
-  getStatusClass(status: string): string {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'refunded': return 'bg-red-100 text-red-700';
-      case 'partially_returned': return 'bg-orange-100 text-orange-700';
-      case 'partial_refund': return 'bg-orange-100 text-orange-700';
-      case 'exchanged': return 'bg-purple-100 text-purple-700';
-      case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'cancelled': return 'bg-slate-100 text-slate-500';
-      default: return 'bg-slate-100 text-slate-700';
-    }
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
   }
 
-  formatStatus(status: string): string {
-    const labels: Record<string, string> = {
-      completed: 'Completed',
-      refunded: 'Refunded',
-      partially_returned: 'Partially Returned',
-      partial_refund: 'Partial Refund',
-      exchanged: 'Exchanged',
-      pending: 'Pending',
-      cancelled: 'Cancelled',
-    };
-    return labels[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  formatStatus(value: string): string {
+    if (!value) return '';
+    return value
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  getPaymentMethod(): string {
+    if (!this.sale) return '';
+    return this.sale.payments?.[0]?.method || this.sale.paymentMethod || '';
+  }
+
+  formatPaymentMethod(method: string): string {
+    if (!method) return '-';
+    return method.toUpperCase();
+  }
+
+  getProductName(item: SaleItem): string {
+    return item.variant?.product?.name || item.productName || item.name || 'Unknown Product';
+  }
+
+  getItemSubtotal(item: SaleItem): number {
+    return item.subtotal || item.unitPrice * item.quantity;
+  }
+
+  getCustomerName(): string {
+    if (this.sale?.customer) {
+      return `${this.sale.customer.firstName} ${this.sale.customer.lastName}`.trim();
+    }
+    return 'Walk-in Customer';
+  }
+
+  getCashierName(): string {
+    if (this.sale?.user) {
+      return `${this.sale.user.firstName} ${this.sale.user.lastName}`.trim();
+    }
+    return '-';
+  }
+
+  get canReturn(): boolean {
+    return this.sale?.status === 'completed' || this.sale?.status === 'partially_returned';
+  }
+
+  get returnableItems(): SaleItem[] {
+    if (!this.sale) return [];
+    return this.sale.items.filter(
+      (item) => (item.returnedQuantity || 0) < item.quantity
+    );
   }
 
   openReturnDialog(): void {
-    const dialogRef = this.dialog.open(ReturnDialogComponent, {
-      width: '600px',
-      maxHeight: '90vh',
-      data: { sale: this.sale },
-    });
-    dialogRef.afterClosed().subscribe((result) => {
-      if (result) this.loadSale(this.sale.id);
-    });
+    this.showReturnDialog = true;
+  }
+
+  closeReturnDialog(): void {
+    this.showReturnDialog = false;
   }
 
   openExchangeDialog(): void {
-    const dialogRef = this.dialog.open(ExchangeDialogComponent, {
-      width: '700px',
-      maxHeight: '90vh',
-      data: { sale: this.sale },
-    });
-    dialogRef.afterClosed().subscribe((result) => {
-      if (result) this.loadSale(this.sale.id);
-    });
+    this.showExchangeDialog = true;
+  }
+
+  closeExchangeDialog(): void {
+    this.showExchangeDialog = false;
+  }
+
+  onReturnComplete(): void {
+    this.showReturnDialog = false;
+    this.notify.success('Return processed successfully');
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) this.loadSale(id);
+  }
+
+  onExchangeComplete(): void {
+    this.showExchangeDialog = false;
+    this.notify.success('Exchange processed successfully');
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) this.loadSale(id);
   }
 }

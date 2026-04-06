@@ -1,89 +1,88 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AccountingService } from './accounting.service';
+import { FormsModule } from '@angular/forms';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { ApiService } from '../../core/services/api.service';
+
+interface LedgerEntry {
+  id: number;
+  date: string;
+  account: string;
+  accountCode: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+interface LedgerResponse {
+  success: boolean;
+  data: LedgerEntry[];
+}
 
 @Component({
   selector: 'app-ledger',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, FormsModule, PageHeaderComponent, LoadingSpinnerComponent, EmptyStateComponent],
   templateUrl: './ledger.component.html',
 })
 export class LedgerComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
-
-  private accountingService = inject(AccountingService);
-  private snackBar = inject(MatSnackBar);
-
-  displayedColumns = ['date', 'account', 'description', 'debit', 'credit', 'balance'];
-  dataSource = new MatTableDataSource<any>([]);
+  entries: LedgerEntry[] = [];
   loading = false;
-  searchCtrl = new FormControl('');
+  startDate = '';
+  endDate = '';
   accountFilter = '';
-  accounts: any[] = [];
+
+  constructor(private api: ApiService) {}
 
   ngOnInit(): void {
+    const now = new Date();
+    this.endDate = now.toISOString().split('T')[0];
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    this.startDate = start.toISOString().split('T')[0];
     this.loadLedger();
-    this.loadAccounts();
-    this.searchCtrl.valueChanges.subscribe((val) => {
-      this.dataSource.filter = (val || '').trim().toLowerCase();
-    });
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
   }
 
   loadLedger(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.accountFilter) params.accountId = this.accountFilter;
-
-    this.accountingService.getLedger(params).subscribe({
+    const params: Record<string, string> = {
+      startDate: this.startDate,
+      endDate: this.endDate,
+    };
+    if (this.accountFilter) {
+      params['accountId'] = this.accountFilter;
+    }
+    this.api.get<LedgerResponse>('/accounting/ledger', params).subscribe({
       next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
+        this.entries = res.data || [];
         this.loading = false;
       },
       error: () => {
+        this.entries = [];
         this.loading = false;
-        this.snackBar.open('Failed to load ledger', 'Close', { duration: 3000 });
       },
-    });
-  }
-
-  loadAccounts(): void {
-    this.accountingService.getAccounts().subscribe({
-      next: (res) => (this.accounts = Array.isArray(res) ? res : []),
     });
   }
 
   applyFilter(): void {
     this.loadLedger();
+  }
+
+  get totalDebit(): number {
+    return this.entries.reduce((sum, e) => sum + (e.debit || 0), 0);
+  }
+
+  get totalCredit(): number {
+    return this.entries.reduce((sum, e) => sum + (e.credit || 0), 0);
+  }
+
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount);
+  }
+
+  formatDate(date: string): string {
+    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 }

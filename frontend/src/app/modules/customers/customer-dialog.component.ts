@@ -1,70 +1,104 @@
-import { Component, Inject, inject } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { CustomerService } from './customer.service';
+import {
+  ReactiveFormsModule,
+  FormBuilder,
+  FormGroup,
+  Validators,
+} from '@angular/forms';
+import { DialogRef } from '../../shared/dialog/dialog-ref';
+import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface CustomerDialogData {
+  customer: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    address?: string;
+  } | null;
+}
 
 @Component({
   selector: 'app-customer-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSnackBarModule,
-  ],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './customer-dialog.component.html',
 })
-export class CustomerDialogComponent {
-  private fb = inject(FormBuilder);
-  private customerService = inject(CustomerService);
-  private snackBar = inject(MatSnackBar);
-
-  form: FormGroup;
-  mode: 'add' | 'edit';
-  loading = false;
+export class CustomerDialogComponent implements OnInit {
+  form!: FormGroup;
+  saving = false;
+  isEdit = false;
 
   constructor(
-    public dialogRef: MatDialogRef<CustomerDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
-  ) {
-    this.mode = data.mode;
+    public dialogRef: DialogRef<boolean>,
+    @Inject(DIALOG_DATA) public data: CustomerDialogData,
+    private fb: FormBuilder,
+    private api: ApiService,
+    private notification: NotificationService
+  ) {}
+
+  ngOnInit(): void {
+    this.isEdit = !!this.data?.customer;
     this.form = this.fb.group({
-      name: [data.customer?.name || '', Validators.required],
-      phone: [data.customer?.phone || '', [Validators.required, Validators.pattern(/^\d{10}$/)]],
-      email: [data.customer?.email || '', Validators.email],
-      address: [data.customer?.address || ''],
+      firstName: [
+        this.data?.customer?.firstName || '',
+        [Validators.required, Validators.minLength(2)],
+      ],
+      lastName: [
+        this.data?.customer?.lastName || '',
+        [Validators.required, Validators.minLength(1)],
+      ],
+      email: [
+        this.data?.customer?.email || '',
+        [Validators.email],
+      ],
+      phone: [this.data?.customer?.phone || ''],
+      address: [this.data?.customer?.address || ''],
     });
   }
 
-  save(): void {
+  onCancel(): void {
+    this.dialogRef.close(false);
+  }
+
+  onSave(): void {
     if (this.form.invalid) {
-      this.form.markAllAsTouched();
+      Object.values(this.form.controls).forEach((c) => c.markAsTouched());
       return;
     }
 
-    this.loading = true;
-    const request =
-      this.mode === 'add'
-        ? this.customerService.create(this.form.value)
-        : this.customerService.update(this.data.customer.id, this.form.value);
+    this.saving = true;
+    const body = this.form.value;
 
-    request.subscribe({
+    const request$ = this.isEdit
+      ? this.api.put(`/customers/${this.data.customer!.id}`, body)
+      : this.api.post('/customers', body);
+
+    request$.subscribe({
       next: () => {
-        this.snackBar.open(`Customer ${this.mode === 'add' ? 'created' : 'updated'}`, 'Close', { duration: 2000 });
+        this.notification.success(
+          this.isEdit
+            ? 'Customer updated successfully'
+            : 'Customer created successfully'
+        );
+        this.saving = false;
         this.dialogRef.close(true);
       },
       error: (err) => {
-        this.snackBar.open(err.error?.message || 'Failed to save customer', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.notification.error(
+          err.error?.error || err.error?.message || 'Failed to save customer'
+        );
+        this.saving = false;
       },
     });
+  }
+
+  hasError(field: string, error: string): boolean {
+    const control = this.form.get(field);
+    return !!control && control.hasError(error) && control.touched;
   }
 }

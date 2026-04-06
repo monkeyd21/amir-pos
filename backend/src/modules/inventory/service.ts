@@ -8,6 +8,7 @@ export class InventoryService {
     branchId?: string;
     variantId?: string;
     lowStock?: string;
+    search?: string;
     page?: string;
     limit?: string;
   }, userBranchId: number) {
@@ -18,6 +19,15 @@ export class InventoryService {
 
     if (query.variantId) {
       where.variantId = parseInt(query.variantId);
+    }
+
+    if (query.search) {
+      where.variant = {
+        OR: [
+          { sku: { contains: query.search, mode: 'insensitive' } },
+          { product: { name: { contains: query.search, mode: 'insensitive' } } },
+        ],
+      };
     }
 
     if (query.lowStock === 'true') {
@@ -34,6 +44,14 @@ export class InventoryService {
       const baseWhere: Prisma.InventoryWhereInput = {
         branchId,
         ...(query.variantId ? { variantId: parseInt(query.variantId) } : {}),
+        ...(query.search ? {
+          variant: {
+            OR: [
+              { sku: { contains: query.search, mode: 'insensitive' as const } },
+              { product: { name: { contains: query.search, mode: 'insensitive' as const } } },
+            ],
+          },
+        } : {}),
       };
 
       const allItems = await prisma.inventory.findMany({

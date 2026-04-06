@@ -1,77 +1,90 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatCardModule } from '@angular/material/card';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AccountingService } from './accounting.service';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { ApiService } from '../../core/services/api.service';
+
+interface PnlLineItem {
+  name: string;
+  amount: number;
+  items?: PnlLineItem[];
+}
+
+interface PnlData {
+  revenue: PnlLineItem[];
+  totalRevenue: number;
+  expenses: PnlLineItem[];
+  totalExpenses: number;
+  netProfit: number;
+  period: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface PnlResponse {
+  success: boolean;
+  data: PnlData;
+}
 
 @Component({
   selector: 'app-pnl-statement',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatButtonModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatCardModule,
-    MatDividerModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, FormsModule, PageHeaderComponent, LoadingSpinnerComponent],
   templateUrl: './pnl-statement.component.html',
 })
 export class PnlStatementComponent implements OnInit {
-  private accountingService = inject(AccountingService);
-  private snackBar = inject(MatSnackBar);
-
+  pnl: PnlData | null = null;
   loading = false;
-  pnlData: any = null;
-  selectedPeriod = '';
-  periods = ['2026-01', '2026-02', '2026-03', '2026-04'];
+  period: 'monthly' | 'quarterly' | 'yearly' = 'monthly';
+  startDate = '';
+  endDate = '';
 
-  revenue: any[] = [];
-  expenses: any[] = [];
-  totalRevenue = 0;
-  totalExpenses = 0;
-  netIncome = 0;
+  constructor(private api: ApiService) {}
 
   ngOnInit(): void {
+    const now = new Date();
+    this.endDate = now.toISOString().split('T')[0];
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    this.startDate = start.toISOString().split('T')[0];
     this.loadPnl();
   }
 
   loadPnl(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.selectedPeriod) params.period = this.selectedPeriod;
-
-    this.accountingService.getProfitAndLoss(params).subscribe({
-      next: (res) => {
-        this.pnlData = res;
-        if (res) {
-          this.revenue = res.revenue || [];
-          this.expenses = res.expenses || [];
-          this.totalRevenue = res.totalRevenue || this.revenue.reduce((s: number, r: any) => s + (r.amount || 0), 0);
-          this.totalExpenses = res.totalExpenses || this.expenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-          this.netIncome = res.netIncome || (this.totalRevenue - this.totalExpenses);
-        }
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snackBar.open('Failed to load P&L statement', 'Close', { duration: 3000 });
-      },
-    });
+    this.api
+      .get<PnlResponse>('/accounting/pnl', {
+        period: this.period,
+        startDate: this.startDate,
+        endDate: this.endDate,
+      })
+      .subscribe({
+        next: (res) => {
+          this.pnl = res.data || null;
+          this.loading = false;
+        },
+        error: () => {
+          this.pnl = null;
+          this.loading = false;
+        },
+      });
   }
 
-  applyFilter(): void {
+  setPeriod(period: 'monthly' | 'quarterly' | 'yearly'): void {
+    this.period = period;
     this.loadPnl();
+  }
+
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount || 0);
+  }
+
+  formatDate(date: string): string {
+    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  get profitMargin(): number {
+    if (!this.pnl || !this.pnl.totalRevenue) return 0;
+    return (this.pnl.netProfit / this.pnl.totalRevenue) * 100;
   }
 }

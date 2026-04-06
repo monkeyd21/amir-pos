@@ -1,21 +1,39 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { InventoryService } from './inventory.service';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { BranchService, Branch } from '../../core/services/branch.service';
+import { DialogService } from '../../shared/dialog/dialog.service';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { StockAdjustmentDialogComponent } from './stock-adjustment-dialog.component';
+
+interface InventoryItem {
+  id: number;
+  variantId: number;
+  branchId: number;
+  quantity: number;
+  minStockLevel: number;
+  variant?: {
+    id: number;
+    sku: string;
+    size?: string;
+    color?: string;
+    product?: {
+      name: string;
+      category?: { name: string };
+    };
+  };
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-stock-levels',
@@ -23,96 +41,194 @@ import { StockAdjustmentDialogComponent } from './stock-adjustment-dialog.compon
   imports: [
     CommonModule,
     FormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatSlideToggleModule,
-    MatChipsModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
+    PageHeaderComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './stock-levels.component.html',
 })
-export class StockLevelsComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class StockLevelsComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private inventoryService = inject(InventoryService);
-  private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
+  items: InventoryItem[] = [];
+  branches: Branch[] = [];
+  loading = true;
 
-  displayedColumns = ['product', 'variant', 'branch', 'quantity', 'minLevel', 'status', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
-  branchFilter = '';
+  // Filters
+  selectedBranchId: string | null = null;
   lowStockOnly = false;
-  branches: any[] = [];
+  search = '';
+
+  // Pagination
+  page = 1;
+  limit = 15;
+  total = 0;
+
+  // KPIs
+  healthyCount = 0;
+  lowAlertCount = 0;
+  outOfStockCount = 0;
+  inTransitCount = 0;
+
+  constructor(
+    private api: ApiService,
+    private notification: NotificationService,
+    private branchService: BranchService,
+    private dialog: DialogService
+  ) {}
 
   ngOnInit(): void {
+    this.branchService.getBranches().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (branches) => (this.branches = branches),
+    });
     this.loadStock();
-    this.loadBranches();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   loadStock(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.branchFilter) params.branchId = this.branchFilter;
-    if (this.lowStockOnly) params.lowStock = true;
+    const params: Record<string, string | number | boolean> = {
+      page: this.page,
+      limit: this.limit,
+    };
+    if (this.lowStockOnly) params['lowStock'] = true;
+    if (this.selectedBranchId) params['branchId'] = this.selectedBranchId;
+    if (this.search) params['search'] = this.search;
 
-    this.inventoryService.getStockLevels(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snackBar.open('Failed to load stock levels', 'Close', { duration: 3000 });
-      },
-    });
+    this.api
+      .get<ApiResponse<InventoryItem[]>>('/inventory', params)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.items = res.data ?? [];
+          this.total = res.meta?.total ?? 0;
+          this.computeKpis();
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.notification.error('Failed to load inventory');
+        },
+      });
   }
 
-  loadBranches(): void {
-    this.inventoryService.getBranches().subscribe({
-      next: (res) => (this.branches = Array.isArray(res) ? res : []),
-    });
+  private computeKpis(): void {
+    this.healthyCount = 0;
+    this.lowAlertCount = 0;
+    this.outOfStockCount = 0;
+
+    for (const item of this.items) {
+      if (item.quantity <= 0) {
+        this.outOfStockCount++;
+      } else if (item.quantity <= item.minStockLevel) {
+        this.lowAlertCount++;
+      } else {
+        this.healthyCount++;
+      }
+    }
   }
 
-  getStockStatus(item: any): string {
-    const min = item.minStockLevel ?? item.minLevel ?? 0;
+  getProductName(item: InventoryItem): string {
+    return item.variant?.product?.name || 'Unknown Product';
+  }
+
+  getCategoryName(item: InventoryItem): string {
+    return item.variant?.product?.category?.name || '';
+  }
+
+  getVariantLabel(item: InventoryItem): string {
+    const parts: string[] = [];
+    if (item.variant?.size) parts.push(item.variant.size);
+    if (item.variant?.color) parts.push(item.variant.color);
+    return parts.join(' / ') || '—';
+  }
+
+  getSku(item: InventoryItem): string {
+    return item.variant?.sku || '—';
+  }
+
+  getStockStatus(item: InventoryItem): string {
     if (item.quantity <= 0) return 'Out of Stock';
-    if (item.quantity <= min) return 'Low Stock';
-    return 'In Stock';
+    if (item.quantity <= item.minStockLevel) return 'Low Stock';
+    return 'OK';
   }
 
-  getStockStatusClass(item: any): string {
-    const min = item.minStockLevel ?? item.minLevel ?? 0;
-    if (item.quantity <= 0) return 'bg-red-100 text-red-700';
-    if (item.quantity <= min) return 'bg-yellow-100 text-yellow-700';
-    return 'bg-green-100 text-green-700';
+  getStockStatusClass(item: InventoryItem): string {
+    if (item.quantity <= 0) return 'bg-error-container/40 text-on-error-container';
+    if (item.quantity <= item.minStockLevel) return 'bg-tertiary/20 text-tertiary';
+    return 'bg-primary/20 text-primary';
   }
 
-  openAdjustDialog(item: any): void {
-    const dialogRef = this.dialog.open(StockAdjustmentDialogComponent, {
-      width: '400px',
-      data: { stockItem: item },
+  getQuantityClass(item: InventoryItem): string {
+    if (item.quantity <= 0) return 'text-error';
+    if (item.quantity <= item.minStockLevel) return 'text-tertiary';
+    return 'text-on-surface';
+  }
+
+  onBranchChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.selectedBranchId = value || null;
+    this.page = 1;
+    this.loadStock();
+  }
+
+  onSearch(term: string): void {
+    this.search = term;
+    this.page = 1;
+    this.loadStock();
+  }
+
+  clearFilters(): void {
+    this.search = '';
+    this.selectedBranchId = null;
+    this.lowStockOnly = false;
+    this.page = 1;
+    this.loadStock();
+  }
+
+  get hasFilters(): boolean {
+    return !!this.search || !!this.selectedBranchId || this.lowStockOnly;
+  }
+
+  toggleLowStock(): void {
+    this.lowStockOnly = !this.lowStockOnly;
+    this.page = 1;
+    this.loadStock();
+  }
+
+  openAdjust(item: InventoryItem): void {
+    const ref = this.dialog.open(StockAdjustmentDialogComponent, {
+      data: { inventoryItem: item },
+      width: '480px',
     });
-    dialogRef.afterClosed().subscribe((result) => {
+    ref.afterClosed().subscribe((result) => {
       if (result) this.loadStock();
     });
   }
 
-  applyFilter(): void {
+  get totalPages(): number {
+    return Math.ceil(this.total / this.limit);
+  }
+
+  get pages(): number[] {
+    const total = this.totalPages;
+    const current = this.page;
+    const pages: number[] = [];
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, current + 2);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  goToPage(p: number): void {
+    if (p < 1 || p > this.totalPages) return;
+    this.page = p;
     this.loadStock();
   }
 }

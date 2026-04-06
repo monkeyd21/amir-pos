@@ -1,0 +1,15 @@
+@for (toast of toasts; track toast.id) {
+  <div
+    class="toast-item flex items-center gap-3 min-w-[320px] max-w-[420px] px-4 py-3 rounded-xl border backdrop-blur-xl shadow-ambient"
+    [class]="'toast-item ' + getToastClasses(toast.type)"
+  >
+    <span class="material-symbols-outlined text-xl shrink-0">{{ getIconForType(toast.type) }}</span>
+    <span class="flex-1 text-sm font-body leading-snug">{{ toast.message }}</span>
+    <button
+      (click)="dismiss(toast.id)"
+      class="shrink-0 p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-lg">close</span>
+    </button>
+  </div>
+}

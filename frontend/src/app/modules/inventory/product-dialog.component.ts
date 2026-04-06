@@ -1,157 +1,190 @@
-import { Component, Inject, OnInit, inject } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { ProductService } from './product.service';
+import { FormsModule } from '@angular/forms';
+import { DialogRef } from '../../shared/dialog/dialog-ref';
+import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface ProductDialogData {
+  product: any | null;
+  brands: { id: number; name: string }[];
+  categories: { id: number; name: string }[];
+}
 
 @Component({
   selector: 'app-product-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatDividerModule,
-    MatSnackBarModule,
-  ],
+  imports: [CommonModule, FormsModule],
   templateUrl: './product-dialog.component.html',
 })
 export class ProductDialogComponent implements OnInit {
-  private fb = inject(FormBuilder);
-  private productService = inject(ProductService);
-  private snackBar = inject(MatSnackBar);
+  name = '';
+  brandId: number | null = null;
+  categoryId: number | null = null;
+  basePrice: number | null = null;
+  costPrice: number | null = null;
+  description = '';
 
-  form!: FormGroup;
-  mode: 'add' | 'edit' = 'add';
-  brands: any[] = [];
-  categories: any[] = [];
-  loading = false;
+  saving = false;
+  isEdit = false;
 
-  sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '28', '30', '32', '34', '36', '38', '40'];
-  colors = ['Black', 'White', 'Navy', 'Grey', 'Red', 'Blue', 'Green', 'Beige', 'Brown', 'Pink'];
+  // Variants (for create mode)
+  variants: { size: string; color: string; priceOverride: number | null; costOverride: number | null }[] = [];
+
+  // Inline add brand
+  addingBrand = false;
+  newBrandName = '';
+  savingBrand = false;
+
+  // Inline add category
+  addingCategory = false;
+  newCategoryName = '';
+  savingCategory = false;
 
   constructor(
-    public dialogRef: MatDialogRef<ProductDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
+    public dialogRef: DialogRef<boolean>,
+    @Inject(DIALOG_DATA) public data: ProductDialogData,
+    private api: ApiService,
+    private notification: NotificationService
   ) {}
 
   ngOnInit(): void {
-    this.mode = this.data.mode;
-    this.initForm();
-    this.loadDropdowns();
-
-    if (this.mode === 'edit' && this.data.product) {
-      this.populateForm(this.data.product);
+    if (this.data.product) {
+      this.isEdit = true;
+      const p = this.data.product;
+      this.name = p.name || '';
+      this.brandId = p.brand?.id || p.brandId || null;
+      this.categoryId = p.category?.id || p.categoryId || null;
+      this.basePrice = p.basePrice ?? null;
+      this.costPrice = p.costPrice ?? null;
+      this.description = p.description || '';
     }
   }
 
-  private initForm(): void {
-    this.form = this.fb.group({
-      name: ['', Validators.required],
-      sku: ['', Validators.required],
-      brandId: [''],
-      categoryId: [''],
-      description: [''],
-      basePrice: [0, [Validators.required, Validators.min(0)]],
-      costPrice: [0, [Validators.required, Validators.min(0)]],
-      taxRate: [18],
-      variants: this.fb.array([]),
-    });
-  }
-
-  get variants(): FormArray {
-    return this.form.get('variants') as FormArray;
-  }
-
-  addVariant(): void {
-    this.variants.push(
-      this.fb.group({
-        size: ['', Validators.required],
-        color: ['', Validators.required],
-        sku: [''],
-        barcode: [''],
-        priceAdjustment: [0],
-      })
+  get isValid(): boolean {
+    return (
+      !!this.name.trim() &&
+      this.brandId !== null &&
+      this.categoryId !== null &&
+      this.basePrice !== null &&
+      this.basePrice > 0 &&
+      this.costPrice !== null &&
+      this.costPrice > 0
     );
   }
 
-  removeVariant(index: number): void {
-    this.variants.removeAt(index);
+  // --- Inline Brand ---
+  showAddBrand(): void {
+    this.addingBrand = true;
+    this.newBrandName = '';
   }
 
-  private populateForm(product: any): void {
-    this.form.patchValue({
-      name: product.name,
-      sku: product.sku,
-      brandId: product.brandId,
-      categoryId: product.categoryId,
-      description: product.description,
-      basePrice: product.basePrice,
-      costPrice: product.costPrice,
-      taxRate: product.taxRate,
-    });
+  cancelAddBrand(): void {
+    this.addingBrand = false;
+    this.newBrandName = '';
+  }
 
-    if (product.variants?.length) {
-      product.variants.forEach((v: any) => {
-        this.variants.push(
-          this.fb.group({
-            size: [v.size, Validators.required],
-            color: [v.color, Validators.required],
-            sku: [v.sku],
-            barcode: [v.barcode],
-            priceAdjustment: [v.priceAdjustment || 0],
-          })
-        );
-      });
+  saveNewBrand(): void {
+    if (!this.newBrandName.trim() || this.savingBrand) return;
+    this.savingBrand = true;
+    this.api.post<any>('/brands', { name: this.newBrandName.trim() }).subscribe({
+      next: (res) => {
+        const brand = res.data;
+        this.data.brands.push({ id: brand.id, name: brand.name });
+        this.brandId = brand.id;
+        this.addingBrand = false;
+        this.newBrandName = '';
+        this.savingBrand = false;
+        this.notification.success(`Brand "${brand.name}" created`);
+      },
+      error: () => {
+        this.savingBrand = false;
+        this.notification.error('Failed to create brand');
+      },
+    });
+  }
+
+  // --- Inline Category ---
+  showAddCategory(): void {
+    this.addingCategory = true;
+    this.newCategoryName = '';
+  }
+
+  cancelAddCategory(): void {
+    this.addingCategory = false;
+    this.newCategoryName = '';
+  }
+
+  saveNewCategory(): void {
+    if (!this.newCategoryName.trim() || this.savingCategory) return;
+    this.savingCategory = true;
+    this.api.post<any>('/categories', { name: this.newCategoryName.trim() }).subscribe({
+      next: (res) => {
+        const cat = res.data;
+        this.data.categories.push({ id: cat.id, name: cat.name });
+        this.categoryId = cat.id;
+        this.addingCategory = false;
+        this.newCategoryName = '';
+        this.savingCategory = false;
+        this.notification.success(`Category "${cat.name}" created`);
+      },
+      error: () => {
+        this.savingCategory = false;
+        this.notification.error('Failed to create category');
+      },
+    });
+  }
+
+  onSubmit(): void {
+    if (!this.isValid || this.saving) return;
+
+    this.saving = true;
+    const payload: Record<string, any> = {
+      name: this.name.trim(),
+      brandId: this.brandId,
+      categoryId: this.categoryId,
+      basePrice: Number(this.basePrice),
+      costPrice: Number(this.costPrice),
+      description: this.description.trim() || undefined,
+    };
+
+    if (!this.isEdit && this.variants.length > 0) {
+      payload['variants'] = this.variants
+        .filter((v) => v.size.trim() && v.color.trim())
+        .map((v) => ({
+          size: v.size.trim(),
+          color: v.color.trim(),
+          ...(v.priceOverride ? { priceOverride: Number(v.priceOverride) } : {}),
+          ...(v.costOverride ? { costOverride: Number(v.costOverride) } : {}),
+        }));
     }
-  }
 
-  private loadDropdowns(): void {
-    this.productService.getBrands().subscribe({
-      next: (res) => (this.brands = Array.isArray(res) ? res : []),
-    });
-    this.productService.getCategories().subscribe({
-      next: (res) => (this.categories = Array.isArray(res) ? res : []),
-    });
-  }
-
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    this.loading = true;
-    const payload = this.form.value;
-
-    const request =
-      this.mode === 'add'
-        ? this.productService.create(payload)
-        : this.productService.update(this.data.product.id, payload);
+    const request = this.isEdit
+      ? this.api.put(`/products/${this.data.product.id}`, payload)
+      : this.api.post('/products', payload);
 
     request.subscribe({
       next: () => {
-        this.snackBar.open(`Product ${this.mode === 'add' ? 'created' : 'updated'}`, 'Close', { duration: 2000 });
+        this.notification.success(this.isEdit ? 'Product updated' : 'Product created');
         this.dialogRef.close(true);
-        this.loading = false;
       },
       error: () => {
-        this.snackBar.open('Failed to save product', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.saving = false;
+        this.notification.error('Failed to save product');
       },
     });
+  }
+
+  addVariantRow(): void {
+    this.variants.push({ size: '', color: '', priceOverride: null, costOverride: null });
+  }
+
+  removeVariantRow(index: number): void {
+    this.variants.splice(index, 1);
+  }
+
+  onCancel(): void {
+    this.dialogRef.close();
   }
 }

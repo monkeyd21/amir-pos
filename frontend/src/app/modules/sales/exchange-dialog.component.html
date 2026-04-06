@@ -1,83 +1,240 @@
-<h2 mat-dialog-title class="text-xl font-bold text-slate-800">Process Exchange</h2>
+<!-- Overlay Backdrop -->
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+  (click)="onBackdropClick($event)"
+>
+  <!-- Dialog Panel -->
+  <div class="w-full max-w-3xl mx-4 bg-surface-container border border-outline-variant/20 rounded-2xl shadow-ambient overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-5 border-b border-outline-variant/10">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary-container/20">
+          <span class="material-symbols-outlined text-xl text-primary">swap_horiz</span>
+        </div>
+        <div>
+          <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight">Process Exchange</h2>
+          <p class="text-xs font-body text-on-surface-variant">{{ sale.saleNumber }}</p>
+        </div>
+      </div>
+      <button
+        (click)="onClose()"
+        class="p-2 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-lg text-on-surface-variant">close</span>
+      </button>
+    </div>
 
-<mat-dialog-content class="max-h-[70vh]">
-  <div class="space-y-4 pt-2">
-    <!-- Return Items -->
-    <h3 class="text-sm font-semibold text-slate-500 uppercase">Items to Return</h3>
-    <form [formGroup]="form">
-      <div formArrayName="returnItems">
-        @for (item of returnItems.controls; track $index) {
-          <div class="flex items-center gap-3 border-b border-slate-100 py-2" [formGroupName]="$index">
-            <mat-checkbox formControlName="selected"></mat-checkbox>
-            <div class="flex-1">
-              <span class="font-medium">{{ item.value.productName }}</span>
-              <span class="text-sm text-slate-500 ml-2">{{ item.value.variantLabel }}</span>
+    <!-- Body -->
+    <div class="px-6 py-5 max-h-[60vh] overflow-y-auto">
+      <!-- Section: Items to Return -->
+      <div class="mb-6">
+        <h3 class="text-sm font-semibold font-body text-on-surface mb-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-base text-amber-400">undo</span>
+          Items to Return
+        </h3>
+
+        <div class="space-y-3">
+          @for (item of items; track item.saleItemId) {
+            <div
+              class="p-3 rounded-xl border transition-colors"
+              [class]="item.selected
+                ? 'bg-amber-500/5 border-amber-500/30'
+                : 'bg-surface-container-high/30 border-outline-variant/10'"
+            >
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="item.selected"
+                  class="mt-1 w-4 h-4 rounded accent-primary cursor-pointer"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold font-body text-on-surface">{{ item.productName }}</p>
+                    <span class="text-xs font-body text-on-surface-variant">{{ formatCurrency(item.unitPrice) }}</span>
+                  </div>
+                  <p class="text-xs font-body text-on-surface-variant mt-0.5">
+                    Size: {{ item.size }} &middot; Color: {{ item.color }} &middot; Max: {{ item.maxQuantity }}
+                  </p>
+                </div>
+              </label>
+
+              @if (item.selected) {
+                <div class="mt-3 ml-7 grid grid-cols-3 gap-3">
+                  <div>
+                    <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Qty</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="item.quantity"
+                      [min]="1"
+                      [max]="item.maxQuantity"
+                      class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Reason</label>
+                    <select
+                      [(ngModel)]="item.reason"
+                      class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                    >
+                      @for (reason of reasons; track reason.value) {
+                        <option [value]="reason.value">{{ reason.label }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Condition</label>
+                    <select
+                      [(ngModel)]="item.condition"
+                      class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                    >
+                      @for (cond of conditions; track cond.value) {
+                        <option [value]="cond.value">{{ cond.label }}</option>
+                      }
+                    </select>
+                  </div>
+                </div>
+              }
             </div>
-            <span class="font-mono text-sm">x{{ item.value.quantity }}</span>
-            <span class="font-mono font-bold">{{ item.value.unitPrice * item.value.quantity | currency:'INR':'symbol':'1.2-2' }}</span>
+          }
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="flex items-center gap-3 mb-6">
+        <div class="flex-1 h-px bg-outline-variant/10"></div>
+        <span class="material-symbols-outlined text-lg text-primary">swap_vert</span>
+        <div class="flex-1 h-px bg-outline-variant/10"></div>
+      </div>
+
+      <!-- Section: New Items -->
+      <div>
+        <h3 class="text-sm font-semibold font-body text-on-surface mb-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-base text-primary">add_shopping_cart</span>
+          New Items
+        </h3>
+
+        <!-- Search -->
+        <div class="relative mb-4">
+          <div class="flex items-center gap-2 px-3.5 py-2.5 bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">search</span>
+            <input
+              type="text"
+              [(ngModel)]="searchQuery"
+              (input)="onSearchInput()"
+              (focus)="searchQuery.length >= 2 && (showResults = true)"
+              placeholder="Search by product name or barcode..."
+              class="flex-1 text-sm font-body text-on-surface bg-transparent border-none outline-none placeholder:text-on-surface-variant/50"
+            />
+            @if (searching) {
+              <span class="w-4 h-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></span>
+            }
+          </div>
+
+          <!-- Search Results Dropdown -->
+          @if (showResults && searchResults.length > 0) {
+            <div class="absolute left-0 right-0 top-full mt-1 bg-surface-container border border-outline-variant/20 rounded-xl shadow-ambient z-10 max-h-48 overflow-y-auto">
+              @for (result of searchResults; track result.id) {
+                <button
+                  (click)="addNewItem(result)"
+                  class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+                >
+                  <div>
+                    <p class="text-sm font-medium font-body text-on-surface">{{ result.product?.name }}</p>
+                    <p class="text-xs font-body text-on-surface-variant">
+                      {{ result.size || '-' }} &middot; {{ result.color || '-' }}
+                      @if (result.barcode) {
+                        &middot; {{ result.barcode }}
+                      }
+                    </p>
+                  </div>
+                  <span class="text-sm font-semibold font-body text-primary">{{ formatCurrency(result.price) }}</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- New Items List -->
+        @if (newItems.length === 0) {
+          <div class="py-6 text-center border border-dashed border-outline-variant/20 rounded-xl">
+            <span class="material-symbols-outlined text-2xl text-on-surface-variant/30 mb-1">inventory_2</span>
+            <p class="text-sm font-body text-on-surface-variant/50">Search and add new items for exchange</p>
+          </div>
+        } @else {
+          <div class="space-y-2">
+            @for (item of newItems; track item.variantId; let i = $index) {
+              <div class="flex items-center justify-between p-3 bg-primary/5 border border-primary/10 rounded-xl">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium font-body text-on-surface">{{ item.productName }}</p>
+                  <p class="text-xs font-body text-on-surface-variant">
+                    {{ item.size }} &middot; {{ item.color }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <input
+                    type="number"
+                    [(ngModel)]="item.quantity"
+                    [min]="1"
+                    class="w-16 px-2 py-1.5 text-sm text-center font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary/50 transition-all"
+                  />
+                  <span class="text-sm font-semibold font-body text-on-surface w-20 text-right">
+                    {{ formatCurrency(item.unitPrice * item.quantity) }}
+                  </span>
+                  <button
+                    (click)="removeNewItem(i)"
+                    class="p-1.5 rounded-lg hover:bg-error-container/20 transition-colors cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-base text-error">close</span>
+                  </button>
+                </div>
+              </div>
+            }
           </div>
         }
       </div>
-    </form>
-
-    <mat-divider></mat-divider>
-
-    <!-- New Items -->
-    <h3 class="text-sm font-semibold text-slate-500 uppercase">New Items</h3>
-    <div class="flex gap-2">
-      <mat-form-field class="flex-1" appearance="outline">
-        <mat-label>Scan barcode for new item</mat-label>
-        <input matInput [(ngModel)]="newItemBarcode" (keyup.enter)="addNewItem()" />
-      </mat-form-field>
-      <button mat-flat-button color="primary" (click)="addNewItem()" class="h-14">Add</button>
     </div>
 
-    @for (item of newItems; track $index) {
-      <div class="flex items-center gap-3 bg-blue-50 rounded-lg p-3 mb-2">
-        <div class="flex-1">
-          <div class="font-medium">{{ item.name }}</div>
-          <div class="text-sm text-slate-500">{{ item.variantLabel }} &bull; <span class="font-mono">{{ item.barcode }}</span></div>
-        </div>
-        <mat-form-field class="w-24" appearance="outline">
-          <mat-label>Price</mat-label>
-          <input matInput type="number" [(ngModel)]="item.price" />
-        </mat-form-field>
-        <mat-form-field class="w-20" appearance="outline">
-          <mat-label>Qty</mat-label>
-          <input matInput type="number" [(ngModel)]="item.quantity" min="1" />
-        </mat-form-field>
-        <button mat-icon-button color="warn" (click)="removeNewItem($index)">
-          <mat-icon>delete</mat-icon>
+    <!-- Footer -->
+    <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10 bg-surface-container-low/40">
+      <div>
+        @if (selectedItems.length > 0 || newItems.length > 0) {
+          <div class="flex items-center gap-6 text-xs font-body text-on-surface-variant">
+            <span>Return: <span class="text-amber-400 font-semibold">{{ formatCurrency(returnTotal) }}</span></span>
+            <span>New: <span class="text-primary font-semibold">{{ formatCurrency(newItemsTotal) }}</span></span>
+          </div>
+          <p class="text-base font-headline font-bold mt-0.5"
+            [class]="priceDifference >= 0 ? 'text-primary' : 'text-amber-400'"
+          >
+            @if (priceDifference >= 0) {
+              Customer pays: {{ formatCurrency(priceDifference) }}
+            } @else {
+              Refund: {{ formatCurrency(-priceDifference) }}
+            }
+          </p>
+        }
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          (click)="onClose()"
+          class="px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+        >
+          Cancel
         </button>
-      </div>
-    }
-
-    <mat-divider></mat-divider>
-
-    <!-- Summary -->
-    <div class="bg-slate-50 rounded-lg p-4 space-y-2">
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-500">Return Value</span>
-        <span class="font-mono">{{ returnTotal | currency:'INR':'symbol':'1.2-2' }}</span>
-      </div>
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-500">New Items Value</span>
-        <span class="font-mono">{{ newTotal | currency:'INR':'symbol':'1.2-2' }}</span>
-      </div>
-      <mat-divider></mat-divider>
-      <div class="flex justify-between font-bold text-lg">
-        <span>{{ priceDifference >= 0 ? 'Customer Pays' : 'Refund to Customer' }}</span>
-        <span class="font-mono" [class]="priceDifference >= 0 ? 'text-red-600' : 'text-green-600'">
-          {{ (priceDifference >= 0 ? priceDifference : -priceDifference) | currency:'INR':'symbol':'1.2-2' }}
-        </span>
+        <button
+          (click)="submit()"
+          [disabled]="!canSubmit"
+          class="px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-xl hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          @if (submitting) {
+            <span class="flex items-center gap-2">
+              <span class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+              Processing...
+            </span>
+          } @else {
+            Confirm Exchange
+          }
+        </button>
       </div>
     </div>
   </div>
-</mat-dialog-content>
-
-<mat-dialog-actions align="end">
-  <button mat-stroked-button mat-dialog-close>Cancel</button>
-  <button mat-flat-button color="primary" (click)="submit()" [disabled]="loading">
-    {{ loading ? 'Processing...' : 'Process Exchange' }}
-  </button>
-</mat-dialog-actions>
+</div>

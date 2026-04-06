@@ -1,0 +1,161 @@
+<div class="p-6 lg:p-8">
+  <app-page-header title="My Profile" subtitle="Manage your personal information and security" />
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Profile Card (Sidebar) -->
+    <div class="lg:col-span-1">
+      <div class="bg-surface-container rounded-xl p-6 text-center">
+        <div class="flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-cta text-white text-2xl font-headline font-bold mx-auto mb-4">
+          {{ initials }}
+        </div>
+        <h3 class="text-lg font-headline font-bold text-on-surface">{{ firstName }} {{ lastName }}</h3>
+        <p class="text-sm font-body text-on-surface-variant mt-1">{{ email }}</p>
+        @if (phone) {
+          <p class="text-xs font-body text-on-surface-variant/60 mt-1">{{ phone }}</p>
+        }
+      </div>
+    </div>
+
+    <!-- Forms -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Personal Info -->
+      <div class="bg-surface-container rounded-xl p-6">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container/20">
+            <span class="material-symbols-outlined text-lg text-primary">person</span>
+          </div>
+          <h3 class="text-base font-headline font-bold text-on-surface">Personal Information</h3>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">First Name</label>
+            <input
+              type="text"
+              [(ngModel)]="firstName"
+              placeholder="Enter first name"
+              class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Last Name</label>
+            <input
+              type="text"
+              [(ngModel)]="lastName"
+              placeholder="Enter last name"
+              class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Email</label>
+            <input
+              type="email"
+              [value]="email"
+              disabled
+              class="w-full px-4 py-2.5 bg-surface-container-high/50 rounded-lg text-sm font-body text-on-surface-variant border border-outline-variant/10 cursor-not-allowed"
+            />
+            <p class="text-[10px] font-body text-on-surface-variant/50 mt-1">Email cannot be changed</p>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Phone</label>
+            <input
+              type="text"
+              [(ngModel)]="phone"
+              placeholder="Enter phone number"
+              class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+            />
+          </div>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-outline-variant/10 flex justify-end">
+          <button
+            (click)="saveProfile()"
+            [disabled]="savingProfile"
+            class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            @if (savingProfile) {
+              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            }
+            Save Profile
+          </button>
+        </div>
+      </div>
+
+      <!-- Change Password -->
+      <div class="bg-surface-container rounded-xl p-6">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-tertiary-container/20">
+            <span class="material-symbols-outlined text-lg text-tertiary">lock</span>
+          </div>
+          <h3 class="text-base font-headline font-bold text-on-surface">Change Password</h3>
+        </div>
+
+        <div class="space-y-4 max-w-md">
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Current Password</label>
+            <div class="relative">
+              <input
+                [type]="showCurrentPassword ? 'text' : 'password'"
+                [(ngModel)]="currentPassword"
+                placeholder="Enter current password"
+                class="w-full px-4 py-2.5 pr-10 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                (click)="showCurrentPassword = !showCurrentPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-lg">{{ showCurrentPassword ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">New Password</label>
+            <div class="relative">
+              <input
+                [type]="showNewPassword ? 'text' : 'password'"
+                [(ngModel)]="newPassword"
+                placeholder="Enter new password"
+                class="w-full px-4 py-2.5 pr-10 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                (click)="showNewPassword = !showNewPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-lg">{{ showNewPassword ? 'visibility_off' : 'visibility' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Confirm New Password</label>
+            <input
+              type="password"
+              [(ngModel)]="confirmPassword"
+              placeholder="Confirm new password"
+              class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+            />
+            @if (confirmPassword && newPassword !== confirmPassword) {
+              <p class="text-[10px] font-body text-error mt-1">Passwords do not match</p>
+            }
+          </div>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-outline-variant/10 flex justify-end">
+          <button
+            (click)="changePassword()"
+            [disabled]="savingPassword || !currentPassword || !newPassword || newPassword !== confirmPassword"
+            class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            @if (savingPassword) {
+              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            }
+            Change Password
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

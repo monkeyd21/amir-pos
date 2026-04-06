@@ -1,114 +1,133 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { InventoryService } from './inventory.service';
+import { Router, RouterModule } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
+
+interface Transfer {
+  id: number;
+  transferNumber?: string;
+  fromBranch?: { id: number; name: string };
+  toBranch?: { id: number; name: string };
+  status: string;
+  items?: any[];
+  _count?: { items: number };
+  notes?: string;
+  createdAt: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-transfers',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatSelectModule,
-    MatFormFieldModule,
-    MatChipsModule,
-    MatMenuModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
+    RouterModule,
+    PageHeaderComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
+    StatusBadgeComponent,
   ],
   templateUrl: './transfers.component.html',
 })
-export class TransfersComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class TransfersComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private inventoryService = inject(InventoryService);
-  private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
+  transfers: Transfer[] = [];
+  loading = true;
 
-  displayedColumns = ['id', 'fromBranch', 'toBranch', 'items', 'status', 'createdAt', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
-  statusFilter = '';
+  page = 1;
+  limit = 10;
+  total = 0;
 
-  ngOnInit(): void {
-    this.loadTransfers();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
-  }
-
-  loadTransfers(): void {
-    this.loading = true;
-    const params: any = {};
-    if (this.statusFilter) params.status = this.statusFilter;
-
-    this.inventoryService.getTransfers(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
-    });
-  }
-
-  getStatusClass(status: string): string {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'approved': return 'bg-blue-100 text-blue-700';
-      case 'in_transit': return 'bg-purple-100 text-purple-700';
-      case 'received': return 'bg-green-100 text-green-700';
-      case 'cancelled': return 'bg-red-100 text-red-700';
-      default: return 'bg-slate-100 text-slate-700';
-    }
-  }
+  constructor(
+    private api: ApiService,
+    private notification: NotificationService,
+    private router: Router
+  ) {}
 
   createTransfer(): void {
     this.router.navigate(['/inventory/transfers/create']);
   }
 
-  approveTransfer(transfer: any): void {
-    this.inventoryService.approveTransfer(transfer.id).subscribe({
-      next: () => {
-        this.snackBar.open('Transfer approved', 'Close', { duration: 2000 });
-        this.loadTransfers();
-      },
-      error: () => {
-        this.snackBar.open('Failed to approve transfer', 'Close', { duration: 3000 });
-      },
+  ngOnInit(): void {
+    this.loadTransfers();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadTransfers(): void {
+    this.loading = true;
+    this.api
+      .get<ApiResponse<Transfer[]>>('/inventory/transfer', {
+        page: this.page,
+        limit: this.limit,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.transfers = res.data ?? [];
+          this.total = res.meta?.total ?? 0;
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.notification.error('Failed to load transfers');
+        },
+      });
+  }
+
+  getItemCount(transfer: Transfer): number {
+    return transfer._count?.items || transfer.items?.length || 0;
+  }
+
+  formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     });
   }
 
-  receiveTransfer(transfer: any): void {
-    this.inventoryService.receiveTransfer(transfer.id, {}).subscribe({
-      next: () => {
-        this.snackBar.open('Transfer received', 'Close', { duration: 2000 });
-        this.loadTransfers();
-      },
-      error: () => {
-        this.snackBar.open('Failed to receive transfer', 'Close', { duration: 3000 });
-      },
+  formatTime(dateStr: string): string {
+    return new Date(dateStr).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.total / this.limit);
+  }
+
+  get pages(): number[] {
+    const total = this.totalPages;
+    const current = this.page;
+    const pages: number[] = [];
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, current + 2);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  goToPage(p: number): void {
+    if (p < 1 || p > this.totalPages) return;
+    this.page = p;
+    this.loadTransfers();
   }
 }

@@ -1,0 +1,58 @@
+<header class="flex justify-between items-center w-full px-8 h-16 bg-[#0b1326]/80 backdrop-blur-xl border-b border-[#444656]/20 sticky top-0 z-30">
+  <!-- Left: Global search -->
+  <div class="flex-1 max-w-xl">
+    <div class="relative flex items-center">
+      <span class="material-symbols-outlined absolute left-3 text-[#c5c5d8]">search</span>
+      <input
+        class="w-full bg-[#171f33] border-none rounded-xl py-2 pl-12 pr-4 text-[#dae2fd] placeholder:text-[#c5c5d8]/50 focus:outline-none focus:ring-1 focus:ring-[#bbc3ff]/30 text-sm transition-all"
+        placeholder="Search orders, clients, or inventory..."
+        type="text"
+      />
+    </div>
+  </div>
+
+  <!-- Right: notifications, user -->
+  <div class="flex items-center gap-4">
+    <button class="p-2 text-[#c5c5d8] hover:bg-[#222a3d] rounded-lg transition-colors relative">
+      <span class="material-symbols-outlined">notifications</span>
+    </button>
+
+    <div class="h-8 w-[1px] bg-[#444656]/30 mx-2"></div>
+
+    <!-- User area -->
+    <div class="relative">
+      <button
+        class="flex items-center gap-3 cursor-pointer hover:bg-[#222a3d] rounded-lg px-2 py-1 transition-colors"
+        (click)="toggleUserMenu()"
+      >
+        <div class="text-right">
+          <p class="text-xs font-bold text-[#dae2fd]">{{ userName }}</p>
+          <p class="text-[10px] text-[#c5c5d8]">{{ userRole }}</p>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#465fff] to-[#bbc3ff] flex items-center justify-center text-xs font-bold text-white">
+          {{ initials }}
+        </div>
+      </button>
+
+      <!-- Dropdown menu -->
+      @if (showUserMenu) {
+        <div
+          class="absolute right-0 top-full mt-2 w-48 bg-[#171f33] border border-[#444656]/30 rounded-xl shadow-xl py-1 z-50"
+        >
+          <button
+            class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#c5c5d8] hover:bg-[#222a3d] hover:text-[#dae2fd] transition-colors"
+            (click)="logout()"
+          >
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+            <span>Sign out</span>
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</header>
+
+<!-- Backdrop to close menu -->
+@if (showUserMenu) {
+  <div class="fixed inset-0 z-20" (click)="closeUserMenu()"></div>
+}

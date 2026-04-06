@@ -1,0 +1,114 @@
+<div class="bg-surface-container rounded-xl overflow-hidden">
+  <!-- Table -->
+  <div class="overflow-x-auto">
+    <table class="w-full">
+      <thead>
+        <tr class="border-b border-outline-variant/10">
+          @for (col of columns; track col.key) {
+            <th
+              class="px-5 py-3 text-[10px] font-bold font-label uppercase tracking-[0.15em] text-on-surface-variant"
+              [ngClass]="getAlignClass(col.align)"
+              [style.width]="col.width || 'auto'"
+              [class.cursor-pointer]="col.sortable"
+              [class.select-none]="col.sortable"
+              (click)="onSort(col)"
+            >
+              <div class="flex items-center gap-1" [ngClass]="{ 'justify-center': col.align === 'center', 'justify-end': col.align === 'right' }">
+                <span>{{ col.label }}</span>
+                @if (col.sortable && sortKey === col.key) {
+                  <span class="material-symbols-outlined text-xs text-primary">
+                    {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                  </span>
+                }
+              </div>
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-outline-variant/10">
+        @if (loading) {
+          <tr>
+            <td [attr.colspan]="columns.length" class="px-5 py-16 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <div class="w-8 h-8 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                <span class="text-sm text-on-surface-variant/60 font-body">Loading...</span>
+              </div>
+            </td>
+          </tr>
+        } @else if (displayedRows.length === 0) {
+          <tr>
+            <td [attr.colspan]="columns.length" class="px-5 py-16 text-center">
+              <div class="flex flex-col items-center gap-2">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/30">{{ emptyIcon }}</span>
+                <span class="text-sm font-body text-on-surface-variant/50">{{ emptyTitle }}</span>
+                @if (emptyMessage) {
+                  <span class="text-xs font-body text-on-surface-variant/40">{{ emptyMessage }}</span>
+                }
+              </div>
+            </td>
+          </tr>
+        } @else {
+          @for (row of displayedRows; track $index) {
+            <tr
+              class="transition-colors hover:bg-surface-container-high/40"
+              [class.cursor-pointer]="clickable"
+              (click)="onRowClick(row)"
+            >
+              @for (col of columns; track col.key) {
+                <td
+                  class="px-5 py-3.5 text-sm font-body text-on-surface"
+                  [ngClass]="getAlignClass(col.align)"
+                >
+                  @if (getCellTemplate(col.key); as tmpl) {
+                    <ng-container *ngTemplateOutlet="tmpl; context: { $implicit: row, value: getCellValue(row, col.key) }"></ng-container>
+                  } @else {
+                    {{ getCellValue(row, col.key) }}
+                  }
+                </td>
+              }
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  @if (!loading && rows.length > pageSize) {
+    <div class="flex items-center justify-between px-5 py-3 border-t border-outline-variant/10">
+      <span class="text-xs font-body text-on-surface-variant/60">
+        Showing {{ startIndex + 1 }} to {{ endIndex }} of {{ rows.length }}
+      </span>
+      <div class="flex items-center gap-1">
+        <button
+          (click)="goToPage(currentPage - 1)"
+          [disabled]="currentPage === 1"
+          class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-lg">chevron_left</span>
+        </button>
+        @for (page of [].constructor(totalPages); track $index) {
+          @if (shouldShowPage($index + 1)) {
+            <button
+              (click)="goToPage($index + 1)"
+              class="min-w-[32px] h-8 px-2 rounded-lg text-xs font-semibold font-body transition-colors cursor-pointer"
+              [ngClass]="{
+                'bg-primary-container text-white': currentPage === $index + 1,
+                'text-on-surface-variant hover:bg-surface-container-high/60': currentPage !== $index + 1
+              }"
+            >
+              {{ $index + 1 }}
+            </button>
+          }
+        }
+        <button
+          (click)="goToPage(currentPage + 1)"
+          [disabled]="currentPage === totalPages"
+          class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-lg">chevron_right</span>
+        </button>
+      </div>
+    </div>
+  }
+</div>

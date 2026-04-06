@@ -1,0 +1,30 @@
+<div class="w-[420px] bg-surface-container/95 backdrop-blur-xl border border-outline-variant/20 rounded-2xl shadow-ambient p-6">
+  <div class="flex items-start gap-4 mb-5">
+    <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary-container/20 shrink-0">
+      <span class="material-symbols-outlined text-primary text-xl">help</span>
+    </div>
+    <div>
+      <h3 class="text-lg font-headline font-bold text-on-surface tracking-tight">{{ data.title }}</h3>
+      <p class="mt-1.5 text-sm font-body text-on-surface-variant leading-relaxed">{{ data.message }}</p>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
+    <button
+      (click)="onCancel()"
+      class="px-4 py-2 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+    >
+      {{ cancelText }}
+    </button>
+    <button
+      (click)="onConfirm()"
+      class="px-5 py-2 text-sm font-semibold font-body rounded-lg transition-all cursor-pointer"
+      [ngClass]="{
+        'bg-gradient-cta text-white hover:shadow-glow-sm': data.confirmStyle !== 'danger',
+        'bg-error-container text-on-error-container hover:bg-error-container/80': data.confirmStyle === 'danger'
+      }"
+    >
+      {{ confirmText }}
+    </button>
+  </div>
+</div>

@@ -1,0 +1,17 @@
+<div class="flex flex-col items-center justify-center py-16 px-4">
+  <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-high/50 mb-5">
+    <span class="material-symbols-outlined text-3xl text-on-surface-variant/50">{{ icon }}</span>
+  </div>
+  <h3 class="text-lg font-headline font-semibold text-on-surface/70 tracking-tight">{{ title }}</h3>
+  @if (message) {
+    <p class="mt-2 text-sm font-body text-on-surface-variant/60 text-center max-w-sm leading-relaxed">{{ message }}</p>
+  }
+  @if (actionText) {
+    <button
+      (click)="onAction()"
+      class="mt-5 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+    >
+      {{ actionText }}
+    </button>
+  }
+</div>

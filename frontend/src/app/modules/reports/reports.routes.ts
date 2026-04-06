@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
-import { PlaceholderComponent } from '../placeholder.component';
+import { ReportsComponent } from './reports.component';
 
 export const REPORTS_ROUTES: Routes = [
-  { path: '', component: PlaceholderComponent, data: { title: 'Reports', icon: 'assessment' } },
+  { path: '', component: ReportsComponent },
 ];

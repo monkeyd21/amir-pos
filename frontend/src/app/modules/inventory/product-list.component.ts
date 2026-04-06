@@ -1,21 +1,44 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ProductService } from './product.service';
+import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil, forkJoin } from 'rxjs';
+import { Router } from '@angular/router';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { DialogService } from '../../shared/dialog/dialog.service';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { SearchInputComponent } from '../../shared/search-input/search-input.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { ProductDialogComponent } from './product-dialog.component';
+
+interface Product {
+  id: number;
+  name: string;
+  slug?: string;
+  basePrice: number;
+  description?: string;
+  brand?: { id: number; name: string };
+  category?: { id: number; name: string };
+  variants?: any[];
+  _count?: { variants: number };
+}
+
+interface Brand {
+  id: number;
+  name: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-product-list',
@@ -23,125 +46,216 @@ import { ProductDialogComponent } from './product-dialog.component';
   imports: [
     CommonModule,
     FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatChipsModule,
-    MatMenuModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
+    PageHeaderComponent,
+    SearchInputComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './product-list.component.html',
 })
-export class ProductListComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class ProductListComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private productService = inject(ProductService);
-  private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
+  products: Product[] = [];
+  brands: Brand[] = [];
+  categories: Category[] = [];
+  loading = true;
 
-  displayedColumns = ['name', 'sku', 'brand', 'category', 'price', 'variants', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
-  searchCtrl = new FormControl('');
-  brandFilter = '';
-  categoryFilter = '';
-  brands: any[] = [];
-  categories: any[] = [];
+  // Filters
+  search = '';
+  selectedBrandId: number | null = null;
+  selectedCategoryId: number | null = null;
+
+  // Pagination
+  page = 1;
+  limit = 10;
+  total = 0;
+
+  // Stats
+  totalInventoryValue = 0;
+  lowStockAlerts = 0;
+  activeVariants = 0;
+
+  // Action menu
+  activeMenuId: number | null = null;
+
+  constructor(
+    private api: ApiService,
+    private notification: NotificationService,
+    private dialog: DialogService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
-    this.loadProducts();
     this.loadFilters();
-
-    this.searchCtrl.valueChanges.subscribe(() => {
-      this.dataSource.filter = (this.searchCtrl.value || '').trim().toLowerCase();
-    });
+    this.loadProducts();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private loadFilters(): void {
+    forkJoin({
+      brands: this.api.get<ApiResponse<Brand[]>>('/brands'),
+      categories: this.api.get<ApiResponse<Category[]>>('/categories'),
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: ({ brands, categories }) => {
+          this.brands = brands.data ?? [];
+          this.categories = categories.data ?? [];
+        },
+      });
   }
 
   loadProducts(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.brandFilter) params.brand = this.brandFilter;
-    if (this.categoryFilter) params.category = this.categoryFilter;
+    const params: Record<string, string | number | boolean> = {
+      page: this.page,
+      limit: this.limit,
+    };
+    if (this.search) params['search'] = this.search;
+    if (this.selectedBrandId) params['brandId'] = this.selectedBrandId;
+    if (this.selectedCategoryId) params['categoryId'] = this.selectedCategoryId;
 
-    this.productService.getAll(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snackBar.open('Failed to load products', 'Close', { duration: 3000 });
-      },
-    });
+    this.api
+      .get<ApiResponse<Product[]>>('/products', params)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.products = res.data ?? [];
+          this.total = res.meta?.total ?? 0;
+          this.computeStats();
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.notification.error('Failed to load products');
+        },
+      });
   }
 
-  loadFilters(): void {
-    this.productService.getBrands().subscribe({
-      next: (res) => (this.brands = Array.isArray(res) ? res : []),
-    });
-    this.productService.getCategories().subscribe({
-      next: (res) => (this.categories = Array.isArray(res) ? res : []),
-    });
+  private computeStats(): void {
+    this.totalInventoryValue = this.products.reduce(
+      (sum, p) => sum + (p.basePrice || 0) * (p._count?.variants || 0),
+      0
+    );
+    this.activeVariants = this.products.reduce(
+      (sum, p) => sum + (p._count?.variants || p.variants?.length || 0),
+      0
+    );
   }
 
-  applyFilter(): void {
+  onSearch(term: string): void {
+    this.search = term;
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onBrandChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.selectedBrandId = value ? Number(value) : null;
+    this.page = 1;
+    this.loadProducts();
+  }
+
+  onCategoryChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.selectedCategoryId = value ? Number(value) : null;
+    this.page = 1;
     this.loadProducts();
   }
 
   clearFilters(): void {
-    this.brandFilter = '';
-    this.categoryFilter = '';
-    this.searchCtrl.setValue('');
+    this.search = '';
+    this.selectedBrandId = null;
+    this.selectedCategoryId = null;
+    this.page = 1;
     this.loadProducts();
   }
 
-  openAddDialog(): void {
-    const dialogRef = this.dialog.open(ProductDialogComponent, {
-      width: '700px',
-      maxHeight: '90vh',
-      data: { mode: 'add' },
+  get hasFilters(): boolean {
+    return !!this.search || !!this.selectedBrandId || !!this.selectedCategoryId;
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.total / this.limit);
+  }
+
+  get pages(): number[] {
+    const total = this.totalPages;
+    const current = this.page;
+    const pages: number[] = [];
+    const start = Math.max(1, current - 2);
+    const end = Math.min(total, current + 2);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  goToPage(p: number): void {
+    if (p < 1 || p > this.totalPages) return;
+    this.page = p;
+    this.loadProducts();
+  }
+
+  viewProduct(product: Product): void {
+    this.router.navigate(['/inventory/products', product.id]);
+  }
+
+  openAddProduct(): void {
+    const ref = this.dialog.open(ProductDialogComponent, {
+      data: { product: null, brands: this.brands, categories: this.categories },
+      width: '560px',
     });
-    dialogRef.afterClosed().subscribe((result) => {
+    ref.afterClosed().subscribe((result) => {
       if (result) this.loadProducts();
     });
   }
 
-  openEditDialog(product: any): void {
-    const dialogRef = this.dialog.open(ProductDialogComponent, {
-      width: '700px',
-      maxHeight: '90vh',
-      data: { mode: 'edit', product },
+  editProduct(product: Product): void {
+    this.activeMenuId = null;
+    const ref = this.dialog.open(ProductDialogComponent, {
+      data: { product, brands: this.brands, categories: this.categories },
+      width: '560px',
     });
-    dialogRef.afterClosed().subscribe((result) => {
+    ref.afterClosed().subscribe((result) => {
       if (result) this.loadProducts();
     });
   }
 
-  deleteProduct(product: any): void {
-    if (confirm(`Delete product "${product.name}"?`)) {
-      this.productService.delete(product.id).subscribe({
+  deleteProduct(product: Product): void {
+    this.activeMenuId = null;
+    if (!confirm(`Delete "${product.name}"? This action cannot be undone.`)) return;
+    this.api
+      .delete(`/products/${product.id}`)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
         next: () => {
-          this.snackBar.open('Product deleted', 'Close', { duration: 2000 });
+          this.notification.success('Product deleted');
           this.loadProducts();
         },
-        error: () => {
-          this.snackBar.open('Failed to delete product', 'Close', { duration: 3000 });
-        },
+        error: () => this.notification.error('Failed to delete product'),
       });
-    }
+  }
+
+  toggleMenu(id: number): void {
+    this.activeMenuId = this.activeMenuId === id ? null : id;
+  }
+
+  closeMenu(): void {
+    this.activeMenuId = null;
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
   }
 }

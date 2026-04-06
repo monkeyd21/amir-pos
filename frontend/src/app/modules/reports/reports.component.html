@@ -1,0 +1,36 @@
+<div class="p-6 lg:p-8">
+  <app-page-header title="Reports" subtitle="Generate and view business intelligence reports" />
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    @for (report of reports; track report.title) {
+      <div class="group bg-surface-container-high rounded-xl p-6 hover:bg-surface-container-highest transition-all duration-200 hover:shadow-glow-sm">
+        <!-- Icon -->
+        <div class="flex items-center justify-center w-12 h-12 rounded-xl mb-5" [ngClass]="report.iconBg">
+          <span class="material-symbols-outlined text-2xl" [ngClass]="report.iconColor">{{ report.icon }}</span>
+        </div>
+
+        <!-- Content -->
+        <h3 class="text-base font-headline font-bold text-on-surface mb-2">{{ report.title }}</h3>
+        <p class="text-sm font-body text-on-surface-variant leading-relaxed mb-5">{{ report.description }}</p>
+
+        <!-- Generate Button -->
+        <button
+          (click)="generateReport(report)"
+          [disabled]="activeReport === report.title"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold font-body rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          [class]="activeReport === report.title
+            ? 'bg-surface-container text-on-surface-variant'
+            : 'bg-surface-container text-on-surface hover:bg-primary-container hover:text-white'"
+        >
+          @if (activeReport === report.title) {
+            <div class="w-4 h-4 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin"></div>
+            Generating...
+          } @else {
+            <span class="material-symbols-outlined text-lg">download</span>
+            Generate Report
+          }
+        </button>
+      </div>
+    }
+  </div>
+</div>

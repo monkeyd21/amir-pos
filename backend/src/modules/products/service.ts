@@ -66,7 +66,12 @@ export const getProductById = async (id: number) => {
     include: {
       brand: { select: { id: true, name: true, slug: true } },
       category: { select: { id: true, name: true, slug: true } },
-      variants: { orderBy: { createdAt: 'asc' } },
+      variants: {
+        orderBy: { createdAt: 'asc' },
+        include: {
+          inventory: { select: { quantity: true, branchId: true } },
+        },
+      },
     },
   });
 
@@ -137,6 +142,24 @@ export const createProduct = async (data: {
       variants: true,
     },
   });
+
+  // Auto-create inventory records (qty 0) for all active branches
+  if (product.variants.length > 0) {
+    const branches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true } });
+    if (branches.length > 0) {
+      await prisma.inventory.createMany({
+        data: product.variants.flatMap((v) =>
+          branches.map((b) => ({
+            variantId: v.id,
+            branchId: b.id,
+            quantity: 0,
+            minStockLevel: 5,
+          }))
+        ),
+        skipDuplicates: true,
+      });
+    }
+  }
 
   return product;
 };
@@ -233,6 +256,20 @@ export const addVariant = async (productId: number, data: {
       costOverride: data.costOverride ?? null,
     },
   });
+
+  // Auto-create inventory records (qty 0) for all active branches
+  const branches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true } });
+  if (branches.length > 0) {
+    await prisma.inventory.createMany({
+      data: branches.map((b) => ({
+        variantId: variant.id,
+        branchId: b.id,
+        quantity: 0,
+        minStockLevel: 5,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   return variant;
 };

@@ -1,133 +1,186 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatStepperModule } from '@angular/material/stepper';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { InventoryService } from './inventory.service';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
+import { Subject, takeUntil, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { Subject, debounceTime, switchMap, of } from 'rxjs';
+import { NotificationService } from '../../core/services/notification.service';
+import { BranchService, Branch } from '../../core/services/branch.service';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+
+interface TransferItem {
+  variantId: number;
+  quantity: number;
+  productName: string;
+  variantLabel: string;
+  sku: string;
+}
+
+interface VariantSearchResult {
+  id: number;
+  sku: string;
+  size?: string;
+  color?: string;
+  product?: { name: string };
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: any;
+}
 
 @Component({
   selector: 'app-transfer-create',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatStepperModule,
-    MatSnackBarModule,
-    MatDividerModule,
-    MatAutocompleteModule,
-  ],
+  imports: [CommonModule, FormsModule, RouterModule, PageHeaderComponent],
   templateUrl: './transfer-create.component.html',
 })
-export class TransferCreateComponent implements OnInit {
-  private fb = inject(FormBuilder);
-  private inventoryService = inject(InventoryService);
-  private api = inject(ApiService);
-  private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
-
-  branchForm!: FormGroup;
-  itemsForm!: FormGroup;
-  branches: any[] = [];
-  loading = false;
-  productResults: any[] = [];
+export class TransferCreateComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
   private searchSubject = new Subject<string>();
 
+  branches: Branch[] = [];
+  fromBranchId: string | null = null;
+  toBranchId: string | null = null;
+  notes = '';
+  items: TransferItem[] = [];
+  saving = false;
+
+  // Product search
+  searchQuery = '';
+  searchResults: VariantSearchResult[] = [];
+  showResults = false;
+  searching = false;
+
+  constructor(
+    private api: ApiService,
+    private notification: NotificationService,
+    private branchService: BranchService,
+    private router: Router
+  ) {}
+
   ngOnInit(): void {
-    this.branchForm = this.fb.group({
-      fromBranchId: ['', Validators.required],
-      toBranchId: ['', Validators.required],
-      notes: [''],
+    this.branchService.getBranches().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (branches) => (this.branches = branches),
     });
 
-    this.itemsForm = this.fb.group({
-      items: this.fb.array([]),
+    this.searchSubject
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query || query.length < 2) {
+            this.searchResults = [];
+            this.showResults = false;
+            return of(null);
+          }
+          this.searching = true;
+          return this.api.get<ApiResponse<VariantSearchResult[]>>('/pos/products/search', { q: query });
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (res) => {
+          if (res) {
+            this.searchResults = res.data ?? [];
+            this.showResults = this.searchResults.length > 0;
+          }
+          this.searching = false;
+        },
+        error: () => {
+          this.searching = false;
+        },
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  onSearchInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.searchQuery = value;
+    this.searchSubject.next(value);
+  }
+
+  getVariantLabel(variant: VariantSearchResult): string {
+    const parts: string[] = [];
+    if (variant.size) parts.push(variant.size);
+    if (variant.color) parts.push(variant.color);
+    return parts.join(' / ') || '';
+  }
+
+  selectVariant(variant: VariantSearchResult): void {
+    // Check if already added
+    if (this.items.some((i) => i.variantId === variant.id)) {
+      this.notification.warning('This variant is already added');
+      this.closeSearch();
+      return;
+    }
+
+    this.items.push({
+      variantId: variant.id,
+      quantity: 1,
+      productName: variant.product?.name || 'Unknown',
+      variantLabel: this.getVariantLabel(variant),
+      sku: variant.sku,
     });
 
-    this.loadBranches();
-    this.searchSubject.pipe(
-      debounceTime(300),
-      switchMap((q) => q.length < 2 ? of([]) : this.api.get<any>('/pos/products/search', { q }))
-    ).subscribe((res: any) => {
-      this.productResults = res?.data || [];
-    });
+    this.closeSearch();
   }
 
-  onProductSearch(query: string): void {
-    this.searchSubject.next(query);
-  }
-
-  selectProduct(product: any, index: number): void {
-    const item = this.items.at(index);
-    item.patchValue({
-      variantId: product.variantId,
-      productName: `${product.productName} - ${product.size}/${product.color}`,
-    });
-    this.productResults = [];
-  }
-
-  get items(): FormArray {
-    return this.itemsForm.get('items') as FormArray;
-  }
-
-  loadBranches(): void {
-    this.inventoryService.getBranches().subscribe({
-      next: (res) => (this.branches = Array.isArray(res) ? res : []),
-    });
-  }
-
-  addItem(): void {
-    this.items.push(
-      this.fb.group({
-        variantId: ['', Validators.required],
-        productName: [''],
-        variantName: [''],
-        quantity: [1, [Validators.required, Validators.min(1)]],
-      })
-    );
+  closeSearch(): void {
+    this.searchQuery = '';
+    this.searchResults = [];
+    this.showResults = false;
   }
 
   removeItem(index: number): void {
-    this.items.removeAt(index);
+    this.items.splice(index, 1);
   }
 
-  submit(): void {
-    if (this.branchForm.invalid || this.items.length === 0) return;
+  updateQuantity(index: number, event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    if (value > 0) {
+      this.items[index].quantity = value;
+    }
+  }
 
-    this.loading = true;
+  get isValid(): boolean {
+    return (
+      !!this.fromBranchId &&
+      !!this.toBranchId &&
+      this.fromBranchId !== this.toBranchId &&
+      this.items.length > 0 &&
+      this.items.every((i) => i.quantity > 0)
+    );
+  }
+
+  onSubmit(): void {
+    if (!this.isValid || this.saving) return;
+
+    this.saving = true;
     const payload = {
-      ...this.branchForm.value,
-      items: this.items.value,
+      fromBranchId: Number(this.fromBranchId),
+      toBranchId: Number(this.toBranchId),
+      notes: this.notes.trim() || undefined,
+      items: this.items.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.quantity,
+      })),
     };
 
-    this.inventoryService.createTransfer(payload).subscribe({
+    this.api.post('/inventory/transfer', payload).subscribe({
       next: () => {
-        this.snackBar.open('Transfer created successfully', 'Close', { duration: 2000 });
+        this.notification.success('Transfer created successfully');
         this.router.navigate(['/inventory/transfers']);
       },
       error: () => {
-        this.snackBar.open('Failed to create transfer', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.saving = false;
+        this.notification.error('Failed to create transfer');
       },
     });
-  }
-
-  cancel(): void {
-    this.router.navigate(['/inventory/transfers']);
   }
 }

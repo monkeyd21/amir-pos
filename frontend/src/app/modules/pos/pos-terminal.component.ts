@@ -1,409 +1,410 @@
-import { Component, OnInit, ViewChild, ElementRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatListModule } from '@angular/material/list';
-import { MatSelectModule } from '@angular/material/select';
-import { Router } from '@angular/router';
-import { debounceTime, switchMap, of, catchError } from 'rxjs';
-import { PosService, CartItem, PaymentLine, HeldTransaction } from './pos.service';
+import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { AuthService, User } from '../../core/services/auth.service';
+
+interface ProductVariant {
+  // flat fields from POS search endpoint
+  variantId?: number;
+  id?: number;
+  sku: string;
+  size?: string;
+  color?: string;
+  price: number;
+  stock?: number;
+  productName?: string;
+  brand?: string;
+  category?: string;
+  barcode?: string;
+  // nested fields (from other endpoints)
+  product?: {
+    id: number;
+    name: string;
+    brand?: { name: string };
+  };
+  inventory?: { currentStock: number }[];
+}
+
+interface CartItem {
+  variantId: number;
+  barcode: string;
+  productName: string;
+  brandName: string;
+  size: string;
+  color: string;
+  quantity: number;
+  unitPrice: number;
+  maxStock: number;
+}
+
+interface PosSession {
+  id: number;
+  openedAt: string;
+  status: string;
+  openingBalance: number;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: any;
+}
 
 @Component({
   selector: 'app-pos-terminal',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatTabsModule,
-    MatBadgeModule,
-    MatDividerModule,
-    MatSnackBarModule,
-    MatAutocompleteModule,
-    MatSlideToggleModule,
-    MatTooltipModule,
-    MatSidenavModule,
-    MatListModule,
-    MatSelectModule,
-  ],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './pos-terminal.component.html',
 })
-export class PosTerminalComponent implements OnInit {
-  @ViewChild('barcodeInput') barcodeInput!: ElementRef<HTMLInputElement>;
+export class PosTerminalComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+  private searchSubject = new Subject<string>();
 
-  Math = Math;
+  currentUser: User | null = null;
+  session: PosSession | null = null;
+  sessionLoading = true;
 
-  private posService = inject(PosService);
-  private snackBar = inject(MatSnackBar);
-  private router = inject(Router);
+  searchQuery = '';
+  searchResults: ProductVariant[] = [];
+  searchLoading = false;
+  showSearchResults = false;
 
-  // Cart
-  cartItems: CartItem[] = [];
-  displayedColumns = ['name', 'variant', 'unitPrice', 'quantity', 'total', 'actions'];
+  cart: CartItem[] = [];
 
-  // Totals
-  subtotal = 0;
+  discount = 0;
   taxRate = 0.18;
-  taxAmount = 0;
-  discountAmount = 0;
-  discountType: 'flat' | 'percent' = 'percent';
-  discountValue = 0;
-  total = 0;
 
-  // Customer
-  customerSearchCtrl = new FormControl('');
-  customerResults: any[] = [];
+  paymentMethod: 'cash' | 'card' | 'upi' = 'cash';
+  cashTendered: number | null = null;
+
+  checkoutLoading = false;
+  customerId: number | null = null;
+  customerName = '';
+
+  // Customer search
+  customerSearchQuery = '';
+  customerSearchResults: any[] = [];
+  customerSearchLoading = false;
+  showCustomerResults = false;
+  private customerSearchSubject = new Subject<string>();
   selectedCustomer: any = null;
-  loyaltyPoints = 0;
-  redeemLoyalty = false;
-  loyaltyDiscount = 0;
 
-  // Payment
-  paymentTabIndex = 0;
-  cashAmount = 0;
-  cardAmount = 0;
-  upiAmount = 0;
-  cardReference = '';
-  upiReference = '';
-  changeDue = 0;
-
-  // Held
-  heldTransactions: HeldTransaction[] = [];
-  showHeldPanel = false;
-
-  // Barcode & Product Search
-  barcodeValue = '';
-  loading = false;
-  productResults: any[] = [];
-  private searchTimeout: any;
+  constructor(
+    private api: ApiService,
+    private notify: NotificationService,
+    private auth: AuthService
+  ) {}
 
   ngOnInit(): void {
-    this.ensureSession();
+    this.currentUser = this.auth.getCurrentUser();
+    this.initSession();
+    this.setupSearch();
     this.setupCustomerSearch();
-    this.loadHeldTransactions();
-    this.focusBarcode();
   }
 
-  private ensureSession(): void {
-    this.posService.getSession().subscribe({
-      next: (session) => {
-        if (!session) {
-          this.posService.openSession({ openingAmount: 0 }).subscribe();
-        }
-      },
-      error: () => {
-        this.posService.openSession({ openingAmount: 0 }).subscribe();
-      }
-    });
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
-  private setupCustomerSearch(): void {
-    this.customerSearchCtrl.valueChanges
-      .pipe(
-        debounceTime(300),
-        switchMap((query) => {
-          if (!query || (query as string).length < 2) return of([]);
-          return this.posService.searchCustomer(query as string).pipe(catchError(() => of([])));
-        })
-      )
-      .subscribe((results: any) => {
-        this.customerResults = Array.isArray(results) ? results : results?.data || [];
+  private initSession(): void {
+    this.sessionLoading = true;
+    this.api
+      .get<ApiResponse<PosSession | null>>('/pos/sessions/current')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          if (res.data) {
+            this.session = res.data;
+            this.sessionLoading = false;
+          } else {
+            this.openSession();
+          }
+        },
+        error: () => {
+          this.openSession();
+        },
       });
   }
 
-  focusBarcode(): void {
-    setTimeout(() => {
-      if (this.barcodeInput) {
-        this.barcodeInput.nativeElement.focus();
-      }
-    }, 100);
+  private openSession(): void {
+    this.api
+      .post<ApiResponse<PosSession>>('/pos/sessions', { openingAmount: 0 })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.session = res.data;
+          this.sessionLoading = false;
+          this.notify.success('POS session opened');
+        },
+        error: (err) => {
+          this.sessionLoading = false;
+          this.notify.error(
+            err.error?.error || 'Failed to open POS session'
+          );
+        },
+      });
+  }
+
+  private setupSearch(): void {
+    this.searchSubject
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query || query.length < 2) {
+            this.searchResults = [];
+            this.showSearchResults = false;
+            return of(null);
+          }
+          this.searchLoading = true;
+          return this.api.get<ApiResponse<ProductVariant[]>>(
+            '/pos/products/search',
+            { q: query }
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (res) => {
+          if (res) {
+            this.searchResults = res.data || [];
+            this.showSearchResults = true;
+          }
+          this.searchLoading = false;
+        },
+        error: () => {
+          this.searchLoading = false;
+          this.searchResults = [];
+        },
+      });
   }
 
   onSearchInput(): void {
-    const query = this.barcodeValue.trim();
-    clearTimeout(this.searchTimeout);
+    this.searchSubject.next(this.searchQuery);
+  }
 
-    // Only search if it looks like a product name (not a barcode)
-    if (!query || query.length < 2 || /^\d+$/.test(query)) {
-      this.productResults = [];
-      return;
-    }
-
-    this.searchTimeout = setTimeout(() => {
-      this.posService.searchProducts(query).subscribe({
-        next: (results) => {
-          this.productResults = results || [];
+  // Customer search
+  private setupCustomerSearch(): void {
+    this.customerSearchSubject
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query) => {
+          if (!query || query.length < 2) {
+            this.customerSearchResults = [];
+            this.showCustomerResults = false;
+            return of(null);
+          }
+          this.customerSearchLoading = true;
+          return this.api.get<ApiResponse<any[]>>('/customers/search', { query });
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (res) => {
+          if (res) {
+            this.customerSearchResults = res.data || [];
+            this.showCustomerResults = true;
+          }
+          this.customerSearchLoading = false;
         },
         error: () => {
-          this.productResults = [];
-        }
+          this.customerSearchLoading = false;
+          this.customerSearchResults = [];
+        },
       });
-    }, 300);
   }
 
-  onProductSelected(product: any): void {
-    this.productResults = [];
-    this.addToCart(product, product.barcode);
-    this.barcodeValue = '';
-    this.focusBarcode();
-  }
-
-  onBarcodeScan(): void {
-    const barcode = this.barcodeValue.trim();
-    if (!barcode) return;
-
-    this.loading = true;
-    this.posService.lookupBarcode(barcode).subscribe({
-      next: (res) => {
-        const product = res;
-        this.addToCart(product, barcode);
-        this.barcodeValue = '';
-        this.loading = false;
-        this.focusBarcode();
-      },
-      error: () => {
-        this.snackBar.open('Product not found', 'Close', { duration: 3000 });
-        this.barcodeValue = '';
-        this.loading = false;
-        this.focusBarcode();
-      },
-    });
-  }
-
-  addToCart(product: any, barcode: string): void {
-    const existingIndex = this.cartItems.findIndex((item) => item.barcode === barcode);
-
-    if (existingIndex >= 0) {
-      this.cartItems[existingIndex].quantity += 1;
-      this.cartItems[existingIndex].total =
-        this.cartItems[existingIndex].quantity * this.cartItems[existingIndex].unitPrice;
-    } else {
-      const item: CartItem = {
-        productId: product.productId || product.id,
-        variantId: product.variantId || product.variant?.id,
-        barcode: barcode,
-        name: product.name || product.productName,
-        variant: product.variantName || `${product.size || ''} / ${product.color || ''}`,
-        size: product.size || '',
-        color: product.color || '',
-        unitPrice: product.price || product.sellingPrice || 0,
-        quantity: 1,
-        discount: 0,
-        total: product.price || product.sellingPrice || 0,
-      };
-      this.cartItems = [...this.cartItems, item];
-    }
-    this.recalculate();
-  }
-
-  updateQuantity(index: number, delta: number): void {
-    const item = this.cartItems[index];
-    const newQty = item.quantity + delta;
-    if (newQty <= 0) {
-      this.removeItem(index);
-      return;
-    }
-    item.quantity = newQty;
-    item.total = item.quantity * item.unitPrice;
-    this.cartItems = [...this.cartItems];
-    this.recalculate();
-  }
-
-  removeItem(index: number): void {
-    this.cartItems.splice(index, 1);
-    this.cartItems = [...this.cartItems];
-    this.recalculate();
-  }
-
-  recalculate(): void {
-    this.subtotal = this.cartItems.reduce((sum, item) => sum + item.total, 0);
-
-    if (this.discountType === 'percent') {
-      this.discountAmount = (this.subtotal * this.discountValue) / 100;
-    } else {
-      this.discountAmount = this.discountValue;
-    }
-
-    const afterDiscount = this.subtotal - this.discountAmount;
-    this.taxAmount = afterDiscount * this.taxRate;
-
-    if (this.redeemLoyalty && this.selectedCustomer) {
-      this.loyaltyDiscount = Math.min(this.loyaltyPoints, afterDiscount + this.taxAmount);
-    } else {
-      this.loyaltyDiscount = 0;
-    }
-
-    this.total = afterDiscount + this.taxAmount - this.loyaltyDiscount;
-    this.calculateChange();
-  }
-
-  onDiscountChange(): void {
-    this.recalculate();
+  onCustomerSearchInput(): void {
+    this.customerSearchSubject.next(this.customerSearchQuery);
   }
 
   selectCustomer(customer: any): void {
     this.selectedCustomer = customer;
-    this.loyaltyPoints = customer.loyaltyPoints || 0;
-    this.customerSearchCtrl.setValue(`${customer.firstName} ${customer.lastName}`);
-    this.recalculate();
+    this.customerId = customer.id;
+    this.customerSearchQuery = '';
+    this.customerSearchResults = [];
+    this.showCustomerResults = false;
   }
 
   clearCustomer(): void {
     this.selectedCustomer = null;
-    this.loyaltyPoints = 0;
-    this.redeemLoyalty = false;
-    this.customerSearchCtrl.setValue('');
-    this.recalculate();
+    this.customerId = null;
+    this.customerSearchQuery = '';
   }
 
-  onPaymentTabChange(index: number): void {
-    this.paymentTabIndex = index;
+  closeCustomerResults(): void {
+    setTimeout(() => {
+      this.showCustomerResults = false;
+    }, 200);
   }
 
-  calculateChange(): void {
-    const totalPaid = this.cashAmount + this.cardAmount + this.upiAmount;
-    this.changeDue = Math.max(0, totalPaid - this.total);
+  setExactCash(): void {
+    this.cashTendered = Math.ceil(this.total);
   }
 
-  get totalPaid(): number {
-    return this.cashAmount + this.cardAmount + this.upiAmount;
-  }
+  addToCart(variant: ProductVariant): void {
+    const vid = variant.variantId || variant.id!;
+    const existing = this.cart.find((c) => c.variantId === vid);
+    const stock = variant.stock ?? variant.inventory?.[0]?.currentStock ?? 999;
 
-  get paymentComplete(): boolean {
-    return this.totalPaid >= this.total && this.total > 0;
-  }
-
-  checkout(): void {
-    if (!this.paymentComplete) {
-      this.snackBar.open('Payment incomplete', 'Close', { duration: 3000 });
-      return;
+    if (existing) {
+      if (existing.quantity >= existing.maxStock) {
+        this.notify.warning('Maximum stock reached');
+        return;
+      }
+      existing.quantity++;
+    } else {
+      this.cart.push({
+        variantId: vid,
+        barcode: variant.barcode || variant.sku || '',
+        productName: variant.productName || variant.product?.name || 'Unknown',
+        brandName: variant.brand || variant.product?.brand?.name || '',
+        size: variant.size || '',
+        color: variant.color || '',
+        quantity: 1,
+        unitPrice: variant.price,
+        maxStock: stock,
+      });
     }
 
-    const payments: PaymentLine[] = [];
-    if (this.cashAmount > 0) payments.push({ method: 'cash', amount: this.cashAmount });
-    if (this.cardAmount > 0) payments.push({ method: 'card', amount: this.cardAmount, reference: this.cardReference });
-    if (this.upiAmount > 0) payments.push({ method: 'upi', amount: this.upiAmount, reference: this.upiReference });
-
-    const payload = {
-      items: this.cartItems,
-      customerId: this.selectedCustomer?.id,
-      payments,
-      subtotal: this.subtotal,
-      taxAmount: this.taxAmount,
-      discountAmount: this.discountAmount + this.loyaltyDiscount,
-      total: this.total,
-      loyaltyPointsRedeemed: this.redeemLoyalty ? this.loyaltyDiscount : 0,
-    };
-
-    this.loading = true;
-    this.posService.checkout(payload).subscribe({
-      next: (res) => {
-        this.snackBar.open('Sale completed successfully!', 'Close', { duration: 3000 });
-        this.clearCart();
-        this.loading = false;
-      },
-      error: (err) => {
-        this.snackBar.open('Checkout failed: ' + (err.error?.message || 'Unknown error'), 'Close', {
-          duration: 5000,
-        });
-        this.loading = false;
-      },
-    });
+    this.searchQuery = '';
+    this.searchResults = [];
+    this.showSearchResults = false;
   }
 
-  holdCart(): void {
-    if (this.cartItems.length === 0) return;
-
-    const transaction = {
-      items: this.cartItems,
-      customerId: this.selectedCustomer?.id,
-      customerName: this.selectedCustomer?.name,
-      subtotal: this.subtotal,
-      tax: this.taxAmount,
-      discount: this.discountAmount,
-      total: this.total,
-    };
-
-    this.posService.holdTransaction(transaction).subscribe({
-      next: () => {
-        this.snackBar.open('Transaction held', 'Close', { duration: 2000 });
-        this.clearCart();
-        this.loadHeldTransactions();
-      },
-      error: () => {
-        this.snackBar.open('Failed to hold transaction', 'Close', { duration: 3000 });
-      },
-    });
+  removeFromCart(index: number): void {
+    this.cart.splice(index, 1);
   }
 
-  loadHeldTransactions(): void {
-    this.posService.getHeldTransactions().subscribe({
-      next: (res) => {
-        this.heldTransactions = Array.isArray(res) ? res : [];
-      },
-      error: () => {},
-    });
-  }
-
-  resumeHeld(held: HeldTransaction): void {
-    this.cartItems = [...held.items];
-    if (held.customerId) {
-      this.selectedCustomer = { id: held.customerId, name: held.customerName };
-      this.customerSearchCtrl.setValue(held.customerName || '');
+  incrementQty(item: CartItem): void {
+    if (item.quantity < item.maxStock) {
+      item.quantity++;
     }
-    this.recalculate();
-    this.showHeldPanel = false;
-
-    this.posService.deleteHeldTransaction(held.id).subscribe({
-      next: () => this.loadHeldTransactions(),
-    });
   }
 
-  deleteHeld(held: HeldTransaction): void {
-    this.posService.deleteHeldTransaction(held.id).subscribe({
-      next: () => {
-        this.loadHeldTransactions();
-        this.snackBar.open('Held transaction deleted', 'Close', { duration: 2000 });
-      },
-    });
+  decrementQty(item: CartItem): void {
+    if (item.quantity > 1) {
+      item.quantity--;
+    }
   }
 
-  clearCart(): void {
-    this.cartItems = [];
+  get subtotal(): number {
+    return this.cart.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0
+    );
+  }
+
+  get taxAmount(): number {
+    return (this.subtotal - this.discount) * this.taxRate;
+  }
+
+  get total(): number {
+    return this.subtotal - this.discount + this.taxAmount;
+  }
+
+  get changeDue(): number {
+    if (this.paymentMethod !== 'cash' || !this.cashTendered) return 0;
+    return Math.max(0, this.cashTendered - this.total);
+  }
+
+  get canCheckout(): boolean {
+    if (this.cart.length === 0) return false;
+    if (this.checkoutLoading) return false;
+    if (this.paymentMethod === 'cash' && this.cashTendered !== null && this.cashTendered < this.total) return false;
+    return true;
+  }
+
+  selectPayment(method: 'cash' | 'card' | 'upi'): void {
+    this.paymentMethod = method;
+    if (method !== 'cash') {
+      this.cashTendered = null;
+    }
+  }
+
+  completeSale(): void {
+    if (!this.canCheckout) return;
+
+    this.checkoutLoading = true;
+
+    const body: any = {
+      items: this.cart.map((item) => ({
+        barcode: item.barcode,
+        quantity: item.quantity,
+      })),
+      payments: [
+        {
+          method: this.paymentMethod,
+          amount: this.total,
+        },
+      ],
+    };
+
+    if (this.discount > 0) body.discountAmount = this.discount;
+    if (this.customerId) body.customerId = this.customerId;
+
+    this.api
+      .post<ApiResponse<any>>('/pos/checkout', body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.checkoutLoading = false;
+          this.notify.success(
+            `Sale completed! ${res.data?.saleNumber || ''}`
+          );
+          this.resetCart();
+        },
+        error: (err) => {
+          this.checkoutLoading = false;
+          this.notify.error(
+            err.error?.error || 'Checkout failed. Please try again.'
+          );
+        },
+      });
+  }
+
+  private resetCart(): void {
+    this.cart = [];
+    this.discount = 0;
+    this.cashTendered = null;
+    this.paymentMethod = 'cash';
+    this.customerId = null;
     this.selectedCustomer = null;
-    this.loyaltyPoints = 0;
-    this.redeemLoyalty = false;
-    this.customerSearchCtrl.setValue('');
-    this.discountValue = 0;
-    this.discountAmount = 0;
-    this.cashAmount = 0;
-    this.cardAmount = 0;
-    this.upiAmount = 0;
-    this.cardReference = '';
-    this.upiReference = '';
-    this.changeDue = 0;
-    this.recalculate();
-    this.focusBarcode();
+    this.customerSearchQuery = '';
   }
 
-  exitPos(): void {
-    this.router.navigate(['/']);
+  closeSearchResults(): void {
+    setTimeout(() => {
+      this.showSearchResults = false;
+    }, 200);
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  getVariantLabel(variant: ProductVariant): string {
+    const parts: string[] = [];
+    if (variant.size) parts.push(variant.size);
+    if (variant.color) parts.push(variant.color);
+    return parts.join(' / ');
+  }
+
+  getItemVariantLabel(item: CartItem): string {
+    const parts: string[] = [];
+    if (item.size) parts.push(item.size);
+    if (item.color) parts.push(item.color);
+    return parts.join(' / ');
   }
 }

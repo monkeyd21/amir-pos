@@ -1,112 +1,129 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatInputModule } from '@angular/material/input';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatCardModule } from '@angular/material/card';
-import { EmployeeService } from './employee.service';
+import { RouterModule } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface AttendanceRecord {
+  id: number;
+  employee: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+  date: string;
+  checkIn?: string;
+  checkOut?: string;
+  status: string;
+  hoursWorked?: number;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: any;
+}
 
 @Component({
   selector: 'app-attendance',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatButtonModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatInputModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-    MatCardModule,
-  ],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './attendance.component.html',
 })
-export class AttendanceComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
+export class AttendanceComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private employeeService = inject(EmployeeService);
-  private snackBar = inject(MatSnackBar);
+  records: AttendanceRecord[] = [];
+  loading = true;
+  selectedDate: string = new Date().toISOString().split('T')[0];
 
-  displayedColumns = ['employee', 'date', 'clockIn', 'clockOut', 'hours', 'status'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
-  isClockedIn = false;
-  currentClockIn: Date | null = null;
-
-  selectedDate = new Date();
-  employeeFilter = '';
-  employees: any[] = [];
+  constructor(
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
     this.loadAttendance();
-    this.loadEmployees();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   loadAttendance(): void {
     this.loading = true;
-    const params: any = { date: this.selectedDate.toISOString().split('T')[0] };
-    if (this.employeeFilter) params.employeeId = this.employeeFilter;
-
-    this.employeeService.getAttendance(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
-    });
+    this.api
+      .get<ApiResponse<AttendanceRecord[]>>('/employees/attendance', {
+        date: this.selectedDate,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.records = res.data || [];
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.records = [];
+          this.notify.error('Failed to load attendance');
+        },
+      });
   }
 
-  loadEmployees(): void {
-    this.employeeService.getAll().subscribe({
-      next: (res) => (this.employees = Array.isArray(res) ? res : []),
-    });
+  onDateChange(): void {
+    this.loadAttendance();
   }
 
-  clockIn(): void {
-    this.employeeService.clockIn().subscribe({
-      next: () => {
-        this.isClockedIn = true;
-        this.currentClockIn = new Date();
-        this.snackBar.open('Clocked in successfully', 'Close', { duration: 2000 });
-        this.loadAttendance();
-      },
-      error: () => {
-        this.snackBar.open('Failed to clock in', 'Close', { duration: 3000 });
-      },
-    });
+  getStatusClasses(status: string): string {
+    switch (status?.toLowerCase()) {
+      case 'present':
+        return 'bg-green-500/10 text-green-400';
+      case 'absent':
+        return 'bg-red-500/10 text-red-400';
+      case 'late':
+        return 'bg-yellow-500/10 text-yellow-400';
+      case 'half_day':
+        return 'bg-orange-500/10 text-orange-400';
+      default:
+        return 'bg-surface-variant/30 text-on-surface-variant';
+    }
   }
 
-  clockOut(): void {
-    this.employeeService.clockOut().subscribe({
-      next: () => {
-        this.isClockedIn = false;
-        this.snackBar.open('Clocked out successfully', 'Close', { duration: 2000 });
-        this.loadAttendance();
-      },
-      error: () => {
-        this.snackBar.open('Failed to clock out', 'Close', { duration: 3000 });
-      },
+  formatStatus(status: string): string {
+    return status
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  formatTime(time?: string): string {
+    if (!time) return '---';
+    try {
+      return new Date(time).toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return time;
+    }
+  }
+
+  countByStatus(status: string): number {
+    return this.records.filter(
+      (r) => r.status?.toLowerCase() === status.toLowerCase()
+    ).length;
+  }
+
+  formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
     });
   }
 }

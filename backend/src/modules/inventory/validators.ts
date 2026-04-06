@@ -5,6 +5,7 @@ export const listInventorySchema = z.object({
     branchId: z.string().optional(),
     variantId: z.string().optional(),
     lowStock: z.enum(['true', 'false']).optional(),
+    search: z.string().optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
   }),

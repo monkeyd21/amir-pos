@@ -1,59 +1,146 @@
-<h2 mat-dialog-title class="text-xl font-bold text-slate-800">Process Return</h2>
-
-<mat-dialog-content class="max-h-[70vh]">
-  <form [formGroup]="form" class="space-y-4 pt-2">
-    <div class="bg-slate-50 rounded-lg p-3 mb-4">
-      <div class="text-sm text-slate-500">Sale: <span class="font-medium text-slate-800">{{ sale.saleNumber }}</span></div>
+<!-- Overlay Backdrop -->
+<div
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+  (click)="onBackdropClick($event)"
+>
+  <!-- Dialog Panel -->
+  <div class="w-full max-w-2xl mx-4 bg-surface-container border border-outline-variant/20 rounded-2xl shadow-ambient overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-5 border-b border-outline-variant/10">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-error-container/20">
+          <span class="material-symbols-outlined text-xl text-on-error-container">undo</span>
+        </div>
+        <div>
+          <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight">Process Return</h2>
+          <p class="text-xs font-body text-on-surface-variant">{{ sale.saleNumber }}</p>
+        </div>
+      </div>
+      <button
+        (click)="onClose()"
+        class="p-2 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-lg text-on-surface-variant">close</span>
+      </button>
     </div>
 
-    <div formArrayName="items">
-      <h3 class="text-sm font-semibold text-slate-500 uppercase mb-2">Select Items to Return</h3>
-      @for (item of items.controls; track $index) {
-        <div class="border border-slate-200 rounded-lg p-3 mb-2" [formGroupName]="$index">
-          <div class="flex items-center gap-3">
-            <mat-checkbox formControlName="selected" (change)="toggleItem($index)"></mat-checkbox>
-            <div class="flex-1">
-              <div class="font-medium text-slate-800">{{ item.value.productName }}</div>
-              <div class="text-sm text-slate-500">
-                {{ item.value.variantLabel }} &bull; Returnable: {{ item.value.maxQuantity }}
-                @if (item.value.returnedQty > 0) {
-                  <span class="text-orange-600">({{ item.value.returnedQty }} already returned)</span>
-                }
-              </div>
-            </div>
-            <mat-form-field class="w-20" appearance="outline">
-              <mat-label>Qty</mat-label>
-              <input matInput type="number" formControlName="quantity" [max]="item.value.maxQuantity" min="1" />
-            </mat-form-field>
-            <mat-form-field class="w-36" appearance="outline">
-              <mat-label>Condition</mat-label>
-              <mat-select formControlName="condition">
-                <mat-option value="resellable">Resellable</mat-option>
-                <mat-option value="damaged">Damaged</mat-option>
-              </mat-select>
-            </mat-form-field>
-          </div>
+    <!-- Body -->
+    <div class="px-6 py-5 max-h-[60vh] overflow-y-auto">
+      <p class="text-sm font-body text-on-surface-variant mb-5">Select items to return and specify details for each.</p>
+
+      @if (items.length === 0) {
+        <div class="py-8 text-center">
+          <p class="text-sm font-body text-on-surface-variant">No returnable items available.</p>
         </div>
       }
+
+      <div class="space-y-4">
+        @for (item of items; track item.saleItemId) {
+          <div
+            class="p-4 rounded-xl border transition-colors"
+            [class]="item.selected
+              ? 'bg-primary/5 border-primary/30'
+              : 'bg-surface-container-high/30 border-outline-variant/10'"
+          >
+            <!-- Item Header with Checkbox -->
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                [(ngModel)]="item.selected"
+                class="mt-1 w-4 h-4 rounded accent-primary cursor-pointer"
+              />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold font-body text-on-surface">{{ item.productName }}</p>
+                  <span class="text-xs font-body text-on-surface-variant">{{ formatCurrency(item.unitPrice) }}/unit</span>
+                </div>
+                <p class="text-xs font-body text-on-surface-variant mt-0.5">
+                  Size: {{ item.size }} &middot; Color: {{ item.color }} &middot; Max returnable: {{ item.maxQuantity }}
+                </p>
+              </div>
+            </label>
+
+            <!-- Item Details (shown when selected) -->
+            @if (item.selected) {
+              <div class="mt-4 ml-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <!-- Quantity -->
+                <div>
+                  <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Quantity</label>
+                  <input
+                    type="number"
+                    [(ngModel)]="item.quantity"
+                    [min]="1"
+                    [max]="item.maxQuantity"
+                    class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+                  />
+                </div>
+
+                <!-- Reason -->
+                <div>
+                  <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Reason</label>
+                  <select
+                    [(ngModel)]="item.reason"
+                    class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                  >
+                    @for (reason of reasons; track reason.value) {
+                      <option [value]="reason.value">{{ reason.label }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Condition -->
+                <div>
+                  <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Condition</label>
+                  <select
+                    [(ngModel)]="item.condition"
+                    class="w-full px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+                  >
+                    @for (cond of conditions; track cond.value) {
+                      <option [value]="cond.value">{{ cond.label }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
     </div>
 
-    <mat-form-field class="w-full" appearance="outline">
-      <mat-label>Return Reason</mat-label>
-      <textarea matInput formControlName="reason" rows="2" placeholder="Reason for return..."></textarea>
-    </mat-form-field>
-
-    <mat-divider></mat-divider>
-
-    <div class="bg-green-50 rounded-lg p-4 text-center">
-      <div class="text-sm text-green-600">Refund Amount</div>
-      <div class="text-2xl font-bold text-green-700 font-mono">{{ refundAmount | currency:'INR':'symbol':'1.2-2' }}</div>
+    <!-- Footer -->
+    <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10 bg-surface-container-low/40">
+      <div>
+        @if (selectedItems.length > 0) {
+          <p class="text-xs font-body text-on-surface-variant">
+            {{ selectedItems.length }} item(s) selected
+          </p>
+          <p class="text-lg font-headline font-bold text-amber-400">
+            Refund: {{ formatCurrency(refundAmount) }}
+          </p>
+        }
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          (click)="onClose()"
+          class="px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          (click)="submit()"
+          [disabled]="!canSubmit"
+          class="px-5 py-2.5 text-sm font-semibold font-body bg-error-container/80 text-on-error-container rounded-xl hover:bg-error-container transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          @if (submitting) {
+            <span class="flex items-center gap-2">
+              <span class="w-4 h-4 border-2 border-on-error-container/20 border-t-on-error-container rounded-full animate-spin"></span>
+              Processing...
+            </span>
+          } @else {
+            Process Return
+          }
+        </button>
+      </div>
     </div>
-  </form>
-</mat-dialog-content>
-
-<mat-dialog-actions align="end">
-  <button mat-stroked-button mat-dialog-close>Cancel</button>
-  <button mat-flat-button color="warn" (click)="submit()" [disabled]="loading">
-    {{ loading ? 'Processing...' : 'Process Return' }}
-  </button>
-</mat-dialog-actions>
+  </div>
+</div>

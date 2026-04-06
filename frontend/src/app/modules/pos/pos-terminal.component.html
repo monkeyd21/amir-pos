@@ -1,363 +1,413 @@
-<div class="h-screen flex flex-col bg-slate-50">
-  <!-- Top Bar -->
-  <div class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <button mat-icon-button (click)="exitPos()" matTooltip="Back to Dashboard">
-        <mat-icon>arrow_back</mat-icon>
-      </button>
-      <h1 class="text-xl font-bold text-slate-800">POS Terminal</h1>
-    </div>
-    <div class="flex items-center gap-2">
-      <button mat-stroked-button (click)="showHeldPanel = !showHeldPanel" class="relative">
-        <mat-icon>pause_circle</mat-icon>
-        <span class="ml-1">Held ({{ heldTransactions.length }})</span>
-      </button>
+<!-- Session Loading -->
+@if (sessionLoading) {
+  <div class="flex items-center justify-center h-screen bg-surface">
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      <p class="text-sm text-on-surface-variant">Starting POS session...</p>
     </div>
   </div>
+}
 
-  <!-- Main Content -->
-  <div class="flex flex-1 overflow-hidden">
-    <!-- Left Panel - Cart (60%) -->
-    <div class="w-[60%] flex flex-col border-r border-slate-200 bg-white">
-      <!-- Barcode / Product Search Input -->
-      <div class="p-4 border-b border-slate-100">
-        <mat-form-field class="w-full" appearance="outline">
-          <mat-label>Scan barcode or search products</mat-label>
-          <input
-            matInput
-            #barcodeInput
-            [(ngModel)]="barcodeValue"
-            (keyup.enter)="onBarcodeScan()"
-            (input)="onSearchInput()"
-            [matAutocomplete]="productAuto"
-            placeholder="Scan barcode or type product name..."
-            class="text-lg"
-            autocomplete="off"
-          />
-          <mat-icon matSuffix class="text-slate-400">search</mat-icon>
-        </mat-form-field>
-        <mat-autocomplete #productAuto="matAutocomplete" (optionSelected)="onProductSelected($event.option.value)">
-          @for (p of productResults; track p.variantId) {
-            <mat-option [value]="p">
-              <div class="flex justify-between items-center w-full">
-                <div>
-                  <span class="font-medium">{{ p.productName }}</span>
-                  <span class="text-sm text-slate-500 ml-2">{{ p.size }} / {{ p.color }}</span>
-                  @if (p.brand) {
-                    <span class="text-xs text-slate-400 ml-1">({{ p.brand }})</span>
-                  }
-                </div>
-                <div class="text-right">
-                  <span class="font-medium text-green-700">{{ p.price | number:'1.2-2' }}</span>
-                  <span class="text-xs text-slate-400 ml-2">Stock: {{ p.stock }}</span>
-                </div>
-              </div>
-            </mat-option>
-          }
-        </mat-autocomplete>
+<!-- POS Terminal -->
+@if (!sessionLoading) {
+  <div class="flex flex-col h-screen bg-surface overflow-hidden">
+
+    <!-- Top Bar -->
+    <header class="flex items-center justify-between px-6 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
+      <div class="flex items-center gap-4">
+        <div class="w-9 h-9 gradient-primary rounded-full flex items-center justify-center shadow-glow-sm">
+          <span class="material-symbols-outlined text-on-primary-container text-xl">point_of_sale</span>
+        </div>
+        <div>
+          <h1 class="text-on-surface text-lg font-headline font-bold tracking-tight">Atelier POS</h1>
+          <p class="text-[10px] text-on-surface-variant uppercase tracking-widest">Point of Sale Terminal</p>
+        </div>
       </div>
 
-      <!-- Cart Items Table -->
-      <div class="flex-1 overflow-auto px-4">
-        @if (cartItems.length === 0) {
-          <div class="flex flex-col items-center justify-center h-full text-slate-400">
-            <mat-icon class="text-6xl mb-4" style="font-size: 64px; width: 64px; height: 64px;">shopping_cart</mat-icon>
-            <p class="text-lg">Scan a barcode to add items</p>
-          </div>
-        } @else {
-          <table mat-table [dataSource]="cartItems" class="w-full">
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Product</th>
-              <td mat-cell *matCellDef="let item">
-                <div class="font-medium text-slate-800">{{ item.name }}</div>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="variant">
-              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Variant</th>
-              <td mat-cell *matCellDef="let item">
-                <span class="text-sm text-slate-500">{{ item.variant }}</span>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="unitPrice">
-              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Price</th>
-              <td mat-cell *matCellDef="let item" class="font-mono">
-                {{ item.unitPrice | currency:'INR':'symbol':'1.2-2' }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="quantity">
-              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Qty</th>
-              <td mat-cell *matCellDef="let item; let i = index">
-                <div class="flex items-center gap-1">
-                  <button mat-icon-button color="primary" (click)="updateQuantity(i, -1)" class="scale-75">
-                    <mat-icon>remove_circle_outline</mat-icon>
-                  </button>
-                  <span class="font-bold text-lg w-8 text-center">{{ item.quantity }}</span>
-                  <button mat-icon-button color="primary" (click)="updateQuantity(i, 1)" class="scale-75">
-                    <mat-icon>add_circle_outline</mat-icon>
-                  </button>
-                </div>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="total">
-              <th mat-header-cell *matHeaderCellDef class="font-semibold text-slate-600">Total</th>
-              <td mat-cell *matCellDef="let item" class="font-mono font-semibold">
-                {{ item.total | currency:'INR':'symbol':'1.2-2' }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let item; let i = index">
-                <button mat-icon-button color="warn" (click)="removeItem(i)" matTooltip="Remove">
-                  <mat-icon>delete_outline</mat-icon>
-                </button>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
-          </table>
-        }
-      </div>
-
-      <!-- Totals -->
-      <div class="border-t border-slate-200 p-4 bg-slate-50">
-        <div class="flex justify-between text-sm text-slate-600 mb-1">
-          <span>Subtotal</span>
-          <span class="font-mono">{{ subtotal | currency:'INR':'symbol':'1.2-2' }}</span>
-        </div>
-        <div class="flex justify-between text-sm text-slate-600 mb-1">
-          <span>Tax ({{ taxRate * 100 }}%)</span>
-          <span class="font-mono">{{ taxAmount | currency:'INR':'symbol':'1.2-2' }}</span>
-        </div>
-        @if (discountAmount > 0) {
-          <div class="flex justify-between text-sm text-green-600 mb-1">
-            <span>Discount</span>
-            <span class="font-mono">-{{ discountAmount | currency:'INR':'symbol':'1.2-2' }}</span>
+      <div class="flex items-center gap-6">
+        <!-- Session Info -->
+        @if (session) {
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-high/60">
+            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+            <span class="text-[11px] text-on-surface-variant font-medium">Session #{{ session.id }}</span>
           </div>
         }
-        @if (loyaltyDiscount > 0) {
-          <div class="flex justify-between text-sm text-purple-600 mb-1">
-            <span>Loyalty Discount</span>
-            <span class="font-mono">-{{ loyaltyDiscount | currency:'INR':'symbol':'1.2-2' }}</span>
-          </div>
+
+        <!-- User -->
+        @if (currentUser) {
+          <span class="text-xs text-on-surface-variant">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
         }
-        <mat-divider class="my-2"></mat-divider>
-        <div class="flex justify-between text-xl font-bold text-slate-800">
-          <span>Total</span>
-          <span class="font-mono text-blue-600">{{ total | currency:'INR':'symbol':'1.2-2' }}</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Right Panel - Actions (40%) -->
-    <div class="w-[40%] flex flex-col overflow-auto bg-white">
-      <!-- Customer Section -->
-      <div class="p-4 border-b border-slate-100">
-        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Customer</h3>
-        @if (!selectedCustomer) {
-          <mat-form-field class="w-full" appearance="outline">
-            <mat-label>Search customer (name/phone)</mat-label>
-            <input matInput [formControl]="customerSearchCtrl" [matAutocomplete]="customerAuto" />
-            <mat-icon matSuffix>person_search</mat-icon>
-          </mat-form-field>
-          <mat-autocomplete #customerAuto="matAutocomplete" (optionSelected)="selectCustomer($event.option.value)">
-            @for (c of customerResults; track c.id) {
-              <mat-option [value]="c">
-                <span class="text-sm text-slate-500">{{ c.phone }}</span>
-                <span class="font-medium ml-2">{{ c.firstName }} {{ c.lastName }}</span>
-              </mat-option>
-            }
-          </mat-autocomplete>
-        } @else {
-          <div class="flex items-center justify-between bg-blue-50 rounded-lg p-3">
-            <div>
-              <div class="font-medium text-slate-800">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</div>
-              <div class="text-sm text-slate-500">{{ selectedCustomer.phone || selectedCustomer.email }}</div>
-              @if (loyaltyPoints > 0) {
-                <div class="text-sm text-purple-600 mt-1">
-                  <mat-icon class="text-sm align-middle" style="font-size: 16px; width: 16px; height: 16px;">stars</mat-icon>
-                  {{ loyaltyPoints }} loyalty points
-                </div>
-              }
-            </div>
-            <button mat-icon-button (click)="clearCustomer()" matTooltip="Remove customer">
-              <mat-icon>close</mat-icon>
-            </button>
-          </div>
-          @if (loyaltyPoints > 0) {
-            <div class="mt-2">
-              <mat-slide-toggle [(ngModel)]="redeemLoyalty" (change)="recalculate()">
-                Redeem loyalty points
-              </mat-slide-toggle>
-            </div>
-          }
-        }
-      </div>
-
-      <!-- Discount Section -->
-      <div class="p-4 border-b border-slate-100">
-        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Discount</h3>
-        <div class="flex gap-2">
-          <mat-form-field class="flex-1" appearance="outline">
-            <mat-label>Value</mat-label>
-            <input matInput type="number" [(ngModel)]="discountValue" (ngModelChange)="onDiscountChange()" min="0" />
-          </mat-form-field>
-          <mat-form-field class="w-32" appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select [(ngModel)]="discountType" (ngModelChange)="onDiscountChange()">
-              <mat-option value="percent">%</mat-option>
-              <mat-option value="flat">Flat</mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-      </div>
-
-      <!-- Payment Section -->
-      <div class="p-4 flex-1">
-        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Payment</h3>
-        <div class="bg-blue-50 rounded-lg p-3 mb-3 text-center">
-          <div class="text-sm text-slate-500">Amount Due</div>
-          <div class="text-2xl font-bold text-blue-600 font-mono">{{ total | currency:'INR':'symbol':'1.2-2' }}</div>
-        </div>
-
-        <mat-tab-group [(selectedIndex)]="paymentTabIndex" (selectedIndexChange)="onPaymentTabChange($event)">
-          <!-- Cash -->
-          <mat-tab label="Cash">
-            <div class="pt-3">
-              <mat-form-field class="w-full" appearance="outline">
-                <mat-label>Cash Amount</mat-label>
-                <input matInput type="number" [(ngModel)]="cashAmount" (ngModelChange)="calculateChange()" min="0" />
-                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
-              </mat-form-field>
-              <div class="flex gap-2 mb-3">
-                <button mat-stroked-button (click)="cashAmount = total; calculateChange()" class="flex-1">Exact</button>
-                <button mat-stroked-button (click)="cashAmount = Math.ceil(total / 100) * 100; calculateChange()" class="flex-1">Round Up</button>
-                <button mat-stroked-button (click)="cashAmount = Math.ceil(total / 500) * 500; calculateChange()" class="flex-1">500</button>
-              </div>
-              @if (changeDue > 0) {
-                <div class="bg-green-50 rounded-lg p-3 text-center">
-                  <div class="text-sm text-green-600">Change Due</div>
-                  <div class="text-xl font-bold text-green-700 font-mono">{{ changeDue | currency:'INR':'symbol':'1.2-2' }}</div>
-                </div>
-              }
-            </div>
-          </mat-tab>
-
-          <!-- Card -->
-          <mat-tab label="Card">
-            <div class="pt-3">
-              <mat-form-field class="w-full" appearance="outline">
-                <mat-label>Card Amount</mat-label>
-                <input matInput type="number" [(ngModel)]="cardAmount" (ngModelChange)="calculateChange()" min="0" />
-                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
-              </mat-form-field>
-              <mat-form-field class="w-full" appearance="outline">
-                <mat-label>Reference Number</mat-label>
-                <input matInput [(ngModel)]="cardReference" placeholder="Last 4 digits / Auth code" />
-              </mat-form-field>
-              <button mat-stroked-button (click)="cardAmount = total - cashAmount - upiAmount; calculateChange()" class="w-full">
-                Pay Remaining ({{ (total - cashAmount - upiAmount) | currency:'INR':'symbol':'1.2-2' }})
-              </button>
-            </div>
-          </mat-tab>
-
-          <!-- UPI -->
-          <mat-tab label="UPI">
-            <div class="pt-3">
-              <mat-form-field class="w-full" appearance="outline">
-                <mat-label>UPI Amount</mat-label>
-                <input matInput type="number" [(ngModel)]="upiAmount" (ngModelChange)="calculateChange()" min="0" />
-                <span matPrefix class="pl-2">&#8377;&nbsp;</span>
-              </mat-form-field>
-              <mat-form-field class="w-full" appearance="outline">
-                <mat-label>UPI Reference</mat-label>
-                <input matInput [(ngModel)]="upiReference" placeholder="Transaction ID" />
-              </mat-form-field>
-              <button mat-stroked-button (click)="upiAmount = total - cashAmount - cardAmount; calculateChange()" class="w-full">
-                Pay Remaining ({{ (total - cashAmount - cardAmount) | currency:'INR':'symbol':'1.2-2' }})
-              </button>
-            </div>
-          </mat-tab>
-        </mat-tab-group>
-
-        <!-- Payment Summary -->
-        @if (totalPaid > 0) {
-          <div class="mt-3 text-sm">
-            <div class="flex justify-between text-slate-600">
-              <span>Total Paid</span>
-              <span class="font-mono font-medium">{{ totalPaid | currency:'INR':'symbol':'1.2-2' }}</span>
-            </div>
-            <div class="flex justify-between" [class]="paymentComplete ? 'text-green-600' : 'text-red-500'">
-              <span>{{ paymentComplete ? 'Payment Complete' : 'Remaining' }}</span>
-              <span class="font-mono font-medium">
-                {{ paymentComplete ? '' : ((total - totalPaid) | currency:'INR':'symbol':'1.2-2') }}
-                {{ paymentComplete ? 'OK' : '' }}
-              </span>
-            </div>
-          </div>
-        }
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="p-4 border-t border-slate-200 bg-slate-50">
-        <div class="flex gap-2">
-          <button mat-stroked-button (click)="holdCart()" [disabled]="cartItems.length === 0" class="flex-1">
-            <mat-icon>pause</mat-icon> Hold
-          </button>
-          <button mat-stroked-button color="warn" (click)="clearCart()" [disabled]="cartItems.length === 0" class="flex-1">
-            <mat-icon>clear</mat-icon> Clear
-          </button>
-        </div>
-        <button
-          mat-flat-button
-          color="primary"
-          (click)="checkout()"
-          [disabled]="!paymentComplete || loading"
-          class="w-full mt-2 h-12 text-lg"
+        <!-- Back to Dashboard -->
+        <a
+          routerLink="/dashboard"
+          class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
         >
-          <mat-icon>shopping_cart_checkout</mat-icon>
-          <span class="ml-1">Checkout</span>
-        </button>
+          <span class="material-symbols-outlined text-lg">arrow_back</span>
+          <span>Dashboard</span>
+        </a>
       </div>
-    </div>
+    </header>
 
-    <!-- Held Transactions Panel -->
-    @if (showHeldPanel) {
-      <div class="absolute right-0 top-14 w-80 h-[calc(100vh-56px)] bg-white shadow-xl border-l border-slate-200 z-50 flex flex-col">
-        <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 class="font-semibold text-slate-800">Held Transactions</h3>
-          <button mat-icon-button (click)="showHeldPanel = false">
-            <mat-icon>close</mat-icon>
-          </button>
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- Left Panel: Search + Cart (2/3) -->
+      <div class="flex flex-col flex-[2] border-r border-outline-variant/10 overflow-hidden">
+
+        <!-- Search Bar -->
+        <div class="p-4 border-b border-outline-variant/10 shrink-0">
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-xl">barcode_scanner</span>
+            <input
+              type="text"
+              [(ngModel)]="searchQuery"
+              (input)="onSearchInput()"
+              (blur)="closeSearchResults()"
+              placeholder="Scan barcode or search products..."
+              class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface pl-12 pr-4 py-3.5 rounded-xl transition-all outline-none placeholder:text-outline/50 text-sm"
+              autocomplete="off"
+            />
+            @if (searchLoading) {
+              <div class="absolute right-4 top-1/2 -translate-y-1/2">
+                <div class="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+              </div>
+            }
+
+            <!-- Search Results Dropdown -->
+            @if (showSearchResults && searchResults.length > 0) {
+              <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 max-h-80 overflow-y-auto no-scrollbar">
+                @for (variant of searchResults; track variant.id) {
+                  <button
+                    type="button"
+                    (mousedown)="addToCart(variant)"
+                    class="w-full flex items-center gap-4 px-4 py-3 hover:bg-surface-container-high/50 transition-colors text-left"
+                  >
+                    <div class="w-10 h-10 rounded-lg bg-primary-container/10 flex items-center justify-center shrink-0">
+                      <span class="material-symbols-outlined text-primary text-xl">checkroom</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-on-surface truncate">{{ variant.productName || variant.product?.name || 'Unknown' }}</p>
+                      <p class="text-[11px] text-on-surface-variant">
+                        {{ variant.sku }}
+                        @if (getVariantLabel(variant)) {
+                          <span class="ml-1.5 text-primary/70">{{ getVariantLabel(variant) }}</span>
+                        }
+                      </p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(variant.price) }}</p>
+                      <p class="text-[10px] text-on-surface-variant">
+                        Stock: {{ variant.stock ?? variant.inventory?.[0]?.currentStock ?? '?' }}
+                      </p>
+                    </div>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (showSearchResults && searchResults.length === 0 && !searchLoading && searchQuery.length >= 2) {
+              <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-8 text-center">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">search_off</span>
+                <p class="text-sm text-on-surface-variant">No products found</p>
+              </div>
+            }
+          </div>
         </div>
-        <div class="flex-1 overflow-auto">
-          @if (heldTransactions.length === 0) {
-            <div class="p-4 text-center text-slate-400">No held transactions</div>
+
+        <!-- Cart Items -->
+        <div class="flex-1 overflow-y-auto p-4">
+          @if (cart.length === 0) {
+            <div class="flex flex-col items-center justify-center h-full text-center">
+              <div class="w-20 h-20 rounded-full bg-surface-container-high/50 flex items-center justify-center mb-4">
+                <span class="material-symbols-outlined text-4xl text-on-surface-variant/30">shopping_cart</span>
+              </div>
+              <h3 class="text-lg font-headline font-bold text-on-surface/60 mb-1">Cart is empty</h3>
+              <p class="text-sm text-on-surface-variant/60">Search or scan products to add them here</p>
+            </div>
           }
-          @for (held of heldTransactions; track held.id) {
-            <div class="p-3 border-b border-slate-100 hover:bg-slate-50">
-              <div class="flex justify-between items-start mb-1">
-                <div>
-                  <div class="font-medium text-slate-800">{{ held.customerName || 'Walk-in' }}</div>
-                  <div class="text-sm text-slate-500">{{ held.items?.length || 0 }} items</div>
-                </div>
-                <span class="font-mono font-bold text-blue-600">{{ held.total | currency:'INR':'symbol':'1.2-2' }}</span>
-              </div>
-              <div class="flex gap-2 mt-2">
-                <button mat-stroked-button color="primary" (click)="resumeHeld(held)" class="flex-1 text-sm">Resume</button>
-                <button mat-stroked-button color="warn" (click)="deleteHeld(held)" class="text-sm">
-                  <mat-icon class="scale-75">delete</mat-icon>
-                </button>
-              </div>
+
+          @if (cart.length > 0) {
+            <div class="bg-surface-container rounded-xl overflow-hidden">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-surface-container-low/50">
+                    <th class="th-label">Product</th>
+                    <th class="th-label text-center">Qty</th>
+                    <th class="th-label text-right">Price</th>
+                    <th class="th-label text-right">Total</th>
+                    <th class="th-label w-12"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/10">
+                  @for (item of cart; track item.variantId; let i = $index) {
+                    <tr class="hover:bg-surface-container-high/40 transition-colors">
+                      <td class="px-6 py-4">
+                        <p class="text-sm font-medium text-on-surface">{{ item.productName }}</p>
+                        <p class="text-[11px] text-on-surface-variant mt-0.5">
+                          @if (item.brandName) {
+                            <span class="text-primary/60">{{ item.brandName }}</span>
+                            <span class="mx-1 text-outline-variant/30">&middot;</span>
+                          }
+                          {{ getItemVariantLabel(item) }}
+                        </p>
+                      </td>
+                      <td class="px-6 py-4">
+                        <div class="flex items-center justify-center gap-1">
+                          <button
+                            (click)="decrementQty(item)"
+                            class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                          >
+                            <span class="material-symbols-outlined text-lg">remove</span>
+                          </button>
+                          <span class="w-10 text-center text-sm font-bold text-on-surface">{{ item.quantity }}</span>
+                          <button
+                            (click)="incrementQty(item)"
+                            class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                          >
+                            <span class="material-symbols-outlined text-lg">add</span>
+                          </button>
+                        </div>
+                      </td>
+                      <td class="px-6 py-4 text-right text-sm text-on-surface-variant">
+                        {{ formatCurrency(item.unitPrice) }}
+                      </td>
+                      <td class="px-6 py-4 text-right text-sm font-headline font-bold text-on-surface">
+                        {{ formatCurrency(item.unitPrice * item.quantity) }}
+                      </td>
+                      <td class="px-4 py-4">
+                        <button
+                          (click)="removeFromCart(i)"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                        >
+                          <span class="material-symbols-outlined text-lg">close</span>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
           }
         </div>
       </div>
-    }
+
+      <!-- Right Panel: Order Summary (1/3) -->
+      <div class="flex flex-col flex-1 bg-surface-container-lowest overflow-hidden">
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+          <!-- Customer Search -->
+          <div>
+            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3">Customer</h2>
+            @if (selectedCustomer) {
+              <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container border border-outline-variant/20">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-on-primary-container">
+                    {{ (selectedCustomer.firstName || '?')[0] }}{{ (selectedCustomer.lastName || '?')[0] }}
+                  </div>
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</p>
+                    <p class="text-[10px] text-on-surface-variant">{{ selectedCustomer.phone || selectedCustomer.email }}</p>
+                  </div>
+                </div>
+                <button
+                  (click)="clearCustomer()"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                >
+                  <span class="material-symbols-outlined text-base">close</span>
+                </button>
+              </div>
+            } @else {
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">person_search</span>
+                <input
+                  type="text"
+                  [(ngModel)]="customerSearchQuery"
+                  (input)="onCustomerSearchInput()"
+                  (blur)="closeCustomerResults()"
+                  placeholder="Search customer by name, phone..."
+                  class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-10 pr-4 py-2.5 rounded-xl transition-all outline-none placeholder:text-outline/50"
+                  autocomplete="off"
+                />
+                @if (customerSearchLoading) {
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div class="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                  </div>
+                }
+
+                @if (showCustomerResults && customerSearchResults.length > 0) {
+                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 max-h-48 overflow-y-auto no-scrollbar">
+                    @for (customer of customerSearchResults; track customer.id) {
+                      <button
+                        type="button"
+                        (mousedown)="selectCustomer(customer)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-container-high/50 transition-colors text-left"
+                      >
+                        <div class="w-7 h-7 rounded-full bg-primary-container/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                          {{ (customer.firstName || '?')[0] }}{{ (customer.lastName || '?')[0] }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm text-on-surface truncate">{{ customer.firstName }} {{ customer.lastName }}</p>
+                          <p class="text-[10px] text-on-surface-variant">{{ customer.phone || customer.email }}</p>
+                        </div>
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (showCustomerResults && customerSearchResults.length === 0 && !customerSearchLoading && customerSearchQuery.length >= 2) {
+                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-4 text-center">
+                    <p class="text-xs text-on-surface-variant">No customers found</p>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Order Summary -->
+          <div>
+            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Order Summary</h2>
+            <div class="space-y-3">
+              <div class="flex justify-between text-sm">
+                <span class="text-on-surface-variant">Subtotal ({{ cart.length }} items)</span>
+                <span class="text-on-surface font-medium">{{ formatCurrency(subtotal) }}</span>
+              </div>
+
+              <!-- Discount -->
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-sm text-on-surface-variant">Discount</span>
+                <div class="relative w-32">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs">&#8377;</span>
+                  <input
+                    type="number"
+                    [(ngModel)]="discount"
+                    min="0"
+                    [max]="subtotal"
+                    class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-7 pr-3 py-2 rounded-lg transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              <div class="flex justify-between text-sm">
+                <span class="text-on-surface-variant">Tax (18% GST)</span>
+                <span class="text-on-surface font-medium">{{ formatCurrency(taxAmount) }}</span>
+              </div>
+
+              <div class="border-t border-outline-variant/10 pt-3 flex justify-between">
+                <span class="text-on-surface font-bold text-lg font-headline">Total</span>
+                <span class="text-primary font-headline font-extrabold text-2xl">{{ formatCurrency(total) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Payment Method</h2>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                (click)="selectPayment('cash')"
+                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
+                [class]="paymentMethod === 'cash'
+                  ? 'border-primary-container bg-primary-container/10 text-primary'
+                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                <span class="material-symbols-outlined text-2xl">payments</span>
+                <span class="text-xs font-bold uppercase tracking-wider">Cash</span>
+              </button>
+              <button
+                (click)="selectPayment('card')"
+                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
+                [class]="paymentMethod === 'card'
+                  ? 'border-primary-container bg-primary-container/10 text-primary'
+                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                <span class="material-symbols-outlined text-2xl">credit_card</span>
+                <span class="text-xs font-bold uppercase tracking-wider">Card</span>
+              </button>
+              <button
+                (click)="selectPayment('upi')"
+                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
+                [class]="paymentMethod === 'upi'
+                  ? 'border-primary-container bg-primary-container/10 text-primary'
+                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                <span class="material-symbols-outlined text-2xl">smartphone</span>
+                <span class="text-xs font-bold uppercase tracking-wider">UPI</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Cash Tendered (shown when Cash is selected) -->
+          @if (paymentMethod === 'cash') {
+            <div>
+              <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Cash Tendered</h2>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm font-bold">&#8377;</span>
+                <input
+                  type="number"
+                  [(ngModel)]="cashTendered"
+                  [min]="total"
+                  placeholder="0"
+                  class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-right text-xl font-headline font-bold pl-8 pr-4 py-3 rounded-xl transition-all outline-none placeholder:text-outline/30"
+                />
+              </div>
+              @if (cashTendered !== null && cashTendered >= total) {
+                <div class="mt-3 flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <span class="text-sm text-green-400 font-medium">Change Due</span>
+                  <span class="text-lg font-headline font-bold text-green-400">{{ formatCurrency(changeDue) }}</span>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Quick Cash Amounts -->
+          @if (paymentMethod === 'cash' && total > 0) {
+            <div>
+              <button
+                (click)="setExactCash()"
+                class="w-full mb-2 py-2.5 rounded-xl bg-primary-container/10 border-2 border-primary-container/30 text-sm text-primary hover:bg-primary-container/20 transition-colors font-bold uppercase tracking-wider"
+              >
+                Exact &mdash; {{ formatCurrency(total) }}
+              </button>
+              <div class="grid grid-cols-3 gap-2">
+                @for (amount of [100, 200, 500, 1000, 2000, 5000]; track amount) {
+                  <button
+                    (click)="cashTendered = amount"
+                    class="py-2 rounded-lg bg-surface-container border border-outline-variant/20 text-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-medium"
+                  >
+                    &#8377;{{ amount }}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Complete Sale Button -->
+        <div class="p-6 border-t border-outline-variant/10 shrink-0">
+          <button
+            (click)="completeSale()"
+            [disabled]="!canCheckout"
+            class="w-full gradient-cta text-on-primary-container font-bold py-4 rounded-xl shadow-glow hover:shadow-[0_12px_32px_rgba(70,95,255,0.35)] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+          >
+            @if (checkoutLoading) {
+              <svg class="animate-spin h-5 w-5 text-on-primary-container" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              <span>Processing...</span>
+            } @else {
+              <span class="material-symbols-outlined text-xl">shopping_cart_checkout</span>
+              <span>Complete Sale</span>
+              @if (total > 0) {
+                <span class="ml-1 opacity-70">&mdash; {{ formatCurrency(total) }}</span>
+              }
+            }
+          </button>
+        </div>
+      </div>
+
+    </div>
   </div>
-</div>
+}

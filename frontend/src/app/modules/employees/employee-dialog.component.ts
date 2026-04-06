@@ -1,91 +1,117 @@
-import { Component, Inject, OnInit, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, OnDestroy, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { EmployeeService } from './employee.service';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface Branch {
+  id: number;
+  name: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}
 
 @Component({
   selector: 'app-employee-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatSlideToggleModule,
-    MatSnackBarModule,
-  ],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './employee-dialog.component.html',
 })
-export class EmployeeDialogComponent implements OnInit {
-  private fb = inject(FormBuilder);
-  private employeeService = inject(EmployeeService);
-  private snackBar = inject(MatSnackBar);
+export class EmployeeDialogComponent implements OnInit, OnDestroy {
+  @Input() employee: any | null = null;
+  @Output() close = new EventEmitter<boolean>();
 
-  form: FormGroup;
-  mode: 'add' | 'edit';
-  loading = false;
-  branches: any[] = [];
-  roles: string[] = ['admin', 'manager', 'cashier', 'sales_associate', 'inventory_clerk'];
+  private destroy$ = new Subject<void>();
+
+  form!: FormGroup;
+  saving = false;
+  branches: Branch[] = [];
+
+  roles = [
+    { value: 'admin', label: 'Admin' },
+    { value: 'manager', label: 'Manager' },
+    { value: 'cashier', label: 'Cashier' },
+    { value: 'staff', label: 'Staff' },
+  ];
+
+  get isEdit(): boolean {
+    return !!this.employee;
+  }
 
   constructor(
-    public dialogRef: MatDialogRef<EmployeeDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
-  ) {
-    this.mode = data.mode;
-    const emp = data.employee;
-    const formConfig: any = {
-      firstName: [emp?.firstName || '', Validators.required],
-      lastName: [emp?.lastName || '', Validators.required],
-      email: [emp?.email || '', [Validators.required, Validators.email]],
-      phone: [emp?.phone || ''],
-      role: [emp?.role || '', Validators.required],
-      branchId: [emp?.branchId || ''],
-      commissionRate: [emp?.commissionRate || 0, [Validators.min(0), Validators.max(100)]],
-      isActive: [emp?.isActive !== false],
-    };
-    if (this.mode === 'add') {
-      formConfig['password'] = ['', [Validators.required, Validators.minLength(6)]];
-    }
-    this.form = this.fb.group(formConfig);
-  }
+    private fb: FormBuilder,
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
-    this.employeeService.getBranches().subscribe({
-      next: (res) => (this.branches = Array.isArray(res) ? res : []),
+    this.form = this.fb.group({
+      firstName: [this.employee?.firstName || '', [Validators.required]],
+      lastName: [this.employee?.lastName || '', [Validators.required]],
+      email: [this.employee?.email || '', [Validators.required, Validators.email]],
+      phone: [this.employee?.phone || ''],
+      role: [this.employee?.role || 'staff', [Validators.required]],
+      branchId: [this.employee?.branch?.id || this.employee?.branchId || null],
+    });
+
+    this.loadBranches();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private loadBranches(): void {
+    this.api
+      .get<ApiResponse<Branch[]>>('/branches')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.branches = res.data || [];
+        },
+        error: () => {},
+      });
+  }
+
+  onSubmit(): void {
+    if (this.form.invalid || this.saving) return;
+
+    this.saving = true;
+    const body = this.form.value;
+
+    const request$ = this.isEdit
+      ? this.api.put<ApiResponse<any>>(`/employees/${this.employee.id}`, body)
+      : this.api.post<ApiResponse<any>>('/employees', body);
+
+    request$.pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.saving = false;
+        this.notify.success(
+          this.isEdit ? 'Employee updated' : 'Employee added'
+        );
+        this.close.emit(true);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.notify.error(
+          err.error?.error || 'Failed to save employee'
+        );
+      },
     });
   }
 
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
+  onCancel(): void {
+    this.close.emit(false);
+  }
+
+  onBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('dialog-backdrop')) {
+      this.onCancel();
     }
-
-    this.loading = true;
-    const request =
-      this.mode === 'add'
-        ? this.employeeService.create(this.form.value)
-        : this.employeeService.update(this.data.employee.id, this.form.value);
-
-    request.subscribe({
-      next: () => {
-        this.snackBar.open(`Employee ${this.mode === 'add' ? 'created' : 'updated'}`, 'Close', { duration: 2000 });
-        this.dialogRef.close(true);
-      },
-      error: () => {
-        this.snackBar.open('Failed to save employee', 'Close', { duration: 3000 });
-        this.loading = false;
-      },
-    });
   }
 }

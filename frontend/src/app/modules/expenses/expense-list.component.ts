@@ -1,152 +1,195 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { Router } from '@angular/router';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ExpenseService } from './expense.service';
+import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface ExpenseCategory {
+  id: number;
+  name: string;
+}
+
+interface Expense {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  status: string;
+  category?: ExpenseCategory;
+  createdBy?: { firstName: string; lastName: string };
+  createdAt: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  meta?: { total: number; page: number; limit: number };
+}
 
 @Component({
   selector: 'app-expense-list',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatChipsModule,
-    MatMenuModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './expense-list.component.html',
 })
-export class ExpenseListComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class ExpenseListComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private expenseService = inject(ExpenseService);
-  private snackBar = inject(MatSnackBar);
-  private router = inject(Router);
+  expenses: Expense[] = [];
+  categories: ExpenseCategory[] = [];
+  loading = true;
 
-  displayedColumns = ['date', 'category', 'description', 'amount', 'status', 'actions'];
-  dataSource = new MatTableDataSource<any>([]);
-  loading = false;
-  searchCtrl = new FormControl('');
-  statusFilter = '';
-  categoryFilter = '';
-  categories: any[] = [];
+  selectedCategory = '';
+  dateFrom = '';
+  dateTo = '';
+
+  page = 1;
+  limit = 20;
+  total = 0;
+
+  constructor(
+    private api: ApiService,
+    private notify: NotificationService
+  ) {}
 
   ngOnInit(): void {
-    this.loadExpenses();
     this.loadCategories();
-    this.searchCtrl.valueChanges.subscribe((val) => {
-      this.dataSource.filter = (val || '').trim().toLowerCase();
-    });
+    this.loadExpenses();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadCategories(): void {
+    this.api
+      .get<ApiResponse<ExpenseCategory[]>>('/expenses/categories')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.categories = res.data || [];
+        },
+        error: () => {},
+      });
   }
 
   loadExpenses(): void {
     this.loading = true;
-    const params: any = {};
-    if (this.statusFilter) params.status = this.statusFilter;
-    if (this.categoryFilter) params.categoryId = this.categoryFilter;
+    const params: Record<string, string | number | boolean> = {
+      page: this.page,
+      limit: this.limit,
+    };
+    if (this.selectedCategory) params['categoryId'] = this.selectedCategory;
+    if (this.dateFrom) params['dateFrom'] = this.dateFrom;
+    if (this.dateTo) params['dateTo'] = this.dateTo;
 
-    this.expenseService.getAll(params).subscribe({
-      next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-        this.snackBar.open('Failed to load expenses', 'Close', { duration: 3000 });
-      },
-    });
+    this.api
+      .get<ApiResponse<Expense[]>>('/expenses', params)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.expenses = res.data || [];
+          this.total = res.meta?.total ?? this.expenses.length;
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.notify.error('Failed to load expenses');
+        },
+      });
   }
 
-  loadCategories(): void {
-    this.expenseService.getCategories().subscribe({
-      next: (res) => (this.categories = Array.isArray(res) ? res : []),
-    });
-  }
-
-  applyFilter(): void {
+  onFilter(): void {
+    this.page = 1;
     this.loadExpenses();
   }
 
-  addExpense(): void {
-    this.router.navigate(['/expenses/add']);
+  clearFilters(): void {
+    this.selectedCategory = '';
+    this.dateFrom = '';
+    this.dateTo = '';
+    this.page = 1;
+    this.loadExpenses();
   }
 
-  editExpense(expense: any): void {
-    this.router.navigate(['/expenses/edit', expense.id]);
-  }
+  deleteExpense(id: number): void {
+    if (!confirm('Are you sure you want to delete this expense?')) return;
 
-  deleteExpense(expense: any): void {
-    if (confirm('Delete this expense?')) {
-      this.expenseService.delete(expense.id).subscribe({
+    this.api
+      .delete<ApiResponse<any>>(`/expenses/${id}`)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
         next: () => {
-          this.snackBar.open('Expense deleted', 'Close', { duration: 2000 });
+          this.notify.success('Expense deleted');
           this.loadExpenses();
         },
-        error: () => {
-          this.snackBar.open('Failed to delete expense', 'Close', { duration: 3000 });
+        error: (err) => {
+          this.notify.error(err.error?.error || 'Failed to delete expense');
         },
       });
+  }
+
+  get totalAmount(): number {
+    return this.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  }
+
+  getStatusClasses(status: string): string {
+    switch (status?.toLowerCase()) {
+      case 'approved':
+        return 'bg-green-500/10 text-green-400';
+      case 'pending':
+        return 'bg-yellow-500/10 text-yellow-400';
+      case 'rejected':
+        return 'bg-red-500/10 text-red-400';
+      default:
+        return 'bg-surface-variant/30 text-on-surface-variant';
     }
   }
 
-  approveExpense(expense: any): void {
-    this.expenseService.approve(expense.id).subscribe({
-      next: () => {
-        this.snackBar.open('Expense approved', 'Close', { duration: 2000 });
-        this.loadExpenses();
-      },
-      error: () => {
-        this.snackBar.open('Failed to approve expense', 'Close', { duration: 3000 });
-      },
+  formatStatus(status: string): string {
+    if (!status) return 'Pending';
+    return status
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  formatCurrency(value: number): string {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     });
   }
 
-  rejectExpense(expense: any): void {
-    this.expenseService.reject(expense.id).subscribe({
-      next: () => {
-        this.snackBar.open('Expense rejected', 'Close', { duration: 2000 });
-        this.loadExpenses();
-      },
-      error: () => {
-        this.snackBar.open('Failed to reject expense', 'Close', { duration: 3000 });
-      },
-    });
+  get totalPages(): number {
+    return Math.ceil(this.total / this.limit);
   }
 
-  getStatusClass(status: string): string {
-    switch (status?.toLowerCase()) {
-      case 'approved': return 'bg-green-100 text-green-700';
-      case 'rejected': return 'bg-red-100 text-red-700';
-      case 'pending': return 'bg-yellow-100 text-yellow-700';
-      default: return 'bg-slate-100 text-slate-700';
+  prevPage(): void {
+    if (this.page > 1) {
+      this.page--;
+      this.loadExpenses();
+    }
+  }
+
+  nextPage(): void {
+    if (this.page < this.totalPages) {
+      this.page++;
+      this.loadExpenses();
     }
   }
 }

@@ -1,0 +1,11 @@
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface">{{ title }}</h1>
+    @if (subtitle) {
+      <p class="mt-1 text-sm font-body text-on-surface-variant">{{ subtitle }}</p>
+    }
+  </div>
+  <div class="flex items-center gap-3">
+    <ng-content></ng-content>
+  </div>
+</div>

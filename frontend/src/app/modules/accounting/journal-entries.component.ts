@@ -1,171 +1,101 @@
-import { Component, OnInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AccountingService } from './accounting.service';
+import { RouterModule } from '@angular/router';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface JournalEntry {
+  id: number;
+  entryNumber: string;
+  date: string;
+  description: string;
+  accounts: { name: string; debit: number; credit: number }[];
+  totalAmount: number;
+  status: string;
+  createdBy?: string;
+}
+
+interface JournalEntriesResponse {
+  success: boolean;
+  data: JournalEntry[];
+}
 
 @Component({
   selector: 'app-journal-entries',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatDividerModule,
-    MatExpansionModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, RouterModule, PageHeaderComponent, LoadingSpinnerComponent, EmptyStateComponent],
   templateUrl: './journal-entries.component.html',
 })
 export class JournalEntriesComponent implements OnInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
-
-  private fb = inject(FormBuilder);
-  private accountingService = inject(AccountingService);
-  private snackBar = inject(MatSnackBar);
-
-  displayedColumns = ['date', 'reference', 'description', 'totalDebit', 'totalCredit', 'status'];
-  dataSource = new MatTableDataSource<any>([]);
+  entries: JournalEntry[] = [];
   loading = false;
-  accounts: any[] = [];
-  showForm = false;
+  showNewEntryForm = false;
 
-  form!: FormGroup;
+  constructor(
+    private api: ApiService,
+    private notification: NotificationService,
+  ) {}
 
   ngOnInit(): void {
     this.loadEntries();
-    this.loadAccounts();
-    this.initForm();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
-  }
-
-  private initForm(): void {
-    this.form = this.fb.group({
-      date: [new Date(), Validators.required],
-      reference: [''],
-      description: ['', Validators.required],
-      lines: this.fb.array([]),
-    });
-    this.addLine();
-    this.addLine();
-  }
-
-  get lines(): FormArray {
-    return this.form.get('lines') as FormArray;
-  }
-
-  get totalDebit(): number {
-    return this.lines.controls.reduce((sum, line) => sum + (Number(line.value.debit) || 0), 0);
-  }
-
-  get totalCredit(): number {
-    return this.lines.controls.reduce((sum, line) => sum + (Number(line.value.credit) || 0), 0);
-  }
-
-  get isBalanced(): boolean {
-    return Math.abs(this.totalDebit - this.totalCredit) < 0.01 && this.totalDebit > 0;
-  }
-
-  addLine(): void {
-    this.lines.push(
-      this.fb.group({
-        accountId: ['', Validators.required],
-        debit: [0],
-        credit: [0],
-        description: [''],
-      })
-    );
-  }
-
-  removeLine(index: number): void {
-    if (this.lines.length > 2) {
-      this.lines.removeAt(index);
-    }
   }
 
   loadEntries(): void {
     this.loading = true;
-    this.accountingService.getJournalEntries().subscribe({
+    this.api.get<JournalEntriesResponse>('/accounting/journal-entries').subscribe({
       next: (res) => {
-        this.dataSource.data = Array.isArray(res) ? res : [];
+        this.entries = res.data || [];
         this.loading = false;
       },
       error: () => {
-        this.loading = false;
-        this.snackBar.open('Failed to load journal entries', 'Close', { duration: 3000 });
-      },
-    });
-  }
-
-  loadAccounts(): void {
-    this.accountingService.getAccounts().subscribe({
-      next: (res) => (this.accounts = Array.isArray(res) ? res : []),
-    });
-  }
-
-  toggleForm(): void {
-    this.showForm = !this.showForm;
-    if (this.showForm) {
-      this.initForm();
-    }
-  }
-
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    if (!this.isBalanced) {
-      this.snackBar.open('Debits must equal credits', 'Close', { duration: 3000 });
-      return;
-    }
-
-    this.loading = true;
-    const payload = { ...this.form.value };
-    if (payload.date instanceof Date) {
-      payload.date = payload.date.toISOString().split('T')[0];
-    }
-
-    this.accountingService.createJournalEntry(payload).subscribe({
-      next: () => {
-        this.snackBar.open('Journal entry created', 'Close', { duration: 2000 });
-        this.showForm = false;
-        this.loadEntries();
-      },
-      error: (err) => {
-        this.snackBar.open(err.error?.message || 'Failed to create entry', 'Close', { duration: 3000 });
+        this.entries = [];
         this.loading = false;
       },
     });
+  }
+
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount);
+  }
+
+  formatDate(date: string): string {
+    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  getAccountsSummary(entry: JournalEntry): string {
+    if (!entry.accounts || entry.accounts.length === 0) return '-';
+    const names = entry.accounts.map((a) => a.name);
+    if (names.length <= 2) return names.join(', ');
+    return `${names[0]}, ${names[1]} +${names.length - 2} more`;
+  }
+
+  getStatusClasses(status: string): string {
+    switch (status?.toLowerCase()) {
+      case 'posted':
+      case 'approved':
+        return 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20';
+      case 'draft':
+        return 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20';
+      case 'voided':
+      case 'cancelled':
+        return 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20';
+      default:
+        return 'bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/20';
+    }
+  }
+
+  formatStatus(status: string): string {
+    if (!status) return '';
+    return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  toggleNewEntry(): void {
+    this.showNewEntryForm = !this.showNewEntryForm;
+    if (!this.showNewEntryForm) {
+      this.notification.info('New entry form coming soon');
+    }
   }
 }

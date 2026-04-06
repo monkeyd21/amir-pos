@@ -1,133 +1,136 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ExpenseService } from './expense.service';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface ExpenseCategory {
+  id: number;
+  name: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}
 
 @Component({
   selector: 'app-expense-form',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatButtonModule,
-    MatIconModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './expense-form.component.html',
 })
-export class ExpenseFormComponent implements OnInit {
-  private fb = inject(FormBuilder);
-  private expenseService = inject(ExpenseService);
-  private snackBar = inject(MatSnackBar);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
+export class ExpenseFormComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
   form!: FormGroup;
-  mode: 'add' | 'edit' = 'add';
-  expenseId: number | null = null;
+  categories: ExpenseCategory[] = [];
+  saving = false;
   loading = false;
-  categories: any[] = [];
+
+  expenseId: number | null = null;
+
+  get isEdit(): boolean {
+    return !!this.expenseId;
+  }
+
+  constructor(
+    private fb: FormBuilder,
+    private api: ApiService,
+    private notify: NotificationService,
+    private route: ActivatedRoute,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
-    this.initForm();
+    this.form = this.fb.group({
+      description: ['', [Validators.required]],
+      amount: [null, [Validators.required, Validators.min(0.01)]],
+      categoryId: [null],
+      date: [new Date().toISOString().split('T')[0], [Validators.required]],
+      notes: [''],
+    });
+
     this.loadCategories();
 
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) {
-      this.mode = 'edit';
-      this.expenseId = Number(id);
-      this.loadExpense(this.expenseId);
+    const idParam = this.route.snapshot.paramMap.get('id');
+    if (idParam) {
+      this.expenseId = parseInt(idParam, 10);
+      this.loadExpense();
     }
   }
 
-  private initForm(): void {
-    this.form = this.fb.group({
-      date: [new Date(), Validators.required],
-      categoryId: ['', Validators.required],
-      amount: [0, [Validators.required, Validators.min(0.01)]],
-      description: ['', Validators.required],
-      vendor: [''],
-      receiptNumber: [''],
-      notes: [''],
-    });
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private loadCategories(): void {
-    this.expenseService.getCategories().subscribe({
-      next: (res) => (this.categories = Array.isArray(res) ? res : []),
-    });
+    this.api
+      .get<ApiResponse<ExpenseCategory[]>>('/expenses/categories')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.categories = res.data || [];
+        },
+        error: () => {},
+      });
   }
 
-  private loadExpense(id: number): void {
+  private loadExpense(): void {
     this.loading = true;
-    this.expenseService.getById(id).subscribe({
-      next: (res) => {
-        const expense = res;
-        this.form.patchValue({
-          date: expense.date ? new Date(expense.date) : new Date(),
-          categoryId: expense.categoryId,
-          amount: expense.amount,
-          description: expense.description,
-          vendor: expense.vendor,
-          receiptNumber: expense.receiptNumber,
-          notes: expense.notes,
-        });
-        this.loading = false;
-      },
-      error: () => {
-        this.snackBar.open('Failed to load expense', 'Close', { duration: 3000 });
-        this.loading = false;
-        this.router.navigate(['/expenses']);
-      },
-    });
+    this.api
+      .get<ApiResponse<any>>(`/expenses/${this.expenseId}`)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const expense = res.data;
+          if (expense) {
+            this.form.patchValue({
+              description: expense.description,
+              amount: expense.amount,
+              categoryId: expense.categoryId || expense.category?.id || null,
+              date: expense.date
+                ? new Date(expense.date).toISOString().split('T')[0]
+                : '',
+              notes: expense.notes || '',
+            });
+          }
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+          this.notify.error('Failed to load expense');
+          this.router.navigate(['/expenses']);
+        },
+      });
   }
 
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
+  onSubmit(): void {
+    if (this.form.invalid || this.saving) return;
 
-    this.loading = true;
-    const payload = { ...this.form.value };
-    if (payload.date instanceof Date) {
-      payload.date = payload.date.toISOString().split('T')[0];
-    }
+    this.saving = true;
+    const body = { ...this.form.value };
+    if (body.categoryId) body.categoryId = parseInt(body.categoryId, 10);
 
-    const request =
-      this.mode === 'add'
-        ? this.expenseService.create(payload)
-        : this.expenseService.update(this.expenseId!, payload);
+    const request$ = this.isEdit
+      ? this.api.put<ApiResponse<any>>(`/expenses/${this.expenseId}`, body)
+      : this.api.post<ApiResponse<any>>('/expenses', body);
 
-    request.subscribe({
+    request$.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
-        this.snackBar.open(`Expense ${this.mode === 'add' ? 'created' : 'updated'}`, 'Close', { duration: 2000 });
+        this.saving = false;
+        this.notify.success(
+          this.isEdit ? 'Expense updated' : 'Expense added'
+        );
         this.router.navigate(['/expenses']);
       },
       error: (err) => {
-        this.snackBar.open(err.error?.message || 'Failed to save expense', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.saving = false;
+        this.notify.error(err.error?.error || 'Failed to save expense');
       },
     });
-  }
-
-  cancel(): void {
-    this.router.navigate(['/expenses']);
   }
 }

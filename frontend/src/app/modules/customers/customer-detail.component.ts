@@ -1,130 +1,197 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatTableModule } from '@angular/material/table';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { CustomerService } from './customer.service';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+import { DialogService } from '../../shared/dialog/dialog.service';
 import { CustomerDialogComponent } from './customer-dialog.component';
+import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
+import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
+
+interface Customer {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address?: string;
+  city?: string;
+  totalSpent: number;
+  loyaltyPoints: number;
+  visitCount: number;
+  tier: string;
+  createdAt: string;
+}
+
+interface SaleItem {
+  id: number;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  variant?: {
+    product?: { name?: string };
+    size?: string;
+    color?: string;
+  };
+  productName?: string;
+}
+
+interface Sale {
+  id: number;
+  saleNumber: string;
+  totalAmount: number;
+  status: string;
+  paymentMethod: string;
+  createdAt: string;
+  items?: SaleItem[];
+  returnItems?: any[];
+}
 
 @Component({
   selector: 'app-customer-detail',
   standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTabsModule,
-    MatTableModule,
-    MatChipsModule,
-    MatProgressBarModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [CommonModule, LoadingSpinnerComponent, StatusBadgeComponent],
   templateUrl: './customer-detail.component.html',
 })
 export class CustomerDetailComponent implements OnInit {
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
-  private customerService = inject(CustomerService);
-  private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
-
-  customer: any = null;
-  purchases: any[] = [];
-  loyaltyTransactions: any[] = [];
+  customer: Customer | null = null;
+  sales: Sale[] = [];
   loading = true;
+  salesLoading = true;
+  activeTab: 'purchases' | 'returns' = 'purchases';
 
-  purchaseColumns = ['saleNumber', 'date', 'items', 'total', 'status'];
-  loyaltyColumns = ['date', 'type', 'points', 'description'];
-
-  tierThresholds: Record<string, number> = {
-    Bronze: 0,
-    Silver: 5000,
-    Gold: 15000,
-    Platinum: 50000,
-  };
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private api: ApiService,
+    private notification: NotificationService,
+    private dialog: DialogService
+  ) {}
 
   ngOnInit(): void {
-    const id = Number(this.route.snapshot.paramMap.get('id'));
+    const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.loadCustomer(id);
-      this.loadPurchaseHistory(id);
-      this.loadLoyaltyTransactions(id);
+      this.loadCustomer(+id);
+      this.loadSales(+id);
     }
   }
 
-  loadCustomer(id: number): void {
-    this.customerService.getById(id).subscribe({
-      next: (res) => {
-        this.customer = res;
-        this.loading = false;
-      },
-      error: () => {
-        this.snackBar.open('Failed to load customer', 'Close', { duration: 3000 });
-        this.loading = false;
-      },
-    });
+  private loadCustomer(id: number): void {
+    this.loading = true;
+    this.api
+      .get<{ success: boolean; data: Customer }>(`/customers/${id}`)
+      .subscribe({
+        next: (res) => {
+          this.customer = res.data;
+          this.loading = false;
+        },
+        error: () => {
+          this.notification.error('Failed to load customer');
+          this.loading = false;
+        },
+      });
   }
 
-  loadPurchaseHistory(id: number): void {
-    this.customerService.getPurchaseHistory(id).subscribe({
-      next: (res) => (this.purchases = Array.isArray(res) ? res : []),
-    });
-  }
-
-  loadLoyaltyTransactions(id: number): void {
-    this.customerService.getLoyaltyTransactions(id).subscribe({
-      next: (res) => (this.loyaltyTransactions = Array.isArray(res) ? res : []),
-    });
+  private loadSales(customerId: number): void {
+    this.salesLoading = true;
+    this.api
+      .get<{ success: boolean; data: Sale[] }>('/sales', {
+        customerId,
+        limit: 50,
+      })
+      .subscribe({
+        next: (res) => {
+          this.sales = res.data || [];
+          this.salesLoading = false;
+        },
+        error: () => {
+          this.salesLoading = false;
+        },
+      });
   }
 
   goBack(): void {
     this.router.navigate(['/customers']);
   }
 
-  editCustomer(): void {
-    const dialogRef = this.dialog.open(CustomerDialogComponent, {
-      width: '500px',
-      data: { mode: 'edit', customer: this.customer },
+  editProfile(): void {
+    if (!this.customer) return;
+    const ref = this.dialog.open(CustomerDialogComponent, {
+      data: { customer: this.customer },
     });
-    dialogRef.afterClosed().subscribe((result) => {
-      if (result) this.loadCustomer(this.customer.id);
+    ref.afterClosed().subscribe((result) => {
+      if (result && this.customer) {
+        this.loadCustomer(this.customer.id);
+      }
     });
   }
 
-  getTierClass(tier: string): string {
-    switch (tier?.toLowerCase()) {
-      case 'gold': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'silver': return 'bg-slate-200 text-slate-700 border-slate-400';
-      case 'platinum': return 'bg-purple-100 text-purple-700 border-purple-300';
-      default: return 'bg-orange-100 text-orange-700 border-orange-300';
+  getInitials(): string {
+    if (!this.customer) return '';
+    return (
+      (this.customer.firstName?.charAt(0) || '') +
+      (this.customer.lastName?.charAt(0) || '')
+    );
+  }
+
+  getTierLabel(tier: string): string {
+    if (!tier) return 'Standard';
+    return tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase();
+  }
+
+  getTierClasses(tier: string): string {
+    const t = (tier || '').toLowerCase();
+    switch (t) {
+      case 'premium':
+        return 'bg-tertiary/15 text-tertiary';
+      case 'elite':
+        return 'bg-primary-container/20 text-primary';
+      default:
+        return 'bg-surface-container-high text-on-surface-variant';
     }
   }
 
-  getTierProgress(): number {
-    if (!this.customer) return 0;
-    const tier = this.customer.loyaltyTier || 'Bronze';
-    const spent = this.customer.totalSpent || 0;
-    const tiers = ['Bronze', 'Silver', 'Gold', 'Platinum'];
-    const idx = tiers.indexOf(tier);
-    if (idx >= tiers.length - 1) return 100;
-    const nextThreshold = this.tierThresholds[tiers[idx + 1]];
-    const currentThreshold = this.tierThresholds[tier];
-    return Math.min(100, ((spent - currentThreshold) / (nextThreshold - currentThreshold)) * 100);
+  setTab(tab: 'purchases' | 'returns'): void {
+    this.activeTab = tab;
   }
 
-  getNextTier(): string {
-    const tier = this.customer?.loyaltyTier || 'Bronze';
-    const tiers = ['Bronze', 'Silver', 'Gold', 'Platinum'];
-    const idx = tiers.indexOf(tier);
-    return idx < tiers.length - 1 ? tiers[idx + 1] : 'Max';
+  get totalOrders(): number {
+    return this.sales.length;
+  }
+
+  get returnsRate(): number {
+    if (this.sales.length === 0) return 0;
+    const returned = this.sales.filter(
+      (s) =>
+        s.status === 'returned' || s.status === 'partially_returned'
+    ).length;
+    return Math.round((returned / this.sales.length) * 100);
+  }
+
+  get returnedSales(): Sale[] {
+    return this.sales.filter(
+      (s) =>
+        s.status === 'returned' || s.status === 'partially_returned'
+    );
+  }
+
+  getItemsSummary(sale: Sale): string {
+    if (!sale.items || sale.items.length === 0) return '-';
+    const names = sale.items.map(
+      (item) =>
+        item.variant?.product?.name || item.productName || 'Item'
+    );
+    if (names.length <= 2) return names.join(', ');
+    return `${names[0]}, ${names[1]} +${names.length - 2} more`;
+  }
+
+  formatStatus(value: string): string {
+    if (!value) return '';
+    return value
+      .split('_')
+      .map(
+        (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      )
+      .join(' ');
   }
 }

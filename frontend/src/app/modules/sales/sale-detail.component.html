@@ -1,174 +1,249 @@
-<div class="p-6 max-w-5xl mx-auto">
-  @if (loading) {
-    <div class="flex justify-center p-12">
-      <mat-spinner diameter="40"></mat-spinner>
-    </div>
-  } @else if (sale) {
-    <!-- Header -->
-    <div class="flex items-center gap-3 mb-6">
-      <button mat-icon-button (click)="goBack()">
-        <mat-icon>arrow_back</mat-icon>
+<!-- Loading -->
+@if (loading) {
+  <app-loading-spinner message="Loading sale details..." />
+}
+
+@if (!loading && sale) {
+  <!-- Header -->
+  <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-4">
+      <button
+        (click)="goBack()"
+        class="flex items-center justify-center w-10 h-10 rounded-xl bg-surface-container-high/50 border border-outline-variant/20 hover:bg-surface-container-high transition-colors cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-lg text-on-surface-variant">arrow_back</span>
       </button>
-      <div class="flex-1">
-        <h1 class="text-2xl font-bold text-slate-800">Sale {{ sale.saleNumber }}</h1>
-        <p class="text-slate-500">{{ sale.createdAt | date:'medium' }}</p>
-      </div>
-      <span class="text-xs font-medium px-3 py-1.5 rounded-full" [class]="getStatusClass(sale.status)">
-        {{ formatStatus(sale.status) }}
-      </span>
-    </div>
-
-    <!-- Sale Info -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-      <div class="grid grid-cols-4 gap-6">
-        <div>
-          <div class="text-sm text-slate-500">Sale Number</div>
-          <div class="font-mono font-medium">{{ sale.saleNumber }}</div>
-        </div>
-        <div>
-          <div class="text-sm text-slate-500">Date</div>
-          <div class="font-medium">{{ sale.createdAt | date:'mediumDate' }}</div>
-        </div>
-        <div>
-          <div class="text-sm text-slate-500">Cashier</div>
-          <div class="font-medium">{{ sale.user ? (sale.user.firstName + ' ' + sale.user.lastName) : 'N/A' }}</div>
-        </div>
-        <div>
-          <div class="text-sm text-slate-500">Customer</div>
-          <div class="font-medium">{{ sale.customer ? (sale.customer.firstName + ' ' + sale.customer.lastName) : 'Walk-in' }}</div>
-        </div>
+      <div>
+        <h1 class="text-2xl font-headline font-bold text-on-surface tracking-tight">
+          Sale {{ sale.saleNumber }}
+        </h1>
+        <p class="mt-0.5 text-sm font-body text-on-surface-variant">{{ formatDate(sale.createdAt) }}</p>
       </div>
     </div>
 
-    <!-- Items -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-      <div class="p-4 border-b border-slate-200">
-        <h3 class="font-semibold text-slate-700">Items</h3>
+    @if (canReturn) {
+      <div class="flex items-center gap-3">
+        <button
+          (click)="openExchangeDialog()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-lg">swap_horiz</span>
+          Exchange
+        </button>
+        <button
+          (click)="openReturnDialog()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-error-container/80 text-on-error-container rounded-xl hover:bg-error-container transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-lg">undo</span>
+          Process Return
+        </button>
       </div>
-      <table mat-table [dataSource]="sale.items || []" class="w-full">
-        <ng-container matColumnDef="product">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Product</th>
-          <td mat-cell *matCellDef="let item" class="font-medium">{{ item.variant?.product?.name || item.productName || item.name }}</td>
-        </ng-container>
-        <ng-container matColumnDef="variant">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Variant</th>
-          <td mat-cell *matCellDef="let item" class="text-sm text-slate-500">{{ item.variant?.size || item.size }} / {{ item.variant?.color || item.color }}</td>
-        </ng-container>
-        <ng-container matColumnDef="quantity">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Qty</th>
-          <td mat-cell *matCellDef="let item" class="font-mono">{{ item.quantity }}</td>
-        </ng-container>
-        <ng-container matColumnDef="returned">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Returned</th>
-          <td mat-cell *matCellDef="let item">
-            @if (item.returnedQuantity > 0) {
-              <span class="text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-700">
-                {{ item.returnedQuantity }} returned
-              </span>
-            } @else {
-              <span class="text-slate-400">-</span>
-            }
-          </td>
-        </ng-container>
-        <ng-container matColumnDef="unitPrice">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Unit Price</th>
-          <td mat-cell *matCellDef="let item" class="font-mono">{{ item.unitPrice | currency:'INR':'symbol':'1.2-2' }}</td>
-        </ng-container>
-        <ng-container matColumnDef="total">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Total</th>
-          <td mat-cell *matCellDef="let item" class="font-mono font-bold">{{ item.total | currency:'INR':'symbol':'1.2-2' }}</td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="itemColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: itemColumns;" class="hover:bg-slate-50"></tr>
-      </table>
+    }
+  </div>
+
+  <!-- Info Cards Row -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Amount -->
+    <div class="p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Amount</p>
+      <p class="text-2xl font-headline font-extrabold text-on-surface">{{ formatCurrency(sale.total) }}</p>
     </div>
 
-    <!-- Totals & Payment -->
-    <div class="grid grid-cols-2 gap-6 mb-6">
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 class="font-semibold text-slate-700 mb-4">Order Summary</h3>
-        <div class="space-y-2 text-sm">
-          <div class="flex justify-between"><span class="text-slate-500">Subtotal</span><span class="font-mono">{{ sale.subtotal | currency:'INR':'symbol':'1.2-2' }}</span></div>
-          <div class="flex justify-between"><span class="text-slate-500">Tax</span><span class="font-mono">{{ sale.taxAmount | currency:'INR':'symbol':'1.2-2' }}</span></div>
-          @if (sale.discountAmount > 0) {
-            <div class="flex justify-between text-green-600"><span>Discount</span><span class="font-mono">-{{ sale.discountAmount | currency:'INR':'symbol':'1.2-2' }}</span></div>
+    <!-- Payment Method -->
+    <div class="p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Payment Method</p>
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-xl text-primary">
+          @switch (getPaymentMethod().toLowerCase()) {
+            @case ('cash') { payments }
+            @case ('card') { credit_card }
+            @case ('upi') { phone_android }
+            @default { payment }
           }
-          <mat-divider></mat-divider>
-          <div class="flex justify-between text-lg font-bold"><span>Total</span><span class="font-mono text-blue-600">{{ sale.total | currency:'INR':'symbol':'1.2-2' }}</span></div>
-        </div>
+        </span>
+        <p class="text-lg font-headline font-bold text-on-surface">{{ formatPaymentMethod(getPaymentMethod()) }}</p>
       </div>
+    </div>
 
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 class="font-semibold text-slate-700 mb-4">Payments</h3>
-        <table mat-table [dataSource]="sale.payments || []" class="w-full">
-          <ng-container matColumnDef="method">
-            <th mat-header-cell *matHeaderCellDef class="font-semibold">Method</th>
-            <td mat-cell *matCellDef="let p">{{ p.method | titlecase }}</td>
-          </ng-container>
-          <ng-container matColumnDef="amount">
-            <th mat-header-cell *matHeaderCellDef class="font-semibold">Amount</th>
-            <td mat-cell *matCellDef="let p" class="font-mono font-bold">{{ p.amount | currency:'INR':'symbol':'1.2-2' }}</td>
-          </ng-container>
-          <ng-container matColumnDef="reference">
-            <th mat-header-cell *matHeaderCellDef class="font-semibold">Reference</th>
-            <td mat-cell *matCellDef="let p" class="font-mono text-sm text-slate-500">{{ p.reference || '-' }}</td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="paymentColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: paymentColumns;"></tr>
+    <!-- Status -->
+    <div class="p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Status</p>
+      <div class="mt-1">
+        <app-status-badge [status]="sale.status" />
+      </div>
+    </div>
+
+    <!-- Date -->
+    <div class="p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl">
+      <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Cashier</p>
+      <p class="text-lg font-headline font-bold text-on-surface">{{ getCashierName() }}</p>
+    </div>
+  </div>
+
+  <!-- Items Table -->
+  <div class="mb-8">
+    <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight mb-4">Items</h2>
+    <div class="bg-surface-container/40 border border-outline-variant/10 rounded-2xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-outline-variant/10">
+              <th class="th-label text-left">Product</th>
+              <th class="th-label text-left">Size</th>
+              <th class="th-label text-left">Color</th>
+              <th class="th-label text-center">Qty</th>
+              <th class="th-label text-right">Unit Price</th>
+              <th class="th-label text-right">Subtotal</th>
+              <th class="th-label text-center">Returned</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of sale.items; track item.id) {
+              <tr class="border-b border-outline-variant/5">
+                <td class="px-6 py-4">
+                  <span class="text-sm font-medium font-body text-on-surface">{{ getProductName(item) }}</span>
+                  @if (item.variant?.sku) {
+                    <span class="block text-xs font-body text-on-surface-variant mt-0.5">{{ item.variant?.sku }}</span>
+                  }
+                </td>
+                <td class="px-6 py-4">
+                  <span class="text-sm font-body text-on-surface-variant">{{ item.variant?.size || '-' }}</span>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="text-sm font-body text-on-surface-variant">{{ item.variant?.color || '-' }}</span>
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <span class="text-sm font-semibold font-body text-on-surface">{{ item.quantity }}</span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <span class="text-sm font-body text-on-surface-variant">{{ formatCurrency(item.unitPrice) }}</span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <span class="text-sm font-bold font-body text-on-surface">{{ formatCurrency(getItemSubtotal(item)) }}</span>
+                </td>
+                <td class="px-6 py-4 text-center">
+                  @if (item.returnedQuantity && item.returnedQuantity > 0) {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase tracking-wider">
+                      {{ item.returnedQuantity }} returned
+                    </span>
+                  } @else {
+                    <span class="text-sm text-on-surface-variant/40">-</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr class="border-t border-outline-variant/20">
+              <td colspan="5" class="px-6 py-4 text-right">
+                <span class="text-sm font-semibold font-body text-on-surface-variant">Total</span>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <span class="text-base font-bold font-headline text-on-surface">{{ formatCurrency(sale.total) }}</span>
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
+  </div>
 
-    <!-- Returns History -->
-    @if (sale.returns && sale.returns.length > 0) {
-      <div class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden mb-6">
-        <div class="p-4 border-b border-red-100 bg-red-50">
-          <h3 class="font-semibold text-red-700">Returns ({{ sale.returns.length }})</h3>
+  <!-- Customer Info -->
+  <div class="mb-8">
+    <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight mb-4">Customer Information</h2>
+    <div class="p-5 bg-surface-container/40 border border-outline-variant/10 rounded-2xl">
+      @if (sale.customer) {
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Name</p>
+            <p class="text-sm font-medium font-body text-on-surface">{{ getCustomerName() }}</p>
+          </div>
+          @if (sale.customer.email) {
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Email</p>
+              <p class="text-sm font-body text-on-surface">{{ sale.customer.email }}</p>
+            </div>
+          }
+          @if (sale.customer.phone) {
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Phone</p>
+              <p class="text-sm font-body text-on-surface">{{ sale.customer.phone }}</p>
+            </div>
+          }
         </div>
+      } @else {
+        <p class="text-sm font-body text-on-surface-variant">Walk-in customer (no details recorded)</p>
+      }
+    </div>
+  </div>
+
+  <!-- Returns Section -->
+  @if (sale.returns && sale.returns.length > 0) {
+    <div class="mb-8">
+      <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight mb-4">Return History</h2>
+      <div class="space-y-4">
         @for (ret of sale.returns; track ret.id) {
-          <div class="p-4 border-b border-slate-100 last:border-0">
-            <div class="flex items-center justify-between mb-2">
-              <div>
-                <span class="text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-700">Return #{{ ret.id }}</span>
-                <span class="text-sm text-slate-500 ml-2">{{ ret.createdAt | date:'medium' }}</span>
+          <div class="p-5 bg-surface-container/40 border border-outline-variant/10 rounded-2xl">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-500/10">
+                  <span class="material-symbols-outlined text-lg text-amber-400">undo</span>
+                </div>
+                <div>
+                  <p class="text-sm font-semibold font-body text-on-surface">Return #{{ ret.id }}</p>
+                  <p class="text-xs font-body text-on-surface-variant">{{ formatDate(ret.createdAt) }}</p>
+                </div>
               </div>
-              <span class="text-xs font-medium px-2 py-1 rounded-full"
-                    [class]="ret.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'">
-                {{ formatStatus(ret.status) }}
+              <span class="text-sm font-bold font-body text-amber-400">
+                -{{ formatCurrency(ret.refundAmount) }}
               </span>
             </div>
-            <div class="text-sm text-slate-600 mb-2">Reason: {{ ret.reason }}</div>
-            <div class="space-y-1">
-              @for (ri of ret.items; track ri.id) {
-                <div class="flex justify-between text-sm bg-slate-50 rounded px-3 py-1.5">
-                  <span>{{ ri.variant?.product?.name || 'Product' }} — {{ ri.variant?.size || '' }}/{{ ri.variant?.color || '' }}</span>
-                  <div class="flex gap-4">
-                    <span class="font-mono">x{{ ri.quantity }}</span>
-                    <span class="text-slate-400 capitalize">{{ ri.condition }}</span>
+
+            @if (ret.items && ret.items.length > 0) {
+              <div class="pl-12 space-y-2">
+                @for (rItem of ret.items; track rItem) {
+                  <div class="flex items-center justify-between text-sm font-body">
+                    <span class="text-on-surface-variant">
+                      {{ rItem.saleItem?.variant?.product?.name || rItem.productName || 'Item' }}
+                      @if (rItem.saleItem?.variant?.size) {
+                        <span class="text-on-surface-variant/50"> ({{ rItem.saleItem.variant.size }})</span>
+                      }
+                      <span class="text-on-surface-variant/50"> x{{ rItem.quantity }}</span>
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-surface-container-high/60 text-on-surface-variant">
+                      {{ formatStatus(rItem.reason || ret.reason || '') }}
+                      @if (rItem.condition || ret.condition) {
+                        &middot; {{ formatStatus(rItem.condition || ret.condition || '') }}
+                      }
+                    </span>
                   </div>
-                </div>
-              }
-            </div>
-            @if (ret.refundAmount) {
-              <div class="mt-2 text-right text-sm font-bold text-green-700">
-                Refund: {{ ret.refundAmount | currency:'INR':'symbol':'1.2-2' }}
+                }
               </div>
             }
           </div>
         }
       </div>
-    }
-
-    <!-- Actions -->
-    @if (sale.status === 'completed' || sale.status === 'partially_returned') {
-      <div class="flex gap-3 justify-end">
-        <button mat-stroked-button color="warn" (click)="openReturnDialog()">
-          <mat-icon>assignment_return</mat-icon> Process Return
-        </button>
-        <button mat-stroked-button color="primary" (click)="openExchangeDialog()">
-          <mat-icon>swap_horiz</mat-icon> Process Exchange
-        </button>
-      </div>
-    }
+    </div>
   }
-</div>
+}
+
+<!-- Return Dialog -->
+@if (showReturnDialog && sale) {
+  <app-return-dialog
+    [sale]="sale"
+    [returnableItems]="returnableItems"
+    (close)="closeReturnDialog()"
+    (returnComplete)="onReturnComplete()"
+  />
+}
+
+<!-- Exchange Dialog -->
+@if (showExchangeDialog && sale) {
+  <app-exchange-dialog
+    [sale]="sale"
+    [returnableItems]="returnableItems"
+    (close)="closeExchangeDialog()"
+    (exchangeComplete)="onExchangeComplete()"
+  />
+}

@@ -1,0 +1,243 @@
+@if (loading) {
+  <div class="flex items-center justify-center py-32">
+    <app-loading-spinner></app-loading-spinner>
+  </div>
+}
+
+@if (!loading && product) {
+  <!-- Back + Title -->
+  <div class="mb-8">
+    <button
+      (click)="goBack()"
+      class="flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary transition-colors mb-4 cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-lg">arrow_back</span>
+      <span>Back to Products</span>
+    </button>
+
+    <div class="flex items-start justify-between">
+      <div>
+        <h1 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface">{{ product.name }}</h1>
+        <div class="flex items-center gap-3 mt-2">
+          @if (product.brand) {
+            <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary-container/15 text-primary rounded-full">
+              {{ product.brand.name }}
+            </span>
+          }
+          @if (product.category) {
+            <span class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-surface-container-highest text-on-surface-variant rounded-full">
+              {{ product.category.name }}
+            </span>
+          }
+          <span class="text-sm text-on-surface-variant">
+            {{ product.variants.length }} variant{{ product.variants.length !== 1 ? 's' : '' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Info Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+    <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
+      <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary"></div>
+      <p class="label-upper mb-2">Base Price</p>
+      <p class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(+product.basePrice) }}</p>
+    </div>
+    @if (product.costPrice) {
+      <div class="bg-surface-container-high p-6 rounded-xl">
+        <p class="label-upper mb-2">Cost Price</p>
+        <p class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(+product.costPrice) }}</p>
+      </div>
+    }
+    <div class="bg-surface-container-high p-6 rounded-xl">
+      <p class="label-upper mb-2">Tax Rate</p>
+      <p class="text-2xl font-headline font-bold text-on-surface">{{ product.taxRate || 0 }}%</p>
+    </div>
+    <div class="bg-surface-container-high p-6 rounded-xl">
+      <p class="label-upper mb-2">Status</p>
+      <p class="text-2xl font-headline font-bold" [class]="product.isActive ? 'text-green-400' : 'text-error'">
+        {{ product.isActive ? 'Active' : 'Inactive' }}
+      </p>
+    </div>
+  </div>
+
+  @if (product.description) {
+    <div class="mb-10 bg-surface-container rounded-xl p-6">
+      <p class="label-upper mb-2">Description</p>
+      <p class="text-sm text-on-surface-variant leading-relaxed">{{ product.description }}</p>
+    </div>
+  }
+
+  <!-- Variants Table -->
+  <div class="mb-4 flex items-center justify-between">
+    <h2 class="text-xl font-headline font-bold text-on-surface">Variants</h2>
+    <button
+      (click)="toggleAddVariant()"
+      class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer"
+      [class]="showAddVariant
+        ? 'bg-surface-container-high text-on-surface-variant'
+        : 'bg-gradient-cta text-white hover:shadow-glow-sm'"
+    >
+      <span class="material-symbols-outlined text-base">{{ showAddVariant ? 'close' : 'add' }}</span>
+      {{ showAddVariant ? 'Cancel' : 'Add Variant' }}
+    </button>
+  </div>
+
+  <!-- Add Variant Form -->
+  @if (showAddVariant) {
+    <div class="bg-surface-container/60 border border-primary/20 rounded-xl p-5 mb-4">
+      <p class="text-xs text-on-surface-variant mb-3">SKU and barcode will be auto-generated from brand + product + size + color.</p>
+      <div class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
+        <div>
+          <label class="label-upper mb-1 block">Size *</label>
+          <input
+            type="text"
+            [(ngModel)]="newVariant.size"
+            placeholder="e.g. M, L, XL"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+          />
+        </div>
+        <div>
+          <label class="label-upper mb-1 block">Color *</label>
+          <input
+            type="text"
+            [(ngModel)]="newVariant.color"
+            placeholder="e.g. Blue"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+          />
+        </div>
+        <div>
+          <label class="label-upper mb-1 block">Price Override</label>
+          <input
+            type="number"
+            [(ngModel)]="newVariant.priceOverride"
+            placeholder="Optional"
+            min="0"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+          />
+        </div>
+        <div>
+          <label class="label-upper mb-1 block">Cost Override</label>
+          <input
+            type="number"
+            [(ngModel)]="newVariant.costOverride"
+            placeholder="Optional"
+            min="0"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+          />
+        </div>
+        <button
+          (click)="saveVariant()"
+          [disabled]="!canSaveVariant || savingVariant"
+          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary-container text-on-primary-container rounded-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          @if (savingVariant) {
+            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          } @else {
+            <span class="material-symbols-outlined text-base">check</span>
+          }
+          Save
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="bg-surface-container rounded-xl overflow-hidden shadow-ambient">
+    <table class="w-full text-left border-collapse">
+      <thead>
+        <tr class="bg-surface-container-low/50">
+          <th class="th-label">SKU</th>
+          <th class="th-label">Size</th>
+          <th class="th-label">Color</th>
+          <th class="th-label">Barcode</th>
+          <th class="th-label text-right">Price</th>
+          <th class="th-label text-right">Stock</th>
+          <th class="th-label text-center">Status</th>
+          <th class="th-label text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-outline-variant/10">
+        @for (variant of product.variants; track variant.id) {
+          <tr class="hover:bg-surface-container-high/40 transition-colors">
+            <td class="px-6 py-4">
+              <code class="px-2 py-0.5 text-xs font-mono bg-surface-container-lowest rounded text-on-surface">{{ variant.sku }}</code>
+            </td>
+            <td class="px-6 py-4">
+              @if (variant.size) {
+                <span class="px-2.5 py-1 text-xs font-medium bg-surface-container-highest rounded-lg text-on-surface">{{ variant.size }}</span>
+              } @else {
+                <span class="text-on-surface-variant/40">—</span>
+              }
+            </td>
+            <td class="px-6 py-4">
+              @if (variant.color) {
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full border border-outline-variant/30" [style.background-color]="variant.color.toLowerCase()"></span>
+                  <span class="text-sm text-on-surface">{{ variant.color }}</span>
+                </div>
+              } @else {
+                <span class="text-on-surface-variant/40">—</span>
+              }
+            </td>
+            <td class="px-6 py-4">
+              @if (variant.barcode) {
+                <code class="text-xs font-mono text-on-surface-variant">{{ variant.barcode }}</code>
+              } @else {
+                <span class="text-on-surface-variant/40">—</span>
+              }
+            </td>
+            <td class="px-6 py-4 text-right">
+              <span class="text-sm font-bold text-on-surface">
+                {{ formatCurrency(getEffectivePrice(variant)) }}
+              </span>
+              @if (variant.priceOverride !== null) {
+                <span class="block text-[10px] text-tertiary mt-0.5">override</span>
+              }
+            </td>
+            <td class="px-6 py-4 text-right">
+              <span
+                class="text-sm font-bold"
+                [class]="getStock(variant) === 0 ? 'text-error' : getStock(variant) < 10 ? 'text-tertiary' : 'text-on-surface'"
+              >
+                {{ getStock(variant) }}
+              </span>
+            </td>
+            <td class="px-6 py-4 text-center">
+              @if (variant.isActive) {
+                <span class="status-pill bg-green-500/10 text-green-400 border border-green-500/20">Active</span>
+              } @else {
+                <span class="status-pill bg-error/10 text-error border border-error/20">Inactive</span>
+              }
+            </td>
+            <td class="px-6 py-4 text-right">
+              <div class="flex items-center justify-end gap-1">
+                <button
+                  (click)="adjustStock(variant)"
+                  class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
+                >
+                  <span class="material-symbols-outlined text-sm">tune</span>
+                  Adjust
+                </button>
+                <a
+                  [routerLink]="['/inventory/stock']"
+                  [queryParams]="{ variantId: variant.id }"
+                  class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                >
+                  <span class="material-symbols-outlined text-sm">visibility</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (product.variants.length === 0) {
+      <div class="py-16 text-center">
+        <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2">style</span>
+        <p class="text-sm text-on-surface-variant">No variants found for this product</p>
+      </div>
+    }
+  </div>
+}

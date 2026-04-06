@@ -1,110 +1,255 @@
-<div class="p-6">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-800">Sales</h1>
-      <p class="text-slate-500">View and manage sales transactions</p>
-    </div>
+<!-- Page Header -->
+<div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-headline font-bold text-on-surface tracking-tight">Sales Management</h1>
+    <p class="mt-1 text-sm font-body text-on-surface-variant">Track and manage all sales transactions</p>
   </div>
-
-  <!-- Filters -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-    <form [formGroup]="filterForm" class="flex flex-wrap gap-4 items-end">
-      <mat-form-field class="w-44" appearance="outline">
-        <mat-label>Date From</mat-label>
-        <input matInput [matDatepicker]="dateFrom" formControlName="dateFrom" />
-        <mat-datepicker-toggle matSuffix [for]="dateFrom"></mat-datepicker-toggle>
-        <mat-datepicker #dateFrom></mat-datepicker>
-      </mat-form-field>
-      <mat-form-field class="w-44" appearance="outline">
-        <mat-label>Date To</mat-label>
-        <input matInput [matDatepicker]="dateTo" formControlName="dateTo" />
-        <mat-datepicker-toggle matSuffix [for]="dateTo"></mat-datepicker-toggle>
-        <mat-datepicker #dateTo></mat-datepicker>
-      </mat-form-field>
-      <mat-form-field class="w-40" appearance="outline">
-        <mat-label>Status</mat-label>
-        <mat-select formControlName="status">
-          <mat-option value="">All</mat-option>
-          <mat-option value="completed">Completed</mat-option>
-          <mat-option value="refunded">Refunded</mat-option>
-          <mat-option value="partial_refund">Partial Refund</mat-option>
-          <mat-option value="exchanged">Exchanged</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field class="w-40" appearance="outline">
-        <mat-label>Branch</mat-label>
-        <mat-select formControlName="branchId">
-          <mat-option value="">All</mat-option>
-          @for (branch of branches; track branch.id) {
-            <mat-option [value]="branch.id">{{ branch.name }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-      <button mat-flat-button color="primary" (click)="applyFilters()">Apply</button>
-      <button mat-stroked-button (click)="clearFilters()">Clear</button>
-    </form>
-  </div>
-
-  <!-- Table -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    @if (loading) {
-      <div class="flex justify-center p-12">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-    } @else {
-      <table mat-table [dataSource]="dataSource" matSort class="w-full">
-        <ng-container matColumnDef="saleNumber">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Sale #</th>
-          <td mat-cell *matCellDef="let row" class="font-mono text-sm font-medium text-blue-600">{{ row.saleNumber }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="date">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Date</th>
-          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.createdAt | date:'short' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="customer">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Customer</th>
-          <td mat-cell *matCellDef="let row">{{ row.customerName || 'Walk-in' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="items">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Items</th>
-          <td mat-cell *matCellDef="let row">{{ row.itemCount || row.items?.length || 0 }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="total">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Total</th>
-          <td mat-cell *matCellDef="let row" class="font-mono font-bold">{{ row.total | currency:'INR':'symbol':'1.2-2' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="paymentMethod">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Payment</th>
-          <td mat-cell *matCellDef="let row" class="text-sm">{{ row.paymentMethod | titlecase }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
-          <td mat-cell *matCellDef="let row">
-            <span class="text-xs font-medium px-2 py-1 rounded-full" [class]="getStatusClass(row.status)">
-              {{ formatStatus(row.status) }}
-            </span>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-stroked-button color="primary" (click)="viewSale(row)" class="text-sm">
-              View
-            </button>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50 cursor-pointer" (click)="viewSale(row)"></tr>
-      </table>
-      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
-    }
+  <div class="flex items-center gap-3">
+    <button
+      (click)="exportCsv()"
+      class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-lg">download</span>
+      Export CSV
+    </button>
+    <button
+      (click)="toggleFilters()"
+      class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body rounded-xl transition-colors cursor-pointer"
+      [class]="showFilters
+        ? 'bg-primary/20 text-primary border border-primary/30'
+        : 'text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 hover:bg-surface-container-high'"
+    >
+      <span class="material-symbols-outlined text-lg">tune</span>
+      Filters
+      @if (hasActiveFilters) {
+        <span class="flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-primary text-on-primary rounded-full">!</span>
+      }
+    </button>
   </div>
 </div>
+
+<!-- Filter Bar -->
+@if (showFilters) {
+  <div class="mb-6 p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl animate-in slide-in-from-top-2">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Date Range Start -->
+      <div>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">From Date</label>
+        <input
+          type="date"
+          [(ngModel)]="startDate"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+        />
+      </div>
+
+      <!-- Date Range End -->
+      <div>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">To Date</label>
+        <input
+          type="date"
+          [(ngModel)]="endDate"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+        />
+      </div>
+
+      <!-- Status Filter -->
+      <div>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Status</label>
+        <select
+          [(ngModel)]="statusFilter"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+        >
+          <option value="">All Statuses</option>
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ formatStatus(status) }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Payment Method Filter -->
+      <div>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Payment Method</label>
+        <select
+          [(ngModel)]="paymentMethodFilter"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+        >
+          <option value="">All Methods</option>
+          @for (method of paymentMethods; track method) {
+            <option [value]="method">{{ formatPaymentMethod(method) }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-outline-variant/10">
+      @if (hasActiveFilters) {
+        <button
+          (click)="clearFilters()"
+          class="px-4 py-2 text-sm font-medium font-body text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+        >
+          Clear All
+        </button>
+      }
+      <button
+        (click)="applyFilters()"
+        class="px-5 py-2 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+      >
+        Apply Filters
+      </button>
+    </div>
+  </div>
+}
+
+<!-- Loading State -->
+@if (loading) {
+  <app-loading-spinner message="Loading sales..." />
+}
+
+<!-- Empty State -->
+@if (!loading && sales.length === 0) {
+  <app-empty-state
+    icon="receipt_long"
+    title="No sales found"
+    [message]="hasActiveFilters ? 'Try adjusting your filters to find sales.' : 'Sales will appear here once transactions are recorded.'"
+    [actionText]="hasActiveFilters ? 'Clear Filters' : ''"
+    (actionClick)="clearFilters()"
+  />
+}
+
+<!-- Sales Table -->
+@if (!loading && sales.length > 0) {
+  <div class="bg-surface-container/40 border border-outline-variant/10 rounded-2xl overflow-hidden" (click)="closeMenu()">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-outline-variant/10">
+            <th class="th-label text-left">Sale #</th>
+            <th class="th-label text-left">Customer</th>
+            <th class="th-label text-left">Items</th>
+            <th class="th-label text-right">Total</th>
+            <th class="th-label text-left">Payment</th>
+            <th class="th-label text-left">Status</th>
+            <th class="th-label text-left">Date</th>
+            <th class="th-label text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sale of sales; track sale.id) {
+            <tr
+              class="border-b border-outline-variant/5 hover:bg-surface-container-high/30 transition-colors cursor-pointer"
+              (click)="viewSale(sale)"
+            >
+              <!-- Sale Number -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-semibold font-body text-primary">{{ sale.saleNumber }}</span>
+              </td>
+
+              <!-- Customer -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-body text-on-surface">{{ getCustomerName(sale) }}</span>
+              </td>
+
+              <!-- Items -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-body text-on-surface-variant max-w-[200px] truncate block">{{ getItemsSummary(sale) }}</span>
+              </td>
+
+              <!-- Total -->
+              <td class="px-6 py-4 text-right">
+                <span class="text-sm font-bold font-body text-on-surface">{{ formatCurrency(sale.total) }}</span>
+              </td>
+
+              <!-- Payment Method -->
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium font-body text-on-surface-variant">
+                  <span class="material-symbols-outlined text-sm">
+                    @switch (getPaymentMethod(sale).toLowerCase()) {
+                      @case ('cash') { payments }
+                      @case ('card') { credit_card }
+                      @case ('upi') { phone_android }
+                      @default { payment }
+                    }
+                  </span>
+                  {{ formatPaymentMethod(getPaymentMethod(sale)) }}
+                </span>
+              </td>
+
+              <!-- Status -->
+              <td class="px-6 py-4">
+                <app-status-badge [status]="sale.status" />
+              </td>
+
+              <!-- Date -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-body text-on-surface-variant">{{ formatDate(sale.createdAt) }}</span>
+              </td>
+
+              <!-- Actions -->
+              <td class="px-6 py-4 text-right">
+                <div class="relative inline-block">
+                  <button
+                    (click)="toggleMenu(sale.id, $event)"
+                    class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-lg text-on-surface-variant">more_vert</span>
+                  </button>
+
+                  @if (openMenuId === sale.id) {
+                    <div class="absolute right-0 top-full mt-1 w-44 bg-surface-container border border-outline-variant/20 rounded-xl shadow-ambient z-20 py-1.5 overflow-hidden">
+                      <button
+                        (click)="viewSale(sale); $event.stopPropagation()"
+                        class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-body text-on-surface hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+                      >
+                        <span class="material-symbols-outlined text-lg text-on-surface-variant">visibility</span>
+                        View Details
+                      </button>
+                    </div>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    @if (totalPages > 1) {
+      <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10">
+        <p class="text-xs font-body text-on-surface-variant">
+          Showing {{ (currentPage - 1) * pageSize + 1 }}–{{ currentPage * pageSize > totalItems ? totalItems : currentPage * pageSize }} of {{ totalItems }} sales
+        </p>
+
+        <div class="flex items-center gap-1">
+          <button
+            (click)="goToPage(currentPage - 1)"
+            [disabled]="currentPage === 1"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_left</span>
+          </button>
+
+          @for (page of pages; track page) {
+            <button
+              (click)="goToPage(page)"
+              class="min-w-[32px] h-8 px-2 text-xs font-semibold font-body rounded-lg transition-colors cursor-pointer"
+              [class]="page === currentPage
+                ? 'bg-primary/20 text-primary'
+                : 'text-on-surface-variant hover:bg-surface-container-high/60'"
+            >
+              {{ page }}
+            </button>
+          }
+
+          <button
+            (click)="goToPage(currentPage + 1)"
+            [disabled]="currentPage === totalPages"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_right</span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+}

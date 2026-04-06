@@ -1,75 +1,107 @@
-import { Component, Inject, inject } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { InventoryService } from './inventory.service';
+import { FormsModule } from '@angular/forms';
+import { DialogRef } from '../../shared/dialog/dialog-ref';
+import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
+import { ApiService } from '../../core/services/api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface AdjustmentDialogData {
+  inventoryItem: {
+    id: number;
+    variantId: number;
+    branchId: number;
+    quantity: number;
+    variant?: {
+      id: number;
+      sku: string;
+      size?: string;
+      color?: string;
+      product?: { name: string };
+    };
+  };
+}
 
 @Component({
   selector: 'app-stock-adjustment-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatInputModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatSnackBarModule,
-  ],
+  imports: [CommonModule, FormsModule],
   templateUrl: './stock-adjustment-dialog.component.html',
 })
-export class StockAdjustmentDialogComponent {
-  private fb = inject(FormBuilder);
-  private inventoryService = inject(InventoryService);
-  private snackBar = inject(MatSnackBar);
+export class StockAdjustmentDialogComponent implements OnInit {
+  adjustmentType: 'add' | 'remove' | 'set' = 'add';
+  quantity: number | null = null;
+  reason = '';
+  saving = false;
 
-  form: FormGroup;
-  loading = false;
-  reasons = ['Received Shipment', 'Damaged', 'Lost', 'Returned', 'Count Correction', 'Other'];
+  productName = '';
+  variantLabel = '';
+  currentStock = 0;
 
   constructor(
-    public dialogRef: MatDialogRef<StockAdjustmentDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
-  ) {
-    this.form = this.fb.group({
-      variantId: [data.stockItem.variantId],
-      branchId: [data.stockItem.branchId],
-      adjustmentType: ['add', Validators.required],
-      quantity: [0, [Validators.required, Validators.min(1)]],
-      reason: ['', Validators.required],
-      notes: [''],
-    });
+    public dialogRef: DialogRef<boolean>,
+    @Inject(DIALOG_DATA) public data: AdjustmentDialogData,
+    private api: ApiService,
+    private notification: NotificationService
+  ) {}
+
+  ngOnInit(): void {
+    const item = this.data.inventoryItem;
+    this.productName = item.variant?.product?.name || 'Unknown Product';
+    this.currentStock = item.quantity;
+
+    const parts: string[] = [];
+    if (item.variant?.size) parts.push(item.variant.size);
+    if (item.variant?.color) parts.push(item.variant.color);
+    this.variantLabel = parts.join(' / ') || item.variant?.sku || '';
   }
 
-  get newQuantity(): number {
-    const current = this.data.stockItem.quantity || 0;
-    const adj = this.form.value.quantity || 0;
-    return this.form.value.adjustmentType === 'add' ? current + adj : current - adj;
+  get isValid(): boolean {
+    return this.quantity !== null && this.quantity > 0 && !!this.reason.trim();
   }
 
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
+  get previewStock(): number {
+    const q = this.quantity || 0;
+    switch (this.adjustmentType) {
+      case 'add':
+        return this.currentStock + q;
+      case 'remove':
+        return Math.max(0, this.currentStock - q);
+      case 'set':
+        return q;
     }
+  }
 
-    this.loading = true;
-    this.inventoryService.adjustStock(this.form.value).subscribe({
+  onSubmit(): void {
+    if (!this.isValid || this.saving) return;
+
+    this.saving = true;
+    let qty = Number(this.quantity);
+    if (this.adjustmentType === 'remove') qty = -qty;
+    if (this.adjustmentType === 'set') qty = qty - this.currentStock;
+
+    const branchId = this.data.inventoryItem.branchId || 1;
+
+    const payload = {
+      variantId: this.data.inventoryItem.variantId,
+      branchId,
+      quantity: qty,
+      reason: this.reason.trim(),
+    };
+
+    this.api.post('/inventory/adjust', payload).subscribe({
       next: () => {
-        this.snackBar.open('Stock adjusted successfully', 'Close', { duration: 2000 });
+        this.notification.success('Stock adjusted successfully');
         this.dialogRef.close(true);
       },
       error: () => {
-        this.snackBar.open('Failed to adjust stock', 'Close', { duration: 3000 });
-        this.loading = false;
+        this.saving = false;
+        this.notification.error('Failed to adjust stock');
       },
     });
+  }
+
+  onCancel(): void {
+    this.dialogRef.close();
   }
 }

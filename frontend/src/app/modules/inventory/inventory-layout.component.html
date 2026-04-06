@@ -1,0 +1,19 @@
+<!-- Inventory Tab Navigation -->
+<div class="flex items-center gap-1 mb-8 border-b border-outline-variant/10">
+  @for (tab of tabs; track tab.path) {
+    <a
+      [routerLink]="tab.path"
+      routerLinkActive="inventory-tab-active"
+      [routerLinkActiveOptions]="{ exact: tab.path === 'products' ? false : false }"
+      class="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors relative group"
+    >
+      <span class="material-symbols-outlined text-lg">{{ tab.icon }}</span>
+      <span>{{ tab.label }}</span>
+      <!-- Active indicator -->
+      <span class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary scale-x-0 group-[.inventory-tab-active]:scale-x-100 transition-transform origin-left"></span>
+    </a>
+  }
+</div>
+
+<!-- Tab Content -->
+<router-outlet></router-outlet>

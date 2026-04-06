@@ -1,96 +1,123 @@
-<div class="p-6">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-800">Stock Transfers</h1>
-      <p class="text-slate-500">Transfer inventory between branches</p>
-    </div>
-    <button mat-flat-button color="primary" (click)="createTransfer()">
-      <mat-icon>swap_horiz</mat-icon> New Transfer
-    </button>
-  </div>
+<!-- Page Header -->
+<app-page-header title="Stock Transfers" subtitle="Track inventory transfers between branches">
+  <a
+    routerLink="/inventory/transfers/create"
+    class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer no-underline"
+  >
+    <span class="material-symbols-outlined text-lg">add</span>
+    New Transfer
+  </a>
+</app-page-header>
 
-  <!-- Filters -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-    <mat-form-field class="w-48" appearance="outline">
-      <mat-label>Status</mat-label>
-      <mat-select [(ngModel)]="statusFilter" (selectionChange)="loadTransfers()">
-        <mat-option value="">All</mat-option>
-        <mat-option value="pending">Pending</mat-option>
-        <mat-option value="approved">Approved</mat-option>
-        <mat-option value="in_transit">In Transit</mat-option>
-        <mat-option value="received">Received</mat-option>
-        <mat-option value="cancelled">Cancelled</mat-option>
-      </mat-select>
-    </mat-form-field>
-  </div>
+<!-- Loading -->
+@if (loading) {
+  <app-loading-spinner message="Loading transfers..."></app-loading-spinner>
+}
 
-  <!-- Table -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    @if (loading) {
-      <div class="flex justify-center p-12">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
-    } @else {
-      <table mat-table [dataSource]="dataSource" matSort class="w-full">
-        <ng-container matColumnDef="id">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Transfer #</th>
-          <td mat-cell *matCellDef="let row" class="font-mono text-sm">TRF-{{ row.id }}</td>
-        </ng-container>
+<!-- Empty State -->
+@if (!loading && transfers.length === 0) {
+  <app-empty-state
+    icon="local_shipping"
+    title="No transfers yet"
+    message="Create a transfer to move stock between branches"
+    actionText="New Transfer"
+    (actionClick)="createTransfer()"
+  ></app-empty-state>
+}
 
-        <ng-container matColumnDef="fromBranch">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">From</th>
-          <td mat-cell *matCellDef="let row">{{ row.fromBranchName || row.fromBranch?.name }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="toBranch">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">To</th>
-          <td mat-cell *matCellDef="let row">{{ row.toBranchName || row.toBranch?.name }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="items">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Items</th>
-          <td mat-cell *matCellDef="let row">{{ row.itemCount || row.items?.length || 0 }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef class="font-semibold">Status</th>
-          <td mat-cell *matCellDef="let row">
-            <span class="text-xs font-medium px-2 py-1 rounded-full" [class]="getStatusClass(row.status)">
-              {{ row.status | titlecase }}
-            </span>
-          </td>
-        </ng-container>
-
-        <ng-container matColumnDef="createdAt">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header class="font-semibold">Created</th>
-          <td mat-cell *matCellDef="let row" class="text-sm text-slate-500">{{ row.createdAt | date:'short' }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-icon-button [matMenuTriggerFor]="actionMenu">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-            <mat-menu #actionMenu="matMenu">
-              @if (row.status === 'pending') {
-                <button mat-menu-item (click)="approveTransfer(row)">
-                  <mat-icon>check_circle</mat-icon> Approve
-                </button>
-              }
-              @if (row.status === 'approved' || row.status === 'in_transit') {
-                <button mat-menu-item (click)="receiveTransfer(row)">
-                  <mat-icon>inventory</mat-icon> Receive
-                </button>
-              }
-            </mat-menu>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="hover:bg-slate-50"></tr>
+<!-- Data Table -->
+@if (!loading && transfers.length > 0) {
+  <div class="bg-surface-container/60 backdrop-blur-sm border border-outline-variant/10 rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-outline-variant/10">
+            <th class="th-label text-left">Transfer ID</th>
+            <th class="th-label text-left">From Branch</th>
+            <th class="th-label text-left">To Branch</th>
+            <th class="th-label text-center">Items</th>
+            <th class="th-label text-center">Status</th>
+            <th class="th-label text-right">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (transfer of transfers; track transfer.id) {
+            <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/30 transition-colors">
+              <!-- Transfer ID -->
+              <td class="px-6 py-4">
+                <span class="text-sm font-semibold text-primary">
+                  {{ transfer.transferNumber || '#' + transfer.id }}
+                </span>
+              </td>
+              <!-- From Branch -->
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-base text-on-surface-variant/50">store</span>
+                  <span class="text-sm text-on-surface">{{ transfer.fromBranch?.name || '—' }}</span>
+                </div>
+              </td>
+              <!-- To Branch -->
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-base text-on-surface-variant/50">arrow_forward</span>
+                  <span class="text-sm text-on-surface">{{ transfer.toBranch?.name || '—' }}</span>
+                </div>
+              </td>
+              <!-- Items -->
+              <td class="px-6 py-4 text-center">
+                <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-xs font-bold font-label bg-surface-container-highest/60 text-on-surface-variant rounded-full">
+                  {{ getItemCount(transfer) }}
+                </span>
+              </td>
+              <!-- Status -->
+              <td class="px-6 py-4 text-center">
+                <app-status-badge [status]="transfer.status"></app-status-badge>
+              </td>
+              <!-- Date -->
+              <td class="px-6 py-4 text-right">
+                <div>
+                  <p class="text-sm text-on-surface">{{ formatDate(transfer.createdAt) }}</p>
+                  <p class="text-xs text-on-surface-variant/60 mt-0.5">{{ formatTime(transfer.createdAt) }}</p>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
       </table>
-      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages > 1) {
+      <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/10">
+        <p class="text-xs text-on-surface-variant font-body">
+          Showing {{ (page - 1) * limit + 1 }}–{{ page * limit > total ? total : page * limit }} of {{ total }}
+        </p>
+        <div class="flex items-center gap-1">
+          <button
+            (click)="goToPage(page - 1)"
+            [disabled]="page === 1"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_left</span>
+          </button>
+          @for (p of pages; track p) {
+            <button
+              (click)="goToPage(p)"
+              class="min-w-[32px] h-8 px-2 text-xs font-semibold font-body rounded-lg transition-colors cursor-pointer"
+              [class]="p === page ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:bg-surface-container-high/60'"
+            >
+              {{ p }}
+            </button>
+          }
+          <button
+            (click)="goToPage(page + 1)"
+            [disabled]="page === totalPages"
+            class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-lg text-on-surface-variant">chevron_right</span>
+          </button>
+        </div>
+      </div>
     }
   </div>
-</div>
+}
