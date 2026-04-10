@@ -245,7 +245,10 @@ export class SalesService {
           );
         }
 
-        const unitPrice = Number(saleItem.unitPrice);
+        // Refund at the effective unit price if the line had an offer applied.
+        // This handles BOGO/bundle/percentage fairly: customer gets back exactly
+        // what they paid per unit (totalPaid / quantity), not the list price.
+        const unitPrice = Number(saleItem.effectiveUnitPrice ?? saleItem.unitPrice);
         const itemSubtotal = unitPrice * item.quantity;
         const itemTax = (Number(saleItem.taxAmount) / saleItem.quantity) * item.quantity;
 
@@ -418,7 +421,8 @@ export class SalesService {
           );
         }
 
-        const unitPrice = Number(saleItem.unitPrice);
+        // See comment in `processReturn` — refund at effectiveUnitPrice when offer applied.
+        const unitPrice = Number(saleItem.effectiveUnitPrice ?? saleItem.unitPrice);
         const itemSubtotal = unitPrice * item.quantity;
         const itemTax = (Number(saleItem.taxAmount) / saleItem.quantity) * item.quantity;
 

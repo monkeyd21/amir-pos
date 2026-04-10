@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -37,7 +38,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-barcodes',
   standalone: true,
-  imports: [CommonModule, FormsModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent],
   templateUrl: './barcodes.component.html',
 })
 export class BarcodesComponent implements OnInit, OnDestroy {
@@ -49,6 +50,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
   searchResults: VariantSearchResult[] = [];
   showResults = false;
   searching = false;
+  printing = false;
 
   // Direct barcode lookup
   barcodeInput = '';
@@ -181,70 +183,33 @@ export class BarcodesComponent implements OnInit, OnDestroy {
   }
 
   printBarcodes(): void {
-    const expanded = this.expandedQueue;
-    if (expanded.length === 0) return;
+    if (this.queue.length === 0 || this.printing) return;
 
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (!printWindow) {
-      this.notification.error('Pop-up blocked. Please allow pop-ups for printing.');
-      return;
-    }
+    const items = this.queue.map((item) => ({
+      sku: item.sku,
+      productName: item.productName,
+      variantLabel: item.variantLabel || undefined,
+      price: item.price,
+      copies: item.copies,
+    }));
 
-    const stickersHtml = expanded
-      .map(
-        (item) => `
-        <div class="sticker">
-          <p class="name">${item.productName}</p>
-          ${item.variantLabel ? `<p class="variant">${item.variantLabel}</p>` : ''}
-          <svg id="bc-${Math.random().toString(36).slice(2)}" data-sku="${item.sku}"></svg>
-          <p class="price">${this.formatCurrency(item.price)}</p>
-        </div>`
+    this.printing = true;
+    this.api
+      .post<ApiResponse<{ labelsPrinted: number; itemCount: number }>>(
+        '/inventory/barcodes/print',
+        { items }
       )
-      .join('');
-
-    printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>Print Barcodes - Atelier</title>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', Arial, sans-serif; padding: 5mm; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-    .sticker {
-      border: 1px dashed #ccc;
-      padding: 3mm;
-      text-align: center;
-      break-inside: avoid;
-      page-break-inside: avoid;
-    }
-    .name { font-weight: 700; font-size: 9pt; margin-bottom: 2mm; }
-    .variant { font-size: 7pt; color: #555; margin-bottom: 1mm; }
-    .price { font-weight: 700; font-size: 9pt; margin-top: 1mm; }
-    svg { max-width: 100%; height: auto; }
-    @media print {
-      body { padding: 0; }
-      .grid { gap: 2mm; }
-    }
-  </style>
-</head>
-<body>
-  <div class="grid">${stickersHtml}</div>
-  <script>
-    document.querySelectorAll('svg[data-sku]').forEach(function(svg) {
-      try {
-        JsBarcode(svg, svg.getAttribute('data-sku'), {
-          format: 'CODE128', width: 1.5, height: 40,
-          displayValue: true, fontSize: 10, margin: 2,
-          background: '#fff', lineColor: '#000'
-        });
-      } catch(e) {}
-    });
-    setTimeout(function() { window.print(); }, 300);
-  <\/script>
-</body>
-</html>`);
-    printWindow.document.close();
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const count = res.data?.labelsPrinted ?? this.totalStickers;
+          this.notification.success(`Printed ${count} label(s)`);
+          this.printing = false;
+        },
+        error: () => {
+          this.printing = false;
+        },
+      });
   }
 
   formatCurrency(value: number): string {

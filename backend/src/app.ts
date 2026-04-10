@@ -26,6 +26,8 @@ import accountingRoutes from './modules/accounting/routes';
 import reportRoutes from './modules/reports/routes';
 import employeeRoutes from './modules/employees/routes';
 import messagingRoutes from './modules/messaging/routes';
+import settingsRoutes from './modules/settings/routes';
+import offersRoutes from './modules/offers/routes';
 import { posController } from './modules/pos/controller';
 
 const app = express();
@@ -69,6 +71,8 @@ app.use('/api/v1/accounting', accountingRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/employees', employeeRoutes);
 app.use('/api/v1/messaging', messagingRoutes);
+app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/offers', offersRoutes);
 
 // Serve Angular frontend in production
 if (config.nodeEnv === 'production') {

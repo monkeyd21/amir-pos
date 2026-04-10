@@ -71,3 +71,16 @@ export const checkUpiPaymentSchema = z.object({
     intentId: z.string().min(1),
   }),
 });
+
+export const evaluateCartSchema = z.object({
+  body: z.object({
+    items: z
+      .array(
+        z.object({
+          variantId: z.number().int().positive(),
+          quantity: z.number().int().positive(),
+        })
+      )
+      .min(1, 'At least one item is required'),
+  }),
+});

@@ -1,14 +1,29 @@
 <!-- Page Header -->
 <app-page-header title="Barcode Manager" subtitle="Generate and print product barcodes">
-  @if (queue.length > 0) {
-    <button
-      (click)="printBarcodes()"
-      class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+  <div class="flex items-center gap-2">
+    <a
+      routerLink="/settings/label-designer"
+      class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
     >
-      <span class="material-symbols-outlined text-lg">print</span>
-      Print {{ totalStickers }} Stickers
-    </button>
-  }
+      <span class="material-symbols-outlined text-lg">design_services</span>
+      Design Labels
+    </a>
+    @if (queue.length > 0) {
+      <button
+        (click)="printBarcodes()"
+        [disabled]="printing"
+        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        @if (printing) {
+          <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+          Printing...
+        } @else {
+          <span class="material-symbols-outlined text-lg">print</span>
+          Print {{ totalStickers }} Stickers
+        }
+      </button>
+    }
+  </div>
 </app-page-header>
 
 <!-- Lookup Section -->

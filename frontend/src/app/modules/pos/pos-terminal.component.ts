@@ -31,6 +31,13 @@ interface ProductVariant {
   inventory?: { currentStock: number }[];
 }
 
+interface CartOffer {
+  id: number;
+  name: string;
+  type: string;
+  displayText: string;
+}
+
 interface CartItem {
   variantId: number;
   barcode: string;
@@ -41,6 +48,24 @@ interface CartItem {
   quantity: number;
   unitPrice: number;
   maxStock: number;
+  // Offer state (refreshed via /pos/cart/evaluate)
+  offer?: CartOffer | null;
+  qualified?: boolean;
+  offerDiscount?: number;
+  effectiveUnitPrice?: number;
+  offerHint?: string;
+}
+
+interface EvaluatedLine {
+  variantId: number;
+  quantity: number;
+  unitPrice: number;
+  offer: CartOffer | null;
+  qualified: boolean;
+  discountAmount: number;
+  effectiveUnitPrice: number;
+  lineTotal: number;
+  hint?: string;
 }
 
 interface PosSession {
@@ -65,6 +90,7 @@ interface ApiResponse<T> {
 export class PosTerminalComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private searchSubject = new Subject<string>();
+  private cartEvalSubject = new Subject<void>();
 
   currentUser: User | null = null;
   session: PosSession | null = null;
@@ -109,6 +135,46 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
     this.initSession();
     this.setupSearch();
     this.setupCustomerSearch();
+    this.setupCartEvaluation();
+  }
+
+  private setupCartEvaluation(): void {
+    // Debounce cart changes — when the user rapidly +/-s qty, only call once.
+    this.cartEvalSubject
+      .pipe(debounceTime(200), takeUntil(this.destroy$))
+      .subscribe(() => this.evaluateCart());
+  }
+
+  /** Ask the backend which offers apply, and update cart items in place. */
+  private evaluateCart(): void {
+    if (this.cart.length === 0) return;
+    const items = this.cart.map((c) => ({
+      variantId: c.variantId,
+      quantity: c.quantity,
+    }));
+    this.api
+      .post<ApiResponse<EvaluatedLine[]>>('/pos/cart/evaluate', { items })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          for (const line of res.data ?? []) {
+            const item = this.cart.find((c) => c.variantId === line.variantId);
+            if (!item) continue;
+            item.offer = line.offer;
+            item.qualified = line.qualified;
+            item.offerDiscount = line.discountAmount;
+            item.effectiveUnitPrice = line.effectiveUnitPrice;
+            item.offerHint = line.hint;
+          }
+        },
+        error: () => {
+          // Silent — don't spam the user. The cart still works without offer info.
+        },
+      });
+  }
+
+  private refreshCartOffers(): void {
+    this.cartEvalSubject.next();
   }
 
   ngOnDestroy(): void {
@@ -281,21 +347,25 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
     this.searchQuery = '';
     this.searchResults = [];
     this.showSearchResults = false;
+    this.refreshCartOffers();
   }
 
   removeFromCart(index: number): void {
     this.cart.splice(index, 1);
+    this.refreshCartOffers();
   }
 
   incrementQty(item: CartItem): void {
     if (item.quantity < item.maxStock) {
       item.quantity++;
+      this.refreshCartOffers();
     }
   }
 
   decrementQty(item: CartItem): void {
     if (item.quantity > 1) {
       item.quantity--;
+      this.refreshCartOffers();
     }
   }
 
@@ -306,12 +376,20 @@ export class PosTerminalComponent implements OnInit, OnDestroy {
     );
   }
 
+  /** Total discount from offers across all cart lines (only qualified lines). */
+  get offerDiscountTotal(): number {
+    return this.cart.reduce(
+      (sum, item) => sum + (item.qualified ? item.offerDiscount ?? 0 : 0),
+      0
+    );
+  }
+
   get taxAmount(): number {
-    return (this.subtotal - this.discount) * this.taxRate;
+    return (this.subtotal - this.offerDiscountTotal - this.discount) * this.taxRate;
   }
 
   get total(): number {
-    return this.subtotal - this.discount + this.taxAmount;
+    return this.subtotal - this.offerDiscountTotal - this.discount + this.taxAmount;
   }
 
   get changeDue(): number {

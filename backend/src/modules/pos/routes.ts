@@ -10,6 +10,7 @@ import {
   heldIdParamSchema,
   createUpiPaymentSchema,
   checkUpiPaymentSchema,
+  evaluateCartSchema,
 } from './validators';
 
 const router = Router();
@@ -28,6 +29,9 @@ router.get('/upi/:intentId/status', validate(checkUpiPaymentSchema), posControll
 // Product search & barcode lookup
 router.get('/products/search', posController.searchProducts);
 router.get('/lookup/:barcode', posController.lookupBarcode);
+
+// Cart evaluation — returns applicable offers and computed discounts
+router.post('/cart/evaluate', validate(evaluateCartSchema), posController.evaluateCart);
 
 // Checkout
 router.post(

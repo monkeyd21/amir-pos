@@ -87,6 +87,15 @@ export class PosController {
     }
   }
 
+  async evaluateCart(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await posService.evaluateCart(req.body.items);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async holdCart(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const held = await posService.holdCart(

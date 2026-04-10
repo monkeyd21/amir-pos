@@ -1,0 +1,349 @@
+<app-page-header title="Label Designer" subtitle="Drag elements to design your barcode label. Click an element to edit its properties.">
+  <div class="flex items-center gap-2">
+    <button
+      (click)="resetTemplate()"
+      class="px-4 py-2 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant hover:bg-error-container/20 hover:text-error rounded-lg transition-colors cursor-pointer"
+    >
+      Reset
+    </button>
+    <button
+      (click)="testPrint()"
+      [disabled]="printing || !template"
+      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      @if (printing) {
+        <div class="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      } @else {
+        <span class="material-symbols-outlined text-lg">print</span>
+      }
+      Test Print
+    </button>
+    <button
+      (click)="saveTemplate()"
+      [disabled]="saving || !template"
+      class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      @if (saving) {
+        <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+      } @else {
+        <span class="material-symbols-outlined text-lg">save</span>
+      }
+      Save
+    </button>
+  </div>
+</app-page-header>
+
+@if (loading) {
+  <div class="flex items-center justify-center py-16">
+    <div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+  </div>
+} @else if (template) {
+  <div class="grid grid-cols-12 gap-4">
+    <!-- ─── Left: Element Palette ───────────────────────── -->
+    <div class="col-span-12 lg:col-span-2">
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-4">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Add Element</h3>
+        <div class="space-y-1.5">
+          @for (item of palette; track item.type) {
+            <button
+              (click)="addElement(item.type)"
+              class="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold font-body text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer text-left"
+            >
+              <span class="material-symbols-outlined text-base">{{ item.icon }}</span>
+              {{ item.label }}
+            </button>
+          }
+        </div>
+
+        <div class="h-px bg-outline-variant/15 my-4"></div>
+
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Layers</h3>
+        <div class="space-y-1">
+          @for (el of template.elements; track el.id) {
+            <button
+              (click)="selectElement(el.id)"
+              [class.bg-primary-container]="selectedId === el.id"
+              [class.text-primary]="selectedId === el.id"
+              class="w-full flex items-center gap-2 px-2 py-1.5 text-[11px] font-body rounded-lg transition-colors cursor-pointer text-left group"
+              [class.text-on-surface-variant]="selectedId !== el.id"
+              [class.hover:bg-surface-container-high]="selectedId !== el.id"
+            >
+              <span class="material-symbols-outlined text-sm">
+                {{ el.type === 'barcode' ? 'qr_code_2' : 'text_fields' }}
+              </span>
+              <span class="flex-1 truncate">{{ el.id }}</span>
+              @if (el.visible === false) {
+                <span class="material-symbols-outlined text-sm opacity-40">visibility_off</span>
+              }
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Center: Canvas ──────────────────────────────── -->
+    <div class="col-span-12 lg:col-span-7">
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-semibold font-body text-on-surface-variant uppercase tracking-wider">Canvas</span>
+            <span class="text-[10px] font-mono text-on-surface-variant/50">{{ template.widthMm }}×{{ template.heightMm }} mm · {{ labelWidthDots }}×{{ labelHeightDots }} dots</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              (click)="scale = scale > 1 ? scale - 0.5 : scale"
+              class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+              title="Zoom out"
+            >
+              <span class="material-symbols-outlined text-base text-on-surface-variant">zoom_out</span>
+            </button>
+            <span class="text-[10px] font-mono text-on-surface-variant/60 w-10 text-center">{{ (scale * 100).toFixed(0) }}%</span>
+            <button
+              (click)="scale = scale < 5 ? scale + 0.5 : scale"
+              class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+              title="Zoom in"
+            >
+              <span class="material-symbols-outlined text-base text-on-surface-variant">zoom_in</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Checkerboard scroll container -->
+        <div class="overflow-auto bg-[conic-gradient(at_top_left,_#f5f5f5_25%,_#ffffff_0_50%,_#f5f5f5_0_75%,_#ffffff_0)] bg-[length:16px_16px] rounded-xl border border-outline-variant/20 p-8">
+          <div
+            #canvas
+            (click)="deselectElement($event)"
+            class="relative bg-white shadow-ambient mx-auto"
+            [style.width.px]="canvasWidthPx"
+            [style.height.px]="canvasHeightPx"
+          >
+            @for (el of template.elements; track el.id) {
+              @if (el.visible !== false) {
+                <div
+                  cdkDrag
+                  (cdkDragEnded)="onDragEnd(el, $event)"
+                  (click)="selectElement(el.id); $event.stopPropagation()"
+                  [class.ring-2]="selectedId === el.id"
+                  [class.ring-primary]="selectedId === el.id"
+                  class="absolute cursor-move hover:ring-1 hover:ring-primary/40 rounded"
+                  [style.left.px]="el.x * scale"
+                  [style.top.px]="el.y * scale"
+                  [style.width.px]="elementPixelWidth(el)"
+                  [style.min-height.px]="elementPixelHeight(el)"
+                >
+                  @if (el.type === 'barcode') {
+                    <!-- Barcode placeholder: stripes + readable text -->
+                    <div class="flex flex-col items-center justify-center h-full">
+                      <div class="flex gap-[1px] h-full flex-1 items-center">
+                        @for (i of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]; track i) {
+                          <div [style.width.px]="(i % 3 === 0 ? 2 : 1) * scale" [style.height.px]="(el.barcodeHeight ?? 80) * scale" class="bg-black"></div>
+                        }
+                      </div>
+                      @if (el.showBarcodeText !== false) {
+                        <div class="text-[10px] font-mono text-black mt-1" [style.font-size.px]="8 * scale">{{ previewText({ id: 'sku', type: 'sku', x: 0, y: 0 }) }}</div>
+                      }
+                    </div>
+                  } @else {
+                    <div
+                      class="text-black font-mono whitespace-nowrap leading-none select-none"
+                      [style.font-size.px]="elementFontSizePx(el)"
+                      [style.font-weight]="el.bold ? '900' : '400'"
+                      [style.text-decoration]="el.underline ? 'underline' : 'none'"
+                      [style.text-align]="elementTextAlignCss(el)"
+                      [style.width.px]="el.width ? el.width * scale : undefined"
+                    >
+                      {{ previewText(el) }}
+                    </div>
+                  }
+                </div>
+              }
+            }
+          </div>
+        </div>
+
+        <p class="text-[10px] text-on-surface-variant/50 text-center mt-3 font-mono">
+          Drag elements to position · Click to select · Coordinates in dots (8 dots/mm &#64; 203 DPI)
+        </p>
+      </div>
+    </div>
+
+    <!-- ─── Right: Properties Panel ─────────────────────── -->
+    <div class="col-span-12 lg:col-span-3 space-y-4">
+
+      <!-- Label Dimensions -->
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-4">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Label Dimensions</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Width (mm)</span>
+            <input type="number" min="10" max="200" step="1" [(ngModel)]="template.widthMm"
+              class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Height (mm)</span>
+            <input type="number" min="10" max="300" step="1" [(ngModel)]="template.heightMm"
+              class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Gap (mm)</span>
+            <input type="number" min="0" max="20" step="0.5" [(ngModel)]="template.gapMm"
+              class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Density</span>
+            <input type="number" min="0" max="15" step="1" [(ngModel)]="template.density"
+              class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1 col-span-2">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Print Speed (ips)</span>
+            <input type="number" min="1" max="14" step="1" [(ngModel)]="template.speed"
+              class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Element Properties -->
+      @if (selectedElement; as el) {
+        <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase">
+              {{ labelForType(el.type) }}
+            </h3>
+            <div class="flex items-center gap-1">
+              <button
+                (click)="duplicateElement(el.id)"
+                class="p-1 rounded hover:bg-surface-container-high transition-colors cursor-pointer"
+                title="Duplicate"
+              >
+                <span class="material-symbols-outlined text-sm text-on-surface-variant">content_copy</span>
+              </button>
+              <button
+                (click)="removeElement(el.id)"
+                class="p-1 rounded hover:bg-error-container/20 transition-colors cursor-pointer"
+                title="Delete"
+              >
+                <span class="material-symbols-outlined text-sm text-error/70">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <label class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Visible</span>
+              <input type="checkbox" [checked]="el.visible !== false" (change)="el.visible = $any($event.target).checked" class="w-4 h-4 rounded" />
+            </label>
+
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">X (dots)</span>
+                <input type="number" min="0" step="1" [(ngModel)]="el.x"
+                  class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Y (dots)</span>
+                <input type="number" min="0" step="1" [(ngModel)]="el.y"
+                  class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+              </label>
+            </div>
+
+            @if (isTextElement(el)) {
+              @if (supportsContent(el)) {
+                <label class="flex flex-col gap-1">
+                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">{{ contentFieldLabel(el) }}</span>
+                  <input type="text" [(ngModel)]="el.content"
+                    class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+                </label>
+              }
+
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Font Size</span>
+                <select [(ngModel)]="el.font"
+                  class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none">
+                  @for (f of fontOptions; track f.value) {
+                    <option [ngValue]="f.value">{{ f.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="flex flex-col gap-1">
+                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Scale X</span>
+                  <input type="number" min="1" max="10" step="1" [(ngModel)]="el.xScale"
+                    class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+                </label>
+                <label class="flex flex-col gap-1">
+                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Scale Y</span>
+                  <input type="number" min="1" max="10" step="1" [(ngModel)]="el.yScale"
+                    class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+                </label>
+              </div>
+
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Alignment</span>
+                <select [(ngModel)]="el.align"
+                  class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none">
+                  @for (a of alignOptions; track a.value) {
+                    <option [ngValue]="a.value">{{ a.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bounding Width (dots)</span>
+                <input type="number" min="0" step="1" [(ngModel)]="el.width"
+                  class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+              </label>
+
+              <div class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Text Style</span>
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    (click)="el.bold = !el.bold"
+                    [class.bg-primary-container]="el.bold"
+                    [class.text-primary]="el.bold"
+                    class="flex-1 px-2 py-1.5 text-xs font-bold rounded border border-outline-variant/15 hover:bg-surface-container-high transition-colors cursor-pointer"
+                    [class.text-on-surface-variant]="!el.bold"
+                    title="Bold (double-strike)"
+                  >
+                    B
+                  </button>
+                  <button
+                    type="button"
+                    (click)="el.underline = !el.underline"
+                    [class.bg-primary-container]="el.underline"
+                    [class.text-primary]="el.underline"
+                    class="flex-1 px-2 py-1.5 text-xs font-semibold underline rounded border border-outline-variant/15 hover:bg-surface-container-high transition-colors cursor-pointer"
+                    [class.text-on-surface-variant]="!el.underline"
+                    title="Underline"
+                  >
+                    U
+                  </button>
+                </div>
+                <p class="text-[9px] text-on-surface-variant/50 leading-tight mt-0.5">
+                  Italic not supported by TSPL internal fonts
+                </p>
+              </div>
+            } @else {
+              <!-- Barcode-specific props -->
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Barcode Height (dots)</span>
+                <input type="number" min="20" max="400" step="5" [(ngModel)]="el.barcodeHeight"
+                  class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
+              </label>
+              <label class="flex items-center justify-between gap-2">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Show Number Below</span>
+                <input type="checkbox" [checked]="el.showBarcodeText !== false" (change)="el.showBarcodeText = $any($event.target).checked" class="w-4 h-4 rounded" />
+              </label>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6 text-center">
+          <span class="material-symbols-outlined text-2xl text-on-surface-variant/40">ads_click</span>
+          <p class="mt-2 text-xs font-body text-on-surface-variant/60">Click an element on the canvas to edit its properties</p>
+        </div>
+      }
+    </div>
+  </div>
+}

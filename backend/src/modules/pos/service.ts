@@ -3,6 +3,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { generateNumber } from '../../utils/helpers';
 import { MovementType, PaymentMethod } from '@prisma/client';
 import { getPaymentGateway } from '../../services/payment-gateway';
+import { evaluateCart as evaluateCartEngine, CartLine } from '../offers/engine';
 
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
@@ -210,8 +211,33 @@ export class PosService {
         loyaltyDiscount = data.loyaltyPointsRedeem * redemptionValue;
       }
 
+      // 3b. Resolve offers server-side (never trust the client)
+      const cartLines: CartLine[] = saleItemsData.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      }));
+      const evaluated = await evaluateCartEngine(cartLines);
+      const offerByVariantId = new Map<
+        number,
+        { offerId: number; discount: number; effectiveUnitPrice: number }
+      >();
+      for (const e of evaluated) {
+        if (e.offer && e.result?.qualified) {
+          offerByVariantId.set(e.line.variantId, {
+            offerId: e.offer.id,
+            discount: e.result.discountAmount,
+            effectiveUnitPrice: e.result.effectiveUnitPrice,
+          });
+        }
+      }
+
+      // subtotal stays as the gross (pre-discount, pre-tax) to preserve existing
+      // reporting semantics. Offer discounts roll up into Sale.discountAmount.
+      // Tax is computed on the post-offer-discount taxable base (Indian GST rules).
       let subtotal = 0;
       let totalTax = 0;
+      let totalOfferDiscount = 0;
       const itemsForCreation: Array<{
         variantId: number;
         quantity: number;
@@ -219,30 +245,41 @@ export class PosService {
         discount: number;
         taxAmount: number;
         total: number;
+        offerId?: number | null;
+        effectiveUnitPrice?: number | null;
       }> = [];
 
       for (const item of saleItemsData) {
-        const lineSubtotal = item.unitPrice * item.quantity;
-        const lineTax = lineSubtotal * (item.taxRate / 100);
-        const lineTotal = lineSubtotal + lineTax;
+        const lineGross = item.unitPrice * item.quantity;
+        const offerInfo = offerByVariantId.get(item.variantId);
+        const lineDiscount = offerInfo?.discount ?? 0;
+        const lineTaxable = lineGross - lineDiscount;
+        const lineTax = lineTaxable * (item.taxRate / 100);
+        const lineTotal = lineTaxable + lineTax;
 
-        subtotal += lineSubtotal;
+        subtotal += lineGross;
         totalTax += lineTax;
+        totalOfferDiscount += lineDiscount;
 
         itemsForCreation.push({
           variantId: item.variantId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: 0,
+          discount: Math.round(lineDiscount * 100) / 100,
           taxAmount: Math.round(lineTax * 100) / 100,
           total: Math.round(lineTotal * 100) / 100,
+          offerId: offerInfo?.offerId ?? null,
+          effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
         });
       }
 
       subtotal = Math.round(subtotal * 100) / 100;
       totalTax = Math.round(totalTax * 100) / 100;
+      totalOfferDiscount = Math.round(totalOfferDiscount * 100) / 100;
       const totalBeforeDiscount = subtotal + totalTax;
-      const totalDiscount = discountAmount + loyaltyDiscount;
+      // discountAmount (manual) + loyaltyDiscount are applied AFTER offer discounts.
+      // All three are reflected in Sale.discountAmount for accounting continuity.
+      const totalDiscount = discountAmount + loyaltyDiscount + totalOfferDiscount;
       const saleTotal = Math.round((totalBeforeDiscount - totalDiscount) * 100) / 100;
 
       if (saleTotal < 0) {
@@ -403,6 +440,51 @@ export class PosService {
 
       return { sale, change };
     });
+  }
+
+  /**
+   * Evaluate a cart against the offers engine. For each line, returns:
+   *   - the resolved offer (variant-level preferred over product-level)
+   *   - computed discount + effective unit price + qualification hint
+   *   - the base unit price that was used
+   */
+  async evaluateCart(items: { variantId: number; quantity: number }[]) {
+    const variantIds = items.map((i) => i.variantId);
+    const variants = await prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      include: { product: { select: { basePrice: true } } },
+    });
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+    const lines: CartLine[] = items.map((i) => {
+      const v = variantMap.get(i.variantId);
+      if (!v) {
+        throw new AppError(`Variant ${i.variantId} not found`, 404);
+      }
+      const unitPrice = Number(v.priceOverride ?? v.product.basePrice);
+      return { variantId: i.variantId, quantity: i.quantity, unitPrice };
+    });
+
+    const evaluated = await evaluateCartEngine(lines);
+
+    return evaluated.map(({ line, offer, result }) => ({
+      variantId: line.variantId,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      offer: offer
+        ? {
+            id: offer.id,
+            name: offer.name,
+            type: offer.type,
+            displayText: result?.displayText ?? '',
+          }
+        : null,
+      qualified: result?.qualified ?? false,
+      discountAmount: result?.discountAmount ?? 0,
+      effectiveUnitPrice: result?.effectiveUnitPrice ?? 0,
+      lineTotal: result?.lineTotal ?? line.unitPrice * line.quantity,
+      hint: result?.hint,
+    }));
   }
 
   async lookupBarcode(barcode: string, branchId: number) {

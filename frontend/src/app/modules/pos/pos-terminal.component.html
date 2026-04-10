@@ -151,6 +151,25 @@
                           }
                           {{ getItemVariantLabel(item) }}
                         </p>
+                        @if (item.offer) {
+                          <div class="flex items-center gap-1.5 mt-1.5">
+                            <span class="material-symbols-outlined text-xs"
+                              [class.text-primary]="item.qualified"
+                              [class.text-on-surface-variant]="!item.qualified">sell</span>
+                            @if (item.qualified) {
+                              <span class="text-[10px] font-bold text-primary uppercase tracking-wider">
+                                {{ item.offer.displayText }}
+                              </span>
+                              <span class="text-[10px] text-primary/70">
+                                &minus;{{ formatCurrency(item.offerDiscount ?? 0) }}
+                              </span>
+                            } @else {
+                              <span class="text-[10px] font-semibold text-on-surface-variant/70">
+                                {{ item.offerHint || item.offer.displayText }}
+                              </span>
+                            }
+                          </div>
+                        }
                       </td>
                       <td class="px-6 py-4">
                         <div class="flex items-center justify-center gap-1">
@@ -172,8 +191,13 @@
                       <td class="px-6 py-4 text-right text-sm text-on-surface-variant">
                         {{ formatCurrency(item.unitPrice) }}
                       </td>
-                      <td class="px-6 py-4 text-right text-sm font-headline font-bold text-on-surface">
-                        {{ formatCurrency(item.unitPrice * item.quantity) }}
+                      <td class="px-6 py-4 text-right">
+                        @if (item.qualified && (item.offerDiscount ?? 0) > 0) {
+                          <p class="text-[10px] text-on-surface-variant line-through">{{ formatCurrency(item.unitPrice * item.quantity) }}</p>
+                          <p class="text-sm font-headline font-bold text-primary">{{ formatCurrency(item.unitPrice * item.quantity - (item.offerDiscount ?? 0)) }}</p>
+                        } @else {
+                          <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(item.unitPrice * item.quantity) }}</p>
+                        }
                       </td>
                       <td class="px-4 py-4">
                         <button
@@ -274,9 +298,19 @@
                 <span class="text-on-surface font-medium">{{ formatCurrency(subtotal) }}</span>
               </div>
 
+              @if (offerDiscountTotal > 0) {
+                <div class="flex justify-between text-sm">
+                  <span class="flex items-center gap-1.5 text-primary">
+                    <span class="material-symbols-outlined text-sm">sell</span>
+                    Offer savings
+                  </span>
+                  <span class="text-primary font-medium">&minus;{{ formatCurrency(offerDiscountTotal) }}</span>
+                </div>
+              }
+
               <!-- Discount -->
               <div class="flex items-center justify-between gap-3">
-                <span class="text-sm text-on-surface-variant">Discount</span>
+                <span class="text-sm text-on-surface-variant">Manual discount</span>
                 <div class="relative w-32">
                   <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs">&#8377;</span>
                   <input

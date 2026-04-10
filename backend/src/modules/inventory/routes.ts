@@ -8,6 +8,7 @@ import {
   createTransferSchema,
   transferParamsSchema,
   listMovementsSchema,
+  printBarcodesSchema,
 } from './validators';
 
 const router = Router();
@@ -41,6 +42,12 @@ router.put(
   validate(transferParamsSchema),
   inventoryController.receiveTransfer
 );
+router.post(
+  '/barcodes/print',
+  validate(printBarcodesSchema),
+  inventoryController.printBarcodes
+);
+router.post('/barcodes/test-print', inventoryController.testPrintBarcode);
 router.get('/movements', validate(listMovementsSchema), inventoryController.movements);
 
 export default router;

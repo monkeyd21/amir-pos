@@ -1,0 +1,381 @@
+<app-page-header [title]="isNew ? 'New Offer' : (form.name || 'Offer')" subtitle="Configure the discount and assign it to products or variants">
+  <div class="flex items-center gap-2">
+    <a
+      routerLink="/offers"
+      class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-colors cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-lg">arrow_back</span>
+      Back
+    </a>
+    <button
+      (click)="save()"
+      [disabled]="!canSave() || saveState === 'saving'"
+      class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      @if (saveState === 'saving') {
+        <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+      } @else {
+        <span class="material-symbols-outlined text-lg">save</span>
+      }
+      Save
+    </button>
+  </div>
+</app-page-header>
+
+@if (loading) {
+  <div class="flex items-center justify-center py-16">
+    <div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+  </div>
+} @else {
+  <div class="grid grid-cols-12 gap-4">
+
+    <!-- ─── Left: Offer Form ──────────────────────────── -->
+    <div class="col-span-12 lg:col-span-4 space-y-4">
+
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-4">Offer Details</h3>
+
+        <div class="space-y-4">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Name</span>
+            <input
+              type="text"
+              [(ngModel)]="form.name"
+              placeholder="e.g. Summer Sale 20%"
+              class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+            />
+          </label>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Description (optional)</span>
+            <textarea
+              [(ngModel)]="form.description"
+              rows="2"
+              placeholder="Internal note"
+              class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none resize-none"
+            ></textarea>
+          </label>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Type</span>
+            <select
+              [(ngModel)]="form.type"
+              class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none cursor-pointer"
+            >
+              @for (opt of typeOptions; track opt.value) {
+                <option [ngValue]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </label>
+
+          <!-- Type-specific fields -->
+          @if (form.type === 'percentage') {
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Percent Off</span>
+              <div class="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  [(ngModel)]="form.percentValue"
+                  class="w-full pl-3 pr-8 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">%</span>
+              </div>
+            </label>
+          } @else if (form.type === 'flat') {
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Flat Amount Off (Rs. per unit)</span>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant">Rs.</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  [(ngModel)]="form.flatValue"
+                  class="w-full pl-10 pr-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+                />
+              </div>
+            </label>
+          } @else if (form.type === 'buy_x_get_y_free') {
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Buy Qty</span>
+                <input type="number" min="1" step="1" [(ngModel)]="form.buyQty"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Get Free</span>
+                <input type="number" min="1" step="1" [(ngModel)]="form.getQty"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/60 leading-snug">
+              Customer buys {{ form.buyQty || 'X' }} at full price, gets {{ form.getQty || 'Y' }} free.
+            </p>
+          } @else if (form.type === 'buy_x_get_y_percent') {
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Buy Qty</span>
+                <input type="number" min="1" step="1" [(ngModel)]="form.buyQty"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Get % Off</span>
+                <input type="number" min="0" max="100" step="0.5" [(ngModel)]="form.percentValue"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/60 leading-snug">
+              When {{ form.buyQty || 'X' }} or more are in the cart, {{ form.percentValue || 'Y' }}% is deducted from the entire line.
+            </p>
+          } @else if (form.type === 'bundle') {
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bundle Qty</span>
+                <input type="number" min="1" step="1" [(ngModel)]="form.buyQty"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bundle Price (Rs.)</span>
+                <input type="number" min="0" step="1" [(ngModel)]="form.flatValue"
+                  class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </label>
+            </div>
+            <p class="text-[10px] text-on-surface-variant/60 leading-snug">
+              Every {{ form.buyQty || 'X' }} units are priced at Rs. {{ form.flatValue || 'Y' }} total.
+            </p>
+          }
+
+          <div class="grid grid-cols-2 gap-3 pt-2 border-t border-outline-variant/10">
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Priority</span>
+              <input type="number" min="0" max="1000" step="1" [(ngModel)]="form.priority"
+                class="px-3 py-2 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Active</span>
+              <div class="flex items-center h-[38px]">
+                <input type="checkbox" [(ngModel)]="form.isActive" class="w-5 h-5 rounded" />
+              </div>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3">
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Starts At (optional)</span>
+              <input type="datetime-local" [(ngModel)]="form.startsAt"
+                class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Ends At (optional)</span>
+              <input type="datetime-local" [(ngModel)]="form.endsAt"
+                class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary chip panel -->
+      @if (totalSelectedVariants > 0) {
+        <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase">Selected ({{ totalSelectedVariants }})</h3>
+            <button
+              (click)="clearAllAssignments()"
+              class="text-[10px] font-semibold text-error/70 hover:text-error transition-colors cursor-pointer uppercase tracking-wider"
+            >
+              Clear all
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            @for (chip of summaryChips; track chip.productId) {
+              <span
+                class="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-body rounded-full"
+                [class.bg-primary-container]="chip.allSelected"
+                [class.text-primary]="chip.allSelected"
+                [class.bg-surface-container-highest]="!chip.allSelected"
+                [class.text-on-surface-variant]="!chip.allSelected"
+              >
+                <span class="truncate max-w-[140px]">{{ chip.productName }}</span>
+                <span class="font-mono">{{ chip.allSelected ? 'all' : chip.selected + '/' + chip.total }}</span>
+              </span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- ─── Right: Product/Variant Assignment ─────────── -->
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase">Applies To</h3>
+          <div class="flex items-center gap-2">
+            <button
+              (click)="selectAllFiltered()"
+              class="px-3 py-1.5 text-[10px] font-semibold font-body text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer uppercase tracking-wider"
+            >
+              Select all shown
+            </button>
+            <button
+              (click)="deselectAllFiltered()"
+              class="px-3 py-1.5 text-[10px] font-semibold font-body text-on-surface-variant hover:bg-surface-container-highest rounded-lg transition-colors cursor-pointer uppercase tracking-wider"
+            >
+              Clear shown
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <div class="relative flex-1 min-w-[200px]">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base text-on-surface-variant/50">search</span>
+            <input
+              type="text"
+              [ngModel]="productSearch"
+              (ngModelChange)="onSearchInput($event)"
+              placeholder="Search products..."
+              class="w-full pl-9 pr-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+            />
+          </div>
+          <select
+            [(ngModel)]="brandFilter"
+            (change)="onFilterChange()"
+            class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none cursor-pointer"
+          >
+            <option [ngValue]="''">All Brands</option>
+            @for (b of brands; track b.id) {
+              <option [ngValue]="b.id">{{ b.name }}</option>
+            }
+          </select>
+          <select
+            [(ngModel)]="categoryFilter"
+            (change)="onFilterChange()"
+            class="px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none cursor-pointer"
+          >
+            <option [ngValue]="''">All Categories</option>
+            @for (c of categories; track c.id) {
+              <option [ngValue]="c.id">{{ c.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Product list -->
+        @if (loadingProducts) {
+          <div class="flex items-center justify-center py-12">
+            <div class="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+          </div>
+        } @else if (products.length === 0) {
+          <div class="py-12 text-center">
+            <p class="text-sm text-on-surface-variant/60">No products match the current filters.</p>
+          </div>
+        } @else {
+          <div class="space-y-1.5 max-h-[640px] overflow-y-auto pr-1">
+            @for (product of products; track product.id) {
+              <div class="border border-outline-variant/10 rounded-xl overflow-hidden bg-surface-container-lowest/40">
+                <!-- Product row -->
+                <div class="flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high/30 transition-colors">
+                  <!-- Tri-state checkbox -->
+                  <button
+                    type="button"
+                    (click)="toggleProduct(product)"
+                    class="flex items-center justify-center w-5 h-5 rounded border-2 transition-all cursor-pointer"
+                    [class.bg-primary]="productSelectionState(product) === 'full'"
+                    [class.border-primary]="productSelectionState(product) === 'full' || productSelectionState(product) === 'partial'"
+                    [class.border-outline-variant]="productSelectionState(product) === 'none'"
+                  >
+                    @if (productSelectionState(product) === 'full') {
+                      <span class="material-symbols-outlined text-sm text-white leading-none">check</span>
+                    } @else if (productSelectionState(product) === 'partial') {
+                      <div class="w-2.5 h-[2px] bg-primary rounded-full"></div>
+                    }
+                  </button>
+
+                  <div class="flex-1 min-w-0 cursor-pointer" (click)="toggleExpanded(product)">
+                    <p class="text-sm font-semibold text-on-surface truncate">{{ product.name }}</p>
+                    <p class="text-[10px] text-on-surface-variant/70 mt-0.5">
+                      {{ product.brand?.name }} · {{ product.category?.name }} · {{ product.variants.length }} variants
+                    </p>
+                  </div>
+
+                  @if (productSelectionState(product) === 'partial') {
+                    <span class="text-[10px] font-mono text-primary">
+                      partial
+                    </span>
+                  }
+
+                  <button
+                    type="button"
+                    (click)="toggleExpanded(product)"
+                    class="p-1 rounded hover:bg-surface-container-high transition-colors cursor-pointer"
+                  >
+                    <span
+                      class="material-symbols-outlined text-base text-on-surface-variant transition-transform"
+                      [class.rotate-180]="isExpanded(product)"
+                    >
+                      expand_more
+                    </span>
+                  </button>
+                </div>
+
+                <!-- Expanded variant grid -->
+                @if (isExpanded(product)) {
+                  <div class="px-4 pb-3 pt-1 border-t border-outline-variant/5 bg-surface-container/20">
+                    @for (group of variantsByColor(product); track group.color) {
+                      <div class="mt-2">
+                        <p class="text-[10px] font-semibold text-on-surface-variant/70 uppercase tracking-wider mb-1.5">{{ group.color }}</p>
+                        <div class="flex flex-wrap gap-1.5">
+                          @for (v of group.variants; track v.id) {
+                            <button
+                              type="button"
+                              (click)="toggleVariant(v.id)"
+                              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-all cursor-pointer"
+                              [class.bg-primary-container]="isVariantSelected(v.id)"
+                              [class.border-primary]="isVariantSelected(v.id)"
+                              [class.text-primary]="isVariantSelected(v.id)"
+                              [class.bg-surface-container-lowest]="!isVariantSelected(v.id)"
+                              [class.border-outline-variant]="!isVariantSelected(v.id)"
+                              [class.text-on-surface-variant]="!isVariantSelected(v.id)"
+                            >
+                              @if (isVariantSelected(v.id)) {
+                                <span class="material-symbols-outlined text-xs leading-none">check</span>
+                              }
+                              {{ v.size }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Pagination -->
+          @if (totalPages > 1) {
+            <div class="flex items-center justify-center gap-2 mt-4 pt-3 border-t border-outline-variant/10">
+              <button
+                (click)="goToPage(page - 1)"
+                [disabled]="page === 1"
+                class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <span class="material-symbols-outlined text-base text-on-surface-variant">chevron_left</span>
+              </button>
+              <span class="text-xs font-mono text-on-surface-variant">Page {{ page }} of {{ totalPages }}</span>
+              <button
+                (click)="goToPage(page + 1)"
+                [disabled]="page === totalPages"
+                class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <span class="material-symbols-outlined text-base text-on-surface-variant">chevron_right</span>
+              </button>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </div>
+}

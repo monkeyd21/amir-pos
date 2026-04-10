@@ -1,12 +1,21 @@
 <div class="p-6 lg:p-8">
   <app-page-header title="Settings" subtitle="Manage store configuration and preferences">
-    <a
-      routerLink="/settings/profile"
-      class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-high text-on-surface rounded-lg hover:bg-surface-container-highest transition-all"
-    >
-      <span class="material-symbols-outlined text-lg">person</span>
-      My Profile
-    </a>
+    <div class="flex items-center gap-2">
+      <a
+        routerLink="/settings/label-designer"
+        class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-high text-on-surface rounded-lg hover:bg-surface-container-highest transition-all"
+      >
+        <span class="material-symbols-outlined text-lg">qr_code_2</span>
+        Label Designer
+      </a>
+      <a
+        routerLink="/settings/profile"
+        class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-high text-on-surface rounded-lg hover:bg-surface-container-highest transition-all"
+      >
+        <span class="material-symbols-outlined text-lg">person</span>
+        My Profile
+      </a>
+    </div>
   </app-page-header>
 
   <!-- Tab Navigation -->

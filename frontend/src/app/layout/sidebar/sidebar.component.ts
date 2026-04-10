@@ -20,6 +20,7 @@ export class SidebarComponent {
     { icon: 'point_of_sale', label: 'POS', path: '/pos' },
     { icon: 'inventory_2', label: 'Inventory', path: '/inventory' },
     { icon: 'payments', label: 'Sales', path: '/sales' },
+    { icon: 'sell', label: 'Offers', path: '/offers' },
     { icon: 'group', label: 'Customers', path: '/customers' },
     { icon: 'badge', label: 'Employees', path: '/employees' },
     { icon: 'receipt_long', label: 'Expenses', path: '/expenses' },
