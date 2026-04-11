@@ -69,6 +69,26 @@ export const updateVariant = async (req: AuthRequest, res: Response, next: NextF
   }
 };
 
+export const bulkCreateVariants = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await productService.bulkCreateVariants(
+      parseInt(req.params.id, 10),
+      req.body,
+      req.user!.userId,
+      req.user!.branchId
+    );
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: `Created ${result.created.length} variant(s)${
+        result.skipped.length ? `, skipped ${result.skipped.length}` : ''
+      }`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteVariant = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await productService.deleteVariant(

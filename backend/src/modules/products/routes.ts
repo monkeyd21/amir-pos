@@ -10,6 +10,7 @@ import {
   createVariantSchema,
   updateVariantSchema,
   deleteVariantSchema,
+  bulkCreateVariantsSchema,
 } from './validators';
 
 const router = Router();
@@ -24,6 +25,7 @@ router.delete('/:id', authorize('owner', 'manager'), validate(getProductSchema),
 
 // Variant routes
 router.post('/:id/variants', authorize('owner', 'manager'), validate(createVariantSchema), controller.addVariant);
+router.post('/:id/variants/bulk', authorize('owner', 'manager'), validate(bulkCreateVariantsSchema), controller.bulkCreateVariants);
 router.put('/:id/variants/:variantId', authorize('owner', 'manager'), validate(updateVariantSchema), controller.updateVariant);
 router.delete('/:id/variants/:variantId', authorize('owner', 'manager'), validate(deleteVariantSchema), controller.deleteVariant);
 

@@ -9,6 +9,7 @@ import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-sp
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { StockAdjustmentDialogComponent } from './stock-adjustment-dialog.component';
 import { BranchService } from '../../core/services/branch.service';
+import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
 
 interface Variant {
   id: number;
@@ -44,7 +45,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-product-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LoadingSpinnerComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LoadingSpinnerComponent, BulkVariantGeneratorComponent],
   styles: [`:host { display: block; }`],
   templateUrl: './product-detail.component.html',
 })
@@ -174,6 +175,12 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
           this.notify.error('Failed to add variant');
         },
       });
+  }
+
+  onBulkGenerated(): void {
+    if (this.product) {
+      this.loadProduct(String(this.product.id));
+    }
   }
 
   goBack(): void {

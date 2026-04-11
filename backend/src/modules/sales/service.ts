@@ -248,6 +248,9 @@ export class SalesService {
         // Refund at the effective unit price if the line had an offer applied.
         // This handles BOGO/bundle/percentage fairly: customer gets back exactly
         // what they paid per unit (totalPaid / quantity), not the list price.
+        // Prices are tax-inclusive (MRP) so the refund amount IS the line
+        // subtotal — tax isn't added on top. The GST component is recorded
+        // separately for the GSTR-1 credit-note trail.
         const unitPrice = Number(saleItem.effectiveUnitPrice ?? saleItem.unitPrice);
         const itemSubtotal = unitPrice * item.quantity;
         const itemTax = (Number(saleItem.taxAmount) / saleItem.quantity) * item.quantity;
@@ -266,7 +269,9 @@ export class SalesService {
 
       returnSubtotal = Math.round(returnSubtotal * 100) / 100;
       returnTax = Math.round(returnTax * 100) / 100;
-      const returnTotal = Math.round((returnSubtotal + returnTax) * 100) / 100;
+      // Tax-inclusive: returnSubtotal already contains the GST the customer
+      // paid. The refund amount = returnSubtotal, not returnSubtotal + tax.
+      const returnTotal = returnSubtotal;
 
       const returnNumber = generateNumber('RT');
 
@@ -438,7 +443,9 @@ export class SalesService {
         });
       }
 
-      const returnTotal = Math.round((returnSubtotal + returnTax) * 100) / 100;
+      // Tax-inclusive: the return value IS the returnSubtotal — GST is
+      // already baked into the MRP the customer originally paid.
+      const returnTotal = Math.round(returnSubtotal * 100) / 100;
 
       // Resolve new items
       const barcodes = data.newItems.map((i) => i.barcode);
@@ -485,7 +492,8 @@ export class SalesService {
         const unitPrice = Number(variant.priceOverride ?? variant.product.basePrice);
         const taxRate = Number(variant.product.taxRate);
         const lineSubtotal = unitPrice * item.quantity;
-        const lineTax = lineSubtotal * (taxRate / 100);
+        // Tax-inclusive extraction — MRP already contains GST.
+        const lineTax = lineSubtotal * (taxRate / (100 + taxRate));
 
         newSubtotal += lineSubtotal;
         newTax += lineTax;
@@ -498,7 +506,9 @@ export class SalesService {
         });
       }
 
-      const newTotal = Math.round((newSubtotal + newTax) * 100) / 100;
+      // Exchange "charge" side is also tax-inclusive — the customer pays
+      // the MRP of the new items, no tax added on top.
+      const newTotal = Math.round(newSubtotal * 100) / 100;
       const priceDifference = Math.round((newTotal - returnTotal) * 100) / 100;
 
       // Create return record

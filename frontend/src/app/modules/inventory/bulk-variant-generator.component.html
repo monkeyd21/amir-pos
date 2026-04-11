@@ -1,0 +1,340 @@
+<div class="bg-surface-container-lowest/50 border border-outline-variant/15 rounded-xl overflow-hidden">
+  <!-- Toggle header -->
+  <button
+    type="button"
+    (click)="toggle()"
+    class="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-container-high/40 transition-colors cursor-pointer"
+  >
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-lg bg-primary-container/20 flex items-center justify-center">
+        <span class="material-symbols-outlined text-primary text-[18px]">auto_awesome</span>
+      </div>
+      <div class="text-left">
+        <div class="text-sm font-semibold text-on-surface">Bulk variant generator</div>
+        <div class="text-[11px] text-on-surface-variant/70">
+          Generate many size × color variants at once
+        </div>
+      </div>
+    </div>
+    <span class="material-symbols-outlined text-on-surface-variant">
+      {{ expanded ? 'expand_less' : 'expand_more' }}
+    </span>
+  </button>
+
+  @if (expanded) {
+    <div class="px-4 pb-4 pt-1 space-y-4 border-t border-outline-variant/10">
+      <!-- Size mode -->
+      <div>
+        <label class="label-upper mb-1.5 block">Size Mode</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button
+            type="button"
+            (click)="sizeMode = 'alpha'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="sizeMode === 'alpha'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+          >
+            Alpha
+          </button>
+          <button
+            type="button"
+            (click)="sizeMode = 'numeric_even'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="sizeMode === 'numeric_even'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+          >
+            Even
+          </button>
+          <button
+            type="button"
+            (click)="sizeMode = 'numeric_odd'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="sizeMode === 'numeric_odd'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+          >
+            Odd
+          </button>
+          <button
+            type="button"
+            (click)="sizeMode = 'custom'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="sizeMode === 'custom'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+          >
+            Custom
+          </button>
+        </div>
+
+        <div class="mt-2">
+          @if (sizeMode === 'alpha') {
+            <div class="grid grid-cols-2 gap-2">
+              <select
+                [(ngModel)]="alphaStart"
+                (ngModelChange)="onInputChange()"
+                class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
+                @for (s of alphaSizes; track s) {
+                  <option [value]="s">From {{ s }}</option>
+                }
+              </select>
+              <select
+                [(ngModel)]="alphaEnd"
+                (ngModelChange)="onInputChange()"
+                class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none appearance-none cursor-pointer"
+              >
+                @for (s of alphaSizes; track s) {
+                  <option [value]="s">To {{ s }}</option>
+                }
+              </select>
+            </div>
+          }
+          @if (sizeMode === 'numeric_even' || sizeMode === 'numeric_odd') {
+            <div class="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                [(ngModel)]="numericStart"
+                (ngModelChange)="onInputChange()"
+                placeholder="Start"
+                class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+              />
+              <input
+                type="number"
+                [(ngModel)]="numericEnd"
+                (ngModelChange)="onInputChange()"
+                placeholder="End"
+                class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+              />
+            </div>
+          }
+          @if (sizeMode === 'custom') {
+            <input
+              type="text"
+              [(ngModel)]="customSizes"
+              (ngModelChange)="onInputChange()"
+              placeholder="e.g. 28,30,32,34"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+            />
+          }
+        </div>
+      </div>
+
+      <!-- Colors -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="label-upper">
+            Colors <span class="text-on-surface-variant/50 font-normal normal-case tracking-normal">(optional)</span>
+          </label>
+          <button
+            type="button"
+            (click)="onAddColorClicked()"
+            class="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-primary bg-primary-container/10 hover:bg-primary-container/20 border border-primary/20 rounded-md transition-colors cursor-pointer"
+          >
+            <span class="material-symbols-outlined text-[12px]">add</span>
+            New color
+          </button>
+        </div>
+
+        @if (availableColors.length === 0) {
+          <div class="px-3 py-4 text-center bg-surface-container-lowest/50 rounded-lg border border-dashed border-outline-variant/20">
+            <p class="text-xs text-on-surface-variant/60">No colors yet. Tap "New color" to add your first one.</p>
+          </div>
+        } @else {
+          <!-- Swatch grid: tap a chip to toggle it on/off -->
+          <div class="flex flex-wrap gap-1.5">
+            @for (c of availableColors; track c.id) {
+              <button
+                type="button"
+                (click)="toggleColor(c.name)"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors cursor-pointer"
+                [class]="isColorSelected(c.name)
+                  ? 'bg-primary-container/20 border-primary text-primary'
+                  : 'bg-surface-container-lowest border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                @if (c.hex) {
+                  <span class="w-2.5 h-2.5 rounded-full border border-outline-variant/30" [style.background-color]="c.hex"></span>
+                }
+                {{ c.name }}
+                @if (isColorSelected(c.name)) {
+                  <span class="material-symbols-outlined text-[12px]">check</span>
+                }
+              </button>
+            }
+          </div>
+          @if (colors.length > 0) {
+            <p class="mt-1.5 text-[10px] text-on-surface-variant/60">
+              {{ colors.length }} color{{ colors.length === 1 ? '' : 's' }} selected
+            </p>
+          }
+        }
+      </div>
+
+      <!-- Pricing -->
+      <div>
+        <label class="label-upper mb-1.5 block">Pricing</label>
+        <div class="grid grid-cols-2 gap-1.5 mb-2">
+          <button
+            type="button"
+            (click)="pricingMode = 'flat'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="pricingMode === 'flat'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant'"
+          >
+            Flat price
+          </button>
+          <button
+            type="button"
+            (click)="pricingMode = 'step'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="pricingMode === 'step'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant'"
+          >
+            Step by size
+          </button>
+        </div>
+        @if (pricingMode === 'flat') {
+          <input
+            type="number"
+            [(ngModel)]="flatPrice"
+            (ngModelChange)="onInputChange()"
+            placeholder="Price per variant (INR)"
+            min="0"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+          />
+        }
+        @if (pricingMode === 'step') {
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              [(ngModel)]="stepBase"
+              (ngModelChange)="onInputChange()"
+              placeholder="Base price"
+              min="0"
+              class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+            />
+            <input
+              type="number"
+              [(ngModel)]="stepIncrement"
+              (ngModelChange)="onInputChange()"
+              placeholder="Increment per size"
+              min="0"
+              class="px-3 py-2 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+            />
+          </div>
+        }
+      </div>
+
+      <!-- SKU base + initial stock -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label-upper mb-1.5 block">SKU Base <span class="text-on-surface-variant/50 font-normal normal-case tracking-normal">(optional)</span></label>
+          <input
+            type="text"
+            [(ngModel)]="skuBase"
+            (ngModelChange)="onInputChange()"
+            placeholder="e.g. LEVI-SHIRT"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none font-mono"
+          />
+        </div>
+        <div>
+          <label class="label-upper mb-1.5 block">Starting Stock <span class="text-on-surface-variant/50 font-normal normal-case tracking-normal">(optional)</span></label>
+          <input
+            type="number"
+            [(ngModel)]="initialStock"
+            (ngModelChange)="onInputChange()"
+            placeholder="0"
+            min="0"
+            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <!-- Vendor picker (only relevant when productId set and initial stock > 0) -->
+      @if (productId) {
+        <div>
+          <label class="label-upper mb-1.5 block">Vendor supplying this stock <span class="text-on-surface-variant/50 font-normal normal-case tracking-normal">(optional)</span></label>
+          <app-vendor-picker
+            [selectedId]="vendorId"
+            (selectedIdChange)="vendorId = $event"
+          ></app-vendor-picker>
+        </div>
+      }
+
+      <!-- Preview table -->
+      @if (previewRows.length > 0) {
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="label-upper">Preview ({{ includedCount }} of {{ previewRows.length }})</label>
+            <span class="text-[10px] text-on-surface-variant/60">Click a row to exclude it</span>
+          </div>
+          <div class="max-h-56 overflow-auto rounded-lg border border-outline-variant/15 bg-surface-container-lowest/50">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-surface-container-high/90 backdrop-blur">
+                <tr class="text-left">
+                  <th class="px-2 py-1.5 w-8"></th>
+                  <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">SKU</th>
+                  <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Size</th>
+                  <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Color</th>
+                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Price</th>
+                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Stock</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of previewRows; track row.key) {
+                  <tr
+                    (click)="toggleRow(row)"
+                    class="border-t border-outline-variant/[0.05] cursor-pointer hover:bg-surface-container-high/40"
+                    [class.opacity-40]="!row.include"
+                    [class.line-through]="!row.include"
+                  >
+                    <td class="px-2 py-1.5">
+                      <input
+                        type="checkbox"
+                        [checked]="row.include"
+                        (click)="$event.stopPropagation(); toggleRow(row)"
+                        class="w-3.5 h-3.5 accent-primary cursor-pointer"
+                      />
+                    </td>
+                    <td class="px-2 py-1.5 font-mono text-on-surface">{{ row.sku }}</td>
+                    <td class="px-2 py-1.5 text-on-surface">{{ row.size }}</td>
+                    <td class="px-2 py-1.5 text-on-surface">{{ row.color || '—' }}</td>
+                    <td class="px-2 py-1.5 text-right text-on-surface">₹{{ row.price }}</td>
+                    <td class="px-2 py-1.5 text-right text-on-surface-variant">{{ row.initialStock || 0 }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+      <!-- Generate button (only for productId mode) -->
+      @if (productId) {
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            (click)="generate()"
+            [disabled]="!canGenerate || generating"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            @if (generating) {
+              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            } @else {
+              <span class="material-symbols-outlined text-base">auto_awesome</span>
+            }
+            Generate {{ includedCount }} variant{{ includedCount === 1 ? '' : 's' }}
+          </button>
+        </div>
+      } @else {
+        <p class="text-[11px] text-on-surface-variant/70 italic text-center">
+          Variants will be created when you save the product.
+        </p>
+      }
+    </div>
+  }
+</div>

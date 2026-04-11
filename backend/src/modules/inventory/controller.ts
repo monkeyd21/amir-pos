@@ -1,14 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { inventoryService } from './service';
-import {
-  generateBatchTspl,
-  generateLabelTspl,
-  printToDevice,
-  BarcodeLabel,
-  LabelTemplate,
-} from './barcodePrinter';
-import { getLabelTemplate } from '../settings/service';
 
 export class InventoryController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -96,48 +88,6 @@ export class InventoryController {
         success: true,
         data: transfer,
         message: 'Transfer received successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async printBarcodes(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const items = req.body.items as BarcodeLabel[];
-      const template = await getLabelTemplate();
-      const tspl = generateBatchTspl(items, template);
-      await printToDevice(tspl);
-      const totalLabels = items.reduce((sum, i) => sum + (i.copies ?? 1), 0);
-      res.json({
-        success: true,
-        data: { labelsPrinted: totalLabels, itemCount: items.length },
-        message: `Sent ${totalLabels} label(s) to printer`,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async testPrintBarcode(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      // Accept an override template in the request body (for live preview before saving),
-      // or fall back to the stored template.
-      const override = req.body?.template as LabelTemplate | undefined;
-      const template = override ?? (await getLabelTemplate());
-      const sample: BarcodeLabel = {
-        sku: 'TEST12345',
-        productName: 'Sample Product',
-        variantLabel: 'M / Blue',
-        price: 1999,
-        copies: 1,
-      };
-      const tspl = generateLabelTspl(sample, template);
-      await printToDevice(tspl);
-      res.json({
-        success: true,
-        data: { labelsPrinted: 1 },
-        message: 'Test label sent to printer',
       });
     } catch (error) {
       next(error);

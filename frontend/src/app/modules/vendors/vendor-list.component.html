@@ -1,0 +1,186 @@
+<div class="p-6 lg:p-8 space-y-8">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-[10px] text-primary tracking-[0.2em] uppercase font-label font-semibold mb-1">Supply Chain</p>
+      <h1 class="text-3xl font-headline font-extrabold tracking-tight text-on-surface">Vendors</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        (click)="addVendor()"
+        class="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[18px]">add_business</span>
+        Add Vendor
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-surface-container-high/50 rounded-xl p-5 border-l-2 border-primary">
+      <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2">Total Vendors</p>
+      <span class="text-2xl font-headline font-bold text-on-surface">{{ totalVendors | number }}</span>
+    </div>
+    <div class="bg-surface-container-high/50 rounded-xl p-5 border-l-2 border-tertiary">
+      <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2">Active</p>
+      <span class="text-2xl font-headline font-bold text-on-surface">{{ activeVendors | number }}</span>
+    </div>
+    <div class="bg-surface-container-high/50 rounded-xl p-5 border-l-2 border-error">
+      <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-2">Inactive</p>
+      <span class="text-2xl font-headline font-bold text-error">{{ inactiveVendors | number }}</span>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="flex items-center gap-4">
+    <div class="flex-1">
+      <app-search-input
+        placeholder="Search by name, contact, phone, email or GST..."
+        (searchChange)="onSearch($event)"
+      ></app-search-input>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="relative bg-surface-container/60 rounded-xl overflow-hidden">
+    @if (loading) {
+      <app-loading-spinner [overlay]="true" message="Loading vendors..."></app-loading-spinner>
+      <div class="h-64"></div>
+    } @else if (vendors.length === 0) {
+      <app-empty-state
+        icon="store"
+        title="No vendors yet"
+        message="Add your first supplier to start tracking where your inventory comes from."
+        actionText="Add Vendor"
+        (actionClick)="addVendor()"
+      ></app-empty-state>
+    } @else {
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-surface-container-low/50">
+              <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Vendor</th>
+              <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Contact</th>
+              <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">GST Number</th>
+              <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Payment Terms</th>
+              <th class="text-center px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
+              <th class="text-right px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (vendor of vendors; track vendor.id) {
+              <tr class="group border-t border-outline-variant/[0.06] hover:bg-surface-container-high/40 transition-colors">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
+                      <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+                    </div>
+                    <div>
+                      <div class="text-sm font-body font-medium text-on-surface">{{ vendor.name }}</div>
+                      @if (vendor.contactPerson) {
+                        <div class="text-xs font-body text-on-surface-variant/70">{{ vendor.contactPerson }}</div>
+                      }
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="space-y-0.5">
+                    @if (vendor.phone) {
+                      <div class="flex items-center gap-1.5 text-sm font-body text-on-surface-variant">
+                        <span class="material-symbols-outlined text-[14px] text-on-surface-variant/50">phone</span>
+                        {{ vendor.phone }}
+                      </div>
+                    }
+                    @if (vendor.email) {
+                      <div class="flex items-center gap-1.5 text-xs font-body text-on-surface-variant/60">
+                        <span class="material-symbols-outlined text-[13px] text-on-surface-variant/40">mail</span>
+                        {{ vendor.email }}
+                      </div>
+                    }
+                    @if (!vendor.phone && !vendor.email) {
+                      <span class="text-xs text-on-surface-variant/40">—</span>
+                    }
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  @if (vendor.gstNumber) {
+                    <code class="text-xs font-mono text-on-surface bg-surface-container-lowest px-2 py-0.5 rounded">{{ vendor.gstNumber }}</code>
+                  } @else {
+                    <span class="text-on-surface-variant/40">—</span>
+                  }
+                </td>
+                <td class="px-6 py-4">
+                  @if (vendor.paymentTerms) {
+                    <span class="text-sm text-on-surface-variant">{{ vendor.paymentTerms }}</span>
+                  } @else {
+                    <span class="text-on-surface-variant/40">—</span>
+                  }
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <button
+                    (click)="toggleActive(vendor, $event)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-label font-semibold rounded-full transition-colors cursor-pointer"
+                    [ngClass]="vendor.isActive
+                      ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20 border border-green-500/20'
+                      : 'bg-error/10 text-error hover:bg-error/20 border border-error/20'"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" [ngClass]="vendor.isActive ? 'bg-green-400' : 'bg-error'"></span>
+                    {{ vendor.isActive ? 'Active' : 'Inactive' }}
+                  </button>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      (click)="editVendor(vendor, $event)"
+                      class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+                      title="Edit vendor"
+                    >
+                      <span class="material-symbols-outlined text-[18px] text-on-surface-variant">edit</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPages > 1) {
+        <div class="flex items-center justify-between px-6 py-4 border-t border-outline-variant/[0.06]">
+          <p class="text-xs font-body text-on-surface-variant">
+            Showing {{ (page - 1) * limit + 1 }}–{{ page * limit > total ? total : page * limit }} of {{ total }} vendors
+          </p>
+          <div class="flex items-center gap-1">
+            <button
+              (click)="goToPage(page - 1)"
+              [disabled]="page === 1"
+              class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_left</span>
+            </button>
+            @for (p of pages; track p) {
+              <button
+                (click)="goToPage(p)"
+                class="min-w-[32px] h-8 px-2 text-xs font-label font-semibold rounded-lg transition-colors cursor-pointer"
+                [ngClass]="{
+                  'bg-primary-container text-on-primary-container': p === page,
+                  'text-on-surface-variant hover:bg-surface-container-high': p !== page
+                }"
+              >
+                {{ p }}
+              </button>
+            }
+            <button
+              (click)="goToPage(page + 1)"
+              [disabled]="page === totalPages"
+              class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <span class="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>

@@ -82,6 +82,35 @@ async function main() {
   const brand2 = await prisma.brand.create({ data: { name: 'Nike', slug: 'nike' } });
   const brand3 = await prisma.brand.create({ data: { name: 'Zara', slug: 'zara' } });
 
+  // Create colors — preset palette for the variant picker. Upsert so
+  // re-running seed doesn't collide with a pre-existing row.
+  const presetColors: { name: string; hex: string }[] = [
+    { name: 'Black', hex: '#000000' },
+    { name: 'White', hex: '#FFFFFF' },
+    { name: 'Grey', hex: '#808080' },
+    { name: 'Navy', hex: '#1E3A8A' },
+    { name: 'Blue', hex: '#2563EB' },
+    { name: 'Sky Blue', hex: '#38BDF8' },
+    { name: 'Red', hex: '#DC2626' },
+    { name: 'Maroon', hex: '#7F1D1D' },
+    { name: 'Green', hex: '#16A34A' },
+    { name: 'Olive', hex: '#65A30D' },
+    { name: 'Yellow', hex: '#EAB308' },
+    { name: 'Orange', hex: '#EA580C' },
+    { name: 'Pink', hex: '#EC4899' },
+    { name: 'Purple', hex: '#9333EA' },
+    { name: 'Brown', hex: '#78350F' },
+    { name: 'Beige', hex: '#E5D5B5' },
+    { name: 'Cream', hex: '#FEF3C7' },
+  ];
+  for (const c of presetColors) {
+    await prisma.color.upsert({
+      where: { name: c.name },
+      update: {},
+      create: { name: c.name, hex: c.hex },
+    });
+  }
+
   // Create categories
   const mensCat = await prisma.category.create({ data: { name: 'Men', slug: 'men' } });
   const womensCat = await prisma.category.create({ data: { name: 'Women', slug: 'women' } });

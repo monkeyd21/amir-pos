@@ -46,8 +46,55 @@ model Branch {
   expenses           Expense[]
   attendance         Attendance[]
   upiPaymentIntents  UpiPaymentIntent[]
+  printerProfiles    PrinterProfile[]
 
   @@map("branches")
+}
+
+// ─── Printing (barcode label printers) ───────────────
+
+model PrinterProfile {
+  id           Int      @id @default(autoincrement())
+  branchId     Int
+  name         String
+  vendor       String   @default("generic")
+  model        String?
+  driver       String   // 'tspl' | 'zpl' | 'epl2' | 'escpos-label' | 'pdf'
+  transport    String   // 'tcp' | 'usb-lp' | 'cups' | 'win-spool' | 'browser'
+  connection   Json     @default("{}")
+  dpi          Int      @default(203)
+  maxWidthMm   Float    @default(108)
+  capabilities Json     @default("{}")
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch    Branch          @relation(fields: [branchId], references: [id])
+  templates LabelTemplate[]
+
+  @@index([branchId])
+  @@map("printer_profiles")
+}
+
+model LabelTemplate {
+  id               Int      @id @default(autoincrement())
+  printerProfileId Int
+  name             String
+  widthMm          Float
+  heightMm         Float
+  gapMm            Float    @default(2)
+  density          Int      @default(8)
+  speed            Int      @default(4)
+  elements         Json     @default("[]")
+  isDefault        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  printer PrinterProfile @relation(fields: [printerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([printerProfileId])
+  @@map("label_templates")
 }
 
 // ─── User / Employee ─────────────────────────────────
@@ -121,6 +168,26 @@ model Category {
   products Product[]
 
   @@map("categories")
+}
+
+// ─── Color ───────────────────────────────────────────
+//
+// Preset color palette used by the variant editors so cashiers/managers
+// pick from a consistent list instead of free-typing "navy" / "Navy" /
+// "NAVY" etc. `product_variants.color` is intentionally still a string —
+// it stores the chosen color NAME (the human-readable label on receipts,
+// stickers, POS) rather than a foreign key, which keeps old variants
+// working without a data migration.
+model Color {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  // Optional hex value (e.g. "#0F172A") used to render a swatch dot next
+  // to the name in pickers. Safe to leave null for uncommon shades.
+  hex       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("colors")
 }
 
 // ─── Product ─────────────────────────────────────────
@@ -207,13 +274,36 @@ model InventoryMovement {
   referenceType String?
   notes         String?
   createdBy     Int
+  vendorId      Int?
   createdAt     DateTime     @default(now())
 
   variant ProductVariant @relation(fields: [variantId], references: [id])
   branch  Branch         @relation(fields: [branchId], references: [id])
   user    User           @relation(fields: [createdBy], references: [id])
+  vendor  Vendor?        @relation(fields: [vendorId], references: [id])
 
   @@map("inventory_movements")
+}
+
+// ─── Vendor ──────────────────────────────────────────
+
+model Vendor {
+  id            Int      @id @default(autoincrement())
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  gstNumber     String?
+  paymentTerms  String?
+  notes         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  inventoryMovements InventoryMovement[]
+
+  @@map("vendors")
 }
 
 enum TransferStatus {

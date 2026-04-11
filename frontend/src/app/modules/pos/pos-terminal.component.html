@@ -60,9 +60,14 @@
           <div class="relative">
             <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-xl">barcode_scanner</span>
             <input
+              #searchInput
               type="text"
               [(ngModel)]="searchQuery"
               (input)="onSearchInput()"
+              (keydown.enter)="onSearchEnter(); $event.preventDefault()"
+              (keydown.arrowDown)="onSearchArrow(1); $event.preventDefault()"
+              (keydown.arrowUp)="onSearchArrow(-1); $event.preventDefault()"
+              (keydown.escape)="showSearchResults = false; highlightedResultIndex = -1"
               (blur)="closeSearchResults()"
               placeholder="Scan barcode or search products..."
               class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface pl-12 pr-4 py-3.5 rounded-xl transition-all outline-none placeholder:text-outline/50 text-sm"
@@ -77,29 +82,51 @@
             <!-- Search Results Dropdown -->
             @if (showSearchResults && searchResults.length > 0) {
               <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 max-h-80 overflow-y-auto no-scrollbar">
-                @for (variant of searchResults; track variant.id) {
+                @for (variant of searchResults; track variant.id; let idx = $index) {
                   <button
                     type="button"
+                    [attr.data-search-result-index]="idx"
+                    [disabled]="isVariantOutOfStock(variant)"
                     (mousedown)="addToCart(variant)"
-                    class="w-full flex items-center gap-4 px-4 py-3 hover:bg-surface-container-high/50 transition-colors text-left"
+                    (mouseenter)="highlightedResultIndex = idx"
+                    class="w-full flex items-center gap-4 px-4 py-3 transition-colors text-left border-l-2"
+                    [class]="isVariantOutOfStock(variant)
+                      ? (highlightedResultIndex === idx ? 'bg-red-500/20 border-red-500/60 cursor-not-allowed' : 'bg-red-500/10 border-red-500/60 cursor-not-allowed')
+                      : (highlightedResultIndex === idx ? 'bg-primary-container/15 border-primary-container/60' : 'border-transparent hover:bg-surface-container-high/50')"
                   >
-                    <div class="w-10 h-10 rounded-lg bg-primary-container/10 flex items-center justify-center shrink-0">
-                      <span class="material-symbols-outlined text-primary text-xl">checkroom</span>
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                      [class]="isVariantOutOfStock(variant) ? 'bg-red-500/15' : 'bg-primary-container/10'">
+                      <span class="material-symbols-outlined text-xl"
+                        [class]="isVariantOutOfStock(variant) ? 'text-red-400' : 'text-primary'">checkroom</span>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium text-on-surface truncate">{{ variant.productName || variant.product?.name || 'Unknown' }}</p>
-                      <p class="text-[11px] text-on-surface-variant">
+                      <p class="text-sm font-medium truncate"
+                        [class]="isVariantOutOfStock(variant) ? 'text-red-300/80 line-through' : 'text-on-surface'">
+                        {{ variant.productName || variant.product?.name || 'Unknown' }}
+                      </p>
+                      <p class="text-[11px]"
+                        [class]="isVariantOutOfStock(variant) ? 'text-red-400/60' : 'text-on-surface-variant'">
                         {{ variant.sku }}
                         @if (getVariantLabel(variant)) {
-                          <span class="ml-1.5 text-primary/70">{{ getVariantLabel(variant) }}</span>
+                          <span class="ml-1.5"
+                            [class]="isVariantOutOfStock(variant) ? 'text-red-400/70' : 'text-primary/70'">
+                            {{ getVariantLabel(variant) }}
+                          </span>
                         }
                       </p>
                     </div>
                     <div class="text-right shrink-0">
-                      <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(variant.price) }}</p>
-                      <p class="text-[10px] text-on-surface-variant">
-                        Stock: {{ variant.stock ?? variant.inventory?.[0]?.currentStock ?? '?' }}
+                      <p class="text-sm font-headline font-bold"
+                        [class]="isVariantOutOfStock(variant) ? 'text-red-300/70 line-through' : 'text-on-surface'">
+                        {{ formatCurrency(variant.price) }}
                       </p>
+                      @if (isVariantOutOfStock(variant)) {
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-red-400">Out of stock</p>
+                      } @else {
+                        <p class="text-[10px] text-on-surface-variant">
+                          Stock: {{ getVariantStock(variant) }}
+                        </p>
+                      }
                     </div>
                   </button>
                 }
@@ -132,25 +159,40 @@
               <table class="w-full text-left">
                 <thead>
                   <tr class="bg-surface-container-low/50">
-                    <th class="th-label">Product</th>
-                    <th class="th-label text-center">Qty</th>
-                    <th class="th-label text-right">Price</th>
-                    <th class="th-label text-right">Total</th>
-                    <th class="th-label w-12"></th>
+                    <th class="th-label">Article</th>
+                    <th class="th-label text-center w-24">Size</th>
+                    <th class="th-label text-center w-32">Qty</th>
+                    <th class="th-label text-right w-24">Price</th>
+                    <th class="th-label text-center w-20">Disc %</th>
+                    <th class="th-label text-right w-28">Total</th>
+                    <th class="th-label w-10"></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/10">
                   @for (item of cart; track item.variantId; let i = $index) {
                     <tr class="hover:bg-surface-container-high/40 transition-colors">
-                      <td class="px-6 py-4">
-                        <p class="text-sm font-medium text-on-surface">{{ item.productName }}</p>
-                        <p class="text-[11px] text-on-surface-variant mt-0.5">
-                          @if (item.brandName) {
-                            <span class="text-primary/60">{{ item.brandName }}</span>
-                            <span class="mx-1 text-outline-variant/30">&middot;</span>
+                      <!-- Article: name + Code + SKU stacked -->
+                      <td class="px-4 py-3">
+                        <p class="text-sm font-medium text-on-surface leading-tight">{{ item.productName }}</p>
+                        <div class="mt-1 flex items-center gap-2 text-[10px] font-mono text-on-surface-variant/70">
+                          @if (item.barcode) {
+                            <span class="inline-flex items-center gap-1">
+                              <span class="text-on-surface-variant/50">Code</span>
+                              <span class="text-on-surface-variant">{{ item.barcode }}</span>
+                            </span>
                           }
-                          {{ getItemVariantLabel(item) }}
-                        </p>
+                          @if (item.sku && item.sku !== item.barcode) {
+                            <span class="text-outline-variant/40">·</span>
+                            <span class="inline-flex items-center gap-1">
+                              <span class="text-on-surface-variant/50">SKU</span>
+                              <span class="text-on-surface-variant">{{ item.sku }}</span>
+                            </span>
+                          }
+                          @if (item.brandName) {
+                            <span class="text-outline-variant/40">·</span>
+                            <span class="text-primary/60 font-body">{{ item.brandName }}</span>
+                          }
+                        </div>
                         @if (item.offer) {
                           <div class="flex items-center gap-1.5 mt-1.5">
                             <span class="material-symbols-outlined text-xs"
@@ -160,9 +202,6 @@
                               <span class="text-[10px] font-bold text-primary uppercase tracking-wider">
                                 {{ item.offer.displayText }}
                               </span>
-                              <span class="text-[10px] text-primary/70">
-                                &minus;{{ formatCurrency(item.offerDiscount ?? 0) }}
-                              </span>
                             } @else {
                               <span class="text-[10px] font-semibold text-on-surface-variant/70">
                                 {{ item.offerHint || item.offer.displayText }}
@@ -171,40 +210,67 @@
                           </div>
                         }
                       </td>
-                      <td class="px-6 py-4">
+                      <!-- Size column (separate for clarity) -->
+                      <td class="px-2 py-3 text-center">
+                        @if (item.size) {
+                          <span class="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded bg-surface-container-lowest border border-outline-variant/20 text-xs font-bold font-mono text-on-surface">
+                            {{ item.size }}
+                          </span>
+                        } @else {
+                          <span class="text-[10px] text-on-surface-variant/40">&mdash;</span>
+                        }
+                        @if (item.color) {
+                          <p class="mt-1 text-[10px] text-on-surface-variant/70">{{ item.color }}</p>
+                        }
+                      </td>
+                      <!-- Qty stepper -->
+                      <td class="px-2 py-3">
                         <div class="flex items-center justify-center gap-1">
                           <button
                             (click)="decrementQty(item)"
-                            class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                            class="w-7 h-7 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
                           >
-                            <span class="material-symbols-outlined text-lg">remove</span>
+                            <span class="material-symbols-outlined text-base">remove</span>
                           </button>
-                          <span class="w-10 text-center text-sm font-bold text-on-surface">{{ item.quantity }}</span>
+                          <span class="w-8 text-center text-sm font-bold text-on-surface">{{ item.quantity }}</span>
                           <button
                             (click)="incrementQty(item)"
-                            class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                            class="w-7 h-7 rounded-lg bg-surface-container-lowest border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
                           >
-                            <span class="material-symbols-outlined text-lg">add</span>
+                            <span class="material-symbols-outlined text-base">add</span>
                           </button>
                         </div>
                       </td>
-                      <td class="px-6 py-4 text-right text-sm text-on-surface-variant">
+                      <!-- Unit price -->
+                      <td class="px-2 py-3 text-right text-sm text-on-surface-variant">
                         {{ formatCurrency(item.unitPrice) }}
                       </td>
-                      <td class="px-6 py-4 text-right">
-                        @if (item.qualified && (item.offerDiscount ?? 0) > 0) {
-                          <p class="text-[10px] text-on-surface-variant line-through">{{ formatCurrency(item.unitPrice * item.quantity) }}</p>
-                          <p class="text-sm font-headline font-bold text-primary">{{ formatCurrency(item.unitPrice * item.quantity - (item.offerDiscount ?? 0)) }}</p>
+                      <!-- Per-line effective discount % (display only) -->
+                      <td class="px-2 py-3 text-center">
+                        @if (getLineDiscountPercent(item) >= 0.5) {
+                          <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-primary-container/15 text-[11px] font-bold font-mono text-primary">
+                            {{ getLineDiscountPercent(item) | number:'1.0-0' }}%
+                          </span>
                         } @else {
-                          <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(item.unitPrice * item.quantity) }}</p>
+                          <span class="text-[10px] text-on-surface-variant/30">&mdash;</span>
                         }
                       </td>
-                      <td class="px-4 py-4">
+                      <!-- Line total (post all discounts) -->
+                      <td class="px-2 py-3 text-right">
+                        @if (getLineDiscountAmount(item) >= 0.5) {
+                          <p class="text-[10px] text-on-surface-variant line-through leading-none">{{ formatCurrency(getLineGross(item)) }}</p>
+                          <p class="mt-0.5 text-sm font-headline font-bold text-primary">{{ formatCurrency(getLineTotal(item)) }}</p>
+                        } @else {
+                          <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(getLineGross(item)) }}</p>
+                        }
+                      </td>
+                      <!-- Remove -->
+                      <td class="px-2 py-3">
                         <button
                           (click)="removeFromCart(i)"
-                          class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                          class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
                         >
-                          <span class="material-symbols-outlined text-lg">close</span>
+                          <span class="material-symbols-outlined text-base">close</span>
                         </button>
                       </td>
                     </tr>
@@ -308,24 +374,101 @@
                 </div>
               }
 
-              <!-- Discount -->
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-sm text-on-surface-variant">Manual discount</span>
-                <div class="relative w-32">
-                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs">&#8377;</span>
-                  <input
-                    type="number"
-                    [(ngModel)]="discount"
-                    min="0"
-                    [max]="subtotal"
-                    class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-7 pr-3 py-2 rounded-lg transition-all outline-none"
-                  />
+              <!-- Manual discount: ₹ amount or % of taxable base -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-sm text-on-surface-variant">Manual discount</span>
+                  <div class="flex items-center gap-1.5">
+                    <!-- Mode toggle ₹ / % -->
+                    <div class="inline-flex rounded-lg border border-outline-variant/20 overflow-hidden text-[11px] font-bold">
+                      <button
+                        type="button"
+                        (click)="setDiscountMode('amount')"
+                        class="w-7 py-1 transition-colors"
+                        [class]="discountMode === 'amount'
+                          ? 'bg-primary-container/20 text-primary'
+                          : 'text-on-surface-variant hover:bg-surface-container-high/50'"
+                        title="Flat rupee amount"
+                      >&#8377;</button>
+                      <button
+                        type="button"
+                        (click)="setDiscountMode('percent')"
+                        class="w-7 py-1 border-l border-outline-variant/20 transition-colors"
+                        [class]="discountMode === 'percent'
+                          ? 'bg-primary-container/20 text-primary'
+                          : 'text-on-surface-variant hover:bg-surface-container-high/50'"
+                        title="Percent of taxable base"
+                      >%</button>
+                    </div>
+                    <!-- Value input -->
+                    <div class="relative w-24">
+                      <input
+                        type="number"
+                        [(ngModel)]="discountValue"
+                        min="0"
+                        [max]="discountMode === 'percent' ? 100 : discountBase"
+                        placeholder="0"
+                        class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-2 pr-6 py-2 rounded-lg transition-all outline-none"
+                      />
+                      <span class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-xs pointer-events-none">
+                        {{ discountMode === 'percent' ? '%' : '₹' }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+                @if (discountMode === 'percent' && resolvedDiscount > 0) {
+                  <div class="flex justify-end">
+                    <span class="text-[11px] text-on-surface-variant/70 font-mono">&equals; &minus;{{ formatCurrency(resolvedDiscount) }}</span>
+                  </div>
+                }
               </div>
 
-              <div class="flex justify-between text-sm">
-                <span class="text-on-surface-variant">Tax (18% GST)</span>
-                <span class="text-on-surface font-medium">{{ formatCurrency(taxAmount) }}</span>
+              <!-- Round-off: snap the total to the nearest ₹10 up or down -->
+              @if (roundOff !== 0) {
+                <div class="flex items-center justify-between gap-3 text-sm">
+                  <span class="flex items-center gap-1.5 text-on-surface-variant">
+                    Round {{ roundOff > 0 ? 'down' : 'up' }}
+                    <button
+                      type="button"
+                      (click)="clearRoundOff()"
+                      class="w-5 h-5 rounded flex items-center justify-center text-on-surface-variant/60 hover:bg-error/10 hover:text-error transition-colors"
+                      title="Clear round-off"
+                    >
+                      <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </span>
+                  <span class="font-medium" [class]="roundOff > 0 ? 'text-on-surface' : 'text-on-surface-variant'">
+                    {{ roundOff > 0 ? '−' : '+' }}{{ formatCurrency(roundOff > 0 ? roundOff : -roundOff) }}
+                  </span>
+                </div>
+              } @else if (payableBeforeRound > 0 && (roundDownAmount > 0 || roundUpAmount > 0)) {
+                <div class="flex items-center justify-end gap-1.5">
+                  @if (roundDownAmount > 0) {
+                    <button
+                      type="button"
+                      (click)="applyRoundDown()"
+                      class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:border-primary-container/40 transition-colors"
+                      title="Waive the tail so total is a multiple of ₹10"
+                    >
+                      Round ↓ &minus;{{ formatCurrency(roundDownAmount) }}
+                    </button>
+                  }
+                  @if (roundUpAmount > 0) {
+                    <button
+                      type="button"
+                      (click)="applyRoundUp()"
+                      class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:text-primary hover:border-primary-container/40 transition-colors"
+                      title="Add the gap so total is a multiple of ₹10"
+                    >
+                      Round ↑ &plus;{{ formatCurrency(roundUpAmount) }}
+                    </button>
+                  }
+                </div>
+              }
+
+              <div class="flex justify-between text-xs">
+                <span class="text-on-surface-variant/70 italic">Incl. 18% GST</span>
+                <span class="text-on-surface-variant/70 italic">{{ formatCurrency(taxAmount) }}</span>
               </div>
 
               <div class="border-t border-outline-variant/10 pt-3 flex justify-between">
@@ -335,87 +478,143 @@
             </div>
           </div>
 
-          <!-- Payment Method -->
+          <!-- ─── Payments (split tender) ───────────────────────── -->
           <div>
-            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Payment Method</h2>
-            <div class="grid grid-cols-3 gap-2">
-              <button
-                (click)="selectPayment('cash')"
-                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
-                [class]="paymentMethod === 'cash'
-                  ? 'border-primary-container bg-primary-container/10 text-primary'
-                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
-              >
-                <span class="material-symbols-outlined text-2xl">payments</span>
-                <span class="text-xs font-bold uppercase tracking-wider">Cash</span>
-              </button>
-              <button
-                (click)="selectPayment('card')"
-                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
-                [class]="paymentMethod === 'card'
-                  ? 'border-primary-container bg-primary-container/10 text-primary'
-                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
-              >
-                <span class="material-symbols-outlined text-2xl">credit_card</span>
-                <span class="text-xs font-bold uppercase tracking-wider">Card</span>
-              </button>
-              <button
-                (click)="selectPayment('upi')"
-                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
-                [class]="paymentMethod === 'upi'
-                  ? 'border-primary-container bg-primary-container/10 text-primary'
-                  : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-outline-variant/40'"
-              >
-                <span class="material-symbols-outlined text-2xl">smartphone</span>
-                <span class="text-xs font-bold uppercase tracking-wider">UPI</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Cash Tendered (shown when Cash is selected) -->
-          @if (paymentMethod === 'cash') {
-            <div>
-              <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Cash Tendered</h2>
-              <div class="relative">
-                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm font-bold">&#8377;</span>
-                <input
-                  type="number"
-                  [(ngModel)]="cashTendered"
-                  [min]="total"
-                  placeholder="0"
-                  class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-right text-xl font-headline font-bold pl-8 pr-4 py-3 rounded-xl transition-all outline-none placeholder:text-outline/30"
-                />
-              </div>
-              @if (cashTendered !== null && cashTendered >= total) {
-                <div class="mt-3 flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <span class="text-sm text-green-400 font-medium">Change Due</span>
-                  <span class="text-lg font-headline font-bold text-green-400">{{ formatCurrency(changeDue) }}</span>
-                </div>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">Payment</h2>
+              @if (tenders.length > 0) {
+                <span class="text-[10px] font-mono text-on-surface-variant/70">
+                  Paid {{ formatCurrency(amountPaid) }} / {{ formatCurrency(total) }}
+                </span>
               }
             </div>
-          }
 
-          <!-- Quick Cash Amounts -->
-          @if (paymentMethod === 'cash' && total > 0) {
-            <div>
-              <button
-                (click)="setExactCash()"
-                class="w-full mb-2 py-2.5 rounded-xl bg-primary-container/10 border-2 border-primary-container/30 text-sm text-primary hover:bg-primary-container/20 transition-colors font-bold uppercase tracking-wider"
-              >
-                Exact &mdash; {{ formatCurrency(total) }}
-              </button>
-              <div class="grid grid-cols-3 gap-2">
-                @for (amount of [100, 200, 500, 1000, 2000, 5000]; track amount) {
-                  <button
-                    (click)="cashTendered = amount"
-                    class="py-2 rounded-lg bg-surface-container border border-outline-variant/20 text-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-medium"
-                  >
-                    &#8377;{{ amount }}
-                  </button>
+            <!-- Confirmed tenders list -->
+            @if (tenders.length > 0) {
+              <div class="mb-3 space-y-1.5">
+                @for (t of tenders; track i; let i = $index) {
+                  <div class="flex items-center gap-2 p-2.5 rounded-lg bg-surface-container border border-outline-variant/15">
+                    <span class="material-symbols-outlined text-base text-on-surface-variant">
+                      {{ t.method === 'cash' ? 'payments' : t.method === 'card' ? 'credit_card' : 'smartphone' }}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-xs font-bold uppercase tracking-wider text-on-surface">{{ t.method }}</div>
+                      @if (t.method === 'cash' && t.cashReceived != null && t.cashReceived > t.amount) {
+                        <div class="text-[10px] font-mono text-on-surface-variant/70">
+                          Received {{ formatCurrency(t.cashReceived) }} · change {{ formatCurrency(t.cashReceived - t.amount) }}
+                        </div>
+                      }
+                    </div>
+                    <div class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(t.amount) }}</div>
+                    <button
+                      (click)="removeTender(i)"
+                      class="p-1 rounded text-on-surface-variant/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Remove"
+                    >
+                      <span class="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
                 }
               </div>
-            </div>
-          }
+            }
+
+            <!-- Remaining / Change summary -->
+            @if (remaining > 0) {
+              <div class="mb-3 flex items-center justify-between p-3 rounded-lg bg-primary-container/10 border border-primary-container/30">
+                <span class="text-sm text-primary font-bold">Remaining</span>
+                <span class="text-lg font-headline font-bold text-primary">{{ formatCurrency(remaining) }}</span>
+              </div>
+            } @else if (tenders.length > 0) {
+              <div class="mb-3 flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <span class="text-sm text-green-400 font-bold">
+                  {{ changeDue > 0 ? 'Change Due' : 'Fully Paid' }}
+                </span>
+                <span class="text-lg font-headline font-bold text-green-400">
+                  {{ changeDue > 0 ? formatCurrency(changeDue) : '✓' }}
+                </span>
+              </div>
+            }
+
+            <!-- Add-tender panel: method selector + amount input -->
+            @if (remaining > 0 && total > 0) {
+              <div class="p-3 rounded-xl bg-surface-container border border-outline-variant/15 space-y-3">
+                <!-- Method selector -->
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    (click)="selectPendingMethod('cash')"
+                    class="flex flex-col items-center gap-1 p-2.5 rounded-lg border-2 transition-all"
+                    [class]="pendingMethod === 'cash'
+                      ? 'border-primary-container bg-primary-container/10 text-primary'
+                      : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+                  >
+                    <span class="material-symbols-outlined text-xl">payments</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider">Cash</span>
+                  </button>
+                  <button
+                    (click)="selectPendingMethod('card')"
+                    class="flex flex-col items-center gap-1 p-2.5 rounded-lg border-2 transition-all"
+                    [class]="pendingMethod === 'card'
+                      ? 'border-primary-container bg-primary-container/10 text-primary'
+                      : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+                  >
+                    <span class="material-symbols-outlined text-xl">credit_card</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider">Card</span>
+                  </button>
+                  <button
+                    (click)="selectPendingMethod('upi')"
+                    class="flex flex-col items-center gap-1 p-2.5 rounded-lg border-2 transition-all"
+                    [class]="pendingMethod === 'upi'
+                      ? 'border-primary-container bg-primary-container/10 text-primary'
+                      : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+                  >
+                    <span class="material-symbols-outlined text-xl">smartphone</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider">UPI</span>
+                  </button>
+                </div>
+
+                <!-- Amount input (pending) -->
+                <div class="relative">
+                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm font-bold">&#8377;</span>
+                  <input
+                    type="number"
+                    [(ngModel)]="pendingAmount"
+                    [placeholder]="remaining.toString()"
+                    min="0"
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-right text-lg font-headline font-bold pl-8 pr-4 py-2.5 rounded-lg transition-all outline-none placeholder:text-outline/40"
+                  />
+                </div>
+
+                <!-- Quick amounts (cash only) -->
+                @if (pendingMethod === 'cash') {
+                  <div class="grid grid-cols-4 gap-1.5">
+                    <button
+                      (click)="payRemainingInPending()"
+                      class="py-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-primary-container/20 border border-primary-container/30 text-primary hover:bg-primary-container/30 transition-colors"
+                    >
+                      Exact
+                    </button>
+                    @for (amount of [100, 500, 1000, 2000]; track amount) {
+                      <button
+                        (click)="pendingAmount = amount"
+                        class="py-1.5 rounded text-[10px] font-bold bg-surface-container-lowest border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+                      >
+                        &#8377;{{ amount }}
+                      </button>
+                    }
+                  </div>
+                }
+
+                <!-- Add button -->
+                <button
+                  (click)="addTender()"
+                  [disabled]="effectivePendingAmount <= 0"
+                  class="w-full py-2.5 rounded-lg bg-primary-container text-on-primary-container text-xs font-bold uppercase tracking-wider hover:shadow-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  + Add {{ pendingMethod }} {{ formatCurrency(effectivePendingAmount) }}
+                </button>
+              </div>
+            }
+          </div>
         </div>
 
         <!-- Complete Sale Button -->
@@ -444,16 +643,5 @@
 
     </div>
 
-    @if (showUpiDialog && upiIntent) {
-      <app-upi-qr-dialog
-        [intentId]="upiIntent.intentId"
-        [qrCodeUrl]="upiIntent.qrCodeUrl"
-        [upiLink]="upiIntent.upiLink"
-        [amount]="upiIntent.amount"
-        [expiresAt]="upiIntent.expiresAt"
-        (paymentComplete)="onUpiPaymentComplete($event)"
-        (cancelled)="onUpiPaymentCancel()"
-      />
-    }
   </div>
 }

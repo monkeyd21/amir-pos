@@ -44,6 +44,11 @@ export const routes: Routes = [
           import('./modules/customers/customers.routes').then((m) => m.CUSTOMERS_ROUTES),
       },
       {
+        path: 'vendors',
+        loadChildren: () =>
+          import('./modules/vendors/vendors.routes').then((m) => m.VENDORS_ROUTES),
+      },
+      {
         path: 'employees',
         loadChildren: () =>
           import('./modules/employees/employees.routes').then((m) => m.EMPLOYEES_ROUTES),

@@ -90,10 +90,24 @@
       <textarea
         [(ngModel)]="reason"
         rows="2"
-        placeholder="e.g. Physical count correction, Damaged goods..."
+        placeholder="e.g. Physical count correction, Purchase from supplier..."
         class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors resize-none"
       ></textarea>
+      <p class="mt-1 text-[10px] text-on-surface-variant/50">
+        Tip: mention "purchase" in the reason to attribute this to a vendor.
+      </p>
     </div>
+
+    <!-- Vendor (only when reason looks like a purchase) -->
+    @if (isPurchase) {
+      <div>
+        <label class="label-upper mb-1.5 block">Vendor (optional)</label>
+        <app-vendor-picker
+          [selectedId]="vendorId"
+          (selectedIdChange)="vendorId = $event"
+        ></app-vendor-picker>
+      </div>
+    }
   </div>
 
   <!-- Footer -->

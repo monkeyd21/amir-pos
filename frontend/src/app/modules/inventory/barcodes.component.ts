@@ -194,16 +194,20 @@ export class BarcodesComponent implements OnInit, OnDestroy {
     }));
 
     this.printing = true;
+    // Uses the new printing module. With no profileId/templateId supplied,
+    // the backend picks the branch's default printer profile and its default
+    // template (configured in Settings → Printers & Labels).
     this.api
-      .post<ApiResponse<{ labelsPrinted: number; itemCount: number }>>(
-        '/inventory/barcodes/print',
+      .post<ApiResponse<{ labelsPrinted: number; itemCount: number; driver: string; transport: string }>>(
+        '/printing/print',
         { items }
       )
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           const count = res.data?.labelsPrinted ?? this.totalStickers;
-          this.notification.success(`Printed ${count} label(s)`);
+          const driver = res.data?.driver ?? '';
+          this.notification.success(`Printed ${count} label(s) via ${driver}`);
           this.printing = false;
         },
         error: () => {

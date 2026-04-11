@@ -121,6 +121,7 @@ export class InventoryService {
     branchId: number;
     quantity: number;
     reason: string;
+    vendorId?: number;
   }, userId: number) {
     return prisma.$transaction(async (tx) => {
       // Upsert inventory record
@@ -166,6 +167,7 @@ export class InventoryService {
           quantity: data.quantity,
           notes: data.reason,
           createdBy: userId,
+          vendorId: data.vendorId ?? null,
         },
       });
 

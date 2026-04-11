@@ -84,3 +84,25 @@ export const deleteVariantSchema = z.object({
     variantId: z.string().regex(/^\d+$/, 'Variant ID must be a number'),
   }),
 });
+
+export const bulkCreateVariantsSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, 'ID must be a number'),
+  }),
+  body: z.object({
+    variants: z
+      .array(
+        z.object({
+          size: z.string().min(1, 'Size is required'),
+          color: z.string().min(1, 'Color is required'),
+          sku: z.string().optional(),
+          priceOverride: z.number().positive().optional(),
+          costOverride: z.number().positive().optional(),
+          initialStock: z.number().int().nonnegative().optional(),
+        })
+      )
+      .min(1, 'At least one variant is required'),
+    branchId: z.number().int().positive().optional(),
+    vendorId: z.number().int().positive().optional(),
+  }),
+});

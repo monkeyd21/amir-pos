@@ -1,0 +1,162 @@
+<div class="w-[560px] bg-surface-container/95 backdrop-blur-xl border border-outline-variant/20 rounded-2xl shadow-ambient flex flex-col max-h-[85vh]">
+  <!-- Header -->
+  <div class="flex items-center justify-between p-6 pb-4">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary-container/20 shrink-0">
+        <span class="material-symbols-outlined text-primary text-xl">{{ isEdit ? 'edit' : 'store' }}</span>
+      </div>
+      <div>
+        <h3 class="text-lg font-headline font-bold text-on-surface tracking-tight">
+          {{ isEdit ? 'Edit Vendor' : 'Add Vendor' }}
+        </h3>
+        <p class="text-xs font-body text-on-surface-variant">
+          {{ isEdit ? 'Update supplier details' : 'Create a new supplier record' }}
+        </p>
+      </div>
+    </div>
+    <button
+      (click)="onCancel()"
+      class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-on-surface-variant text-xl">close</span>
+    </button>
+  </div>
+
+  <!-- Form -->
+  <form [formGroup]="form" (ngSubmit)="onSave()" class="flex-1 overflow-y-auto px-6 pb-2 space-y-4">
+    <!-- Name -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+        Vendor Name *
+      </label>
+      <input
+        formControlName="name"
+        type="text"
+        placeholder="e.g. Reliance Trends Supplier"
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
+      />
+      @if (hasError('name', 'required')) {
+        <p class="mt-1 text-[11px] font-body text-error">Vendor name is required</p>
+      }
+      @if (hasError('name', 'minlength')) {
+        <p class="mt-1 text-[11px] font-body text-error">At least 2 characters</p>
+      }
+    </div>
+
+    <!-- Contact + Phone -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Contact Person
+        </label>
+        <input
+          formControlName="contactPerson"
+          type="text"
+          placeholder="Mr. Rajesh Kumar"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
+        />
+      </div>
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Phone
+        </label>
+        <input
+          formControlName="phone"
+          type="tel"
+          placeholder="+91 98765 43210"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
+        />
+      </div>
+    </div>
+
+    <!-- Email -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+        Email
+      </label>
+      <input
+        formControlName="email"
+        type="email"
+        placeholder="vendor@example.com"
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
+      />
+      @if (hasError('email', 'email')) {
+        <p class="mt-1 text-[11px] font-body text-error">Please enter a valid email</p>
+      }
+    </div>
+
+    <!-- GST + Payment Terms -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          GST Number
+        </label>
+        <input
+          formControlName="gstNumber"
+          type="text"
+          placeholder="27ABCDE1234F1Z5"
+          class="w-full px-3.5 py-2.5 text-sm font-body font-mono text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors uppercase"
+        />
+      </div>
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          Payment Terms
+        </label>
+        <input
+          formControlName="paymentTerms"
+          type="text"
+          placeholder="Net 30 / COD / Advance"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
+        />
+      </div>
+    </div>
+
+    <!-- Address -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+        Address
+      </label>
+      <textarea
+        formControlName="address"
+        rows="2"
+        placeholder="Street, city, state, PIN..."
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors resize-none"
+      ></textarea>
+    </div>
+
+    <!-- Notes -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+        Notes
+      </label>
+      <textarea
+        formControlName="notes"
+        rows="2"
+        placeholder="Anything worth remembering about this supplier..."
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors resize-none"
+      ></textarea>
+    </div>
+  </form>
+
+  <!-- Footer -->
+  <div class="flex items-center justify-end gap-3 px-6 py-5 border-t border-outline-variant/10">
+    <button
+      type="button"
+      (click)="onCancel()"
+      class="px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      (click)="onSave()"
+      [disabled]="saving"
+      class="px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+    >
+      @if (saving) {
+        <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+      }
+      {{ isEdit ? 'Update Vendor' : 'Add Vendor' }}
+    </button>
+  </div>
+</div>

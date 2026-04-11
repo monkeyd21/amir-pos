@@ -13,6 +13,7 @@ import branchRoutes from './modules/branches/routes';
 import userRoutes from './modules/users/routes';
 import brandRoutes from './modules/brands/routes';
 import categoryRoutes from './modules/categories/routes';
+import colorRoutes from './modules/colors/routes';
 import productRoutes from './modules/products/routes';
 import inventoryRoutes from './modules/inventory/routes';
 import barcodeRoutes from './modules/barcodes/routes';
@@ -28,6 +29,8 @@ import employeeRoutes from './modules/employees/routes';
 import messagingRoutes from './modules/messaging/routes';
 import settingsRoutes from './modules/settings/routes';
 import offersRoutes from './modules/offers/routes';
+import printingRoutes from './modules/printing/routes';
+import vendorRoutes from './modules/vendors/routes';
 import { posController } from './modules/pos/controller';
 
 const app = express();
@@ -58,6 +61,7 @@ app.use('/api/v1/branches', branchRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/brands', brandRoutes);
 app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/colors', colorRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/barcodes', barcodeRoutes);
@@ -73,6 +77,8 @@ app.use('/api/v1/employees', employeeRoutes);
 app.use('/api/v1/messaging', messagingRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/offers', offersRoutes);
+app.use('/api/v1/printing', printingRoutes);
+app.use('/api/v1/vendors', vendorRoutes);
 
 // Serve Angular frontend in production
 if (config.nodeEnv === 'production') {

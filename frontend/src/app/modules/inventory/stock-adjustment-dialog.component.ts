@@ -5,6 +5,7 @@ import { DialogRef } from '../../shared/dialog/dialog-ref';
 import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 
 interface AdjustmentDialogData {
   inventoryItem: {
@@ -25,7 +26,7 @@ interface AdjustmentDialogData {
 @Component({
   selector: 'app-stock-adjustment-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, VendorPickerComponent],
   templateUrl: './stock-adjustment-dialog.component.html',
 })
 export class StockAdjustmentDialogComponent implements OnInit {
@@ -33,10 +34,16 @@ export class StockAdjustmentDialogComponent implements OnInit {
   quantity: number | null = null;
   reason = '';
   saving = false;
+  vendorId: number | null = null;
 
   productName = '';
   variantLabel = '';
   currentStock = 0;
+
+  get isPurchase(): boolean {
+    const r = (this.reason || '').toLowerCase();
+    return r.includes('purchase') || r.includes('stock receipt') || r.includes('supplier');
+  }
 
   constructor(
     public dialogRef: DialogRef<boolean>,
@@ -82,12 +89,15 @@ export class StockAdjustmentDialogComponent implements OnInit {
 
     const branchId = this.data.inventoryItem.branchId || 1;
 
-    const payload = {
+    const payload: Record<string, any> = {
       variantId: this.data.inventoryItem.variantId,
       branchId,
       quantity: qty,
       reason: this.reason.trim(),
     };
+    if (this.vendorId && this.isPurchase) {
+      payload['vendorId'] = this.vendorId;
+    }
 
     this.api.post('/inventory/adjust', payload).subscribe({
       next: () => {

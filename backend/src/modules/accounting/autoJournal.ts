@@ -59,6 +59,21 @@ export async function createSaleJournalEntry(params: {
 
   const entryNumber = generateNumber('JE');
 
+  // Revenue credit = `total - taxAmount` so the double-entry always balances
+  // regardless of tax model. Under tax-inclusive pricing (our default) the
+  // MRP already contains GST, so the revenue side is the net portion of
+  // what the customer paid. Under tax-exclusive pricing (legacy), the same
+  // formula also holds because `total` already accounts for any discounts.
+  //
+  //   debit  Cash       = total
+  //   credit Revenue    = total - taxAmount
+  //   credit Tax Payable = taxAmount
+  //
+  // Note: `subtotal` (sum of gross MRPs) is NOT used here — we derive the
+  // revenue figure from the actually-collected total instead.
+  void subtotal;
+  const revenueCredit = Math.round((total - taxAmount) * 100) / 100;
+
   const lines: Array<{
     accountId: number;
     debit: number;
@@ -74,7 +89,7 @@ export async function createSaleJournalEntry(params: {
     {
       accountId: revenueAccount.id,
       debit: 0,
-      credit: subtotal,
+      credit: revenueCredit,
       description: `Sales revenue - Sale #${saleId}`,
     },
   ];
@@ -87,7 +102,8 @@ export async function createSaleJournalEntry(params: {
       description: `Tax collected - Sale #${saleId}`,
     });
   } else if (taxAmount > 0 && !taxAccount) {
-    // If no tax account, include tax in revenue
+    // No tax account configured — fold the tax portion into revenue so
+    // debits still equal credits.
     lines[1].credit = total;
   }
 

@@ -1,24 +1,14 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
-import { validate } from '../../middleware/validate';
-import { settingsController } from './controller';
-import { labelTemplateSchema } from './validators';
+import { authenticate } from '../../middleware/auth';
 
+/**
+ * Settings module — currently a thin shell. Store/branch settings live
+ * elsewhere and label templates moved to the printing module. This file
+ * exists so the existing `/api/v1/settings` prefix stays registered and
+ * future generic settings can slot in without schema changes.
+ */
 const router = Router();
 
 router.use(authenticate);
-
-router.get('/label-template', settingsController.getLabelTemplate);
-router.put(
-  '/label-template',
-  authorize('owner', 'manager'),
-  validate(labelTemplateSchema),
-  settingsController.updateLabelTemplate
-);
-router.post(
-  '/label-template/reset',
-  authorize('owner', 'manager'),
-  settingsController.resetLabelTemplate
-);
 
 export default router;

@@ -5,12 +5,10 @@ import { Subject, takeUntil, forkJoin } from 'rxjs';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { DialogService } from '../../shared/dialog/dialog.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { SearchInputComponent } from '../../shared/search-input/search-input.component';
 import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
-import { ProductDialogComponent } from './product-dialog.component';
 
 interface Product {
   id: number;
@@ -82,7 +80,6 @@ export class ProductListComponent implements OnInit, OnDestroy {
   constructor(
     private api: ApiService,
     private notification: NotificationService,
-    private dialog: DialogService,
     private router: Router
   ) {}
 
@@ -207,24 +204,12 @@ export class ProductListComponent implements OnInit, OnDestroy {
   }
 
   openAddProduct(): void {
-    const ref = this.dialog.open(ProductDialogComponent, {
-      data: { product: null, brands: this.brands, categories: this.categories },
-      width: '560px',
-    });
-    ref.afterClosed().subscribe((result) => {
-      if (result) this.loadProducts();
-    });
+    this.router.navigate(['/inventory/products/new']);
   }
 
   editProduct(product: Product): void {
     this.activeMenuId = null;
-    const ref = this.dialog.open(ProductDialogComponent, {
-      data: { product, brands: this.brands, categories: this.categories },
-      width: '560px',
-    });
-    ref.afterClosed().subscribe((result) => {
-      if (result) this.loadProducts();
-    });
+    this.router.navigate(['/inventory/products', product.id, 'edit']);
   }
 
   deleteProduct(product: Product): void {

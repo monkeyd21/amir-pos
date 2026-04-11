@@ -1,12 +1,13 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
 
-// ─── Types (mirror backend) ──────────────────────────────────────
+// ─── Types (mirror backend IR) ──────────────────────────────────
 
 type LabelElementType =
   | 'brand'
@@ -18,32 +19,63 @@ type LabelElementType =
   | 'text';
 
 type TextAlign = 'left' | 'center' | 'right';
+type TextWeight = 'normal' | 'bold';
+type BarcodeType = 'code128' | 'code39' | 'ean13' | 'ean8' | 'upca' | 'qr';
 
 interface LabelElement {
   id: string;
   type: LabelElementType;
-  x: number;
-  y: number;
+  xMm: number;
+  yMm: number;
   visible?: boolean;
-  font?: number;
-  xScale?: number;
-  yScale?: number;
+  fontSizePt?: number;
+  weight?: TextWeight;
   align?: TextAlign;
-  width?: number;
-  content?: string;
-  barcodeHeight?: number;
-  showBarcodeText?: boolean;
-  bold?: boolean;
+  widthMm?: number;
   underline?: boolean;
+  content?: string;
+  barcodeType?: BarcodeType;
+  barcodeHeightMm?: number;
+  showBarcodeText?: boolean;
 }
 
-interface LabelTemplate {
+interface LabelTemplateRow {
+  id: number;
+  printerProfileId: number;
+  name: string;
   widthMm: number;
   heightMm: number;
   gapMm: number;
   density: number;
   speed: number;
   elements: LabelElement[];
+  isDefault: boolean;
+}
+
+interface PrinterProfile {
+  id: number;
+  name: string;
+  vendor: string;
+  model: string | null;
+  driver: string;
+  transport: string;
+  dpi: number;
+  maxWidthMm: number;
+  capabilities: { supportedBarcodes?: BarcodeType[] };
+  isDefault: boolean;
+  templates: { id: number; name: string; isDefault: boolean; widthMm: number; heightMm: number }[];
+}
+
+interface DriverDescriptor {
+  name: string;
+  displayName: string;
+  capabilities: {
+    supportedBarcodes: BarcodeType[];
+    unicode: boolean;
+    nativeBold: boolean;
+    densityRange: [number, number];
+    speedRange: [number, number];
+  };
 }
 
 interface ApiResponse<T> {
@@ -53,25 +85,6 @@ interface ApiResponse<T> {
 }
 
 // ─── Constants ───────────────────────────────────────────────────
-
-const DPI = 203;
-const DOTS_PER_MM = DPI / 25.4;
-
-/** Character width in dots for each TSPL internal font at xScale=1 */
-const FONT_CHAR_WIDTH: Record<number, number> = {
-  1: 8,
-  2: 12,
-  3: 16,
-  4: 24,
-  5: 32,
-};
-const FONT_CHAR_HEIGHT: Record<number, number> = {
-  1: 12,
-  2: 20,
-  3: 24,
-  4: 32,
-  5: 48,
-};
 
 const ELEMENT_TYPE_LABELS: Record<LabelElementType, string> = {
   brand: 'Brand',
@@ -83,7 +96,6 @@ const ELEMENT_TYPE_LABELS: Record<LabelElementType, string> = {
   text: 'Custom Text',
 };
 
-/** Sample data shown in the live preview */
 const PREVIEW_DATA = {
   productName: 'Slim Fit Denim',
   variantLabel: 'M / Indigo',
@@ -94,23 +106,30 @@ const PREVIEW_DATA = {
 @Component({
   selector: 'app-label-designer',
   standalone: true,
-  imports: [CommonModule, FormsModule, CdkDrag, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, CdkDrag, RouterLink, PageHeaderComponent],
   templateUrl: './label-designer.component.html',
 })
 export class LabelDesignerComponent implements OnInit {
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLDivElement>;
 
-  // State
-  template: LabelTemplate | null = null;
+  // Multi-tenant state
+  profile: PrinterProfile | null = null;
+  drivers: DriverDescriptor[] = [];
+  templateRows: LabelTemplateRow[] = [];
+
+  // Active template being edited
+  template: LabelTemplateRow | null = null;
   selectedId: string | null = null;
+
+  // UI state
   loading = false;
   saving = false;
   printing = false;
 
-  // Canvas scale (px per dot) — computed from widget width
-  scale = 2;
+  // Canvas scale: **pixels per mm**. ~3.8 px/mm = screen-accurate on a
+  // ~96 DPI monitor; we start zoomed in at 4 px/mm for comfortable editing.
+  scale = 4;
 
-  // Element type palette
   readonly palette: { type: LabelElementType; label: string; icon: string }[] = [
     { type: 'brand', label: 'Brand', icon: 'storefront' },
     { type: 'productName', label: 'Product Name', icon: 'label' },
@@ -127,96 +146,136 @@ export class LabelDesignerComponent implements OnInit {
     { value: 'right', label: 'Right' },
   ];
 
-  readonly fontOptions = [
-    { value: 1, label: '1 — Tiny (8×12)' },
-    { value: 2, label: '2 — Small (12×20)' },
-    { value: 3, label: '3 — Medium (16×24)' },
-    { value: 4, label: '4 — Large (24×32)' },
-    { value: 5, label: '5 — X-Large (32×48)' },
-  ];
+  /** Discrete font-size suggestions (pt). Users can type any value too. */
+  readonly fontSizeOptions = [6, 8, 10, 12, 14, 18, 24, 32, 48];
 
   constructor(
     private api: ApiService,
+    private route: ActivatedRoute,
+    private router: Router,
     private notification: NotificationService
   ) {}
 
   ngOnInit(): void {
-    this.loadTemplate();
+    const profileId = Number(this.route.snapshot.paramMap.get('profileId'));
+    const templateId = Number(this.route.snapshot.paramMap.get('templateId'));
+    if (!profileId) {
+      this.notification.error('No printer profile specified');
+      this.router.navigate(['/settings']);
+      return;
+    }
+    this.load(profileId, templateId || undefined);
   }
 
   // ─── Load / Save ─────────────────────────────────────────────
 
-  loadTemplate(): void {
+  load(profileId: number, templateId?: number): void {
     this.loading = true;
-    this.api
-      .get<ApiResponse<LabelTemplate>>('/settings/label-template')
-      .subscribe({
-        next: (res) => {
-          this.template = this.normalize(res.data);
+    // Fetch profile (with templates list) + driver capabilities in parallel
+    Promise.all([
+      this.fetchProfile(profileId),
+      this.fetchDrivers(),
+    ])
+      .then(() => {
+        if (!this.profile) {
           this.loading = false;
-        },
-        error: () => {
+          return;
+        }
+        const targetId = templateId ?? this.profile.templates.find((t) => t.isDefault)?.id ?? this.profile.templates[0]?.id;
+        if (!targetId) {
           this.loading = false;
-          this.notification.error('Failed to load label template');
-        },
+          this.notification.warning('This printer has no templates — add one first.');
+          return;
+        }
+        this.loadTemplate(targetId);
+      })
+      .catch(() => {
+        this.loading = false;
+        this.notification.error('Failed to load printer profile');
       });
+  }
+
+  private fetchProfile(id: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.api.get<ApiResponse<PrinterProfile>>(`/printing/profiles/${id}`).subscribe({
+        next: (res) => {
+          this.profile = res.data;
+          resolve();
+        },
+        error: reject,
+      });
+    });
+  }
+
+  private fetchDrivers(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.api.get<ApiResponse<DriverDescriptor[]>>('/printing/drivers').subscribe({
+        next: (res) => {
+          this.drivers = res.data;
+          resolve();
+        },
+        error: reject,
+      });
+    });
+  }
+
+  loadTemplate(templateId: number): void {
+    this.api.get<ApiResponse<LabelTemplateRow>>(`/printing/templates/${templateId}`).subscribe({
+      next: (res) => {
+        this.template = this.normalize(res.data);
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+        this.notification.error('Failed to load label template');
+      },
+    });
   }
 
   saveTemplate(): void {
     if (!this.template || this.saving) return;
     this.saving = true;
+    const { id, printerProfileId: _pid, ...body } = this.template;
     this.api
-      .put<ApiResponse<LabelTemplate>>('/settings/label-template', this.template)
+      .put<ApiResponse<LabelTemplateRow>>(`/printing/templates/${id}`, body)
       .subscribe({
         next: (res) => {
           this.template = this.normalize(res.data);
           this.saving = false;
           this.notification.success('Label template saved');
         },
-        error: () => {
-          this.saving = false;
-        },
-      });
-  }
-
-  resetTemplate(): void {
-    if (!confirm('Reset label template to defaults? Unsaved changes will be lost.')) return;
-    this.api
-      .post<ApiResponse<LabelTemplate>>('/settings/label-template/reset', {})
-      .subscribe({
-        next: (res) => {
-          this.template = this.normalize(res.data);
-          this.selectedId = null;
-          this.notification.success('Template reset to defaults');
-        },
+        error: () => (this.saving = false),
       });
   }
 
   testPrint(): void {
-    if (!this.template || this.printing) return;
+    if (!this.profile || !this.template || this.printing) return;
     this.printing = true;
-    // Send the current (unsaved) template so the user can preview edits without saving first
     this.api
-      .post<ApiResponse<unknown>>('/inventory/barcodes/test-print', {
-        template: this.template,
+      .post<ApiResponse<unknown>>(`/printing/profiles/${this.profile.id}/test`, {
+        overrideTemplate: {
+          widthMm: this.template.widthMm,
+          heightMm: this.template.heightMm,
+          gapMm: this.template.gapMm,
+          density: this.template.density,
+          speed: this.template.speed,
+          elements: this.template.elements,
+        },
       })
       .subscribe({
         next: () => {
           this.printing = false;
           this.notification.success('Test label sent to printer');
         },
-        error: () => {
-          this.printing = false;
-        },
+        error: () => (this.printing = false),
       });
   }
 
   // ─── Element operations ──────────────────────────────────────
 
   addElement(type: LabelElementType): void {
-    if (!this.template) return;
+    if (!this.template || !this.profile) return;
 
-    // Generate unique id: base type + counter if duplicate exists
     let id: string = type;
     let counter = 2;
     while (this.template.elements.some((e) => e.id === id)) {
@@ -226,35 +285,37 @@ export class LabelDesignerComponent implements OnInit {
     const base: LabelElement = {
       id,
       type,
-      x: 20,
-      y: 20,
+      xMm: 2.5,
+      yMm: 2.5,
       visible: true,
-      font: 3,
-      xScale: 1,
-      yScale: 1,
+      fontSizePt: 12,
+      weight: 'normal',
       align: 'left',
     };
 
+    const innerWidthMm = this.template.widthMm - 5;
+
     if (type === 'barcode') {
-      base.x = 40;
-      base.barcodeHeight = 80;
+      base.xMm = 5;
+      base.barcodeType = this.defaultBarcodeType();
+      base.barcodeHeightMm = 10;
       base.showBarcodeText = true;
     } else if (type === 'brand') {
-      base.font = 4;
+      base.fontSizePt = 18;
       base.content = 'BRAND';
       base.align = 'center';
-      base.width = this.labelWidthDots - 40;
+      base.widthMm = innerWidthMm;
     } else if (type === 'price') {
-      base.font = 5;
+      base.fontSizePt = 24;
       base.content = 'Rs.';
       base.align = 'center';
-      base.width = this.labelWidthDots - 40;
+      base.widthMm = innerWidthMm;
     } else if (type === 'text') {
-      base.font = 2;
+      base.fontSizePt = 10;
       base.content = 'Text';
     } else {
       base.align = 'center';
-      base.width = this.labelWidthDots - 40;
+      base.widthMm = innerWidthMm;
     }
 
     this.template.elements.push(base);
@@ -278,7 +339,12 @@ export class LabelDesignerComponent implements OnInit {
       newId = `${src.id}_copy${counter++}`;
     }
 
-    const clone: LabelElement = { ...src, id: newId, x: src.x + 20, y: src.y + 20 };
+    const clone: LabelElement = {
+      ...src,
+      id: newId,
+      xMm: src.xMm + 2,
+      yMm: src.yMm + 2,
+    };
     this.template.elements.push(clone);
     this.selectedId = newId;
   }
@@ -288,55 +354,69 @@ export class LabelDesignerComponent implements OnInit {
   }
 
   deselectElement(ev: MouseEvent): void {
-    // Clicking empty canvas clears selection
     if (ev.target === ev.currentTarget) {
       this.selectedId = null;
     }
   }
 
-  // ─── Drag handlers (CDK freeDragPosition) ────────────────────
+  // ─── Drag handler (CDK free drag) ───────────────────────────
 
   onDragEnd(el: LabelElement, event: CdkDragEnd): void {
     if (!this.template) return;
-    // CDK drag-drop returns the DOM transform offset in pixels.
-    // Convert back to dots and add to the element's original position.
     const dist = event.source.getFreeDragPosition();
-    const newX = Math.max(0, Math.round(el.x + dist.x / this.scale));
-    const newY = Math.max(0, Math.round(el.y + dist.y / this.scale));
+    // Convert pixel delta → mm delta (scale is px/mm)
+    const newXMm = Math.max(0, el.xMm + dist.x / this.scale);
+    const newYMm = Math.max(0, el.yMm + dist.y / this.scale);
 
-    // Clamp within label bounds
-    el.x = Math.min(newX, this.labelWidthDots - 10);
-    el.y = Math.min(newY, this.labelHeightDots - 10);
+    el.xMm = Math.min(newXMm, this.template.widthMm - 1);
+    el.yMm = Math.min(newYMm, this.template.heightMm - 1);
 
-    // Reset the CDK drag transform so the next drag starts from the new x/y
     event.source.reset();
   }
 
-  // ─── Derived / preview helpers ───────────────────────────────
+  // ─── Derived properties ─────────────────────────────────────
 
   get selectedElement(): LabelElement | null {
     if (!this.template || !this.selectedId) return null;
     return this.template.elements.find((e) => e.id === this.selectedId) ?? null;
   }
 
-  get labelWidthDots(): number {
-    return this.template ? Math.round(this.template.widthMm * DOTS_PER_MM) : 400;
+  get activeDriver(): DriverDescriptor | undefined {
+    return this.profile
+      ? this.drivers.find((d) => d.name === this.profile!.driver)
+      : undefined;
   }
 
-  get labelHeightDots(): number {
-    return this.template ? Math.round(this.template.heightMm * DOTS_PER_MM) : 600;
+  /** Barcodes available for the current driver — used to filter the dropdown. */
+  get availableBarcodeTypes(): BarcodeType[] {
+    return this.activeDriver?.capabilities.supportedBarcodes ?? ['code128'];
   }
 
-  /** Pixel size of the canvas based on scale */
+  defaultBarcodeType(): BarcodeType {
+    return this.availableBarcodeTypes.includes('code128')
+      ? 'code128'
+      : this.availableBarcodeTypes[0];
+  }
+
+  /** Canvas pixel dimensions derived from label mm × scale. */
   get canvasWidthPx(): number {
-    return this.labelWidthDots * this.scale;
+    return this.template ? this.template.widthMm * this.scale : 200;
   }
 
   get canvasHeightPx(): number {
-    return this.labelHeightDots * this.scale;
+    return this.template ? this.template.heightMm * this.scale : 300;
   }
 
-  /** Resolve the text shown inside a given element for the live preview */
+  /** Max label width in mm that the selected printer can physically print. */
+  get maxLabelWidthMm(): number {
+    return this.profile?.maxWidthMm ?? 200;
+  }
+
+  /** 1 pt = 0.3528 mm → 1 pt = 0.3528 × scale pixels. */
+  ptToCssPx(pt: number): number {
+    return pt * 0.3528 * this.scale;
+  }
+
   previewText(el: LabelElement): string {
     switch (el.type) {
       case 'brand':
@@ -358,33 +438,27 @@ export class LabelDesignerComponent implements OnInit {
     }
   }
 
-  /** Compute pixel dimensions of the text box so drag bounds match the printed width */
   elementPixelWidth(el: LabelElement): number {
     if (el.type === 'barcode') {
-      // barcode module rendered as a fixed approximate width
-      return 240 * this.scale * 0.6;
+      // Rough approximation: 40 mm wide Code 128 / QR
+      return 40 * this.scale;
     }
-    if (el.width) return el.width * this.scale;
-    // Fallback: measure by text length
-    const cw = FONT_CHAR_WIDTH[el.font ?? 3] * (el.xScale ?? 1);
-    return this.previewText(el).length * cw * this.scale;
+    if (el.widthMm) return el.widthMm * this.scale;
+    const chars = Math.max(1, this.previewText(el).length);
+    // Approximate: char width = fontSizePt * 0.6 (ratio) * 0.3528 mm/pt
+    return chars * (el.fontSizePt ?? 12) * 0.6 * 0.3528 * this.scale;
   }
 
   elementPixelHeight(el: LabelElement): number {
     if (el.type === 'barcode') {
-      return (el.barcodeHeight ?? 80) * this.scale + 20 * this.scale;
+      const h = el.barcodeHeightMm ?? 10;
+      return (h + (el.showBarcodeText !== false ? 3 : 0)) * this.scale;
     }
-    return FONT_CHAR_HEIGHT[el.font ?? 3] * (el.yScale ?? 1) * this.scale;
+    return this.ptToCssPx(el.fontSizePt ?? 12);
   }
 
-  /** Font size in CSS pixels that approximates the TSPL font on the preview */
   elementFontSizePx(el: LabelElement): number {
-    const h = FONT_CHAR_HEIGHT[el.font ?? 3] * (el.yScale ?? 1);
-    return h * this.scale * 0.85; // slight shrink so HTML font matches printed size
-  }
-
-  elementTextAlignCss(el: LabelElement): string {
-    return el.align ?? 'left';
+    return this.ptToCssPx(el.fontSizePt ?? 12);
   }
 
   labelForType(type: LabelElementType): string {
@@ -407,9 +481,9 @@ export class LabelDesignerComponent implements OnInit {
 
   // ─── Sanitization ────────────────────────────────────────────
 
-  /** Ensure template has sane defaults for every element */
-  private normalize(t: LabelTemplate): LabelTemplate {
+  private normalize(t: LabelTemplateRow): LabelTemplateRow {
     return {
+      ...t,
       widthMm: t.widthMm ?? 50,
       heightMm: t.heightMm ?? 75,
       gapMm: t.gapMm ?? 2,
@@ -417,9 +491,8 @@ export class LabelDesignerComponent implements OnInit {
       speed: t.speed ?? 4,
       elements: (t.elements ?? []).map((e) => ({
         visible: true,
-        font: e.type === 'barcode' ? undefined : 3,
-        xScale: 1,
-        yScale: 1,
+        fontSizePt: 12,
+        weight: 'normal' as TextWeight,
         align: 'left' as TextAlign,
         ...e,
       })),

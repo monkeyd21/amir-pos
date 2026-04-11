@@ -34,7 +34,10 @@ export const checkoutSchema = z.object({
         })
       )
       .min(1, 'At least one payment is required'),
-    discountAmount: z.number().min(0).optional(),
+    // Negative values are allowed to accommodate round-up surcharges
+    // (the cashier bumps the total to the next ₹10). Capped at ₹10 on
+    // the negative side so a stray sign can't turn into a huge surcharge.
+    discountAmount: z.number().gte(-10).optional(),
     loyaltyPointsRedeem: z.number().int().min(0).optional(),
     notes: z.string().optional(),
   }),

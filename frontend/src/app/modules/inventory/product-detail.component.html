@@ -84,6 +84,17 @@
     </button>
   </div>
 
+  <!-- Bulk variant generator -->
+  <div class="mb-4">
+    <app-bulk-variant-generator
+      [productId]="product.id"
+      [brandName]="product.brand?.name || ''"
+      [productName]="product.name"
+      [defaultPrice]="+product.basePrice"
+      (variantsGenerated)="onBulkGenerated()"
+    ></app-bulk-variant-generator>
+  </div>
+
   <!-- Add Variant Form -->
   @if (showAddVariant) {
     <div class="bg-surface-container/60 border border-primary/20 rounded-xl p-5 mb-4">

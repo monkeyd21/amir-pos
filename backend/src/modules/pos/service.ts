@@ -232,12 +232,77 @@ export class PosService {
         }
       }
 
-      // subtotal stays as the gross (pre-discount, pre-tax) to preserve existing
-      // reporting semantics. Offer discounts roll up into Sale.discountAmount.
-      // Tax is computed on the post-offer-discount taxable base (Indian GST rules).
+      // ─── Tax-inclusive pricing (Indian clothing retail MRP convention) ───
+      //
+      // Product prices on hang-tags and in the database are the MRP — the
+      // tax is ALREADY baked into the price the customer sees. When we
+      // compute line totals we must NOT add tax on top; we must EXTRACT the
+      // tax component from within the inclusive amount.
+      //
+      //   net  = inclusive / (1 + rate/100)
+      //   tax  = inclusive - net  =  inclusive × rate / (100 + rate)
+      //
+      // Example: ₹1180 shelf price at 18% GST → ₹1000 net + ₹180 tax,
+      //          and the customer still pays ₹1180 (not ₹1180 + 180).
+      //
+      // Sale.subtotal is kept as the "gross sum of shelf prices" (pre-
+      // discount, tax-inclusive) to preserve reporting semantics —
+      // dashboards and the sale detail page show it as the list-price
+      // total that the customer saw. Sale.taxAmount stores the extracted
+      // GST component for GSTR-1 filings. Sale.total = what the customer
+      // actually paid = subtotal − discounts (no tax added on top).
+      // Pass 1: gather per-line gross + offer discount. We can't compute tax
+      // yet because manual/loyalty discounts still need to be apportioned.
+      interface LineAccumulator {
+        variantId: number;
+        quantity: number;
+        unitPrice: number;
+        taxRate: number;
+        lineGross: number;
+        offerDiscount: number;
+        offerId: number | null;
+        effectiveUnitPrice: number | null;
+      }
+      const lines: LineAccumulator[] = [];
       let subtotal = 0;
-      let totalTax = 0;
       let totalOfferDiscount = 0;
+
+      for (const item of saleItemsData) {
+        const lineGross = item.unitPrice * item.quantity;
+        const offerInfo = offerByVariantId.get(item.variantId);
+        const offerDiscount = offerInfo?.discount ?? 0;
+        lines.push({
+          variantId: item.variantId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          taxRate: item.taxRate,
+          lineGross,
+          offerDiscount,
+          offerId: offerInfo?.offerId ?? null,
+          effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
+        });
+        subtotal += lineGross;
+        totalOfferDiscount += offerDiscount;
+      }
+
+      subtotal = Math.round(subtotal * 100) / 100;
+      totalOfferDiscount = Math.round(totalOfferDiscount * 100) / 100;
+
+      // Apportion manual + loyalty discounts proportionally across lines,
+      // weighted by each line's post-offer taxable value. This way the
+      // extracted GST reflects what the customer ACTUALLY paid per line
+      // after all discount stacking — critical for GSTR-1 accuracy when
+      // tax is inclusive. If the non-offer discount exceeds the post-offer
+      // taxable base, we clamp per-line adjustments to zero.
+      const nonOfferDiscount = discountAmount + loyaltyDiscount;
+      const postOfferTaxableTotal = subtotal - totalOfferDiscount;
+      const apportionRatio =
+        postOfferTaxableTotal > 0
+          ? Math.min(1, nonOfferDiscount / postOfferTaxableTotal)
+          : 0;
+
+      // Pass 2: compute per-line taxable + tax with the apportioned discount.
+      let totalTax = 0;
       const itemsForCreation: Array<{
         variantId: number;
         quantity: number;
@@ -249,38 +314,37 @@ export class PosService {
         effectiveUnitPrice?: number | null;
       }> = [];
 
-      for (const item of saleItemsData) {
-        const lineGross = item.unitPrice * item.quantity;
-        const offerInfo = offerByVariantId.get(item.variantId);
-        const lineDiscount = offerInfo?.discount ?? 0;
-        const lineTaxable = lineGross - lineDiscount;
-        const lineTax = lineTaxable * (item.taxRate / 100);
-        const lineTotal = lineTaxable + lineTax;
+      for (const line of lines) {
+        const postOffer = line.lineGross - line.offerDiscount;
+        const apportioned = Math.round(postOffer * apportionRatio * 100) / 100;
+        const lineTaxable = postOffer - apportioned;
+        // Extract GST from within the inclusive post-discount amount.
+        const lineTax = lineTaxable * (line.taxRate / (100 + line.taxRate));
+        // Customer pays the inclusive taxable — no tax added on top.
+        const lineTotal = lineTaxable;
+        const lineDiscountTotal = line.offerDiscount + apportioned;
 
-        subtotal += lineGross;
         totalTax += lineTax;
-        totalOfferDiscount += lineDiscount;
 
         itemsForCreation.push({
-          variantId: item.variantId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: Math.round(lineDiscount * 100) / 100,
+          variantId: line.variantId,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discount: Math.round(lineDiscountTotal * 100) / 100,
           taxAmount: Math.round(lineTax * 100) / 100,
           total: Math.round(lineTotal * 100) / 100,
-          offerId: offerInfo?.offerId ?? null,
-          effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
+          offerId: line.offerId,
+          effectiveUnitPrice: line.effectiveUnitPrice,
         });
       }
 
-      subtotal = Math.round(subtotal * 100) / 100;
       totalTax = Math.round(totalTax * 100) / 100;
-      totalOfferDiscount = Math.round(totalOfferDiscount * 100) / 100;
-      const totalBeforeDiscount = subtotal + totalTax;
-      // discountAmount (manual) + loyaltyDiscount are applied AFTER offer discounts.
-      // All three are reflected in Sale.discountAmount for accounting continuity.
+      // Sale.subtotal stays as the "gross shelf total" for reporting so the
+      // receipt can show "MRP total / less discount / you pay".
+      // Sale.total is what the customer actually pays — tax is already inside
+      // subtotal, so we just subtract all discounts.
       const totalDiscount = discountAmount + loyaltyDiscount + totalOfferDiscount;
-      const saleTotal = Math.round((totalBeforeDiscount - totalDiscount) * 100) / 100;
+      const saleTotal = Math.round((subtotal - totalDiscount) * 100) / 100;
 
       if (saleTotal < 0) {
         throw new AppError('Discount exceeds sale total', 400);
@@ -706,22 +770,23 @@ export class PosService {
       });
     }
 
-    // 4. Calculate totals
+    // 4. Calculate totals — tax-inclusive (see `checkout` above for the
+    //    rationale). Line prices are MRPs with GST already baked in; we
+    //    extract the tax component for reporting and never add it on top.
     const discountAmount = data.discountAmount || 0;
     let subtotal = 0;
     let totalTax = 0;
 
     for (const item of cartItems) {
       const lineSubtotal = item.unitPrice * item.quantity;
-      const lineTax = lineSubtotal * (item.taxRate / 100);
+      const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
       subtotal += lineSubtotal;
       totalTax += lineTax;
     }
 
     subtotal = Math.round(subtotal * 100) / 100;
     totalTax = Math.round(totalTax * 100) / 100;
-    const totalBeforeDiscount = subtotal + totalTax;
-    const saleTotal = Math.round((totalBeforeDiscount - discountAmount) * 100) / 100;
+    const saleTotal = Math.round((subtotal - discountAmount) * 100) / 100;
 
     if (saleTotal < 0) {
       throw new AppError('Discount exceeds sale total', 400);
@@ -887,8 +952,9 @@ export class PosService {
 
       for (const item of cartItems) {
         const lineSubtotal = item.unitPrice * item.quantity;
-        const lineTax = lineSubtotal * (item.taxRate / 100);
-        const lineTotal = lineSubtotal + lineTax;
+        // Tax-inclusive: extract GST component from the MRP, don't add it.
+        const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
+        const lineTotal = lineSubtotal;
 
         subtotal += lineSubtotal;
         totalTax += lineTax;

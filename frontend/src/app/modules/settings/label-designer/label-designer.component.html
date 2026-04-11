@@ -1,11 +1,14 @@
-<app-page-header title="Label Designer" subtitle="Drag elements to design your barcode label. Click an element to edit its properties.">
+<app-page-header
+  [title]="'Label Designer' + (profile ? ' — ' + profile.name : '')"
+  [subtitle]="profile ? (profile.vendor + (profile.model ? ' ' + profile.model : '') + ' · ' + profile.driver.toUpperCase() + ' driver · ' + profile.dpi + ' DPI · ' + profile.maxWidthMm + ' mm max width') : 'Drag elements to design your barcode label'"
+>
   <div class="flex items-center gap-2">
-    <button
-      (click)="resetTemplate()"
-      class="px-4 py-2 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant hover:bg-error-container/20 hover:text-error rounded-lg transition-colors cursor-pointer"
+    <a
+      routerLink="/settings/printers"
+      class="px-4 py-2 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
     >
-      Reset
-    </button>
+      Back to Printers
+    </a>
     <button
       (click)="testPrint()"
       [disabled]="printing || !template"
@@ -37,7 +40,7 @@
   <div class="flex items-center justify-center py-16">
     <div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
   </div>
-} @else if (template) {
+} @else if (template && profile) {
   <div class="grid grid-cols-12 gap-4">
     <!-- ─── Left: Element Palette ───────────────────────── -->
     <div class="col-span-12 lg:col-span-2">
@@ -87,7 +90,7 @@
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
             <span class="text-xs font-semibold font-body text-on-surface-variant uppercase tracking-wider">Canvas</span>
-            <span class="text-[10px] font-mono text-on-surface-variant/50">{{ template.widthMm }}×{{ template.heightMm }} mm · {{ labelWidthDots }}×{{ labelHeightDots }} dots</span>
+            <span class="text-[10px] font-mono text-on-surface-variant/50">{{ template.widthMm }}×{{ template.heightMm }} mm · {{ profile.dpi }} DPI</span>
           </div>
           <div class="flex items-center gap-2">
             <button
@@ -97,9 +100,9 @@
             >
               <span class="material-symbols-outlined text-base text-on-surface-variant">zoom_out</span>
             </button>
-            <span class="text-[10px] font-mono text-on-surface-variant/60 w-10 text-center">{{ (scale * 100).toFixed(0) }}%</span>
+            <span class="text-[10px] font-mono text-on-surface-variant/60 w-12 text-center">{{ scale.toFixed(1) }} px/mm</span>
             <button
-              (click)="scale = scale < 5 ? scale + 0.5 : scale"
+              (click)="scale = scale < 10 ? scale + 0.5 : scale"
               class="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
               title="Zoom in"
             >
@@ -126,31 +129,30 @@
                   [class.ring-2]="selectedId === el.id"
                   [class.ring-primary]="selectedId === el.id"
                   class="absolute cursor-move hover:ring-1 hover:ring-primary/40 rounded"
-                  [style.left.px]="el.x * scale"
-                  [style.top.px]="el.y * scale"
+                  [style.left.px]="el.xMm * scale"
+                  [style.top.px]="el.yMm * scale"
                   [style.width.px]="elementPixelWidth(el)"
                   [style.min-height.px]="elementPixelHeight(el)"
                 >
                   @if (el.type === 'barcode') {
-                    <!-- Barcode placeholder: stripes + readable text -->
                     <div class="flex flex-col items-center justify-center h-full">
                       <div class="flex gap-[1px] h-full flex-1 items-center">
                         @for (i of [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]; track i) {
-                          <div [style.width.px]="(i % 3 === 0 ? 2 : 1) * scale" [style.height.px]="(el.barcodeHeight ?? 80) * scale" class="bg-black"></div>
+                          <div [style.width.px]="(i % 3 === 0 ? 2 : 1)" [style.height.px]="(el.barcodeHeightMm ?? 10) * scale" class="bg-black"></div>
                         }
                       </div>
                       @if (el.showBarcodeText !== false) {
-                        <div class="text-[10px] font-mono text-black mt-1" [style.font-size.px]="8 * scale">{{ previewText({ id: 'sku', type: 'sku', x: 0, y: 0 }) }}</div>
+                        <div class="text-black mt-1" [style.font-size.px]="scale > 3 ? scale * 3 : 8">{{ previewText({ id: 'sku', type: 'sku', xMm: 0, yMm: 0 }) }}</div>
                       }
                     </div>
                   } @else {
                     <div
                       class="text-black font-mono whitespace-nowrap leading-none select-none"
                       [style.font-size.px]="elementFontSizePx(el)"
-                      [style.font-weight]="el.bold ? '900' : '400'"
+                      [style.font-weight]="el.weight === 'bold' ? '900' : '400'"
                       [style.text-decoration]="el.underline ? 'underline' : 'none'"
-                      [style.text-align]="elementTextAlignCss(el)"
-                      [style.width.px]="el.width ? el.width * scale : undefined"
+                      [style.text-align]="el.align ?? 'left'"
+                      [style.width.px]="el.widthMm ? el.widthMm * scale : null"
                     >
                       {{ previewText(el) }}
                     </div>
@@ -162,7 +164,7 @@
         </div>
 
         <p class="text-[10px] text-on-surface-variant/50 text-center mt-3 font-mono">
-          Drag elements to position · Click to select · Coordinates in dots (8 dots/mm &#64; 203 DPI)
+          Drag elements to position · Click to select · Coordinates in mm · Max label width: {{ maxLabelWidthMm }} mm
         </p>
       </div>
     </div>
@@ -176,12 +178,12 @@
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Width (mm)</span>
-            <input type="number" min="10" max="200" step="1" [(ngModel)]="template.widthMm"
+            <input type="number" min="10" [max]="maxLabelWidthMm" step="1" [(ngModel)]="template.widthMm"
               class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Height (mm)</span>
-            <input type="number" min="10" max="300" step="1" [(ngModel)]="template.heightMm"
+            <input type="number" min="10" max="500" step="1" [(ngModel)]="template.heightMm"
               class="px-2 py-1.5 text-sm font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
           </label>
           <label class="flex flex-col gap-1">
@@ -235,13 +237,13 @@
 
             <div class="grid grid-cols-2 gap-2">
               <label class="flex flex-col gap-1">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">X (dots)</span>
-                <input type="number" min="0" step="1" [(ngModel)]="el.x"
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">X (mm)</span>
+                <input type="number" min="0" step="0.5" [(ngModel)]="el.xMm"
                   class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
               </label>
               <label class="flex flex-col gap-1">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Y (dots)</span>
-                <input type="number" min="0" step="1" [(ngModel)]="el.y"
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Y (mm)</span>
+                <input type="number" min="0" step="0.5" [(ngModel)]="el.yMm"
                   class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
               </label>
             </div>
@@ -256,27 +258,14 @@
               }
 
               <label class="flex flex-col gap-1">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Font Size</span>
-                <select [(ngModel)]="el.font"
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Font Size (pt)</span>
+                <select [(ngModel)]="el.fontSizePt"
                   class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none">
-                  @for (f of fontOptions; track f.value) {
-                    <option [ngValue]="f.value">{{ f.label }}</option>
+                  @for (pt of fontSizeOptions; track pt) {
+                    <option [ngValue]="pt">{{ pt }} pt</option>
                   }
                 </select>
               </label>
-
-              <div class="grid grid-cols-2 gap-2">
-                <label class="flex flex-col gap-1">
-                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Scale X</span>
-                  <input type="number" min="1" max="10" step="1" [(ngModel)]="el.xScale"
-                    class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
-                </label>
-                <label class="flex flex-col gap-1">
-                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Scale Y</span>
-                  <input type="number" min="1" max="10" step="1" [(ngModel)]="el.yScale"
-                    class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
-                </label>
-              </div>
 
               <label class="flex flex-col gap-1">
                 <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Alignment</span>
@@ -289,8 +278,8 @@
               </label>
 
               <label class="flex flex-col gap-1">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bounding Width (dots)</span>
-                <input type="number" min="0" step="1" [(ngModel)]="el.width"
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bounding Width (mm)</span>
+                <input type="number" min="0" step="1" [(ngModel)]="el.widthMm"
                   class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
               </label>
 
@@ -299,12 +288,12 @@
                 <div class="flex items-center gap-1">
                   <button
                     type="button"
-                    (click)="el.bold = !el.bold"
-                    [class.bg-primary-container]="el.bold"
-                    [class.text-primary]="el.bold"
+                    (click)="el.weight = el.weight === 'bold' ? 'normal' : 'bold'"
+                    [class.bg-primary-container]="el.weight === 'bold'"
+                    [class.text-primary]="el.weight === 'bold'"
                     class="flex-1 px-2 py-1.5 text-xs font-bold rounded border border-outline-variant/15 hover:bg-surface-container-high transition-colors cursor-pointer"
-                    [class.text-on-surface-variant]="!el.bold"
-                    title="Bold (double-strike)"
+                    [class.text-on-surface-variant]="el.weight !== 'bold'"
+                    title="Bold"
                   >
                     B
                   </button>
@@ -320,17 +309,33 @@
                     U
                   </button>
                 </div>
-                <p class="text-[9px] text-on-surface-variant/50 leading-tight mt-0.5">
-                  Italic not supported by TSPL internal fonts
-                </p>
+                @if (activeDriver && !activeDriver.capabilities.nativeBold) {
+                  <p class="text-[9px] text-on-surface-variant/50 leading-tight mt-0.5">
+                    Bold is emulated via double-strike on {{ activeDriver.name }}
+                  </p>
+                }
               </div>
             } @else {
               <!-- Barcode-specific props -->
               <label class="flex flex-col gap-1">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Barcode Height (dots)</span>
-                <input type="number" min="20" max="400" step="5" [(ngModel)]="el.barcodeHeight"
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Barcode Type</span>
+                <select [(ngModel)]="el.barcodeType"
+                  class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none">
+                  @for (bt of availableBarcodeTypes; track bt) {
+                    <option [ngValue]="bt">{{ bt.toUpperCase() }}</option>
+                  }
+                </select>
+                <p class="text-[9px] text-on-surface-variant/50 leading-tight mt-0.5">
+                  Types available for {{ profile.driver.toUpperCase() }}
+                </p>
+              </label>
+
+              <label class="flex flex-col gap-1">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Barcode Height (mm)</span>
+                <input type="number" min="2" max="50" step="0.5" [(ngModel)]="el.barcodeHeightMm"
                   class="px-2 py-1.5 text-xs font-mono bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none" />
               </label>
+
               <label class="flex items-center justify-between gap-2">
                 <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Show Number Below</span>
                 <input type="checkbox" [checked]="el.showBarcodeText !== false" (change)="el.showBarcodeText = $any($event.target).checked" class="w-4 h-4 rounded" />
