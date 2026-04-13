@@ -268,6 +268,8 @@ describe('Products Module', () => {
         costOverride: null,
         isActive: true,
       }));
+      prismaMock.branch.findMany.mockResolvedValue([]);
+      prismaMock.inventory.createMany.mockResolvedValue({ count: 0 });
 
       const res = await request(app)
         .post(`${BASE}/1/variants`)
