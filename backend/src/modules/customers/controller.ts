@@ -12,6 +12,15 @@ export class CustomerController {
     }
   }
 
+  async topCustomers(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await customerService.topCustomers(req.query as any);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const customer = await customerService.getById(parseInt(req.params.id));

@@ -9,6 +9,7 @@ import {
   transferParamsSchema,
   listMovementsSchema,
 } from './validators';
+import { upload } from '../../middleware/upload';
 
 const router = Router();
 
@@ -42,5 +43,19 @@ router.put(
   inventoryController.receiveTransfer
 );
 router.get('/movements', validate(listMovementsSchema), inventoryController.movements);
+
+// Import
+router.get('/import/template', inventoryController.importTemplate);
+router.post(
+  '/import/preview',
+  authorize('owner', 'manager'),
+  upload.single('file'),
+  inventoryController.importPreview
+);
+router.post(
+  '/import/execute',
+  authorize('owner', 'manager'),
+  inventoryController.importExecute
+);
 
 export default router;

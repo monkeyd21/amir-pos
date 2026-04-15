@@ -31,4 +31,11 @@ router.post(
   salesController.processExchange
 );
 
+// Agent assignment (retroactive and current)
+router.put(
+  '/:saleId/agents',
+  authorize('owner', 'manager'),
+  salesController.assignAgents
+);
+
 export default router;

@@ -10,110 +10,115 @@
     </div>
   } @else {
     <!-- Back + Header -->
-    <div class="flex items-center gap-3">
-      <button
-        (click)="goBack()"
-        class="p-2 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer"
-      >
-        <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
-      </button>
-      <div>
-        <p class="text-[10px] text-primary tracking-[0.2em] uppercase font-label font-semibold">CRM</p>
-        <h1 class="text-2xl font-headline font-extrabold tracking-tight text-on-surface">Customer Profile</h1>
-      </div>
-    </div>
-
-    <!-- Compact Header Card -->
-    <div class="bg-surface-container/60 rounded-xl p-6">
-      <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button
+          (click)="goBack()"
+          class="p-2 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+        </button>
         <div class="flex items-center gap-5">
           <!-- Avatar -->
-          <div class="w-16 h-16 rounded-full bg-gradient-cta flex items-center justify-center shrink-0">
-            <span class="text-xl font-headline font-bold text-white">{{ getInitials() }}</span>
+          <div class="w-14 h-14 rounded-full bg-gradient-cta flex items-center justify-center shrink-0">
+            <span class="text-lg font-headline font-bold text-white">{{ getInitials() }}</span>
           </div>
-          <!-- Name + Info -->
+          <!-- Name + Contact -->
           <div>
-            <div class="flex items-center gap-3 mb-1">
-              <h2 class="text-xl font-headline font-bold text-on-surface">
+            <div class="flex items-center gap-3 mb-0.5">
+              <h1 class="text-2xl font-headline font-extrabold tracking-tight text-on-surface">
                 {{ customer.firstName }} {{ customer.lastName }}
-              </h2>
+              </h1>
               <span
                 class="text-[9px] font-label font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                [ngClass]="getTierClasses(customer.tier)"
+                [ngClass]="getTierBgClass(customer.loyaltyTier)"
               >
-                {{ getTierLabel(customer.tier) }}
+                {{ getTierLabel(customer.loyaltyTier) }}
               </span>
             </div>
             <div class="flex items-center gap-4 text-sm font-body text-on-surface-variant">
-              @if (customer.email) {
-                <div class="flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-[14px] text-on-surface-variant/50">mail</span>
-                  {{ customer.email }}
-                </div>
-              }
               @if (customer.phone) {
                 <div class="flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-[14px] text-on-surface-variant/50">phone</span>
+                  <span class="material-symbols-outlined text-[14px]">phone</span>
                   {{ customer.phone }}
                 </div>
               }
-              @if (customer.city || customer.address) {
+              @if (customer.email) {
                 <div class="flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-[14px] text-on-surface-variant/50">location_on</span>
-                  {{ customer.city || customer.address }}
+                  <span class="material-symbols-outlined text-[14px]">mail</span>
+                  {{ customer.email }}
+                </div>
+              }
+              @if (customer.address) {
+                <div class="flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-[14px]">location_on</span>
+                  {{ customer.address }}
                 </div>
               }
             </div>
           </div>
         </div>
-
-        <!-- Action Buttons -->
-        <div class="flex items-center gap-3">
-          <button
-            (click)="editProfile()"
-            class="flex items-center gap-2 px-4 py-2 text-sm font-medium font-body text-on-surface-variant rounded-lg border border-outline-variant/20 hover:bg-surface-container-high/60 transition-colors cursor-pointer"
-          >
-            <span class="material-symbols-outlined text-[16px]">edit</span>
-            Edit Profile
-          </button>
-          <button
-            class="flex items-center gap-2 px-4 py-2 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
-          >
-            <span class="material-symbols-outlined text-[16px]">campaign</span>
-            Send Promo
-          </button>
-        </div>
       </div>
+
+      <!-- Edit Button -->
+      <a
+        [routerLink]="['/customers', customer.id, 'edit']"
+        class="flex items-center gap-2 px-4 py-2 text-sm font-medium font-body text-on-surface-variant rounded-lg border border-outline-variant hover:bg-surface-container-high transition-colors"
+      >
+        <span class="material-symbols-outlined text-[16px]">edit</span>
+        Edit
+      </a>
     </div>
 
-    <!-- Stats Row -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-surface-container/60 rounded-xl p-5 border-l-2 border-primary">
-        <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-1">Lifetime Spend</p>
-        <span class="text-2xl font-headline font-bold text-on-surface">
-          {{ customer.totalSpent | currency:'INR':'symbol':'1.0-0' }}
+    <!-- KPI Cards Row -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <!-- Total Spent -->
+      <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant">
+        <p class="text-[11px] font-label text-on-surface-variant uppercase tracking-wider mb-2">Total Spent</p>
+        <span class="text-xl font-headline font-bold text-on-surface">
+          {{ formatCurrency(stats?.totalSpent || customer.totalSpent || 0) }}
         </span>
       </div>
-      <div class="bg-surface-container/60 rounded-xl p-5 border-l-2 border-primary">
-        <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-1">Total Orders</p>
-        <span class="text-2xl font-headline font-bold text-on-surface">{{ totalOrders }}</span>
+
+      <!-- Visit Count -->
+      <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant">
+        <p class="text-[11px] font-label text-on-surface-variant uppercase tracking-wider mb-2">Visit Count</p>
+        <span class="text-xl font-headline font-bold text-on-surface">
+          {{ stats?.visitCount || customer.visitCount || 0 }}
+        </span>
       </div>
-      <div class="bg-surface-container/60 rounded-xl p-5 border-l-2 border-primary">
-        <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-1">Loyalty Points</p>
+
+      <!-- Avg Order Value -->
+      <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant">
+        <p class="text-[11px] font-label text-on-surface-variant uppercase tracking-wider mb-2">Avg Order Value</p>
+        <span class="text-xl font-headline font-bold text-on-surface">
+          {{ formatCurrency(stats?.avgOrderValue || 0) }}
+        </span>
+      </div>
+
+      <!-- Last Purchase -->
+      <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant">
+        <p class="text-[11px] font-label text-on-surface-variant uppercase tracking-wider mb-2">Last Purchase</p>
+        <span class="text-xl font-headline font-bold text-on-surface">
+          {{ formatDate(stats?.lastPurchaseDate || null) }}
+        </span>
+      </div>
+
+      <!-- Loyalty Points -->
+      <div class="bg-surface-container rounded-2xl p-5 border border-outline-variant">
+        <p class="text-[11px] font-label text-on-surface-variant uppercase tracking-wider mb-2">Loyalty Points</p>
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-tertiary text-[20px]">star</span>
-          <span class="text-2xl font-headline font-bold text-on-surface">{{ customer.loyaltyPoints | number }}</span>
+          <span class="text-xl font-headline font-bold text-on-surface">
+            {{ stats?.loyaltyPoints || customer.loyaltyPoints || 0 | number }}
+          </span>
         </div>
-      </div>
-      <div class="bg-surface-container/60 rounded-xl p-5 border-l-2 border-primary">
-        <p class="text-xs font-label text-on-surface-variant uppercase tracking-wider mb-1">Returns Rate</p>
-        <span class="text-2xl font-headline font-bold text-on-surface">{{ returnsRate }}%</span>
       </div>
     </div>
 
     <!-- Tabs -->
     <div>
-      <div class="flex items-center gap-1 border-b border-outline-variant/10">
+      <div class="flex items-center gap-1 border-b border-outline-variant">
         <button
           (click)="setTab('purchases')"
           class="px-5 py-3 text-sm font-label font-semibold transition-colors cursor-pointer"
@@ -125,30 +130,37 @@
           Purchase History
         </button>
         <button
-          (click)="setTab('returns')"
+          (click)="setTab('loyalty')"
           class="px-5 py-3 text-sm font-label font-semibold transition-colors cursor-pointer"
           [ngClass]="{
-            'text-primary border-b-2 border-primary': activeTab === 'returns',
-            'text-on-surface-variant hover:text-on-surface': activeTab !== 'returns'
+            'text-primary border-b-2 border-primary': activeTab === 'loyalty',
+            'text-on-surface-variant hover:text-on-surface': activeTab !== 'loyalty'
           }"
         >
-          Returns & Refunds
+          Loyalty
+        </button>
+        <button
+          (click)="setTab('messages')"
+          class="px-5 py-3 text-sm font-label font-semibold transition-colors cursor-pointer"
+          [ngClass]="{
+            'text-primary border-b-2 border-primary': activeTab === 'messages',
+            'text-on-surface-variant hover:text-on-surface': activeTab !== 'messages'
+          }"
+        >
+          Messages
         </button>
       </div>
 
       <!-- Purchase History Tab -->
       @if (activeTab === 'purchases') {
-        <div class="mt-4 bg-surface-container/60 rounded-xl overflow-hidden relative">
-          @if (salesLoading) {
-            <app-loading-spinner [overlay]="true" message="Loading purchases..."></app-loading-spinner>
-            <div class="h-48"></div>
-          } @else if (sales.length === 0) {
+        <div class="mt-4 bg-surface-container rounded-2xl overflow-hidden border border-outline-variant">
+          @if (sales.length === 0) {
             <div class="flex flex-col items-center justify-center py-16 px-4">
-              <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-high/50 mb-5">
-                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50">receipt_long</span>
+              <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-high mb-5">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant">receipt_long</span>
               </div>
-              <h3 class="text-lg font-headline font-semibold text-on-surface/70 tracking-tight">No purchases yet</h3>
-              <p class="mt-2 text-sm font-body text-on-surface-variant/60 text-center max-w-sm leading-relaxed">
+              <h3 class="text-lg font-headline font-semibold text-on-surface tracking-tight">No purchases yet</h3>
+              <p class="mt-2 text-sm font-body text-on-surface-variant text-center max-w-sm leading-relaxed">
                 This customer has not made any purchases.
               </p>
             </div>
@@ -156,31 +168,37 @@
             <div class="overflow-x-auto">
               <table class="w-full">
                 <thead>
-                  <tr class="bg-surface-container-low/50">
-                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Order ID</th>
-                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Items</th>
+                  <tr class="bg-surface-container-low">
                     <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Date</th>
-                    <th class="text-right px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Amount</th>
-                    <th class="text-center px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
+                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Sale #</th>
+                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Items</th>
+                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Cashier</th>
+                    <th class="text-right px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Total</th>
+                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Payment</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (sale of sales; track sale.id) {
-                    <tr class="border-t border-outline-variant/[0.06] hover:bg-surface-container-high/40 transition-colors">
+                    <tr class="border-t border-outline-variant hover:bg-surface-container-high transition-colors">
                       <td class="px-6 py-4">
-                        <span class="text-sm font-mono font-medium text-primary">{{ sale.saleNumber || '#' + sale.id }}</span>
+                        <span class="text-sm font-body text-on-surface-variant">{{ formatDate(sale.createdAt) }}</span>
+                      </td>
+                      <td class="px-6 py-4">
+                        <a [routerLink]="['/sales', sale.id]" class="text-sm font-mono font-medium text-primary hover:underline">
+                          {{ sale.saleNumber || '#' + sale.id }}
+                        </a>
                       </td>
                       <td class="px-6 py-4">
                         <span class="text-sm font-body text-on-surface-variant">{{ getItemsSummary(sale) }}</span>
                       </td>
                       <td class="px-6 py-4">
-                        <span class="text-sm font-body text-on-surface-variant">{{ sale.createdAt | date:'mediumDate' }}</span>
+                        <span class="text-sm font-body text-on-surface-variant">{{ getCashier(sale) }}</span>
                       </td>
                       <td class="px-6 py-4 text-right">
-                        <span class="text-sm font-body font-semibold text-on-surface">{{ sale.totalAmount | currency:'INR':'symbol':'1.2-2' }}</span>
+                        <span class="text-sm font-body font-semibold text-on-surface">{{ formatCurrency(sale.total) }}</span>
                       </td>
-                      <td class="px-6 py-4 text-center">
-                        <app-status-badge [status]="sale.status"></app-status-badge>
+                      <td class="px-6 py-4">
+                        <span class="text-sm font-body text-on-surface-variant">{{ getPaymentMethod(sale) }}</span>
                       </td>
                     </tr>
                   }
@@ -191,58 +209,113 @@
         </div>
       }
 
-      <!-- Returns Tab -->
-      @if (activeTab === 'returns') {
-        <div class="mt-4 bg-surface-container/60 rounded-xl overflow-hidden relative">
-          @if (salesLoading) {
-            <app-loading-spinner [overlay]="true" message="Loading returns..."></app-loading-spinner>
-            <div class="h-48"></div>
-          } @else if (returnedSales.length === 0) {
-            <div class="flex flex-col items-center justify-center py-16 px-4">
-              <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-high/50 mb-5">
-                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50">assignment_return</span>
+      <!-- Loyalty Tab -->
+      @if (activeTab === 'loyalty') {
+        <div class="mt-4 space-y-6">
+          <!-- Loyalty Summary Card -->
+          <div class="bg-surface-container rounded-2xl p-6 border border-outline-variant">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <!-- Points Balance -->
+              <div>
+                <p class="text-sm font-label text-on-surface-variant uppercase tracking-wider mb-2">Points Balance</p>
+                <div class="flex items-center gap-3 mb-4">
+                  <span class="material-symbols-outlined text-tertiary text-3xl">star</span>
+                  <span class="text-4xl font-headline font-extrabold text-on-surface">
+                    {{ stats?.loyaltyPoints || customer.loyaltyPoints || 0 | number }}
+                  </span>
+                </div>
               </div>
-              <h3 class="text-lg font-headline font-semibold text-on-surface/70 tracking-tight">No returns</h3>
-              <p class="mt-2 text-sm font-body text-on-surface-variant/60 text-center max-w-sm leading-relaxed">
-                This customer has not made any returns or refunds.
-              </p>
+
+              <!-- Tier + Progress -->
+              <div>
+                <p class="text-sm font-label text-on-surface-variant uppercase tracking-wider mb-2">Current Tier</p>
+                <div class="flex items-center gap-3 mb-3">
+                  <span
+                    class="text-xs font-label font-bold uppercase tracking-wider px-3 py-1 rounded-full"
+                    [ngClass]="getTierBgClass(stats?.loyaltyTier || customer.loyaltyTier || 'bronze')"
+                  >
+                    {{ getTierLabel(stats?.loyaltyTier || customer.loyaltyTier || 'bronze') }}
+                  </span>
+                </div>
+
+                @if (getNextTier()) {
+                  <div class="mt-3">
+                    <div class="flex items-center justify-between mb-1.5">
+                      <span class="text-xs font-body text-on-surface-variant">
+                        Progress to {{ getTierLabel(getNextTier()!) }}
+                      </span>
+                      <span class="text-xs font-body font-medium text-on-surface-variant">
+                        {{ getPointsToNextTier() | number }} pts to go
+                      </span>
+                    </div>
+                    <div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                      <div
+                        class="h-full rounded-full transition-all duration-500"
+                        [ngClass]="getTierProgressBarClass(stats?.loyaltyTier || customer.loyaltyTier || 'bronze')"
+                        [style.width.%]="getTierProgress()"
+                      ></div>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="text-xs font-body text-on-surface-variant mt-2">Highest tier reached!</p>
+                }
+              </div>
             </div>
-          } @else {
-            <div class="overflow-x-auto">
-              <table class="w-full">
-                <thead>
-                  <tr class="bg-surface-container-low/50">
-                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Order ID</th>
-                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Items</th>
-                    <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Date</th>
-                    <th class="text-right px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Amount</th>
-                    <th class="text-center px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (sale of returnedSales; track sale.id) {
-                    <tr class="border-t border-outline-variant/[0.06] hover:bg-surface-container-high/40 transition-colors">
-                      <td class="px-6 py-4">
-                        <span class="text-sm font-mono font-medium text-primary">{{ sale.saleNumber || '#' + sale.id }}</span>
-                      </td>
-                      <td class="px-6 py-4">
-                        <span class="text-sm font-body text-on-surface-variant">{{ getItemsSummary(sale) }}</span>
-                      </td>
-                      <td class="px-6 py-4">
-                        <span class="text-sm font-body text-on-surface-variant">{{ sale.createdAt | date:'mediumDate' }}</span>
-                      </td>
-                      <td class="px-6 py-4 text-right">
-                        <span class="text-sm font-body font-semibold text-on-surface">{{ sale.totalAmount | currency:'INR':'symbol':'1.2-2' }}</span>
-                      </td>
-                      <td class="px-6 py-4 text-center">
-                        <app-status-badge [status]="sale.status"></app-status-badge>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+          </div>
+
+          <!-- Transaction History -->
+          <div class="bg-surface-container rounded-2xl border border-outline-variant overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant">
+              <h3 class="text-sm font-label font-semibold text-on-surface uppercase tracking-wider">Transaction History</h3>
             </div>
-          }
+
+            @if (loyaltyTransactions.length === 0) {
+              <div class="flex flex-col items-center justify-center py-12 px-4">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant mb-3">history</span>
+                <p class="text-sm font-body text-on-surface-variant">No loyalty transactions yet.</p>
+              </div>
+            } @else {
+              <div class="divide-y divide-outline-variant">
+                @for (tx of loyaltyTransactions; track tx.id) {
+                  <div class="px-6 py-4 flex items-center gap-4 hover:bg-surface-container-high transition-colors">
+                    <div class="flex items-center justify-center w-9 h-9 rounded-full bg-surface-container-high shrink-0">
+                      <span class="material-symbols-outlined text-[18px]" [ngClass]="getLoyaltyTypeClass(tx.type)">
+                        {{ getLoyaltyTypeIcon(tx.type) }}
+                      </span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-body font-medium text-on-surface truncate">{{ tx.description || tx.type }}</p>
+                      <p class="text-xs font-body text-on-surface-variant">{{ formatDateTime(tx.createdAt) }}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <span
+                        class="text-sm font-mono font-bold"
+                        [ngClass]="tx.type === 'earned' || (tx.type === 'adjusted' && tx.points > 0) ? 'text-green-600' : 'text-red-500'"
+                      >
+                        {{ getLoyaltyPointsDisplay(tx) }}
+                      </span>
+                      <p class="text-[10px] font-label text-on-surface-variant uppercase">pts</p>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Messages Tab (placeholder) -->
+      @if (activeTab === 'messages') {
+        <div class="mt-4 bg-surface-container rounded-2xl border border-outline-variant">
+          <div class="flex flex-col items-center justify-center py-16 px-4">
+            <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-high mb-5">
+              <span class="material-symbols-outlined text-3xl text-on-surface-variant">chat</span>
+            </div>
+            <h3 class="text-lg font-headline font-semibold text-on-surface tracking-tight">Coming soon</h3>
+            <p class="mt-2 text-sm font-body text-on-surface-variant text-center max-w-sm leading-relaxed">
+              SMS and WhatsApp messaging for promotions and order updates will be available here.
+            </p>
+          </div>
         </div>
       }
     </div>

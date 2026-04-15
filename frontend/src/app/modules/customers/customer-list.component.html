@@ -63,6 +63,98 @@
     </div>
   </div>
 
+  <!-- Top Customers Section -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-[10px] text-tertiary tracking-[0.2em] uppercase font-label font-semibold mb-0.5">Repeat Buyers</p>
+        <h2 class="text-lg font-headline font-bold text-on-surface">Top Customers</h2>
+      </div>
+      <div class="flex items-center gap-1 bg-surface-container-high/50 rounded-lg p-1">
+        <button
+          (click)="setTopSortBy('totalSpent')"
+          class="px-3 py-1.5 text-xs font-label font-semibold rounded-md transition-colors cursor-pointer"
+          [ngClass]="topSortBy === 'totalSpent' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
+        >
+          By Spending
+        </button>
+        <button
+          (click)="setTopSortBy('visitCount')"
+          class="px-3 py-1.5 text-xs font-label font-semibold rounded-md transition-colors cursor-pointer"
+          [ngClass]="topSortBy === 'visitCount' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
+        >
+          By Visits
+        </button>
+        <button
+          (click)="setTopSortBy('loyaltyPoints')"
+          class="px-3 py-1.5 text-xs font-label font-semibold rounded-md transition-colors cursor-pointer"
+          [ngClass]="topSortBy === 'loyaltyPoints' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
+        >
+          By Points
+        </button>
+      </div>
+    </div>
+
+    @if (loadingTop) {
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        @for (i of [1,2,3,4,5]; track i) {
+          <div class="bg-surface-container-high/30 rounded-xl p-5 h-40 animate-pulse"></div>
+        }
+      </div>
+    } @else if (topCustomers.length > 0) {
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        @for (tc of topCustomers; track tc.id; let idx = $index) {
+          <div
+            (click)="viewCustomer(tc)"
+            class="relative bg-surface-container/60 rounded-xl p-5 border border-outline-variant/[0.08] hover:border-primary/30 hover:shadow-glow-sm transition-all cursor-pointer group"
+          >
+            <!-- Rank badge -->
+            <div class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+              <span class="text-[10px] font-label font-bold text-on-primary">{{ idx + 1 }}</span>
+            </div>
+
+            <div class="flex flex-col items-center text-center gap-3">
+              <!-- Avatar -->
+              <div class="w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center">
+                <span class="text-base font-headline font-bold text-primary">{{ getInitials(tc) }}</span>
+              </div>
+
+              <!-- Name -->
+              <div>
+                <p class="text-sm font-body font-semibold text-on-surface truncate max-w-full">
+                  {{ tc.firstName }} {{ tc.lastName }}
+                </p>
+                @if (tc.phone) {
+                  <p class="text-[11px] font-body text-on-surface-variant/60 mt-0.5">{{ tc.phone }}</p>
+                }
+              </div>
+
+              <!-- Tier badge -->
+              <span
+                class="text-[9px] font-label font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                [ngClass]="getTierClasses(getEffectiveTier(tc))"
+              >
+                {{ getTierLabel(getEffectiveTier(tc)) }}
+              </span>
+
+              <!-- Stats -->
+              <div class="w-full space-y-1.5 mt-1">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-on-surface-variant/60 font-label">Spent</span>
+                  <span class="font-body font-semibold text-on-surface">{{ formatCurrency(tc.totalSpent) }}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-on-surface-variant/60 font-label">Visits</span>
+                  <span class="font-body font-semibold text-on-surface">{{ tc.visitCount || 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
   <!-- Search Bar -->
   <div class="flex items-center gap-4">
     <div class="flex-1">
@@ -94,6 +186,7 @@
               <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Customer Name</th>
               <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Contact Info</th>
               <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Total Spent</th>
+              <th class="text-center px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Loyalty Tier</th>
               <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Loyalty Points</th>
               <th class="text-center px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Visits</th>
               <th class="text-right px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Actions</th>
@@ -114,17 +207,9 @@
                       </span>
                     </div>
                     <div>
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-body font-medium text-on-surface">
-                          {{ customer.firstName }} {{ customer.lastName }}
-                        </span>
-                        <span
-                          class="text-[9px] font-label font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-                          [ngClass]="getTierClasses(customer.tier)"
-                        >
-                          {{ getTierLabel(customer.tier) }}
-                        </span>
-                      </div>
+                      <span class="text-sm font-body font-medium text-on-surface">
+                        {{ customer.firstName }} {{ customer.lastName }}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -160,6 +245,16 @@
                       ></div>
                     </div>
                   </div>
+                </td>
+
+                <!-- Loyalty Tier -->
+                <td class="px-6 py-4 text-center">
+                  <span
+                    class="text-[9px] font-label font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    [ngClass]="getTierClasses(getEffectiveTier(customer))"
+                  >
+                    {{ getTierLabel(getEffectiveTier(customer)) }}
+                  </span>
                 </td>
 
                 <!-- Loyalty Points -->

@@ -37,17 +37,24 @@ export class CustomerService {
       where: { id },
       include: {
         sales: {
-          take: 10,
+          take: 20,
           orderBy: { createdAt: 'desc' },
           include: {
+            user: { select: { id: true, firstName: true, lastName: true } },
             items: {
               include: {
                 variant: {
-                  include: { product: true },
+                  include: { product: { include: { brand: true } } },
                 },
+                agent: { select: { id: true, firstName: true, lastName: true } },
               },
             },
+            payments: true,
           },
+        },
+        loyaltyTransactions: {
+          take: 20,
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -56,7 +63,68 @@ export class CustomerService {
       throw new AppError('Customer not found', 404);
     }
 
-    return customer;
+    // Compute stats
+    const lastSale = customer.sales[0] ?? null;
+    const avgOrderValue =
+      customer.visitCount > 0
+        ? Number(customer.totalSpent) / customer.visitCount
+        : 0;
+
+    return {
+      ...customer,
+      stats: {
+        totalSpent: Number(customer.totalSpent),
+        visitCount: customer.visitCount,
+        avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+        lastPurchaseDate: lastSale?.createdAt ?? null,
+        loyaltyPoints: customer.loyaltyPoints,
+        loyaltyTier: customer.loyaltyTier,
+      },
+    };
+  }
+
+  async topCustomers(query: { limit?: string; sortBy?: string }) {
+    const take = Math.min(parseInt(query.limit || '5', 10) || 5, 50);
+    const sortBy = query.sortBy || 'totalSpent';
+
+    let orderBy: any;
+    switch (sortBy) {
+      case 'visitCount':
+        orderBy = { visitCount: 'desc' };
+        break;
+      case 'loyaltyPoints':
+        orderBy = { loyaltyPoints: 'desc' };
+        break;
+      case 'totalSpent':
+      default:
+        orderBy = { totalSpent: 'desc' };
+        break;
+    }
+
+    const customers = await prisma.customer.findMany({
+      take,
+      orderBy,
+      include: {
+        sales: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        },
+      },
+    });
+
+    return customers.map((c) => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      phone: c.phone,
+      email: c.email,
+      totalSpent: Number(c.totalSpent),
+      visitCount: c.visitCount,
+      loyaltyPoints: c.loyaltyPoints,
+      loyaltyTier: c.loyaltyTier,
+      lastPurchaseDate: c.sales[0]?.createdAt ?? null,
+    }));
   }
 
   async create(data: {

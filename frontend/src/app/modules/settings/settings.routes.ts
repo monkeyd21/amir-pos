@@ -9,6 +9,7 @@ import { PrinterDiscoveryComponent } from './printing/printer-discovery.componen
 export const SETTINGS_ROUTES: Routes = [
   { path: '', component: SettingsComponent },
   { path: 'profile', component: ProfileComponent },
+  { path: 'label-designer', redirectTo: 'printers', pathMatch: 'full' },
   { path: 'printers', component: PrintersListComponent },
   { path: 'printers/new', component: PrinterFormComponent },
   { path: 'printers/discover', component: PrinterDiscoveryComponent },

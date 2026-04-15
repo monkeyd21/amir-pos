@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { EmployeeDialogComponent } from './employee-dialog.component';
 
 interface Employee {
   id: number;
@@ -28,7 +27,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-employee-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, EmployeeDialogComponent],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './employee-list.component.html',
 })
 export class EmployeeListComponent implements OnInit, OnDestroy {
@@ -37,9 +36,6 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   employees: Employee[] = [];
   loading = true;
   searchQuery = '';
-
-  showDialog = false;
-  editingEmployee: Employee | null = null;
 
   page = 1;
   limit = 20;
@@ -81,24 +77,6 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
           this.notify.error('Failed to load employees');
         },
       });
-  }
-
-  openAddDialog(): void {
-    this.editingEmployee = null;
-    this.showDialog = true;
-  }
-
-  openEditDialog(emp: Employee): void {
-    this.editingEmployee = emp;
-    this.showDialog = true;
-  }
-
-  onDialogClose(saved: boolean): void {
-    this.showDialog = false;
-    this.editingEmployee = null;
-    if (saved) {
-      this.loadEmployees();
-    }
   }
 
   onSearch(): void {

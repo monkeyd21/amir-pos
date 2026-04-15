@@ -21,6 +21,10 @@ router.get('/search', validate(listCustomersSchema), (req, res, next) =>
   customerController.list(req, res, next)
 );
 
+router.get('/top', (req, res, next) =>
+  customerController.topCustomers(req, res, next)
+);
+
 router.get('/:id', validate(getCustomerSchema), (req, res, next) =>
   customerController.getById(req, res, next)
 );

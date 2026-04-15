@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { getPagination, buildPaginationMeta } from '../../utils/helpers';
+import { getSetting } from '../settings/service';
 
 export class EmployeeService {
   // ─── Employee CRUD ─────────────────────────────────
@@ -54,9 +55,10 @@ export class EmployeeService {
     firstName: string;
     lastName: string;
     email: string;
-    phone?: string;
+    phone?: string | null;
     role: string;
     branchId?: number;
+    commissionRate?: number;
   }) {
     const existing = await prisma.user.findUnique({ where: { email: body.email } });
     if (existing) throw new AppError('Email already in use', 400);
@@ -73,7 +75,7 @@ export class EmployeeService {
         role: body.role as any,
         branchId: body.branchId || 1,
         passwordHash,
-        commissionRate: 0,
+        commissionRate: body.commissionRate ?? 0,
       },
       select: {
         id: true,
@@ -82,6 +84,7 @@ export class EmployeeService {
         email: true,
         phone: true,
         role: true,
+        commissionRate: true,
         isActive: true,
         branch: { select: { id: true, name: true } },
         createdAt: true,
@@ -97,9 +100,11 @@ export class EmployeeService {
       firstName?: string;
       lastName?: string;
       email?: string;
-      phone?: string;
+      phone?: string | null;
       role?: string;
       branchId?: number;
+      commissionRate?: number;
+      isActive?: boolean;
     }
   ) {
     const user = await prisma.user.findUnique({ where: { id } });
@@ -117,6 +122,8 @@ export class EmployeeService {
     if (body.phone !== undefined) data.phone = body.phone;
     if (body.role !== undefined) data.role = body.role;
     if (body.branchId !== undefined) data.branchId = body.branchId;
+    if (body.commissionRate !== undefined) data.commissionRate = body.commissionRate;
+    if (body.isActive !== undefined) data.isActive = body.isActive;
 
     return prisma.user.update({
       where: { id },
@@ -128,6 +135,7 @@ export class EmployeeService {
         email: true,
         phone: true,
         role: true,
+        commissionRate: true,
         isActive: true,
         branch: { select: { id: true, name: true } },
         createdAt: true,
@@ -316,6 +324,18 @@ export class EmployeeService {
     return { data: commissions, meta: buildPaginationMeta(page, limit, total) };
   }
 
+  /**
+   * Calculate commissions for a date range.
+   *
+   * Reads the global `commissionMode` setting:
+   *
+   * - **item_level** (default): groups SaleItems by agentId, computes
+   *   commission on each agent's line totals × their commissionRate.
+   *   One sale can generate multiple Commission rows (one per agent).
+   *
+   * - **bill_level**: one Commission row per sale for the cashier
+   *   (sale.userId) based on sale.total × cashier.commissionRate.
+   */
   async calculateCommissions(query: {
     startDate: string;
     endDate: string;
@@ -323,6 +343,7 @@ export class EmployeeService {
   }) {
     const startDate = new Date(query.startDate);
     const endDate = new Date(query.endDate);
+    const mode = await getSetting<string>('commissionMode', 'item_level');
 
     const salesWhere: any = {
       createdAt: { gte: startDate, lte: endDate },
@@ -330,24 +351,26 @@ export class EmployeeService {
     };
     if (query.branchId) salesWhere.branchId = parseInt(query.branchId);
 
-    // Get all sales in the period with their cashiers
     const sales = await prisma.sale.findMany({
       where: salesWhere,
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, commissionRate: true } },
+        user: { select: { id: true, commissionRate: true } },
+        items: {
+          include: {
+            agent: { select: { id: true, commissionRate: true } },
+          },
+        },
       },
     });
 
-    // Check for existing commissions in this period to avoid duplicates
-    const existingSaleIds = new Set(
+    const allSaleIds = sales.map((s) => s.id);
+    const existingKeys = new Set(
       (
         await prisma.commission.findMany({
-          where: {
-            saleId: { in: sales.map((s) => s.id) },
-          },
-          select: { saleId: true },
+          where: { saleId: { in: allSaleIds } },
+          select: { saleId: true, userId: true },
         })
-      ).map((c) => c.saleId)
+      ).map((c) => `${c.saleId}-${c.userId}`)
     );
 
     const newCommissions: Array<{
@@ -360,21 +383,52 @@ export class EmployeeService {
     }> = [];
 
     for (const sale of sales) {
-      if (existingSaleIds.has(sale.id)) continue;
+      if (mode === 'bill_level') {
+        // ── Bill-level: commission on whole sale for the cashier ──
+        const key = `${sale.id}-${sale.userId}`;
+        if (existingKeys.has(key)) continue;
 
-      const commissionRate = Number(sale.user.commissionRate);
-      if (commissionRate <= 0) continue;
+        const rate = Number(sale.user.commissionRate);
+        if (rate <= 0) continue;
 
-      const amount = Number(sale.total) * (commissionRate / 100);
+        const amount = Math.round(Number(sale.total) * (rate / 100) * 100) / 100;
+        newCommissions.push({
+          userId: sale.userId,
+          saleId: sale.id,
+          amount,
+          rate,
+          payPeriodStart: startDate,
+          payPeriodEnd: endDate,
+        });
+      } else {
+        // ── Item-level: commission per agent per line item ──
+        const agentTotals = new Map<number, number>();
+        for (const item of sale.items) {
+          if (!item.agentId || !item.agent) continue;
+          const current = agentTotals.get(item.agentId) ?? 0;
+          agentTotals.set(item.agentId, current + Number(item.total));
+        }
 
-      newCommissions.push({
-        userId: sale.userId,
-        saleId: sale.id,
-        amount: Math.round(amount * 100) / 100,
-        rate: commissionRate,
-        payPeriodStart: startDate,
-        payPeriodEnd: endDate,
-      });
+        for (const [agentId, lineTotal] of agentTotals) {
+          const key = `${sale.id}-${agentId}`;
+          if (existingKeys.has(key)) continue;
+
+          const agent = sale.items.find((i) => i.agentId === agentId)?.agent;
+          if (!agent) continue;
+          const rate = Number(agent.commissionRate);
+          if (rate <= 0) continue;
+
+          const amount = Math.round(lineTotal * (rate / 100) * 100) / 100;
+          newCommissions.push({
+            userId: agentId,
+            saleId: sale.id,
+            amount,
+            rate,
+            payPeriodStart: startDate,
+            payPeriodEnd: endDate,
+          });
+        }
+      }
     }
 
     if (newCommissions.length > 0) {
@@ -382,8 +436,9 @@ export class EmployeeService {
     }
 
     return {
+      mode,
       created: newCommissions.length,
-      skipped: existingSaleIds.size,
+      skipped: existingKeys.size,
       period: { startDate: query.startDate, endDate: query.endDate },
     };
   }
@@ -406,6 +461,31 @@ export class EmployeeService {
         sale: { select: { id: true, saleNumber: true, total: true } },
       },
     });
+  }
+
+  /**
+   * Mark all pending commissions in a date range as paid. Optionally filter by employee.
+   */
+  async payCommissionsBulk(query: {
+    startDate: string;
+    endDate: string;
+    userId?: number;
+  }) {
+    const where: any = {
+      status: 'pending',
+      createdAt: {
+        gte: new Date(query.startDate),
+        lte: new Date(query.endDate),
+      },
+    };
+    if (query.userId) where.userId = query.userId;
+
+    const result = await prisma.commission.updateMany({
+      where,
+      data: { status: 'paid' },
+    });
+
+    return { paidCount: result.count };
   }
 
   async getCommissionSummary(query: {

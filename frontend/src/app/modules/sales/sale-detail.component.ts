@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -23,6 +24,8 @@ interface SaleItem {
   unitPrice: number;
   subtotal?: number;
   returnedQuantity?: number;
+  agentId?: number | null;
+  agent?: { id: number; firstName: string; lastName: string } | null;
 }
 
 interface SaleReturn {
@@ -60,6 +63,7 @@ interface SaleResponse {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     StatusBadgeComponent,
     LoadingSpinnerComponent,
     ReturnDialogComponent,
@@ -72,6 +76,7 @@ export class SaleDetailComponent implements OnInit {
   loading = true;
   showReturnDialog = false;
   showExchangeDialog = false;
+  agents: Array<{ id: number; name: string }> = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -86,6 +91,35 @@ export class SaleDetailComponent implements OnInit {
     if (id) {
       this.loadSale(id);
     }
+    this.loadAgents();
+  }
+
+  private loadAgents(): void {
+    this.api.get<any>('/employees').subscribe({
+      next: (res: any) => {
+        this.agents = (res.data ?? [])
+          .filter((e: any) => e.isActive)
+          .map((e: any) => ({
+            id: e.id,
+            name: `${e.firstName} ${e.lastName}`.trim(),
+          }));
+      },
+    });
+  }
+
+  onAgentChange(item: SaleItem, agentId: number | null): void {
+    if (!this.sale) return;
+    this.api
+      .put<any>(`/sales/${this.sale.id}/agents`, {
+        items: [{ saleItemId: item.id, agentId }],
+      })
+      .subscribe({
+        next: () => {
+          item.agentId = agentId;
+          this.notify.success('Agent updated');
+        },
+        error: () => this.notify.error('Failed to update agent'),
+      });
   }
 
   loadSale(id: string): void {

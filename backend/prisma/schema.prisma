@@ -134,6 +134,7 @@ model User {
   attendance         Attendance[]
   commissions        Commission[]
   upiPaymentIntents  UpiPaymentIntent[]
+  agentSaleItems     SaleItem[]          @relation("SaleItemAgent")
 
   @@map("users")
 }
@@ -396,11 +397,13 @@ model SaleItem {
   returnedQuantity   Int     @default(0)
   offerId            Int?
   effectiveUnitPrice Decimal? @db.Decimal(10, 2)
+  agentId            Int?
 
   sale        Sale           @relation(fields: [saleId], references: [id])
   variant     ProductVariant @relation(fields: [variantId], references: [id])
   returnItems ReturnItem[]
   offer       Offer?         @relation(fields: [offerId], references: [id])
+  agent       User?          @relation("SaleItemAgent", fields: [agentId], references: [id])
 
   @@map("sale_items")
 }
@@ -644,6 +647,7 @@ model LoyaltyConfig {
   pointsPerAmount    Int  @default(1)
   amountPerPoint     Int  @default(100)
   redemptionValue    Decimal @default(1) @db.Decimal(10, 2)
+  minRedeemPoints    Int  @default(100)
   tierThresholds     Json @default("{\"silver\": 1000, \"gold\": 5000, \"platinum\": 20000}")
   earningMultipliers Json @default("{\"bronze\": 1, \"silver\": 1.5, \"gold\": 2, \"platinum\": 3}")
 

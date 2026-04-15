@@ -98,6 +98,7 @@
               <th class="th-label text-left">Product</th>
               <th class="th-label text-left">Size</th>
               <th class="th-label text-left">Color</th>
+              <th class="th-label text-left">Agent</th>
               <th class="th-label text-center">Qty</th>
               <th class="th-label text-right">Unit Price</th>
               <th class="th-label text-right">Subtotal</th>
@@ -118,6 +119,18 @@
                 </td>
                 <td class="px-6 py-4">
                   <span class="text-sm font-body text-on-surface-variant">{{ item.variant?.color || '-' }}</span>
+                </td>
+                <td class="px-6 py-4">
+                  <select
+                    [ngModel]="item.agentId || null"
+                    (ngModelChange)="onAgentChange(item, $event)"
+                    class="px-2 py-1 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none cursor-pointer"
+                  >
+                    <option [ngValue]="null">-- None --</option>
+                    @for (agent of agents; track agent.id) {
+                      <option [ngValue]="agent.id">{{ agent.name }}</option>
+                    }
+                  </select>
                 </td>
                 <td class="px-6 py-4 text-center">
                   <span class="text-sm font-semibold font-body text-on-surface">{{ item.quantity }}</span>
@@ -142,7 +155,7 @@
           </tbody>
           <tfoot>
             <tr class="border-t border-outline-variant/20">
-              <td colspan="5" class="px-6 py-4 text-right">
+              <td colspan="6" class="px-6 py-4 text-right">
                 <span class="text-sm font-semibold font-body text-on-surface-variant">Total</span>
               </td>
               <td class="px-6 py-4 text-right">

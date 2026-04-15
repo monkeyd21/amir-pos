@@ -1,10 +1,10 @@
 <!-- Backdrop -->
 <div
-  class="dialog-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+  class="dialog-backdrop fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm"
   (click)="onBackdropClick($event)"
 >
   <!-- Dialog Card -->
-  <div class="glass-panel w-full max-w-lg rounded-2xl border border-outline-variant/10 shadow-ambient overflow-hidden">
+  <div class="w-full max-w-lg rounded-2xl bg-[#1a2340] border border-outline-variant/20 shadow-2xl overflow-hidden">
 
     <!-- Header -->
     <div class="flex items-center justify-between px-8 py-6 border-b border-outline-variant/10">
@@ -100,6 +100,24 @@
             }
           </select>
         </div>
+      </div>
+
+      <!-- Commission Rate -->
+      <div class="flex flex-col gap-2">
+        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Commission Rate (%)</label>
+        <div class="relative w-40">
+          <input
+            formControlName="commissionRate"
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface pl-4 pr-8 py-3 rounded-lg transition-all outline-none text-sm"
+            placeholder="0"
+          />
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-xs pointer-events-none">%</span>
+        </div>
+        <p class="text-[10px] text-on-surface-variant/60">Percentage of sale amount earned as commission</p>
       </div>
 
       <!-- Actions -->

@@ -18,15 +18,22 @@ interface Customer {
   phone: string;
   totalSpent: number;
   loyaltyPoints: number;
+  loyaltyTier: string;
   visitCount: number;
   tier: string;
   createdAt: string;
+  lastPurchaseDate: string | null;
 }
 
 interface CustomerResponse {
   success: boolean;
   data: Customer[];
   meta: { total: number };
+}
+
+interface TopCustomerResponse {
+  success: boolean;
+  data: Customer[];
 }
 
 @Component({
@@ -43,12 +50,15 @@ interface CustomerResponse {
 })
 export class CustomerListComponent implements OnInit {
   customers: Customer[] = [];
+  topCustomers: Customer[] = [];
   loading = true;
+  loadingTop = true;
   searchQuery = '';
   page = 1;
   limit = 10;
   total = 0;
   showFilters = false;
+  topSortBy: 'totalSpent' | 'visitCount' | 'loyaltyPoints' = 'totalSpent';
 
   // KPIs
   totalCustomers = 0;
@@ -59,6 +69,13 @@ export class CustomerListComponent implements OnInit {
   // Max spent for progress bar scaling
   maxSpent = 0;
 
+  private currencyFormatter = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+
   constructor(
     private api: ApiService,
     private router: Router,
@@ -68,6 +85,7 @@ export class CustomerListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadCustomers();
+    this.loadTopCustomers();
   }
 
   loadCustomers(): void {
@@ -158,6 +176,39 @@ export class CustomerListComponent implements OnInit {
     });
   }
 
+  loadTopCustomers(): void {
+    this.loadingTop = true;
+    this.api
+      .get<TopCustomerResponse>('/customers/top', { limit: 5, sortBy: this.topSortBy })
+      .subscribe({
+        next: (res) => {
+          this.topCustomers = res.data || [];
+          this.loadingTop = false;
+        },
+        error: () => {
+          this.loadingTop = false;
+        },
+      });
+  }
+
+  setTopSortBy(sortBy: 'totalSpent' | 'visitCount' | 'loyaltyPoints'): void {
+    if (this.topSortBy === sortBy) return;
+    this.topSortBy = sortBy;
+    this.loadTopCustomers();
+  }
+
+  formatCurrency(value: number): string {
+    return this.currencyFormatter.format(value || 0);
+  }
+
+  getInitials(customer: Customer): string {
+    return (customer.firstName?.charAt(0) || '') + (customer.lastName?.charAt(0) || '');
+  }
+
+  getEffectiveTier(customer: Customer): string {
+    return customer.loyaltyTier || customer.tier || '';
+  }
+
   getTierLabel(tier: string): string {
     if (!tier) return 'Standard';
     return tier.charAt(0).toUpperCase() + tier.slice(1).toLowerCase();
@@ -166,10 +217,14 @@ export class CustomerListComponent implements OnInit {
   getTierClasses(tier: string): string {
     const t = (tier || '').toLowerCase();
     switch (t) {
+      case 'gold':
       case 'premium':
         return 'bg-tertiary/15 text-tertiary';
+      case 'platinum':
       case 'elite':
         return 'bg-primary-container/20 text-primary';
+      case 'silver':
+        return 'bg-secondary/15 text-secondary';
       default:
         return 'bg-surface-container-high text-on-surface-variant';
     }

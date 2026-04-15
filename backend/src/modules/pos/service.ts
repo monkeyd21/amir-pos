@@ -101,7 +101,7 @@ export class PosService {
 
   async checkout(
     data: {
-      items: { barcode: string; quantity: number }[];
+      items: { barcode: string; quantity: number; agentId?: number }[];
       customerId?: number;
       payments: { method: string; amount: number; referenceNumber?: string }[];
       discountAmount?: number;
@@ -146,6 +146,7 @@ export class PosService {
         unitPrice: number;
         costPrice: number;
         taxRate: number;
+        agentId: number | null;
       }> = [];
 
       for (const item of data.items) {
@@ -177,6 +178,7 @@ export class PosService {
           unitPrice,
           costPrice,
           taxRate,
+          agentId: item.agentId ?? userId, // default to cashier if no agent specified
         });
       }
 
@@ -205,8 +207,15 @@ export class PosService {
           );
         }
 
-        // Get loyalty config for redemption value
+        // Get loyalty config for redemption value + minimum threshold
         const loyaltyConfig = await tx.loyaltyConfig.findFirst();
+        const minRedeem = loyaltyConfig?.minRedeemPoints ?? 100;
+        if (customer.loyaltyPoints < minRedeem) {
+          throw new AppError(
+            `Minimum ${minRedeem} points required to redeem. Customer has ${customer.loyaltyPoints}.`,
+            400
+          );
+        }
         const redemptionValue = loyaltyConfig ? Number(loyaltyConfig.redemptionValue) : 1;
         loyaltyDiscount = data.loyaltyPointsRedeem * redemptionValue;
       }
@@ -262,6 +271,7 @@ export class PosService {
         offerDiscount: number;
         offerId: number | null;
         effectiveUnitPrice: number | null;
+        agentId: number | null;
       }
       const lines: LineAccumulator[] = [];
       let subtotal = 0;
@@ -280,6 +290,7 @@ export class PosService {
           offerDiscount,
           offerId: offerInfo?.offerId ?? null,
           effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
+          agentId: item.agentId,
         });
         subtotal += lineGross;
         totalOfferDiscount += offerDiscount;
@@ -312,6 +323,7 @@ export class PosService {
         total: number;
         offerId?: number | null;
         effectiveUnitPrice?: number | null;
+        agentId?: number | null;
       }> = [];
 
       for (const line of lines) {
@@ -335,6 +347,7 @@ export class PosService {
           total: Math.round(lineTotal * 100) / 100,
           offerId: line.offerId,
           effectiveUnitPrice: line.effectiveUnitPrice,
+          agentId: line.agentId,
         });
       }
 

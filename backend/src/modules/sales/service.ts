@@ -74,6 +74,7 @@ export class SalesService {
                 product: { include: { brand: true, category: true } },
               },
             },
+            agent: { select: { id: true, firstName: true, lastName: true } },
             returnItems: true,
           },
         },
@@ -111,6 +112,7 @@ export class SalesService {
                 product: { include: { brand: true, category: true } },
               },
             },
+            agent: { select: { id: true, firstName: true, lastName: true } },
             returnItems: true,
           },
         },
@@ -637,6 +639,62 @@ export class SalesService {
             ? `Refund ${Math.abs(priceDifference)} to customer`
             : 'Even exchange - no payment needed',
       };
+    });
+  }
+  /**
+   * Bulk-assign agent to sale items. Supports both:
+   * - All items in a sale (agentId on body, no items array)
+   * - Specific items (items: [{ saleItemId, agentId }])
+   */
+  async assignAgents(
+    saleId: number,
+    data: {
+      agentId?: number;
+      items?: Array<{ saleItemId: number; agentId: number | null }>;
+    }
+  ) {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      include: { items: { select: { id: true } } },
+    });
+    if (!sale) throw new AppError('Sale not found', 404);
+
+    if (data.items && data.items.length > 0) {
+      // Per-item assignment
+      const itemIds = new Set(sale.items.map((i) => i.id));
+      for (const entry of data.items) {
+        if (!itemIds.has(entry.saleItemId)) {
+          throw new AppError(`Sale item ${entry.saleItemId} not found in sale ${saleId}`, 400);
+        }
+      }
+      await prisma.$transaction(
+        data.items.map((entry) =>
+          prisma.saleItem.update({
+            where: { id: entry.saleItemId },
+            data: { agentId: entry.agentId },
+          })
+        )
+      );
+    } else if (data.agentId !== undefined) {
+      // Bulk: set same agent on all items
+      await prisma.saleItem.updateMany({
+        where: { saleId },
+        data: { agentId: data.agentId },
+      });
+    } else {
+      throw new AppError('Provide agentId (for all items) or items array (per item)', 400);
+    }
+
+    return prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        items: {
+          include: {
+            variant: { include: { product: true } },
+            agent: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
+      },
     });
   }
 }

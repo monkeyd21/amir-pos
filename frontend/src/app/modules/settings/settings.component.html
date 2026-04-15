@@ -104,6 +104,216 @@
         </button>
       </div>
     </div>
+
+    <!-- Commission Settings -->
+    <div class="bg-surface-container rounded-xl p-6 mt-4">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container/20">
+          <span class="material-symbols-outlined text-lg text-primary">payments</span>
+        </div>
+        <h3 class="text-base font-headline font-bold text-on-surface">Commission Settings</h3>
+      </div>
+
+      <div class="max-w-xl">
+        <label class="block text-xs font-semibold font-body text-on-surface-variant mb-3">Commission Calculation Mode</label>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            (click)="setCommissionMode('item_level')"
+            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'item_level' ? 'border-primary bg-blue-50' : 'border-gray-200')"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <span class="material-symbols-outlined text-lg" [class.text-primary]="commissionMode === 'item_level'">person</span>
+              <span class="text-sm font-bold text-on-surface">Item Level</span>
+            </div>
+            <p class="text-[11px] text-on-surface-variant leading-relaxed">
+              Commission per agent per line item. Each salesman earns on the items they sold. Requires agent tagging at POS.
+            </p>
+          </button>
+          <button
+            (click)="setCommissionMode('bill_level')"
+            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'bill_level' ? 'border-primary bg-blue-50' : 'border-gray-200')"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <span class="material-symbols-outlined text-lg" [class.text-primary]="commissionMode === 'bill_level'">receipt_long</span>
+              <span class="text-sm font-bold text-on-surface">Bill Level</span>
+            </div>
+            <p class="text-[11px] text-on-surface-variant leading-relaxed">
+              Commission on the whole sale total for the cashier who processed the bill. Simpler — no per-item agent tagging needed.
+            </p>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loyalty Config -->
+    <div class="bg-surface-container rounded-xl p-6 mt-4">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container/20">
+          <span class="material-symbols-outlined text-lg text-primary">loyalty</span>
+        </div>
+        <h3 class="text-base font-headline font-bold text-on-surface">Loyalty Program</h3>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-5 max-w-4xl">
+        <label class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Rs. Spent per Point</span>
+          <input type="number" [(ngModel)]="loyalty.amountPerPoint" min="1" step="1"
+            class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          <p class="text-[10px] text-on-surface-variant/60">Customer earns 1 point for every Rs. {{ loyalty.amountPerPoint }} spent</p>
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Points per Unit</span>
+          <input type="number" [(ngModel)]="loyalty.pointsPerAmount" min="1" step="1"
+            class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          <p class="text-[10px] text-on-surface-variant/60">Number of points awarded per unit</p>
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Redemption Value (Rs. per Point)</span>
+          <input type="number" [(ngModel)]="loyalty.redemptionValue" min="0.1" step="0.1"
+            class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          <p class="text-[10px] text-on-surface-variant/60">1 point = Rs. {{ loyalty.redemptionValue }} discount when redeemed</p>
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Min Points to Redeem</span>
+          <input type="number" [(ngModel)]="loyalty.minRedeemPoints" min="0" step="1"
+            class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          <p class="text-[10px] text-on-surface-variant/60">Customer needs at least {{ loyalty.minRedeemPoints }} points to redeem</p>
+        </label>
+      </div>
+
+      <div class="mt-5">
+        <h4 class="text-xs font-bold font-body text-on-surface-variant uppercase tracking-wider mb-3">Tier Thresholds (points needed)</h4>
+        <div class="grid grid-cols-3 gap-3 max-w-xl">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Silver</span>
+            <input type="number" [(ngModel)]="loyalty.tierThresholds['silver']" min="0"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Gold</span>
+            <input type="number" [(ngModel)]="loyalty.tierThresholds['gold']" min="0"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Platinum</span>
+            <input type="number" [(ngModel)]="loyalty.tierThresholds['platinum']" min="0"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h4 class="text-xs font-bold font-body text-on-surface-variant uppercase tracking-wider mb-3">Earning Multipliers (by tier)</h4>
+        <div class="grid grid-cols-4 gap-3 max-w-xl">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Bronze</span>
+            <input type="number" [(ngModel)]="loyalty.earningMultipliers['bronze']" min="0" step="0.1"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Silver</span>
+            <input type="number" [(ngModel)]="loyalty.earningMultipliers['silver']" min="0" step="0.1"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Gold</span>
+            <input type="number" [(ngModel)]="loyalty.earningMultipliers['gold']" min="0" step="0.1"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Platinum</span>
+            <input type="number" [(ngModel)]="loyalty.earningMultipliers['platinum']" min="0" step="0.1"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+        </div>
+        <p class="text-[10px] text-on-surface-variant/60 mt-2">Higher-tier customers earn more points per purchase (e.g. 2x means double points)</p>
+      </div>
+
+      <div class="mt-6 pt-5 border-t border-outline-variant/10">
+        <button
+          (click)="saveLoyaltyConfig()"
+          [disabled]="savingLoyalty"
+          class="px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ savingLoyalty ? 'Saving...' : 'Save Loyalty Config' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Messaging Config -->
+    <div class="bg-surface-container rounded-xl p-6 mt-4">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container/20">
+          <span class="material-symbols-outlined text-lg text-primary">chat</span>
+        </div>
+        <h3 class="text-base font-headline font-bold text-on-surface">Messaging (WhatsApp / SMS)</h3>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
+        <!-- WhatsApp -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold font-body text-on-surface">WhatsApp Business API</h4>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" [(ngModel)]="messaging.whatsappEnabled" class="w-4 h-4 rounded" />
+              <span class="text-xs text-on-surface-variant">Enabled</span>
+            </label>
+          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Phone Number ID</span>
+            <input type="text" [(ngModel)]="messaging.whatsappPhoneNumberId" placeholder="e.g. 123456789012345"
+              class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Access Token</span>
+            <input type="password" [(ngModel)]="messaging.whatsappAccessToken" placeholder="EAAxxxxxxx..."
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+        </div>
+
+        <!-- SMS -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold font-body text-on-surface">SMS Provider</h4>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" [(ngModel)]="messaging.smsEnabled" class="w-4 h-4 rounded" />
+              <span class="text-xs text-on-surface-variant">Enabled</span>
+            </label>
+          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Provider</span>
+            <select [(ngModel)]="messaging.smsProvider"
+              class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none cursor-pointer">
+              <option value="none">None</option>
+              <option value="twilio">Twilio</option>
+              <option value="exotel">Exotel</option>
+              <option value="msg91">MSG91</option>
+              <option value="textlocal">Textlocal</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">API Key</span>
+            <input type="password" [(ngModel)]="messaging.smsApiKey" placeholder="API key"
+              class="px-3 py-2 text-sm font-mono bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Sender ID</span>
+            <input type="text" [(ngModel)]="messaging.smsSenderId" placeholder="e.g. ATELIER"
+              class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-5 border-t border-outline-variant/10">
+        <button
+          (click)="saveMessagingConfig()"
+          [disabled]="savingMessaging"
+          class="px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ savingMessaging ? 'Saving...' : 'Save Messaging Config' }}
+        </button>
+      </div>
+    </div>
   }
 
   <!-- Branches Tab -->

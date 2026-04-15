@@ -69,6 +69,16 @@ export class SalesController {
       next(error);
     }
   }
+
+  async assignAgents(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const saleId = parseInt(req.params.saleId, 10);
+      const result = await salesService.assignAgents(saleId, req.body);
+      res.json({ success: true, data: result, message: 'Agents assigned' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const salesController = new SalesController();

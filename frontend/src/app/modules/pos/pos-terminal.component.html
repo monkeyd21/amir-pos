@@ -161,6 +161,7 @@
                   <tr class="bg-surface-container-low/50">
                     <th class="th-label">Article</th>
                     <th class="th-label text-center w-24">Size</th>
+                    <th class="th-label text-center w-28">Agent</th>
                     <th class="th-label text-center w-32">Qty</th>
                     <th class="th-label text-right w-24">Price</th>
                     <th class="th-label text-center w-20">Disc %</th>
@@ -170,10 +171,31 @@
                 </thead>
                 <tbody class="divide-y divide-outline-variant/10">
                   @for (item of cart; track item.variantId; let i = $index) {
-                    <tr class="hover:bg-surface-container-high/40 transition-colors">
+                    <!--
+                      Qualified-offer rows get an amber left-border so the
+                      cashier can't miss that this item is already on sale.
+                      Combined with auto-lock (evaluateCart response
+                      handler), that makes double-discounting very hard to
+                      trigger by accident — but the cashier can still
+                      unlock explicitly if a VIP negotiation calls for it.
+                    -->
+                    <tr
+                      class="hover:bg-surface-container-high/40 transition-colors border-l-4"
+                      [class]="item.qualified
+                        ? 'border-amber-500/70 bg-amber-500/[0.04]'
+                        : 'border-transparent'"
+                    >
                       <!-- Article: name + Code + SKU stacked -->
                       <td class="px-4 py-3">
-                        <p class="text-sm font-medium text-on-surface leading-tight">{{ item.productName }}</p>
+                        <div class="flex items-start gap-2">
+                          <p class="text-sm font-medium text-on-surface leading-tight flex-1">{{ item.productName }}</p>
+                          @if (item.qualified) {
+                            <span class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[9px] font-extrabold uppercase tracking-wider text-amber-400">
+                              <span class="material-symbols-outlined text-[11px]">sell</span>
+                              On Offer
+                            </span>
+                          }
+                        </div>
                         <div class="mt-1 flex items-center gap-2 text-[10px] font-mono text-on-surface-variant/70">
                           @if (item.barcode) {
                             <span class="inline-flex items-center gap-1">
@@ -195,14 +217,19 @@
                         </div>
                         @if (item.offer) {
                           <div class="flex items-center gap-1.5 mt-1.5">
-                            <span class="material-symbols-outlined text-xs"
-                              [class.text-primary]="item.qualified"
-                              [class.text-on-surface-variant]="!item.qualified">sell</span>
                             @if (item.qualified) {
-                              <span class="text-[10px] font-bold text-primary uppercase tracking-wider">
+                              <!-- Qualified: show the human offer text
+                                   (e.g. "Buy 2 Get 1 Free"). The bold
+                                   "On Offer" chip at the top already
+                                   screams SALE, this is the description. -->
+                              <span class="text-[10px] font-semibold text-amber-300/80">
                                 {{ item.offer.displayText }}
                               </span>
                             } @else {
+                              <!-- Not yet qualified: show the hint so the
+                                   cashier can offer upsell ("add 1 more
+                                   for 20% off"). -->
+                              <span class="material-symbols-outlined text-xs text-on-surface-variant">sell</span>
                               <span class="text-[10px] font-semibold text-on-surface-variant/70">
                                 {{ item.offerHint || item.offer.displayText }}
                               </span>
@@ -222,6 +249,17 @@
                         @if (item.color) {
                           <p class="mt-1 text-[10px] text-on-surface-variant/70">{{ item.color }}</p>
                         }
+                      </td>
+                      <!-- Agent dropdown -->
+                      <td class="px-2 py-3 text-center">
+                        <select
+                          [(ngModel)]="item.agentId"
+                          class="w-full px-1 py-1 text-[10px] font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none cursor-pointer"
+                        >
+                          @for (agent of agents; track agent.id) {
+                            <option [ngValue]="agent.id">{{ agent.name }}</option>
+                          }
+                        </select>
                       </td>
                       <!-- Qty stepper -->
                       <td class="px-2 py-3">
@@ -245,15 +283,42 @@
                       <td class="px-2 py-3 text-right text-sm text-on-surface-variant">
                         {{ formatCurrency(item.unitPrice) }}
                       </td>
-                      <!-- Per-line effective discount % (display only) -->
+                      <!--
+                        Per-line effective discount % (display only) + a
+                        lock toggle. Locking the line excludes it from the
+                        bill-level manual discount — it keeps any offer %
+                        but stops absorbing a share of what the cashier
+                        typed at the counter. Common use: a brand like
+                        Spykar already on 20% offer where the store
+                        doesn't want to stack the counter 20% on top.
+                      -->
                       <td class="px-2 py-3 text-center">
-                        @if (getLineDiscountPercent(item) >= 0.5) {
-                          <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-primary-container/15 text-[11px] font-bold font-mono text-primary">
-                            {{ getLineDiscountPercent(item) | number:'1.0-0' }}%
-                          </span>
-                        } @else {
-                          <span class="text-[10px] text-on-surface-variant/30">&mdash;</span>
-                        }
+                        <div class="flex items-center justify-center gap-1">
+                          @if (getLineDiscountPercent(item) >= 0.5) {
+                            <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[11px] font-bold font-mono"
+                              [class]="item.excludeFromDiscount
+                                ? 'bg-surface-container-lowest border border-outline-variant/20 text-on-surface-variant'
+                                : 'bg-primary-container/15 text-primary'">
+                              {{ getLineDiscountPercent(item) | number:'1.0-0' }}%
+                            </span>
+                          } @else {
+                            <span class="text-[10px] text-on-surface-variant/30">&mdash;</span>
+                          }
+                          <button
+                            (click)="toggleLineDiscountLock(item)"
+                            [title]="item.excludeFromDiscount
+                              ? 'Unlock — let this item take its share of the bill discount'
+                              : 'Lock — exclude this item from the bill discount'"
+                            class="w-6 h-6 rounded flex items-center justify-center transition-colors"
+                            [class]="item.excludeFromDiscount
+                              ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
+                              : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high'"
+                          >
+                            <span class="material-symbols-outlined text-sm">
+                              {{ item.excludeFromDiscount ? 'lock' : 'lock_open' }}
+                            </span>
+                          </button>
+                        </div>
                       </td>
                       <!-- Line total (post all discounts) -->
                       <td class="px-2 py-3 text-right">
@@ -291,22 +356,45 @@
           <div>
             <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3">Customer</h2>
             @if (selectedCustomer) {
-              <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container border border-outline-variant/20">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-on-primary-container">
-                    {{ (selectedCustomer.firstName || '?')[0] }}{{ (selectedCustomer.lastName || '?')[0] }}
+              <div class="p-3 rounded-xl bg-surface-container border border-outline-variant/20">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-on-primary-container">
+                      {{ (selectedCustomer.firstName || '?')[0] }}{{ (selectedCustomer.lastName || '?')[0] }}
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-on-surface">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</p>
+                      <p class="text-[10px] text-on-surface-variant">{{ selectedCustomer.phone || selectedCustomer.email }}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p class="text-sm font-medium text-on-surface">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</p>
-                    <p class="text-[10px] text-on-surface-variant">{{ selectedCustomer.phone || selectedCustomer.email }}</p>
-                  </div>
+                  <button
+                    (click)="clearCustomer()"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-base">close</span>
+                  </button>
                 </div>
-                <button
-                  (click)="clearCustomer()"
-                  class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
-                >
-                  <span class="material-symbols-outlined text-base">close</span>
-                </button>
+                @if (selectedCustomer.loyaltyTier || selectedCustomer.loyaltyPoints != null) {
+                  <div class="flex items-center gap-2 mt-2 pl-11 flex-wrap">
+                    @if (selectedCustomer.loyaltyTier) {
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                        [class]="getLoyaltyTierColor(selectedCustomer.loyaltyTier)">
+                        {{ selectedCustomer.loyaltyTier }}
+                      </span>
+                    }
+                    @if (selectedCustomer.loyaltyPoints != null) {
+                      <span class="text-[10px] text-on-surface-variant">{{ formatNumber(selectedCustomer.loyaltyPoints) }} pts</span>
+                    }
+                    @if (selectedCustomer.visitCount != null) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ selectedCustomer.visitCount }} visits</span>
+                    }
+                    @if (selectedCustomer.totalSpent != null) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ formatCurrency(selectedCustomer.totalSpent) }} spent</span>
+                    }
+                  </div>
+                }
               </div>
             } @else {
               <div class="relative">
@@ -422,6 +510,58 @@
                   </div>
                 }
               </div>
+
+              <!-- Special discount: flat ₹ waiver the customer asks for -->
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-sm text-on-surface-variant">Special discount</span>
+                <div class="relative w-24">
+                  <span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-xs pointer-events-none">&#8377;</span>
+                  <input
+                    type="number"
+                    [(ngModel)]="specialDiscount"
+                    min="0"
+                    placeholder="0"
+                    class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-6 pr-2 py-2 rounded-lg transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              <!-- Loyalty points redemption -->
+              @if (selectedCustomer && selectedCustomer.loyaltyPoints > 0) {
+                @if (selectedCustomer.loyaltyPoints >= loyaltyMinRedeem) {
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="flex items-center gap-1.5 text-sm text-on-surface-variant">
+                        <span class="material-symbols-outlined text-sm text-amber-400">stars</span>
+                        Redeem Points
+                        <span class="text-[10px] font-mono text-on-surface-variant/60">({{ selectedCustomer.loyaltyPoints }} avail)</span>
+                      </span>
+                      <div class="relative w-24">
+                        <input
+                          type="number"
+                          [(ngModel)]="loyaltyPointsRedeem"
+                          min="0"
+                          [max]="selectedCustomer.loyaltyPoints"
+                          placeholder="0"
+                          class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-2 pr-6 py-2 rounded-lg transition-all outline-none"
+                        />
+                        <span class="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-[10px] pointer-events-none">pts</span>
+                      </div>
+                    </div>
+                    @if (loyaltyDiscount > 0) {
+                      <div class="flex justify-end">
+                        <span class="text-[11px] text-amber-400 font-mono">&equals; &minus;{{ formatCurrency(loyaltyDiscount) }}</span>
+                      </div>
+                    }
+                    <p class="text-[9px] text-on-surface-variant/50">1 point = {{ formatCurrency(loyaltyRedemptionValue) }} &middot; min {{ loyaltyMinRedeem }} pts</p>
+                  </div>
+                } @else {
+                  <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/50">
+                    <span class="material-symbols-outlined text-sm">stars</span>
+                    {{ selectedCustomer.loyaltyPoints }} pts (need {{ loyaltyMinRedeem }} to redeem)
+                  </div>
+                }
+              }
 
               <!-- Round-off: snap the total to the nearest ₹10 up or down -->
               @if (roundOff !== 0) {

@@ -70,6 +70,23 @@ interface CartItem {
   offerDiscount?: number;
   effectiveUnitPrice?: number;
   offerHint?: string;
+  /**
+   * When true, this line is excluded from the bill-level manual discount
+   * (the cashier's ₹/% entry AND round-off). The line still honors any
+   * product offer it qualifies for. Used for "no further discount on sale
+   * items" — e.g. Spykar already has a 20% brand offer so the cashier
+   * locks it before typing the additional 20% at the counter.
+   */
+  excludeFromDiscount?: boolean;
+  /**
+   * Set once the cashier manually toggles the lock. Until then, the lock
+   * state auto-mirrors the offer qualification (auto-lock on sale items).
+   * Once the cashier touches it, they're in control — we stop auto-
+   * syncing so their choice is respected even if offer state flips.
+   */
+  discountLockTouched?: boolean;
+  /** Agent/salesman who sold this line item. Defaults to current cashier. */
+  agentId: number;
 }
 
 interface EvaluatedLine {
@@ -127,6 +144,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   cart: CartItem[] = [];
 
+  // ─── Agents / salesmen ──────────────────────────────────────────
+  agents: Array<{ id: number; name: string }> = [];
+  defaultAgentId: number | null = null;
+
   // ─── Manual discount ─────────────────────────────────────────────
   //
   // The cashier can enter a manual discount as either a flat rupee amount
@@ -141,14 +162,25 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // Everything is sent to the backend as a single `discountAmount` =
   // resolvedDiscount + roundOff. The backend doesn't need to know about
   // the mode toggle or rounding — it just sees one number.
-  discountMode: 'amount' | 'percent' = 'amount';
+  // Default to percent — cashiers almost always discount by % at the
+  // counter ("give me 10% off"). Rupee mode is still one click away via
+  // the ₹/% toggle for the rare flat-amount case.
+  discountMode: 'amount' | 'percent' = 'percent';
   discountValue: number | null = null;
+  /** Flat ₹ waiver the customer asks for ("bhaiya 50 chhod do"). Stacks on
+   *  top of the manual % / ₹ discount and the round-off. */
+  specialDiscount: number | null = null;
   // Stored as a *mode* not an amount, so if the cart or discount changes
   // after the cashier clicked "Round ↓", the rounding re-derives itself
   // against the new payable (otherwise a stale ₹7 waiver would hang around
   // after an item is removed and quietly throw the total off).
   roundMode: 'none' | 'down' | 'up' = 'none';
   taxRate = 0.18;
+
+  // ─── Loyalty redemption ────────────────────────────────────────
+  loyaltyPointsRedeem: number | null = null;
+  loyaltyRedemptionValue = 1; // Rs. per point — loaded from config
+  loyaltyMinRedeem = 100; // min points to be eligible — loaded from config
 
   // ─── Split-tender payment state ───────────────────────────────────
   //
@@ -180,10 +212,41 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.currentUser = this.auth.getCurrentUser();
+    this.defaultAgentId = this.currentUser?.id ?? null;
     this.initSession();
     this.setupSearch();
     this.setupCustomerSearch();
     this.setupCartEvaluation();
+    this.loadAgents();
+    this.loadLoyaltyConfig();
+  }
+
+  private loadLoyaltyConfig(): void {
+    this.api
+      .get<ApiResponse<any>>('/loyalty/config')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.loyaltyRedemptionValue = Number(res.data?.redemptionValue ?? 1);
+          this.loyaltyMinRedeem = Number(res.data?.minRedeemPoints ?? 100);
+        },
+      });
+  }
+
+  private loadAgents(): void {
+    this.api
+      .get<ApiResponse<any[]>>('/employees')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.agents = (res.data ?? [])
+            .filter((e: any) => e.isActive)
+            .map((e: any) => ({
+              id: e.id,
+              name: `${e.firstName} ${e.lastName}`.trim(),
+            }));
+        },
+      });
   }
 
   ngAfterViewInit(): void {
@@ -231,6 +294,13 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             item.offerDiscount = line.discountAmount;
             item.effectiveUnitPrice = line.effectiveUnitPrice;
             item.offerHint = line.hint;
+            // Auto-lock lines that qualified for an offer so the cashier
+            // doesn't stack the counter discount on a sale item by
+            // mistake. We stop auto-syncing as soon as the cashier
+            // manually touches the lock — their choice wins.
+            if (!item.discountLockTouched) {
+              item.excludeFromDiscount = !!line.qualified;
+            }
           }
         },
         error: () => {
@@ -515,6 +585,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         quantity: 1,
         unitPrice: variant.price,
         maxStock: stock,
+        agentId: this.defaultAgentId ?? 0,
       });
     }
 
@@ -582,17 +653,24 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    * Total rupee reduction applied to a line: the offer discount plus the
    * apportioned share of the bill-level manual discount & round-off. This
    * is what the customer actually saves on this particular item.
+   *
+   * Locked lines (`excludeFromDiscount`) short-circuit after the offer —
+   * they don't absorb any share of the cashier's ₹/% entry or round-off.
    */
   getLineDiscountAmount(item: CartItem): number {
     const gross = this.getLineGross(item);
     const offerDisc =
       item.qualified && item.offerDiscount ? item.offerDiscount : 0;
+
+    if (item.excludeFromDiscount) {
+      return offerDisc;
+    }
+
     const postOffer = gross - offerDisc;
 
-    // Bill-level non-offer discount that needs to be spread across lines.
     // `this.discount` (getter) already includes resolvedDiscount + roundOff.
     const billLevel = this.discount;
-    if (billLevel <= 0 || this.discountBase <= 0) {
+    if (billLevel === 0 || this.discountBase <= 0) {
       return offerDisc;
     }
 
@@ -618,9 +696,42 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     );
   }
 
-  /** The base that manual discount / percentage is applied against. */
+  /**
+   * The base that the cashier's manual discount is applied against.
+   *
+   * This is the sum of post-offer taxable value across lines that are
+   * *eligible* for the manual discount — i.e. excluding any line the
+   * cashier locked with `excludeFromDiscount`. Locked lines keep their
+   * offer reduction but don't absorb any share of the ₹/% entry or the
+   * round-off.
+   *
+   * Consequences:
+   *  - Typing "20%" at the counter means 20% of the UNLOCKED base, not
+   *    20% of the whole bill — matches cashier intuition ("don't stack
+   *    20% on the ones that already have 20%").
+   *  - The amount-mode max clamps to what's actually discountable, so
+   *    a stray high value can't over-discount.
+   *  - Apportioning per-line discounts uses this as the denominator so
+   *    the sum-of-lines reduction exactly equals the bill-level total.
+   */
   get discountBase(): number {
-    return Math.max(0, this.subtotal - this.offerDiscountTotal);
+    return this.cart.reduce((sum, item) => {
+      if (item.excludeFromDiscount) return sum;
+      const gross = item.unitPrice * item.quantity;
+      const offerDisc =
+        item.qualified && item.offerDiscount ? item.offerDiscount : 0;
+      return sum + Math.max(0, gross - offerDisc);
+    }, 0);
+  }
+
+  /**
+   * Toggle the "exclude from bill discount" flag on a cart line. Also
+   * marks the lock as manually touched so subsequent offer evaluations
+   * don't clobber the cashier's choice.
+   */
+  toggleLineDiscountLock(item: CartItem): void {
+    item.excludeFromDiscount = !item.excludeFromDiscount;
+    item.discountLockTouched = true;
   }
 
   /**
@@ -637,9 +748,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     return Math.min(this.discountBase, Math.round(raw));
   }
 
-  /** Payable amount after manual discount, before any round-off. */
+  /**
+   * Whole-bill payable after offers and manual discount, *before* round-off.
+   * This is what round-up/round-down snaps to the nearest ₹10 — it needs to
+   * be the full bill (including any locked lines), not just the discountable
+   * base, otherwise the rounding target would exclude locked items and the
+   * final total wouldn't land on a multiple of 10.
+   */
   get payableBeforeRound(): number {
-    return Math.max(0, this.discountBase - this.resolvedDiscount);
+    return Math.max(
+      0,
+      this.subtotal - this.offerDiscountTotal - this.resolvedDiscount - (this.specialDiscount ?? 0) - this.loyaltyDiscount
+    );
   }
 
   /**
@@ -681,8 +801,23 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    * a multiple of ₹10 (the customer pays a tiny surcharge, e.g. ₹7, so the
    * total becomes a clean ₹2760 instead of ₹2753).
    */
+  /** Rs. value of loyalty points being redeemed */
+  get loyaltyDiscount(): number {
+    const pts = this.loyaltyPointsRedeem ?? 0;
+    if (pts <= 0) return 0;
+    const available = this.selectedCustomer?.loyaltyPoints ?? 0;
+    const clamped = Math.min(pts, available);
+    return clamped * this.loyaltyRedemptionValue;
+  }
+
+  /** Non-loyalty discount (manual + special + round-off). Sent as discountAmount to backend. */
+  get manualDiscount(): number {
+    return this.resolvedDiscount + this.roundOff + (this.specialDiscount ?? 0);
+  }
+
+  /** Total deduction from the bill (all sources combined). Used for display only. */
   get discount(): number {
-    return this.resolvedDiscount + this.roundOff;
+    return this.manualDiscount + this.loyaltyDiscount;
   }
 
   /**
@@ -843,6 +978,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       items: this.cart.map((item) => ({
         barcode: item.barcode,
         quantity: item.quantity,
+        agentId: item.agentId || undefined,
       })),
       payments: this.tenders.map((t) => ({
         method: t.method,
@@ -852,8 +988,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Sent even when negative — round-up surcharges encode as a negative
     // "discount" so the backend total rises to the nearest ₹10.
-    if (this.discount !== 0) body.discountAmount = this.discount;
+    if (this.manualDiscount !== 0) body.discountAmount = this.manualDiscount;
     if (this.customerId) body.customerId = this.customerId;
+    // Loyalty points redeemed — separate from manual discount
+    const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.selectedCustomer?.loyaltyPoints ?? 0);
+    if (redeemPts > 0) body.loyaltyPointsRedeem = redeemPts;
 
     this.api
       .post<ApiResponse<any>>('/pos/checkout', body)
@@ -881,8 +1020,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private resetCart(): void {
     this.cart = [];
-    this.discountMode = 'amount';
+    this.discountMode = 'percent';
     this.discountValue = null;
+    this.specialDiscount = null;
+    this.loyaltyPointsRedeem = null;
     this.roundMode = 'none';
     this.tenders = [];
     this.pendingMethod = 'cash';
@@ -905,6 +1046,20 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+  }
+
+  getLoyaltyTierColor(tier: string | null | undefined): string {
+    switch ((tier || '').toLowerCase()) {
+      case 'platinum': return 'bg-purple-500/20 text-purple-400';
+      case 'gold': return 'bg-yellow-500/20 text-yellow-400';
+      case 'silver': return 'bg-gray-400/20 text-gray-300';
+      case 'bronze': return 'bg-amber-500/20 text-amber-400';
+      default: return 'bg-surface-container-high text-on-surface-variant';
+    }
+  }
+
+  formatNumber(value: number): string {
+    return new Intl.NumberFormat('en-IN').format(value);
   }
 
   getVariantLabel(variant: ProductVariant): string {

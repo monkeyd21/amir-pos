@@ -13,5 +13,6 @@ export class InventoryLayoutComponent {
     { label: 'Stock Levels', path: 'stock', icon: 'inventory_2' },
     { label: 'Transfers', path: 'transfers', icon: 'local_shipping' },
     { label: 'Barcodes', path: 'barcodes', icon: 'barcode' },
+    { label: 'Import', path: 'import', icon: 'upload_file' },
   ];
 }

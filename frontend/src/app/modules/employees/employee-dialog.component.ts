@@ -32,7 +32,7 @@ export class EmployeeDialogComponent implements OnInit, OnDestroy {
   branches: Branch[] = [];
 
   roles = [
-    { value: 'admin', label: 'Admin' },
+    { value: 'owner', label: 'Owner' },
     { value: 'manager', label: 'Manager' },
     { value: 'cashier', label: 'Cashier' },
     { value: 'staff', label: 'Staff' },
@@ -56,6 +56,7 @@ export class EmployeeDialogComponent implements OnInit, OnDestroy {
       phone: [this.employee?.phone || ''],
       role: [this.employee?.role || 'staff', [Validators.required]],
       branchId: [this.employee?.branch?.id || this.employee?.branchId || null],
+      commissionRate: [Number(this.employee?.commissionRate ?? 0), [Validators.min(0), Validators.max(100)]],
     });
 
     this.loadBranches();

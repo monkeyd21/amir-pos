@@ -19,10 +19,93 @@
             <span class="material-symbols-outlined text-xl">arrow_back</span>
           </a>
           <h1 class="text-3xl font-headline font-bold text-on-surface">Commissions</h1>
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-primary-container/20 text-primary">
+            <span class="material-symbols-outlined text-xs">{{ commissionMode === 'item_level' ? 'person' : 'receipt_long' }}</span>
+            {{ commissionMode === 'item_level' ? 'Item Level' : 'Bill Level' }}
+          </span>
         </div>
         <p class="mt-1 text-sm text-on-surface-variant ml-9">Track sales commissions for your team.</p>
       </div>
+      <div class="flex items-center gap-2"></div>
     </div>
+
+    <!-- Calculate Commissions -->
+    <div class="bg-surface-container rounded-xl p-5">
+      <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Calculate Commissions</h3>
+      <div class="flex items-end gap-3 flex-wrap">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Start Date</label>
+          <input type="date" [(ngModel)]="calcStartDate"
+            class="bg-surface-container-high border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-2.5 rounded-xl transition-all outline-none text-sm" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">End Date</label>
+          <input type="date" [(ngModel)]="calcEndDate"
+            class="bg-surface-container-high border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-2.5 rounded-xl transition-all outline-none text-sm" />
+        </div>
+        <button
+          (click)="calculateCommissions()"
+          [disabled]="calculating || !calcStartDate || !calcEndDate"
+          class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          @if (calculating) {
+            <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+            Calculating...
+          } @else {
+            <span class="material-symbols-outlined text-lg">calculate</span>
+            Calculate
+          }
+        </button>
+      </div>
+      <p class="text-[10px] text-on-surface-variant/60 mt-2">
+        Scans completed sales in the date range and creates commission records for agents. Already-calculated sales are skipped.
+      </p>
+    </div>
+
+    <!-- Bulk Pay -->
+    @if (pendingCommissions > 0) {
+      <div class="bg-surface-container rounded-xl p-5">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Pay Commissions</h3>
+        <div class="flex items-end gap-3 flex-wrap">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">From</label>
+            <input type="date" [(ngModel)]="payStartDate"
+              class="bg-surface-container-high border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-2.5 rounded-xl transition-all outline-none text-sm" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">To</label>
+            <input type="date" [(ngModel)]="payEndDate"
+              class="bg-surface-container-high border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-2.5 rounded-xl transition-all outline-none text-sm" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Employee (optional)</label>
+            <select [(ngModel)]="payEmployeeId"
+              class="bg-surface-container-high border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-2.5 rounded-xl transition-all outline-none text-sm min-w-[160px]">
+              <option value="">All Employees</option>
+              @for (emp of employees; track emp.id) {
+                <option [value]="emp.id">{{ emp.firstName }} {{ emp.lastName }}</option>
+              }
+            </select>
+          </div>
+          <button
+            (click)="bulkPay()"
+            [disabled]="bulkPaying || !payStartDate || !payEndDate"
+            class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            @if (bulkPaying) {
+              <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+              Paying...
+            } @else {
+              <span class="material-symbols-outlined text-lg">check_circle</span>
+              Mark Range as Paid
+            }
+          </button>
+        </div>
+        <p class="text-[10px] text-on-surface-variant/60 mt-2">
+          Marks all pending commissions in the date range as paid. Optionally filter by employee.
+        </p>
+      </div>
+    }
 
     <!-- Filters -->
     <div class="bg-surface-container rounded-xl p-6">
@@ -140,14 +223,14 @@
                 <div class="flex items-center gap-3">
                   <div class="w-9 h-9 rounded-full bg-primary-container/15 flex items-center justify-center shrink-0">
                     <span class="text-xs font-bold text-primary">
-                      {{ (record.employee?.firstName || '?')[0] }}{{ (record.employee?.lastName || '?')[0] }}
+                      {{ (record.user?.firstName || '?')[0] }}{{ (record.user?.lastName || '?')[0] }}
                     </span>
                   </div>
                   <div>
                     <p class="text-sm font-medium text-on-surface">
-                      {{ record.employee?.firstName }} {{ record.employee?.lastName }}
+                      {{ record.user?.firstName }} {{ record.user?.lastName }}
                     </p>
-                    <p class="text-[11px] text-on-surface-variant capitalize">{{ record.employee?.role }}</p>
+                    <p class="text-[11px] text-on-surface-variant capitalize">{{ record.user?.role }}</p>
                   </div>
                 </div>
               </td>
@@ -158,7 +241,7 @@
                 {{ getSaleTotal(record) !== null ? formatCurrency(getSaleTotal(record)!) : '---' }}
               </td>
               <td class="px-6 py-5 text-sm text-on-surface-variant text-center">
-                {{ record.rate ? (record.rate * 100).toFixed(1) + '%' : '---' }}
+                {{ record.rate ? record.rate + '%' : '---' }}
               </td>
               <td class="px-6 py-5 text-sm font-headline font-bold text-on-surface text-right">
                 {{ formatCurrency(record.amount) }}

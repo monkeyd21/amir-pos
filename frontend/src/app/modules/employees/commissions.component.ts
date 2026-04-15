@@ -8,11 +8,11 @@ import { NotificationService } from '../../core/services/notification.service';
 
 interface CommissionRecord {
   id: number;
-  employee: {
+  user: {
     id: number;
     firstName: string;
     lastName: string;
-    role: string;
+    role?: string;
   };
   sale?: {
     id: number;
@@ -51,12 +51,19 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   employees: Employee[] = [];
   loading = true;
   payingId: number | null = null;
+  calculating = false;
+  bulkPaying = false;
+  commissionMode: 'item_level' | 'bill_level' = 'item_level';
 
   // Filters
   filterStatus = '';
   filterEmployeeId = '';
   filterStartDate = '';
   filterEndDate = '';
+
+  // Calculate commission date range
+  calcStartDate = '';
+  calcEndDate = '';
 
   page = 1;
   limit = 20;
@@ -70,6 +77,80 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadEmployees();
     this.loadCommissions();
+    this.loadCommissionMode();
+
+    // Default calc date range to current month
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    this.calcStartDate = `${y}-${m}-01`;
+    this.calcEndDate = `${y}-${m}-${String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+    this.payStartDate = this.calcStartDate;
+    this.payEndDate = this.calcEndDate;
+  }
+
+  loadCommissionMode(): void {
+    this.api
+      .get<any>('/settings/commission-mode')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.commissionMode = res.data?.commissionMode ?? 'item_level';
+        },
+      });
+  }
+
+  calculateCommissions(): void {
+    if (this.calculating || !this.calcStartDate || !this.calcEndDate) return;
+    this.calculating = true;
+    this.api
+      .get<any>('/employees/commissions/calculate', {
+        startDate: this.calcStartDate,
+        endDate: this.calcEndDate,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.calculating = false;
+          const d = res.data;
+          this.notify.success(`${d.created} commission(s) created, ${d.skipped} skipped (mode: ${d.mode})`);
+          this.loadCommissions();
+        },
+        error: () => {
+          this.calculating = false;
+        },
+      });
+  }
+
+  // Bulk pay date range (defaults to same as calc range)
+  payStartDate = '';
+  payEndDate = '';
+  payEmployeeId: string = '';
+
+  bulkPay(): void {
+    if (this.bulkPaying || !this.payStartDate || !this.payEndDate) return;
+    if (!confirm('Mark all pending commissions in this date range as paid?')) return;
+
+    this.bulkPaying = true;
+    const body: any = {
+      startDate: this.payStartDate,
+      endDate: this.payEndDate,
+    };
+    if (this.payEmployeeId) body.userId = parseInt(this.payEmployeeId, 10);
+
+    this.api
+      .post<any>('/employees/commissions/pay-bulk', body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res: any) => {
+          this.bulkPaying = false;
+          this.notify.success(res.message || 'Commissions paid');
+          this.loadCommissions();
+        },
+        error: () => {
+          this.bulkPaying = false;
+        },
+      });
   }
 
   ngOnDestroy(): void {
@@ -148,7 +229,7 @@ export class CommissionsComponent implements OnInit, OnDestroy {
         next: () => {
           this.payingId = null;
           this.notify.success(
-            `Commission for ${record.employee?.firstName} ${record.employee?.lastName} marked as paid`
+            `Commission for ${record.user?.firstName} ${record.user?.lastName} marked as paid`
           );
           this.loadCommissions();
         },
@@ -161,23 +242,24 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   }
 
   get totalCommissions(): number {
-    return this.records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    return this.records.reduce((sum, r) => sum + Number(r.amount || 0), 0);
   }
 
   get pendingCommissions(): number {
     return this.records
       .filter((r) => r.status?.toLowerCase() === 'pending')
-      .reduce((sum, r) => sum + (r.amount || 0), 0);
+      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
   }
 
   get paidCommissions(): number {
     return this.records
       .filter((r) => r.status?.toLowerCase() === 'paid')
-      .reduce((sum, r) => sum + (r.amount || 0), 0);
+      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
   }
 
   getSaleTotal(record: CommissionRecord): number | null {
-    return record.sale?.totalAmount ?? record.sale?.total ?? null;
+    const v = record.sale?.totalAmount ?? record.sale?.total;
+    return v != null ? Number(v) : null;
   }
 
   getStatusClasses(status: string): string {

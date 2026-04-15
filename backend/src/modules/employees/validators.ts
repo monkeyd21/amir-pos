@@ -1,5 +1,35 @@
 import { z } from 'zod';
 
+const roleEnum = z.enum(['owner', 'manager', 'cashier', 'staff']);
+
+export const createEmployeeSchema = z.object({
+  body: z.object({
+    firstName: z.string().min(1, 'First name is required').max(100),
+    lastName: z.string().min(1, 'Last name is required').max(100),
+    email: z.string().email('Invalid email'),
+    phone: z.string().max(20).optional().nullable(),
+    role: roleEnum.default('staff'),
+    branchId: z.number().int().positive().optional().nullable(),
+    commissionRate: z.number().min(0).max(100).optional().nullable(),
+  }),
+});
+
+export const updateEmployeeSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/),
+  }),
+  body: z.object({
+    firstName: z.string().min(1).max(100).optional(),
+    lastName: z.string().min(1).max(100).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().max(20).optional().nullable(),
+    role: roleEnum.optional(),
+    branchId: z.number().int().positive().optional().nullable(),
+    commissionRate: z.number().min(0).max(100).optional().nullable(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 export const clockInSchema = z.object({
   body: z.object({
     branchId: z.number().int().positive().optional(),

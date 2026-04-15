@@ -7,6 +7,7 @@ import { StockLevelsComponent } from './stock-levels.component';
 import { TransfersComponent } from './transfers.component';
 import { TransferCreateComponent } from './transfer-create.component';
 import { BarcodesComponent } from './barcodes.component';
+import { ImportComponent } from './import.component';
 
 export const INVENTORY_ROUTES: Routes = [
   {
@@ -15,8 +16,6 @@ export const INVENTORY_ROUTES: Routes = [
     children: [
       { path: '', redirectTo: 'products', pathMatch: 'full' },
       { path: 'products', component: ProductListComponent },
-      // Order matters: `new` and `:id/edit` must be declared before `:id`
-      // so the router doesn't treat "new" as a product ID.
       { path: 'products/new', component: ProductFormComponent },
       { path: 'products/:id/edit', component: ProductFormComponent },
       { path: 'products/:id', component: ProductDetailComponent },
@@ -24,6 +23,7 @@ export const INVENTORY_ROUTES: Routes = [
       { path: 'transfers', component: TransfersComponent },
       { path: 'transfers/create', component: TransferCreateComponent },
       { path: 'barcodes', component: BarcodesComponent },
+      { path: 'import', component: ImportComponent },
     ],
   },
 ];

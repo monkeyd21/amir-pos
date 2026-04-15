@@ -21,6 +21,7 @@ export const checkoutSchema = z.object({
         z.object({
           barcode: z.string().min(1),
           quantity: z.number().int().positive(),
+          agentId: z.number().int().positive().optional(),
         })
       )
       .min(1, 'At least one item is required'),

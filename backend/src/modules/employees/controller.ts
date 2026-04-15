@@ -94,6 +94,23 @@ export class EmployeeController {
     }
   }
 
+  async payCommissionsBulk(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await employeeService.payCommissionsBulk({
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        userId: req.body.userId,
+      });
+      res.json({
+        success: true,
+        data: result,
+        message: `${result.paidCount} commission(s) marked as paid`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getCommissionSummary(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await employeeService.getCommissionSummary(req.query as any);
