@@ -1,0 +1,346 @@
+// ─── Mobile POS design tokens ─────────────────────────────────────────
+//
+// These are scoped to `.mobile-pos-root` so they never leak into the
+// desktop app. A small Material 3-inspired dark palette, optimized for
+// retail lighting (lots of contrast, low saturation).
+
+.mobile-pos-root {
+  // Palette
+  --mp-bg: #0a0e1a;
+  --mp-surface: #151b2e;
+  --mp-surface-2: #1e2438;
+  --mp-surface-3: #28304a;
+  --mp-border: rgba(255, 255, 255, 0.08);
+
+  --mp-primary: #6b8afd;
+  --mp-primary-on: #ffffff;
+  --mp-primary-container: #2a3a7a;
+  --mp-primary-soft: rgba(107, 138, 253, 0.12);
+
+  --mp-success: #4ade80;
+  --mp-success-soft: rgba(74, 222, 128, 0.15);
+  --mp-warning: #fbbf24;
+  --mp-error: #f87171;
+  --mp-error-soft: rgba(248, 113, 113, 0.15);
+
+  --mp-on-bg: #e7e9ee;
+  --mp-on-bg-muted: #9ca3b5;
+  --mp-on-bg-faint: #5a6178;
+
+  // Spacing
+  --mp-safe-top: env(safe-area-inset-top, 0px);
+  --mp-safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  // Typography
+  --mp-font-sys: -apple-system, 'Roboto', 'Inter', system-ui, sans-serif;
+
+  font-family: var(--mp-font-sys);
+  color: var(--mp-on-bg);
+  background: var(--mp-bg);
+  min-height: 100vh;
+
+  // Minimum touch target: 48dp (Material) — most primary controls 56dp.
+  button, a[role="button"], [tabindex] {
+    touch-action: manipulation; // remove 300ms double-tap zoom delay
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  // Kill desktop hover states on mobile
+  @media (hover: none) {
+    *:hover {
+      background-color: inherit !important;
+      color: inherit !important;
+    }
+  }
+}
+
+// ─── Reusable component classes ───────────────────────────────────────
+
+.mp-screen {
+  // Full-height screen that respects safe areas + leaves room for bottom nav
+  min-height: 100vh;
+  padding-top: var(--mp-safe-top);
+  padding-bottom: calc(72px + var(--mp-safe-bottom)); // bottom nav height
+  box-sizing: border-box;
+}
+
+.mp-screen--no-nav {
+  padding-bottom: var(--mp-safe-bottom);
+}
+
+.mp-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--mp-border);
+  background: var(--mp-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mp-header__title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mp-card {
+  background: var(--mp-surface);
+  border: 1px solid var(--mp-border);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.mp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--mp-font-sys);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.005em;
+  min-height: 56px;
+  padding: 0 24px;
+  border-radius: 16px;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.mp-btn--primary {
+  background: var(--mp-primary);
+  color: var(--mp-primary-on);
+  box-shadow: 0 4px 20px -4px rgba(107, 138, 253, 0.4);
+}
+
+.mp-btn--secondary {
+  background: var(--mp-surface-2);
+  color: var(--mp-on-bg);
+  border: 1px solid var(--mp-border);
+}
+
+.mp-btn--ghost {
+  background: transparent;
+  color: var(--mp-on-bg-muted);
+}
+
+.mp-btn--danger {
+  background: var(--mp-error-soft);
+  color: var(--mp-error);
+}
+
+.mp-btn--block {
+  width: 100%;
+}
+
+.mp-btn--lg {
+  min-height: 64px;
+  font-size: 17px;
+  border-radius: 20px;
+}
+
+.mp-input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 20px;
+  font-family: var(--mp-font-sys);
+  font-size: 17px;
+  color: var(--mp-on-bg);
+  background: var(--mp-surface);
+  border: 1.5px solid var(--mp-border);
+  border-radius: 16px;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &::placeholder {
+    color: var(--mp-on-bg-faint);
+  }
+
+  &:focus {
+    border-color: var(--mp-primary);
+    background: var(--mp-surface-2);
+  }
+}
+
+.mp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mp-divider {
+  height: 1px;
+  background: var(--mp-border);
+  margin: 16px 0;
+}
+
+// Tier colors for loyalty badges
+.mp-tier-bronze { background: rgba(205, 127, 50, 0.15); color: #f5a365; }
+.mp-tier-silver { background: rgba(192, 192, 192, 0.15); color: #c9c9c9; }
+.mp-tier-gold   { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+.mp-tier-platinum { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+
+// ─── Bottom nav ───────────────────────────────────────────────────────
+
+.mp-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--mp-surface);
+  border-top: 1px solid var(--mp-border);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding-bottom: var(--mp-safe-bottom);
+  z-index: 40;
+}
+
+.mp-bottom-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px 8px;
+  color: var(--mp-on-bg-faint);
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  position: relative;
+  cursor: pointer;
+
+  &.is-active {
+    color: var(--mp-primary);
+  }
+
+  .material-symbols-outlined {
+    font-size: 26px;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  &.is-active .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  }
+}
+
+.mp-bottom-nav__badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 22px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--mp-primary);
+  color: var(--mp-primary-on);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+// ─── Action bar (sticky bottom CTA used on Cart, Checkout) ───────────
+
+.mp-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 72px; // above bottom nav
+  padding: 12px 16px calc(12px + var(--mp-safe-bottom));
+  background: var(--mp-surface);
+  border-top: 1px solid var(--mp-border);
+  z-index: 30;
+}
+
+// ─── Bottom sheet base ───────────────────────────────────────────────
+
+.mp-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  animation: mp-fade-in 0.15s ease;
+}
+
+.mp-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--mp-surface);
+  border-radius: 24px 24px 0 0;
+  padding: 8px 0 calc(20px + var(--mp-safe-bottom));
+  max-height: 85vh;
+  z-index: 51;
+  display: flex;
+  flex-direction: column;
+  animation: mp-slide-up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mp-sheet__handle {
+  width: 40px;
+  height: 4px;
+  background: var(--mp-border);
+  border-radius: 2px;
+  margin: 8px auto 12px;
+}
+
+.mp-sheet__header {
+  padding: 4px 20px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-sheet__body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// ─── Animations ───────────────────────────────────────────────────────
+
+@keyframes mp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mp-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes mp-pop-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes mp-checkmark {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}

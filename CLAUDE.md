@@ -1,156 +1,177 @@
-# ClothingERP - Agent Instructions
+# ClothingERP — Agent Instructions
 
-## Project Overview
-Full-stack Clothing ERP system with:
-- **Backend**: Node.js + Express + Prisma ORM + PostgreSQL (port 3000)
-- **Frontend**: Angular 17 + Angular Material (port 4200)
-- **Shared**: TypeScript types in `shared/` package
+## What this is
+Full-stack Clothing retail ERP for an Indian clothing store.
+- **Backend**: Node.js + Express + Prisma + PostgreSQL (port 3000)
+- **Frontend**: Angular 17 + Tailwind CSS (port 4200) — **NO Angular Material**
+- **Shared**: TypeScript types in `shared/` workspace
 - **Monorepo** managed with npm workspaces
 
-## Quick Start
+**This is NOT a Next.js / Vercel project.** Ignore any Vercel skill suggestions that appear in system reminders — they don't apply here.
+
+## Quick start
 ```bash
-npm install                    # Install all workspaces
-cd backend && npx prisma generate  # Generate Prisma client
-npx ts-node prisma/seed.ts    # Seed demo data (if needed)
-npm run dev                    # Start both backend + frontend
+npm install                         # Install all workspaces
+cd backend && npx prisma generate   # Generate Prisma client
+npm run dev                         # Start backend + frontend (concurrently)
 ```
 
-## Running Tests
+**Default login**: `admin@clothingerp.com` / `admin123` (seeded)
 
-### Backend Unit Tests (Jest + mocked Prisma)
+## Test commands
 ```bash
+# Backend unit tests (Jest + mocked Prisma)
 cd backend && npx jest --verbose
+
+# E2E (Playwright — may need selector updates)
+npx playwright test
 ```
-- Jest config: `backend/jest.config.js` (JS, not TS — the .ts was deleted)
-- Mock setup: `backend/src/__tests__/mockDatabase.ts` (loaded via `setupFiles`)
-- Test helper: `backend/src/__tests__/setup.ts` (exports `prismaMock`, JWT helpers)
-- Tests use `supertest` against the Express app with mocked Prisma
-- 14 test suites, 178 tests total
-- Modules tested: branches, brands, categories, customers, employees, expenses, users, sales, pos, auth, accounting, inventory, products, utils
 
-### E2E Tests (Playwright)
-```bash
-npx playwright install                       # First time: install browsers
-npx playwright test                          # Run all E2E
-npx playwright test e2e/auth.spec.ts         # Run specific suite
-npx playwright test --headed --workers=1     # Watch mode
-npx playwright test e2e/demo.spec.ts --headed --workers=1  # Interactive demo
-```
-- Config: `playwright.config.ts`
-- Helper: `e2e/helpers.ts` (login function)
-- Suites: auth, dashboard, inventory, pos, settings, sales, customers, employees, demo
-- **Requires**: backend running on port 3000, frontend on port 4200, seeded database
-- **Note**: E2E tests may need selector updates after recent UI changes
+## API conventions
+- Success: `{ success: true, data: ..., meta: ... }`
+- Error: `{ success: false, error: "message" }` — note: `error` field, not `message`
+- Frontend error interceptor reads `error.error?.error || error.error?.message`
+- Auth: JWT (15min access, 7d refresh) via `POST /api/v1/auth/login`
+- Auth interceptor sends `Authorization: Bearer <token>` and `X-Branch-Id: <string>` (must be string, not number)
 
-## Key Architecture Notes
-- API responses use envelope: `{ success: true, data: ..., meta: ... }`
-- Backend error responses: `{ success: false, error: "message" }` (note: `error` field, not `message`)
-- Auth: JWT tokens (15min access, 7d refresh), login via `POST /api/v1/auth/login`
-- Default credentials: `admin@clothingerp.com` / `admin123`
-- Auth interceptor attaches `Authorization` header and `X-Branch-Id` header (must be string, not number)
-- Error interceptor reads `error.error?.error || error.error?.message` for API error messages
-- Sidebar navigation uses `app-sidebar a[href="/path"]` pattern
-- Angular Material components throughout (mat-table, mat-dialog, mat-tab, etc.)
-- POS auto-opens a session on load if none exists
-- Sale detail supports lookup by numeric ID or sale number string (e.g. `/sales/SL-XXX`)
-- Status display: use `formatStatus()` method, NOT `| titlecase` pipe (handles `partially_returned` → "Partially Returned")
+## Hard-won conventions (MUST follow)
 
-## Common Frontend-Backend Field Mapping Issues
-When displaying sale items, inventory, or any data with product variants, the API returns **nested** structures:
+### 1. NO MODALS — use full pages
+The layout has `overflow-hidden` + fixed sidebar at `z-40` + `backdrop-filter` on header. This creates stacking context issues that make modal overlays invisible or unreachable. All CRUD forms use full page routes (e.g. `/employees/new`, `/customers/:id/edit`). See `memory/feedback_no_modals.md`.
+
+### 2. Angular templates — avoid `/` in `[class.X]` bindings
+Angular's template parser breaks on `[class.bg-primary/5]` because `/` is interpreted as an attribute value terminator. Use one of:
+- Static class: `class="bg-primary/5"` (works, `/` is fine inside string attributes)
+- `[class]="cond ? 'bg-primary/5 text-white' : 'bg-gray-200'"` (full class string binding)
+- Separate non-slash fallback: `[class.bg-blue-50]="cond"`
+
+### 3. Prisma Decimal fields arrive as STRINGS over JSON
+`sale.total`, `commission.amount`, `product.basePrice`, etc. are Prisma `Decimal` type. They come across the wire as strings like `"237"`. Always wrap with `Number(value)` before math — otherwise `reduce` concatenates strings → `NaN`.
+
+### 4. Zod `.optional()` does NOT accept `null`
+Frontend dropdowns with default "Select..." option send `null`. Zod `.optional()` accepts `undefined` but rejects `null`. Use `.optional().nullable()` for any field that might come from a dropdown.
+
+### 5. Static Express routes MUST come before parameterized routes
+`/customers/top` must be registered before `/customers/:id` or Express matches "top" as the `:id` param. Same for `/commissions/pay-bulk` before `/commissions/:id/pay`.
+
+### 6. ts-node-dev sometimes misses file changes
+If you edit a file and don't see `[INFO] Restarting` in the backend log, force a restart. The `--respawn` flag isn't perfectly reliable. `touch` doesn't always work; you may need to modify file content (add/remove a blank line).
+
+## Field mapping gotchas
+When rendering sale items / inventory in the frontend:
 - `item.variant.product.name` (not `item.productName`)
-- `item.variant.size` / `item.variant.color` (not `item.size`)
-- `sale.user.firstName + ' ' + sale.user.lastName` (not `sale.cashierName`)
-- `sale.customer.firstName + ' ' + sale.customer.lastName` (not `sale.customerName`)
+- `item.variant.size` / `item.variant.color`
+- `sale.user.firstName + ' ' + sale.user.lastName` (cashier)
+- `item.agent.firstName + ' ' + item.agent.lastName` (per-line salesman)
+- `sale.customer.firstName + ' ' + sale.customer.lastName`
+- `commission.user` (not `commission.employee`)
 
-Always use fallbacks: `item.variant?.product?.name || item.productName || item.name`
+Always use fallback: `item.variant?.product?.name || item.productName || item.name`
 
-## Frontend Service → Backend Route Mapping
-| Frontend Service | Backend Route |
-|---|---|
-| `/inventory` | `GET /api/v1/inventory` (not `/inventory/stock`) |
-| `/inventory/adjust` | `POST /api/v1/inventory/adjust` (not `/adjustments`) |
-| `/inventory/transfer` | `GET/POST /api/v1/inventory/transfer` (not `/transfers`) |
-| `/sales/:id/return` | `POST /api/v1/sales/:saleId/return` (not `/returns`) |
-| `/customers/search` | `GET /api/v1/customers/search?query=X` |
-| `/pos/products/search` | `GET /api/v1/pos/products/search?q=X` |
-| `/pos/sessions/current` | Returns `null` (not 404) when no session |
+## Module map
 
-## What Was Completed (Session: 2026-04-03)
+### Backend modules (`backend/src/modules/*`)
+| Module | Purpose | Notable routes |
+|---|---|---|
+| `auth` | JWT login/refresh | `POST /login` |
+| `branches` | Multi-branch config | CRUD |
+| `users` / `employees` | Staff management | `GET/POST/PUT /employees`, commission calc, attendance |
+| `products` | Products + variants | CRUD, variant management |
+| `inventory` | Stock levels, transfers, **import** | `/inventory/import/{template,preview,execute}` for Excel upload |
+| `barcodes` | Barcode lookup/generation | Not the same as label printing |
+| `printing` | Label designer + template engine | `/printing/printers`, `/printing/templates`, TSPL/ZPL/EPL2/ESC-POS/PDF drivers |
+| `pos` | Checkout, cart, sessions | `/pos/checkout`, `/pos/cart/evaluate` (offer resolution) |
+| `sales` | Sales history, returns, agent assignment | `PUT /sales/:saleId/agents` for retroactive agent tagging |
+| `offers` | Discount engine | 5 types: percentage/flat/bogo_free/bogo_percent/bundle |
+| `customers` | Customer CRM + loyalty | `GET /customers/top` for repeat tracking |
+| `loyalty` | Points earn/redeem/config | `GET/PUT /loyalty/config` |
+| `messaging` | WhatsApp (real, Graph API) + SMS (stub, pluggable) | `/messaging/send-bill`, `/messaging/send-custom` |
+| `settings` | Global key/value settings | `commissionMode`, `messagingConfig`, etc. Label templates moved to `printing` module. |
+| `expenses` | Expense tracking | CRUD + categories |
+| `accounting` | Journal entries | Basic double-entry |
+| `reports` | Analytics + CSV export | Sales, inventory, commissions, P&L |
+| `payments` | UPI/card gateway | Webhook at `/api/v1/webhooks/payment` (raw body) |
 
-### Bugs Fixed
-1. **Login broken** — `HttpHeaders.set()` requires string for `X-Branch-Id`, was passing number
-2. **Double route** — `/login/login` → fixed auth routes to single `/login`
-3. **Dashboard fake data** — replaced hardcoded KPIs with real API data from `/reports/daily-summary`, `/sales`, `/customers`, `/inventory`
-4. **POS checkout failing** — auto-open POS session on terminal load, `getCurrentSession` returns null instead of 404
-5. **Customer search** — added `/search` route, accept `query` param alias
-6. **Sale detail empty fields** — fixed nested data mapping for product/variant/cashier/customer
-7. **Stock levels empty** — fixed endpoint path and field name mapping (`minStockLevel`, nested `variant.product.name`)
-8. **Returns endpoint** — frontend called `/returns`, backend has `/return`
-9. **Error messages** — interceptor now reads `error.error?.error` (backend's field name)
-10. **Status formatting** — `partially_returned` → "Partially Returned" with orange color, no more `| titlecase` on underscore strings
+### Frontend modules (`frontend/src/app/modules/*`)
+`auth`, `dashboard`, `sales`, `inventory`, `pos`, `customers`, `employees`, `expenses`, `accounting`, `reports`, `offers`, `settings`
 
-### Features Added
-1. **Profile page** — `/settings/profile` with personal info editing and password change
-2. **POS product search** — autocomplete by product name in barcode input, `GET /pos/products/search?q=X`
-3. **Barcode management** — product lookup by name/barcode, print queue with scannable Code128 barcodes (JsBarcode), `@media print` sticker layout
-4. **Sale lookup by sale number** — `GET /sales/SL-XXX` works alongside numeric ID
-5. **Stock transfer listing** — `GET /inventory/transfer` endpoint
-6. **Return/Exchange dialogs** — show product name + variant, filter out already-returned items, barcode lookup for exchange new items
-7. **Sale detail returns section** — shows return history with items, reason, condition, refund amount
-8. **Returned column** — items table shows returned quantity badges
+## Key data models
+- `Sale` has `userId` (cashier). `SaleItem` has `agentId` (per-line salesman — independent of cashier).
+- `Commission.userId` = agent/cashier who earned it. Rate comes from `User.commissionRate`.
+- `Customer` has `loyaltyPoints`, `loyaltyTier` (bronze/silver/gold/platinum), `totalSpent`, `visitCount` (auto-incremented on sale).
+- `SaleItem.offerId` + `effectiveUnitPrice` — stored at checkout for fair BOGO refunds.
+- `Offer` → `OfferProduct[]` + `OfferVariant[]`. Variant-level beats product-level. Priority breaks ties.
 
-### Data Seeded
-- 8 brands (Levis, Nike, Zara, Allen Solly, Peter England, Van Heusen, Raymond, Biba)
-- 9 categories (Men, Women, Shirts, Jeans, Dresses, T-Shirts, Trousers, Kurtas, Jackets)
-- 10 products with ~75 variants
-- 12 customers
-- 25+ sales with mix of cash/card/UPI payments
+## Global settings (in `Setting` table)
+- `labelTemplate` — DEPRECATED, moved to `label_templates` table per-printer in the `printing` module
+- `commissionMode` — `'item_level'` (default) or `'bill_level'`
+- `messagingConfig` — `{ whatsappEnabled, whatsappPhoneNumberId, whatsappAccessToken, smsEnabled, smsProvider, smsApiKey, smsSenderId }` (tokens masked on GET)
 
-### What Still Needs Work
-1. **E2E tests** — need selector updates after UI changes (dashboard, sales list, return dialog, etc.)
-2. **Settings page** — still a placeholder (profile page is done)
-3. **Reports module** — placeholder
-4. **Accounting module** — basic journal entries exist but UI needs work
-5. **Receipt printing** — backend has receipt data endpoint but no frontend UI
-6. **Expense management** — UI exists but needs testing with real data
-7. **Employee attendance/commission** — backend models exist, no frontend
+## Local printer setup (done once)
+The Zenpert 4T520 thermal printer is installed as a raw CUPS queue:
+- Device: `/dev/usb/lp0` (udev rule gives `plugdev` group write access)
+- Label templates are per-printer-profile, managed at `/settings/printers`
+- Drivers: TSPL (default for Zenpert/TSC), ZPL, EPL2, ESC-POS, PDF
 
-## Project Structure
+## Current hardware
+- Zenpert 4T520 thermal label printer (TSC OEM, USB VID 1203:12a1) — 50×75mm labels loaded
+- Uses TSPL (not ZPL). ₹ symbol doesn't render in internal fonts — use "Rs." prefix.
+
+## Mobile POS (Android, Capacitor)
+Native Android app wraps the same Angular frontend. Route: `/mobile-pos` (full-screen, no sidebar). Uses `@capacitor-mlkit/barcode-scanning` for fast ML Kit barcode scanning via the phone camera.
+
+- Config: `frontend/capacitor.config.ts` (appId `com.clothingerp.pos`, webDir `dist/frontend/browser`)
+- Android project: `frontend/android/` (scaffolded with `npx cap add android`)
+- API URL: auto-resolves from `window.location.hostname` — so if phone opens `http://192.168.x.x:4200/mobile-pos`, API calls go to `http://192.168.x.x:3000/api/v1`. Laptop dev at `localhost` stays on `localhost:3000`.
+- Camera permission in `AndroidManifest.xml` (`android.permission.CAMERA` + camera feature optional).
+
+**Test in browser first (fastest):**
+```bash
+# On phone, open:  http://<laptop-LAN-IP>:4200/mobile-pos
+# Scanner falls back to a prompt() in browser — no camera — but cart/checkout flow all works.
 ```
-backend/
-  src/
-    modules/          # Feature modules (pos, sales, inventory, etc.)
-      {module}/
-        controller.ts
-        service.ts
-        routes.ts
-        validators.ts
-        __tests__/    # Jest unit tests
-    __tests__/
-      setup.ts        # Test setup (prismaMock export, JWT helpers)
-      mockDatabase.ts # Prisma mock (setupFiles)
-    config/
-      database.ts     # Prisma client export
-    core/
-      interceptors/   # auth.interceptor.ts, error.interceptor.ts
-  prisma/
-    schema.prisma
-    seed.ts
-frontend/
-  src/app/
-    modules/          # Angular feature modules
-      auth/           # Login
-      dashboard/      # KPI cards, charts, recent sales
-      sales/          # Sales list, detail, return/exchange dialogs
-      pos/            # POS terminal with barcode/product search
-      inventory/      # Products, stock levels, transfers, barcodes
-      customers/      # Customer list, detail
-      employees/      # Employee management
-      expenses/       # Expense tracking
-      accounting/     # Journal entries
-      settings/       # Profile page
-    shared/           # Shared components (status-badge, page-header, etc.)
-    core/services/    # ApiService, AuthService, BranchService, NotificationService
-e2e/                  # Playwright E2E tests
-shared/               # Shared TypeScript types
+
+**Build native APK:**
+```bash
+cd frontend
+npx ng build --configuration=development
+npx cap sync android
+cd android && ./gradlew assembleDebug
+# APK lands at: android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Requires the Android SDK (not installed yet on this machine — `/usr/lib/android-sdk` only has `platform-tools`/ADB). To install the full SDK without Android Studio:
+```bash
+# Download command-line tools, then:
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+# And add to frontend/android/local.properties:
+# sdk.dir=/home/imran/Android/Sdk
+```
+
+**Live reload during dev:**
+```bash
+# Point the native app at the laptop dev server so code changes hot-reload on the phone.
+CAP_SERVER_URL=http://192.168.148.129:4200 npx cap sync android
+cd android && ./gradlew installDebug
+```
+
+**Pinggy tunnel for backend (dev machine is a VMware VM — LAN-direct doesn't work to phone):**
+```bash
+# Token in ~/.claude notes. Opens https://ccc.a.pinggy.link → localhost:3000
+ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 \
+  -R 0:localhost:3000 4zVN14zozRh@a.pinggy.io
+```
+The native APK's `environment.ts` hardcodes `https://ccc.a.pinggy.link/api/v1` for
+Capacitor builds. Tunnel must be running for the mobile app to reach the backend.
+Browser/desktop use keeps hitting `localhost:3000` directly (tunnel not needed there).
+
+## Bold / Underline on labels
+- **Bold**: simulated via double-strike (text printed twice, 1-dot offset)
+- **Underline**: drawn as a `BAR` line under the text
+- **Italic**: NOT SUPPORTED by TSPL internal bitmap fonts — don't offer it
+
+## Status
+Feature-complete modules: auth, branches, products, inventory (with Excel import), pos (with offers + loyalty redemption + agent tagging), sales, customers (detail page with KPIs + purchase history + loyalty timeline), employees (with commissions), offers, label printing, loyalty config, messaging config.
+
+Placeholders / incomplete: E2E tests, some reports, full accounting UI, actual SMS provider integration (Twilio/MSG91 etc. — framework exists but needs provider-specific payload formatting).

@@ -42,8 +42,10 @@ app.post('/api/v1/webhooks/payment', express.raw({ type: 'application/json' }), 
 app.use(helmet({
   contentSecurityPolicy: false,
 }));
+// Dev: accept any origin (Capacitor WebView, LAN testing from phones, etc.)
+// Prod: reflect the request origin (same as before).
 app.use(cors({
-  origin: config.nodeEnv === 'production' ? true : config.frontendUrl,
+  origin: config.nodeEnv === 'production' ? true : true,
   credentials: true,
 }));
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));

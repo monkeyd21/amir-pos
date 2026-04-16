@@ -1,6 +1,9 @@
 import { Response, NextFunction } from 'express';
+import prisma from '../../config/database';
+import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { salesService } from './service';
+import { buildReceiptPdf } from './receipt-pdf';
 
 export class SalesController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -28,6 +31,41 @@ export class SalesController {
     try {
       const receiptData = await salesService.getReceiptData(parseInt(req.params.id));
       res.json({ success: true, data: receiptData });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Returns a PDF of the receipt. Used by the mobile POS share intent to
+   * attach the bill to a WhatsApp message (or any share target).
+   */
+  async receiptPdf(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const sale = await prisma.sale.findUnique({
+        where: { id },
+        include: {
+          branch: true,
+          customer: true,
+          user: { select: { firstName: true, lastName: true } },
+          items: {
+            include: {
+              variant: { include: { product: true } },
+            },
+          },
+          payments: true,
+        },
+      });
+      if (!sale) throw new AppError('Sale not found', 404);
+
+      const pdf = await buildReceiptPdf(sale as any);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="receipt-${sale.saleNumber}.pdf"`
+      );
+      res.send(pdf);
     } catch (error) {
       next(error);
     }

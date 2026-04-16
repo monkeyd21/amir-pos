@@ -1,11 +1,16 @@
 import { Routes } from '@angular/router';
 import { MainLayoutComponent } from './layout/main-layout/main-layout.component';
 import { authGuard } from './core/guards/auth.guard';
+import { Capacitor } from '@capacitor/core';
+
+// On native mobile (Capacitor Android/iOS), land on the mobile POS by default.
+// Desktop browsers still get the dashboard.
+const rootRedirect = Capacitor.isNativePlatform() ? 'mobile-pos' : 'dashboard';
 
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'dashboard',
+    redirectTo: rootRedirect,
     pathMatch: 'full',
   },
   {
@@ -82,7 +87,12 @@ export const routes: Routes = [
       import('./modules/pos/pos.routes').then((m) => m.POS_ROUTES),
   },
   {
+    path: 'mobile-pos',
+    loadChildren: () =>
+      import('./modules/mobile-pos/mobile-pos.routes').then((m) => m.MOBILE_POS_ROUTES),
+  },
+  {
     path: '**',
-    redirectTo: 'dashboard',
+    redirectTo: rootRedirect,
   },
 ];

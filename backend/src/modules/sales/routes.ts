@@ -16,6 +16,7 @@ router.use(authenticate);
 router.get('/', validate(listSalesSchema), salesController.list);
 router.get('/:id', validate(saleIdParamSchema), salesController.getById);
 router.get('/:id/receipt', validate(saleIdParamSchema), salesController.receipt);
+router.get('/:id/receipt.pdf', validate(saleIdParamSchema), salesController.receiptPdf);
 
 // Returns and exchanges
 router.post(
