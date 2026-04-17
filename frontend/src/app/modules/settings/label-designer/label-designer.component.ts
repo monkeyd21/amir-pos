@@ -16,6 +16,7 @@ type LabelElementType =
   | 'barcode'
   | 'sku'
   | 'price'
+  | 'lotCode'
   | 'text';
 
 type TextAlign = 'left' | 'center' | 'right';
@@ -93,6 +94,7 @@ const ELEMENT_TYPE_LABELS: Record<LabelElementType, string> = {
   barcode: 'Barcode',
   sku: 'SKU Text',
   price: 'Price',
+  lotCode: 'Lot Code',
   text: 'Custom Text',
 };
 
@@ -100,6 +102,7 @@ const PREVIEW_DATA = {
   productName: 'Slim Fit Denim',
   variantLabel: 'M / Indigo',
   sku: '2009676797946',
+  lotCode: 'LOT-2026-04-001',
   price: 4299,
 };
 
@@ -137,6 +140,7 @@ export class LabelDesignerComponent implements OnInit {
     { type: 'barcode', label: 'Barcode', icon: 'qr_code_2' },
     { type: 'sku', label: 'SKU Text', icon: 'tag' },
     { type: 'price', label: 'Price', icon: 'payments' },
+    { type: 'lotCode', label: 'Lot Code', icon: 'inventory_2' },
     { type: 'text', label: 'Custom Text', icon: 'text_fields' },
   ];
 
@@ -427,6 +431,8 @@ export class LabelDesignerComponent implements OnInit {
         return PREVIEW_DATA.variantLabel;
       case 'sku':
         return PREVIEW_DATA.sku;
+      case 'lotCode':
+        return PREVIEW_DATA.lotCode;
       case 'price': {
         const prefix = (el.content ?? '').trim();
         return prefix ? `${prefix} ${PREVIEW_DATA.price}` : String(PREVIEW_DATA.price);

@@ -9,6 +9,7 @@ const elementTypeEnum = z.enum([
   'barcode',
   'sku',
   'price',
+  'lotCode',
   'text',
 ]);
 
@@ -135,6 +136,7 @@ const labelDataSchema = z.object({
   productName: z.string().min(1),
   variantLabel: z.string().optional(),
   price: z.number().nonnegative(),
+  lotCode: z.string().optional(),
   copies: z.number().int().positive().max(99).optional(),
 });
 

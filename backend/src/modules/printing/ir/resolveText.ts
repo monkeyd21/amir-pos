@@ -19,6 +19,8 @@ export function resolveElementText(
       return data.variantLabel ?? '';
     case 'sku':
       return data.sku ?? '';
+    case 'lotCode':
+      return data.lotCode ?? '';
     case 'price': {
       const prefix = (el.content ?? '').trim();
       const amount = Math.round(data.price ?? 0);

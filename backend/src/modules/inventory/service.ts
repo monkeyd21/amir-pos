@@ -121,7 +121,8 @@ export class InventoryService {
     branchId: number;
     quantity: number;
     reason: string;
-    vendorId?: number;
+    vendorId?: number | null;
+    lotCode?: string | null;
   }, userId: number) {
     return prisma.$transaction(async (tx) => {
       // Upsert inventory record
@@ -166,12 +167,105 @@ export class InventoryService {
           type: MovementType.adjustment,
           quantity: data.quantity,
           notes: data.reason,
+          lotCode: data.lotCode ?? null,
           createdBy: userId,
           vendorId: data.vendorId ?? null,
         },
       });
 
       return { inventory, movement };
+    });
+  }
+
+  async restock(data: {
+    productId: number;
+    vendorId: number;
+    lotCode: string;
+    notes?: string | null;
+    items: { variantId: number; quantity: number }[];
+  }, userId: number, branchId: number) {
+    return prisma.$transaction(async (tx) => {
+      // Verify product exists and all variants belong to it
+      const product = await tx.product.findUnique({
+        where: { id: data.productId },
+        include: { variants: { select: { id: true } } },
+      });
+      if (!product) throw new AppError('Product not found', 404);
+
+      const validVariantIds = new Set(product.variants.map((v) => v.id));
+      for (const item of data.items) {
+        if (!validVariantIds.has(item.variantId)) {
+          throw new AppError(`Variant ${item.variantId} does not belong to this product`, 400);
+        }
+      }
+
+      // Verify vendor exists
+      const vendor = await tx.vendor.findUnique({ where: { id: data.vendorId } });
+      if (!vendor) throw new AppError('Vendor not found', 404);
+
+      const results: { variantId: number; previousQty: number; newQty: number }[] = [];
+
+      for (const item of data.items) {
+        const inventory = await tx.inventory.findUnique({
+          where: { variantId_branchId: { variantId: item.variantId, branchId } },
+        });
+
+        const prevQty = inventory?.quantity ?? 0;
+        const newQty = prevQty + item.quantity;
+
+        await tx.inventory.upsert({
+          where: { variantId_branchId: { variantId: item.variantId, branchId } },
+          update: { quantity: newQty },
+          create: { variantId: item.variantId, branchId, quantity: newQty },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: item.variantId,
+            branchId,
+            type: MovementType.purchase,
+            quantity: item.quantity,
+            lotCode: data.lotCode,
+            notes: data.notes || `Restock from ${vendor.name}`,
+            createdBy: userId,
+            vendorId: data.vendorId,
+          },
+        });
+
+        results.push({ variantId: item.variantId, previousQty: prevQty, newQty });
+      }
+
+      return {
+        productId: data.productId,
+        vendorId: data.vendorId,
+        lotCode: data.lotCode,
+        variantsRestocked: results.length,
+        totalUnitsAdded: data.items.reduce((sum, i) => sum + i.quantity, 0),
+        details: results,
+      };
+    }, { timeout: 30000 });
+  }
+
+  async updateMovement(id: number, data: {
+    lotCode?: string | null;
+    notes?: string | null;
+    vendorId?: number | null;
+  }) {
+    const movement = await prisma.inventoryMovement.findUnique({ where: { id } });
+    if (!movement) throw new AppError('Movement not found', 404);
+
+    return prisma.inventoryMovement.update({
+      where: { id },
+      data: {
+        ...(data.lotCode !== undefined ? { lotCode: data.lotCode } : {}),
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.vendorId !== undefined ? { vendorId: data.vendorId } : {}),
+      },
+      include: {
+        variant: { include: { product: true } },
+        user: { select: { id: true, firstName: true, lastName: true } },
+        vendor: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -400,6 +494,9 @@ export class InventoryService {
     variantId?: string;
     branchId?: string;
     type?: string;
+    lotCode?: string;
+    vendorId?: string;
+    search?: string;
     startDate?: string;
     endDate?: string;
     page?: string;
@@ -423,13 +520,34 @@ export class InventoryService {
       where.type = query.type as MovementType;
     }
 
+    if (query.lotCode) {
+      where.lotCode = { contains: query.lotCode, mode: 'insensitive' };
+    }
+
+    if (query.vendorId) {
+      where.vendorId = parseInt(query.vendorId);
+    }
+
+    if (query.search) {
+      where.variant = {
+        OR: [
+          { sku: { contains: query.search, mode: 'insensitive' } },
+          { product: { name: { contains: query.search, mode: 'insensitive' } } },
+          { product: { brand: { name: { contains: query.search, mode: 'insensitive' } } } },
+        ],
+      };
+    }
+
     if (query.startDate || query.endDate) {
       where.createdAt = {};
       if (query.startDate) {
         where.createdAt.gte = new Date(query.startDate);
       }
       if (query.endDate) {
-        where.createdAt.lte = new Date(query.endDate);
+        // End of day
+        const end = new Date(query.endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
       }
     }
 
@@ -439,12 +557,17 @@ export class InventoryService {
         include: {
           variant: {
             include: {
-              product: true,
+              product: {
+                include: { brand: { select: { id: true, name: true } } },
+              },
             },
           },
           branch: true,
           user: {
             select: { id: true, firstName: true, lastName: true },
+          },
+          vendor: {
+            select: { id: true, name: true },
           },
         },
         skip,

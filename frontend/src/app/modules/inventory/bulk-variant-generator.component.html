@@ -170,6 +170,47 @@
             </p>
           }
         }
+
+        @if (addingColor) {
+          <div class="mt-2 p-3 rounded-lg bg-primary-container/10 border border-primary/20 space-y-2">
+            <div class="flex gap-2 items-center">
+              <input
+                type="text"
+                [(ngModel)]="newColorName"
+                (keyup.enter)="saveNewColor()"
+                placeholder="Color name (e.g. Teal)"
+                class="flex-1 px-3 py-2 text-xs bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-primary/30 rounded-lg focus:border-primary focus:outline-none transition-colors"
+                autofocus
+              />
+              <input
+                type="color"
+                [(ngModel)]="newColorHex"
+                title="Pick hex"
+                class="w-8 h-8 rounded-md border border-primary/30 bg-surface-container-lowest cursor-pointer"
+              />
+              <button
+                type="button"
+                (click)="saveNewColor()"
+                [disabled]="!newColorName.trim() || savingColor"
+                class="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold text-on-primary-container bg-primary-container hover:opacity-90 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                @if (savingColor) {
+                  <div class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                } @else {
+                  <span class="material-symbols-outlined text-[12px]">check</span>
+                }
+                Save
+              </button>
+              <button
+                type="button"
+                (click)="cancelAddColor()"
+                class="p-1.5 text-on-surface-variant hover:bg-surface-container-high/60 rounded-md transition-colors cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </div>
+          </div>
+        }
       </div>
 
       <!-- Pricing -->
@@ -270,7 +311,52 @@
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <label class="label-upper">Preview ({{ includedCount }} of {{ previewRows.length }})</label>
-            <span class="text-[10px] text-on-surface-variant/60">Click a row to exclude it</span>
+            <div class="flex items-center gap-3">
+              <!-- Margin base toggle -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-on-surface-variant/60">Margin on</span>
+                <div class="flex rounded-md border border-outline-variant/15 overflow-hidden">
+                  <button
+                    type="button"
+                    (click)="marginBase = 'cost'"
+                    class="px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer"
+                    [class]="marginBase === 'cost'
+                      ? 'bg-primary-container/20 text-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/40'"
+                  >Cost</button>
+                  <button
+                    type="button"
+                    (click)="marginBase = 'landing'"
+                    class="px-2 py-0.5 text-[10px] font-semibold border-l border-outline-variant/15 transition-colors cursor-pointer"
+                    [class]="marginBase === 'landing'
+                      ? 'bg-primary-container/20 text-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/40'"
+                  >Landing</button>
+                </div>
+              </div>
+              <!-- Group by toggle -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-on-surface-variant/60">Group by</span>
+                <div class="flex rounded-md border border-outline-variant/15 overflow-hidden">
+                  <button
+                    type="button"
+                    (click)="sortBy = 'size'"
+                    class="px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer"
+                    [class]="sortBy === 'size'
+                      ? 'bg-primary-container/20 text-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/40'"
+                  >Size</button>
+                  <button
+                    type="button"
+                    (click)="sortBy = 'color'"
+                    class="px-2 py-0.5 text-[10px] font-semibold border-l border-outline-variant/15 transition-colors cursor-pointer"
+                    [class]="sortBy === 'color'
+                      ? 'bg-primary-container/20 text-primary'
+                      : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/40'"
+                  >Color</button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="max-h-56 overflow-auto rounded-lg border border-outline-variant/15 bg-surface-container-lowest/50">
             <table class="w-full text-xs">
@@ -281,6 +367,9 @@
                   <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Size</th>
                   <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Color</th>
                   <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Price</th>
+                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">
+                    Margin %
+                  </th>
                   <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Stock</th>
                 </tr>
               </thead>
@@ -304,12 +393,41 @@
                     <td class="px-2 py-1.5 text-on-surface">{{ row.size }}</td>
                     <td class="px-2 py-1.5 text-on-surface">{{ row.color || '—' }}</td>
                     <td class="px-2 py-1.5 text-right text-on-surface">₹{{ row.price }}</td>
-                    <td class="px-2 py-1.5 text-right text-on-surface-variant">{{ row.initialStock || 0 }}</td>
+                    <td class="px-2 py-1.5 text-right font-mono"
+                        [class.text-green-600]="computeMargin(row.price) !== null && computeMargin(row.price)! > 0"
+                        [class.text-error]="computeMargin(row.price) !== null && computeMargin(row.price)! < 0"
+                        [class.text-on-surface-variant]="computeMargin(row.price) === null">
+                      {{ computeMargin(row.price) !== null ? computeMargin(row.price) + '%' : '—' }}
+                    </td>
+                    <td class="px-2 py-1 text-right" (click)="$event.stopPropagation()">
+                      <input
+                        type="number"
+                        [ngModel]="row.initialStock"
+                        (ngModelChange)="onStockChange(row, $event)"
+                        min="0"
+                        step="1"
+                        class="w-14 px-1.5 py-0.5 text-xs text-right bg-surface-container-lowest border border-outline-variant/15 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        [class.bg-amber-50]="stockOverrides.has(row.key)"
+                        [class.border-amber-300]="stockOverrides.has(row.key)"
+                      />
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          @if (totalStock > 0) {
+            <div class="border border-t-0 border-outline-variant/15 rounded-b-lg bg-surface-container-high/60 px-2 py-2 flex items-center justify-between text-xs font-semibold">
+              <span class="text-on-surface-variant">Totals</span>
+              <div class="flex items-center gap-4">
+                @if (costPrice && costPrice > 0) {
+                  <span class="text-on-surface-variant font-normal">Cost <span class="font-mono font-semibold text-on-surface">₹{{ totalCostValue }}</span></span>
+                }
+                <span class="text-on-surface-variant font-normal">Selling <span class="font-mono font-semibold text-on-surface">₹{{ totalSellingValue }}</span></span>
+                <span class="font-mono text-on-surface">{{ totalStock }} pcs</span>
+              </div>
+            </div>
+          }
         </div>
       }
 

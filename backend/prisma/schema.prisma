@@ -200,9 +200,10 @@ model Product {
   name        String
   slug        String   @unique
   description String?
-  basePrice   Decimal  @db.Decimal(10, 2)
-  costPrice   Decimal  @db.Decimal(10, 2)
-  taxRate     Decimal  @default(18) @db.Decimal(5, 2)
+  basePrice    Decimal  @db.Decimal(10, 2)
+  costPrice    Decimal  @db.Decimal(10, 2)
+  landingPrice Decimal? @db.Decimal(10, 2)
+  taxRate      Decimal  @default(18) @db.Decimal(5, 2)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -274,6 +275,7 @@ model InventoryMovement {
   referenceId   Int?
   referenceType String?
   notes         String?
+  lotCode       String?
   createdBy     Int
   vendorId      Int?
   createdAt     DateTime     @default(now())

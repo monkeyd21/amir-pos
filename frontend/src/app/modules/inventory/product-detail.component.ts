@@ -30,6 +30,7 @@ interface Product {
   description?: string;
   basePrice: number;
   costPrice?: number;
+  landingPrice?: number | null;
   taxRate?: number;
   isActive: boolean;
   brand?: { id: number; name: string };

@@ -17,6 +17,7 @@ export type LabelElementType =
   | 'barcode'
   | 'sku'
   | 'price'
+  | 'lotCode'
   | 'text';
 
 export type TextAlign = 'left' | 'center' | 'right';
@@ -88,6 +89,7 @@ export interface LabelData {
   productName: string;
   variantLabel?: string;
   price: number;
+  lotCode?: string;
   /** Number of copies of this exact label. */
   copies?: number;
 }

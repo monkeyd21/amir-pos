@@ -7,6 +7,7 @@ import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
+import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 
 interface Brand {
   id: number;
@@ -51,6 +52,7 @@ interface ApiResponse<T> {
     RouterModule,
     PageHeaderComponent,
     BulkVariantGeneratorComponent,
+    VendorPickerComponent,
   ],
   templateUrl: './product-form.component.html',
 })
@@ -72,7 +74,15 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   categoryId: number | null = null;
   basePrice: number | null = null;
   costPrice: number | null = null;
+  landingPrice: number | null = null;
   description = '';
+  vendorId: number | null = null;
+  lotCode = '';
+
+  // Post-creation print flow
+  createdProduct: any = null;
+  printCopies: Map<number, number> = new Map();
+  printing = false;
 
   // Manual variant rows (create mode only)
   variants: {
@@ -166,6 +176,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.categoryId = p.category?.id || p.categoryId || null;
     this.basePrice = p.basePrice ?? null;
     this.costPrice = p.costPrice ?? null;
+    this.landingPrice = p.landingPrice ?? null;
     this.description = p.description || '';
   }
 
@@ -338,6 +349,17 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.variants.splice(index, 1);
   }
 
+  onColorCreated(color: Color): void {
+    // Insert alphabetically so the picker stays sorted
+    const idx = this.colors.findIndex(
+      (c) => c.name.toLowerCase() > color.name.toLowerCase()
+    );
+    if (idx === -1) this.colors.push(color);
+    else this.colors.splice(idx, 0, color);
+    // Immutable re-assignment so child sees the change
+    this.colors = [...this.colors];
+  }
+
   onBulkPreviewChange(
     variants: Array<{
       size: string;
@@ -361,7 +383,10 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       categoryId: this.categoryId,
       basePrice: Number(this.basePrice),
       costPrice: Number(this.costPrice),
+      landingPrice: this.landingPrice ? Number(this.landingPrice) : undefined,
       description: this.description.trim() || undefined,
+      vendorId: this.vendorId || undefined,
+      lotCode: this.lotCode.trim() || undefined,
     };
 
     if (!this.isEdit) {
@@ -395,17 +420,87 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       : this.api.post('/products', payload);
 
     req.pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => {
-        this.notification.success(
-          this.isEdit ? 'Product updated' : 'Product created'
-        );
-        this.router.navigate(['/inventory/products']);
+      next: (res: any) => {
+        this.saving = false;
+        if (this.isEdit) {
+          this.notification.success('Product updated');
+          this.router.navigate(['/inventory/products']);
+        } else {
+          this.createdProduct = res.data;
+          // Default print copies to initial stock or 1
+          for (const v of (this.createdProduct.variants || [])) {
+            const bulkMatch = this.bulkGeneratedVariants.find(
+              (bv) => bv.size?.toLowerCase() === v.size?.toLowerCase() &&
+                      (bv.color || '').toLowerCase() === (v.color || '').toLowerCase()
+            );
+            this.printCopies.set(v.id, bulkMatch?.initialStock || 1);
+          }
+          this.notification.success('Product created');
+        }
       },
       error: () => {
         this.saving = false;
         this.notification.error('Failed to save product');
       },
     });
+  }
+
+  onPrintCopiesChange(variantId: number, value: number): void {
+    this.printCopies.set(variantId, Math.max(0, Math.floor(value || 0)));
+  }
+
+  get totalPrintLabels(): number {
+    let sum = 0;
+    this.printCopies.forEach((c) => (sum += c));
+    return sum;
+  }
+
+  printLabels(): void {
+    if (!this.createdProduct?.variants?.length || this.printing) return;
+
+    const items = this.createdProduct.variants
+      .filter((v: any) => (this.printCopies.get(v.id) || 0) > 0)
+      .map((v: any) => ({
+        sku: v.sku,
+        productName: this.createdProduct.name,
+        variantLabel: [v.size, v.color].filter(Boolean).join(' / '),
+        price: Number(v.priceOverride || this.createdProduct.basePrice || 0),
+        lotCode: this.lotCode.trim() || undefined,
+        copies: this.printCopies.get(v.id) || 1,
+      }));
+
+    if (items.length === 0) {
+      this.notification.warning('No labels to print — all quantities are 0');
+      return;
+    }
+    this.printing = true;
+
+    this.api.post<any>('/printing/print', { items })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.printing = false;
+          this.notification.success(
+            `Printed ${res.data?.labelsPrinted ?? items.length} label(s)`
+          );
+        },
+        error: () => {
+          this.printing = false;
+          this.notification.error('Failed to print labels');
+        },
+      });
+  }
+
+  skipPrint(): void {
+    this.router.navigate(['/inventory/products']);
+  }
+
+  goToProduct(): void {
+    if (this.createdProduct?.id) {
+      this.router.navigate(['/inventory/products', this.createdProduct.id]);
+    } else {
+      this.router.navigate(['/inventory/products']);
+    }
   }
 
   onCancel(): void {

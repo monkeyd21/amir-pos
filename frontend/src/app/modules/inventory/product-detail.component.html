@@ -34,6 +34,13 @@
           </span>
         </div>
       </div>
+      <a
+        [routerLink]="['/inventory/products', product.id, 'restock']"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-base">inventory_2</span>
+        Restock
+      </a>
     </div>
   </div>
 
@@ -48,6 +55,12 @@
       <div class="bg-surface-container-high p-6 rounded-xl">
         <p class="label-upper mb-2">Cost Price</p>
         <p class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(+product.costPrice) }}</p>
+      </div>
+    }
+    @if (product.landingPrice) {
+      <div class="bg-surface-container-high p-6 rounded-xl">
+        <p class="label-upper mb-2">Landing Price</p>
+        <p class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(+product.landingPrice) }}</p>
       </div>
     }
     <div class="bg-surface-container-high p-6 rounded-xl">

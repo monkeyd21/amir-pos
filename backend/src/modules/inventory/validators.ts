@@ -17,7 +17,25 @@ export const adjustStockSchema = z.object({
     branchId: z.number().int().positive(),
     quantity: z.number().int().refine((v) => v !== 0, 'Quantity cannot be zero'),
     reason: z.string().min(1, 'Reason is required'),
-    vendorId: z.number().int().positive().optional(),
+    vendorId: z.number().int().positive().optional().nullable(),
+    lotCode: z.string().optional().nullable(),
+  }),
+});
+
+export const restockSchema = z.object({
+  body: z.object({
+    productId: z.number().int().positive(),
+    vendorId: z.number().int().positive(),
+    lotCode: z.string().min(1, 'Lot code is required'),
+    notes: z.string().optional().nullable(),
+    items: z
+      .array(
+        z.object({
+          variantId: z.number().int().positive(),
+          quantity: z.number().int().positive(),
+        })
+      )
+      .min(1, 'At least one variant must have quantity'),
   }),
 });
 
@@ -42,11 +60,25 @@ export const transferParamsSchema = z.object({
   }),
 });
 
+export const updateMovementSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/),
+  }),
+  body: z.object({
+    lotCode: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    vendorId: z.number().int().positive().optional().nullable(),
+  }),
+});
+
 export const listMovementsSchema = z.object({
   query: z.object({
     variantId: z.string().optional(),
     branchId: z.string().optional(),
     type: z.string().optional(),
+    lotCode: z.string().optional(),
+    vendorId: z.string().optional(),
+    search: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     page: z.string().optional(),

@@ -212,6 +212,11 @@ export class ProductListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/inventory/products', product.id, 'edit']);
   }
 
+  restockProduct(product: Product): void {
+    this.activeMenuId = null;
+    this.router.navigate(['/inventory/products', product.id, 'restock']);
+  }
+
   deleteProduct(product: Product): void {
     this.activeMenuId = null;
     if (!confirm(`Delete "${product.name}"? This action cannot be undone.`)) return;

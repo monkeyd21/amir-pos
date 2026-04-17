@@ -90,14 +90,18 @@ export const createProduct = async (data: {
   description?: string;
   basePrice: number;
   costPrice: number;
+  landingPrice?: number | null;
   taxRate?: number;
+  vendorId?: number;
+  lotCode?: string;
   variants?: Array<{
     size: string;
     color: string;
     priceOverride?: number;
     costOverride?: number;
+    initialStock?: number;
   }>;
-}) => {
+}, userId?: number, branchId?: number) => {
   const slug = slugify(data.name);
 
   const existing = await prisma.product.findUnique({ where: { slug } });
@@ -132,6 +136,7 @@ export const createProduct = async (data: {
       description: data.description,
       basePrice: data.basePrice,
       costPrice: data.costPrice,
+      landingPrice: data.landingPrice ?? null,
       taxRate: data.taxRate ?? 18,
       variants: {
         create: variantData,
@@ -160,6 +165,36 @@ export const createProduct = async (data: {
         skipDuplicates: true,
       });
     }
+
+    // Apply initial stock + create purchase movements if vendor/lot provided
+    if (branchId && userId) {
+      const variantsWithStock = (data.variants || [])
+        .map((dv, i) => ({ ...dv, dbVariant: product.variants[i] }))
+        .filter((v) => v.initialStock && v.initialStock > 0);
+
+      if (variantsWithStock.length > 0) {
+        for (const v of variantsWithStock) {
+          await prisma.inventory.update({
+            where: { variantId_branchId: { variantId: v.dbVariant.id, branchId } },
+            data: { quantity: v.initialStock! },
+          });
+          await prisma.inventoryMovement.create({
+            data: {
+              variantId: v.dbVariant.id,
+              branchId,
+              type: 'purchase',
+              quantity: v.initialStock!,
+              lotCode: data.lotCode ?? null,
+              notes: data.vendorId
+                ? `Initial stock — product creation`
+                : 'Initial stock — product creation',
+              createdBy: userId,
+              vendorId: data.vendorId ?? null,
+            },
+          });
+        }
+      }
+    }
   }
 
   return product;
@@ -172,6 +207,7 @@ export const updateProduct = async (id: number, data: {
   description?: string | null;
   basePrice?: number;
   costPrice?: number;
+  landingPrice?: number | null;
   taxRate?: number;
   isActive?: boolean;
 }) => {

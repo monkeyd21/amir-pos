@@ -6,6 +6,7 @@ import { Subject, takeUntil, debounceTime, distinctUntilChanged, switchMap, of }
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 
 interface BarcodeItem {
   variantId: number;
@@ -38,7 +39,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-barcodes',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent, VendorPickerComponent],
   templateUrl: './barcodes.component.html',
 })
 export class BarcodesComponent implements OnInit, OnDestroy {
@@ -54,6 +55,19 @@ export class BarcodesComponent implements OnInit, OnDestroy {
 
   // Direct barcode lookup
   barcodeInput = '';
+
+  // Browse & filter (like history page)
+  showBrowse = false;
+  browseSearch = '';
+  browseLotCode = '';
+  browseVendorId: number | null = null;
+  browseStartDate = '';
+  browseEndDate = '';
+  browseType = 'purchase';
+  browseResults: any[] = [];
+  browseLoading = false;
+  browseTotal = 0;
+  private browseTimer: any = null;
 
   constructor(
     private api: ApiService,
@@ -214,6 +228,94 @@ export class BarcodesComponent implements OnInit, OnDestroy {
           this.printing = false;
         },
       });
+  }
+
+  // ─── Browse & Filter ──────────────────────────────────────
+
+  loadBrowse(): void {
+    this.browseLoading = true;
+    const params: Record<string, string> = {
+      page: '1',
+      limit: '200',
+    };
+    if (this.browseType) params['type'] = this.browseType;
+    if (this.browseSearch.trim()) params['search'] = this.browseSearch.trim();
+    if (this.browseLotCode.trim()) params['lotCode'] = this.browseLotCode.trim();
+    if (this.browseVendorId) params['vendorId'] = String(this.browseVendorId);
+    if (this.browseStartDate) params['startDate'] = this.browseStartDate;
+    if (this.browseEndDate) params['endDate'] = this.browseEndDate;
+
+    this.api
+      .get<any>('/inventory/movements', params)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.browseResults = res.data || [];
+          this.browseTotal = res.meta?.total || 0;
+          this.browseLoading = false;
+        },
+        error: () => {
+          this.browseLoading = false;
+        },
+      });
+  }
+
+  onBrowseFilterChange(): void {
+    this.loadBrowse();
+  }
+
+  onBrowseSearchInput(): void {
+    if (this.browseTimer) clearTimeout(this.browseTimer);
+    this.browseTimer = setTimeout(() => this.loadBrowse(), 400);
+  }
+
+  onBrowseLotInput(): void {
+    if (this.browseTimer) clearTimeout(this.browseTimer);
+    this.browseTimer = setTimeout(() => this.loadBrowse(), 400);
+  }
+
+  onBrowseVendorChange(id: number | null): void {
+    this.browseVendorId = id;
+    this.loadBrowse();
+  }
+
+  addBrowseResultToQueue(m: any): void {
+    const vid = m.variant?.id || m.variantId;
+    const existing = this.queue.find((i) => i.variantId === vid);
+    if (existing) {
+      existing.copies += Math.abs(m.quantity || 1);
+      return;
+    }
+
+    const v = m.variant;
+    const parts: string[] = [];
+    if (v?.size) parts.push(v.size);
+    if (v?.color) parts.push(v.color);
+
+    this.queue.push({
+      variantId: vid,
+      sku: v?.barcode || v?.sku || '',
+      productName: v?.product?.name || 'Unknown',
+      variantLabel: parts.join(' / ') || '',
+      price: Number(v?.priceOverride || v?.product?.basePrice || 0),
+      copies: Math.abs(m.quantity || 1),
+    });
+  }
+
+  addAllBrowseResults(): void {
+    for (const m of this.browseResults) {
+      if (m.quantity > 0) {
+        this.addBrowseResultToQueue(m);
+      }
+    }
+    this.notification.success(`Added ${this.browseResults.length} item(s) to queue`);
+  }
+
+  toggleBrowse(): void {
+    this.showBrowse = !this.showBrowse;
+    if (this.showBrowse && this.browseResults.length === 0) {
+      this.loadBrowse();
+    }
   }
 
   formatCurrency(value: number): string {

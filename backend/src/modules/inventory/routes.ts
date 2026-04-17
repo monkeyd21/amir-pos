@@ -5,8 +5,10 @@ import { inventoryController } from './controller';
 import {
   listInventorySchema,
   adjustStockSchema,
+  restockSchema,
   createTransferSchema,
   transferParamsSchema,
+  updateMovementSchema,
   listMovementsSchema,
 } from './validators';
 import { upload } from '../../middleware/upload';
@@ -22,6 +24,12 @@ router.post(
   authorize('owner', 'manager'),
   validate(adjustStockSchema),
   inventoryController.adjust
+);
+router.post(
+  '/restock',
+  authorize('owner', 'manager'),
+  validate(restockSchema),
+  inventoryController.restock
 );
 router.get('/transfer', inventoryController.listTransfers);
 router.post(
@@ -43,6 +51,12 @@ router.put(
   inventoryController.receiveTransfer
 );
 router.get('/movements', validate(listMovementsSchema), inventoryController.movements);
+router.put(
+  '/movements/:id',
+  authorize('owner', 'manager'),
+  validate(updateMovementSchema),
+  inventoryController.updateMovement
+);
 
 // Import
 router.get('/import/template', inventoryController.importTemplate);

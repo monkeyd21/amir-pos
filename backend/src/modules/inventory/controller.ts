@@ -46,6 +46,23 @@ export class InventoryController {
     }
   }
 
+  async restock(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await inventoryService.restock(
+        req.body,
+        req.user!.userId,
+        req.user!.branchId
+      );
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: `Restocked ${result.variantsRestocked} variant(s) — ${result.totalUnitsAdded} units added`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async listTransfers(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await inventoryService.listTransfers(req.query as any, req.user!.branchId);
@@ -94,6 +111,22 @@ export class InventoryController {
         success: true,
         data: transfer,
         message: 'Transfer received successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMovement(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const movement = await inventoryService.updateMovement(
+        parseInt(req.params.id),
+        req.body
+      );
+      res.json({
+        success: true,
+        data: movement,
+        message: 'Movement updated',
       });
     } catch (error) {
       next(error);

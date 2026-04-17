@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -32,7 +32,7 @@ const ALPHA_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'];
   imports: [CommonModule, FormsModule, VendorPickerComponent],
   templateUrl: './bulk-variant-generator.component.html',
 })
-export class BulkVariantGeneratorComponent implements OnInit {
+export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
   /** If set, the generator will POST directly to that product's bulk endpoint. */
   @Input() productId: number | null = null;
   /** Brand name, used for the SKU base preview (optional). */
@@ -41,6 +41,10 @@ export class BulkVariantGeneratorComponent implements OnInit {
   @Input() productName = '';
   /** Default base price to pre-fill (usually the product's basePrice). */
   @Input() defaultPrice: number | null = null;
+  /** Cost price from the product — used for margin calculation. */
+  @Input() costPrice: number | null = null;
+  /** Landing price from the product — used for margin calculation. */
+  @Input() landingPrice: number | null = null;
   /**
    * Shared color palette loaded by the parent. Passed in (rather than
    * fetched here) so the "+ New Color" flow in the parent can mutate one
@@ -58,6 +62,8 @@ export class BulkVariantGeneratorComponent implements OnInit {
    * so we re-render without any coupling.
    */
   @Output() requestNewColor = new EventEmitter<void>();
+  /** Emitted after a color is created inline so the parent can update its list. */
+  @Output() colorCreated = new EventEmitter<ColorOption>();
 
   expanded = false;
 
@@ -80,7 +86,17 @@ export class BulkVariantGeneratorComponent implements OnInit {
   skuBase = '';
   vendorId: number | null = null;
 
+  sortBy: 'size' | 'color' = 'size';
+  marginBase: 'cost' | 'landing' = 'cost';
+  // Inline color creation
+  addingColor = false;
+  newColorName = '';
+  newColorHex = '';
+  savingColor = false;
+
   excluded = new Set<string>();
+  /** Per-variant stock overrides (key → quantity). Overrides the global initialStock. */
+  stockOverrides = new Map<string, number>();
   generating = false;
 
   readonly alphaSizes = ALPHA_SIZES;
@@ -94,6 +110,19 @@ export class BulkVariantGeneratorComponent implements OnInit {
     if (this.defaultPrice !== null) {
       this.flatPrice = this.defaultPrice;
       this.stepBase = this.defaultPrice;
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['defaultPrice'] && this.defaultPrice !== null) {
+      // Sync prices if they haven't been manually changed from the previous default
+      const prev = changes['defaultPrice'].previousValue;
+      if (this.flatPrice === null || this.flatPrice === prev) {
+        this.flatPrice = this.defaultPrice;
+      }
+      if (this.stepBase === null || this.stepBase === prev) {
+        this.stepBase = this.defaultPrice;
+      }
     }
   }
 
@@ -121,9 +150,43 @@ export class BulkVariantGeneratorComponent implements OnInit {
     this.emitPreviewIfInlineMode();
   }
 
-  /** Ask the parent to spawn its inline "New color" form. */
+  /** Show inline color form right below the color chips. */
   onAddColorClicked(): void {
-    this.requestNewColor.emit();
+    this.addingColor = true;
+    this.newColorName = '';
+    this.newColorHex = '';
+  }
+
+  cancelAddColor(): void {
+    this.addingColor = false;
+    this.newColorName = '';
+    this.newColorHex = '';
+  }
+
+  saveNewColor(): void {
+    const name = this.newColorName.trim();
+    if (!name || this.savingColor) return;
+    this.savingColor = true;
+
+    const payload: Record<string, string> = { name };
+    const hex = this.newColorHex.trim();
+    if (hex) {
+      payload['hex'] = hex.startsWith('#') ? hex : `#${hex}`;
+    }
+
+    this.api.post<any>('/colors', payload).subscribe({
+      next: (res: any) => {
+        const color: ColorOption = res.data;
+        this.colorCreated.emit(color);
+        this.cancelAddColor();
+        this.savingColor = false;
+        this.notification.success(`Color "${color.name}" created`);
+      },
+      error: (err: any) => {
+        this.savingColor = false;
+        this.notification.error(err.error?.error || 'Failed to create color');
+      },
+    });
   }
 
   /** Lookup helper so the template can render swatch hex by color name. */
@@ -185,18 +248,27 @@ export class BulkVariantGeneratorComponent implements OnInit {
     const colors = this.colors.length > 0 ? this.colors : [''];
 
     const rows: PreviewRow[] = [];
-    for (let i = 0; i < sizes.length; i++) {
-      const size = sizes[i];
-      for (const color of colors) {
-        const price = this.computePrice(i);
+    // Build the cartesian product — outer/inner loop order determines default grouping
+    const outer = this.sortBy === 'color' && colors.length > 1 ? colors : sizes;
+    const inner = this.sortBy === 'color' && colors.length > 1 ? sizes : colors;
+
+    for (let oi = 0; oi < outer.length; oi++) {
+      for (const iv of inner) {
+        const size = this.sortBy === 'color' && colors.length > 1 ? iv : outer[oi];
+        const color = this.sortBy === 'color' && colors.length > 1 ? outer[oi] : iv;
+        const sizeIndex = sizes.indexOf(size);
+        const price = this.computePrice(sizeIndex);
         const sku = this.computeSku(size, color);
         const key = `${size.toLowerCase()}|${color.toLowerCase()}`;
+        const stock = this.stockOverrides.has(key)
+          ? this.stockOverrides.get(key)!
+          : (this.initialStock ?? 0);
         rows.push({
           size,
           color,
           sku,
           price,
-          initialStock: this.initialStock ?? 0,
+          initialStock: stock,
           include: !this.excluded.has(key),
           key,
         });
@@ -207,6 +279,19 @@ export class BulkVariantGeneratorComponent implements OnInit {
 
   get includedCount(): number {
     return this.previewRows.filter((r) => r.include).length;
+  }
+
+  get totalStock(): number {
+    return this.previewRows.filter((r) => r.include).reduce((sum, r) => sum + r.initialStock, 0);
+  }
+
+  get totalCostValue(): number {
+    const cost = Number(this.costPrice || 0);
+    return this.previewRows.filter((r) => r.include).reduce((sum, r) => sum + r.initialStock * cost, 0);
+  }
+
+  get totalSellingValue(): number {
+    return this.previewRows.filter((r) => r.include).reduce((sum, r) => sum + r.initialStock * r.price, 0);
   }
 
   private computePrice(sizeIndex: number): number {
@@ -228,6 +313,28 @@ export class BulkVariantGeneratorComponent implements OnInit {
     }
     // Empty → backend will auto-generate
     return '(auto)';
+  }
+
+  get marginCostBase(): number | null {
+    if (this.marginBase === 'landing' && this.landingPrice && this.landingPrice > 0) {
+      return this.landingPrice;
+    }
+    if (this.costPrice && this.costPrice > 0) {
+      return this.costPrice;
+    }
+    return null;
+  }
+
+  computeMargin(sellingPrice: number): number | null {
+    const base = this.marginCostBase;
+    if (!base || base <= 0 || sellingPrice <= 0) return null;
+    return Math.floor(((sellingPrice - base) / base) * 10000) / 100;
+  }
+
+  onStockChange(row: PreviewRow, value: number): void {
+    const qty = Math.max(0, Math.floor(value || 0));
+    this.stockOverrides.set(row.key, qty);
+    this.emitPreviewIfInlineMode();
   }
 
   toggleRow(row: PreviewRow): void {
@@ -265,7 +372,7 @@ export class BulkVariantGeneratorComponent implements OnInit {
         };
         if (r.price > 0) payload.priceOverride = r.price;
         if (this.skuBase.trim()) payload.sku = r.sku;
-        if (this.initialStock && this.initialStock > 0) payload.initialStock = r.initialStock;
+        if (r.initialStock > 0) payload.initialStock = r.initialStock;
         return payload;
       });
   }
@@ -315,6 +422,7 @@ export class BulkVariantGeneratorComponent implements OnInit {
   reset(): void {
     this.colors = [];
     this.excluded.clear();
+    this.stockOverrides.clear();
     this.expanded = false;
     this.customSizes = '';
   }

@@ -22,7 +22,11 @@ export const getProductById = async (req: AuthRequest, res: Response, next: Next
 
 export const createProduct = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const product = await productService.createProduct(req.body);
+    const product = await productService.createProduct(
+      req.body,
+      req.user!.userId,
+      req.user!.branchId
+    );
     res.status(201).json({ success: true, data: product });
   } catch (error) {
     next(error);
