@@ -1,10 +1,47 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { LabelPrintService } from '../../../shared/label-print.service';
 import { ApiResponse, PrinterProfile } from './types';
+
+interface TestPrintResult {
+  labelsPrinted: number;
+  itemCount: number;
+  transport: string;
+  driver: string;
+  browserPayload?: { contentType: string; base64: string };
+}
+
+interface LabelTemplateRow {
+  id: number;
+  name: string;
+  isDefault: boolean;
+  widthMm: number;
+  heightMm: number;
+}
+
+// Mirrors backend DEFAULT_LABEL_TEMPLATE for profiles that somehow ended up
+// with zero templates (legacy seeds, manual DB resets). Lets the user
+// bootstrap a designer session in one click instead of getting stuck.
+const DEFAULT_TEMPLATE_BODY = {
+  name: 'Default Template',
+  widthMm: 50,
+  heightMm: 75,
+  gapMm: 2,
+  density: 8,
+  speed: 4,
+  isDefault: true,
+  elements: [
+    { id: 'brand', type: 'brand', xMm: 2.5, yMm: 2.5, fontSizePt: 18, align: 'center', widthMm: 45, content: 'ATELIER', visible: true },
+    { id: 'productName', type: 'productName', xMm: 2.5, yMm: 9, fontSizePt: 14, align: 'center', widthMm: 45, visible: true },
+    { id: 'variant', type: 'variant', xMm: 2.5, yMm: 14, fontSizePt: 12, align: 'center', widthMm: 45, visible: true },
+    { id: 'barcode', type: 'barcode', xMm: 5, yMm: 19, barcodeType: 'code128', barcodeHeightMm: 12.5, showBarcodeText: true, visible: true },
+    { id: 'price', type: 'price', xMm: 2.5, yMm: 39, fontSizePt: 24, align: 'center', widthMm: 45, content: 'Rs.', visible: true },
+  ],
+};
 
 /**
  * List all printer profiles for the current branch, with quick actions for
@@ -63,7 +100,12 @@ import { ApiResponse, PrinterProfile } from './types';
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
-                  <h3 class="text-base font-headline font-bold text-on-surface truncate">{{ profile.name }}</h3>
+                  <button
+                    type="button"
+                    (click)="openDesigner(profile)"
+                    class="text-base font-headline font-bold text-on-surface truncate hover:text-primary hover:underline cursor-pointer text-left"
+                    title="Open label designer"
+                  >{{ profile.name }}</button>
                   @if (profile.isDefault) {
                     <span class="px-2 py-0.5 text-[10px] font-bold font-mono bg-primary-container/30 text-primary rounded uppercase">Default</span>
                   }
@@ -86,9 +128,9 @@ import { ApiResponse, PrinterProfile } from './types';
                 </div>
 
                 <!-- Templates -->
-                @if (profile.templates && profile.templates.length > 0) {
-                  <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Templates:</span>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Templates:</span>
+                  @if (profile.templates && profile.templates.length > 0) {
                     @for (t of profile.templates; track t.id) {
                       <a
                         [routerLink]="['/settings/printers', profile.id, 'designer', t.id]"
@@ -100,8 +142,18 @@ import { ApiResponse, PrinterProfile } from './types';
                         @if (t.isDefault) { <span class="text-primary">&bull;</span> }
                       </a>
                     }
-                  </div>
-                }
+                  } @else {
+                    <button
+                      type="button"
+                      (click)="createDefaultTemplate(profile)"
+                      [disabled]="creatingTemplateId === profile.id"
+                      class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-body bg-primary-container/20 text-primary rounded hover:bg-primary-container/40 transition-colors cursor-pointer disabled:opacity-60"
+                    >
+                      <span class="material-symbols-outlined text-sm">add</span>
+                      Create default template
+                    </button>
+                  }
+                </div>
               </div>
 
               <div class="flex items-center gap-1 shrink-0">
@@ -152,10 +204,13 @@ export class PrintersListComponent implements OnInit {
   profiles: PrinterProfile[] = [];
   loading = false;
   testingId: number | null = null;
+  creatingTemplateId: number | null = null;
 
   constructor(
     private api: ApiService,
-    private notification: NotificationService
+    private notification: NotificationService,
+    private labelPrint: LabelPrintService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -175,13 +230,54 @@ export class PrintersListComponent implements OnInit {
 
   testPrint(profile: PrinterProfile): void {
     this.testingId = profile.id;
-    this.api.post<ApiResponse<unknown>>(`/printing/profiles/${profile.id}/test`, {}).subscribe({
-      next: () => {
-        this.notification.success(`Test label sent to ${profile.name}`);
-        this.testingId = null;
-      },
-      error: () => (this.testingId = null),
-    });
+    this.api
+      .post<ApiResponse<TestPrintResult>>(`/printing/profiles/${profile.id}/test`, {})
+      .subscribe({
+        next: async (res) => {
+          const payload = res.data?.browserPayload;
+          if (payload) {
+            try {
+              await this.labelPrint.handleBrowserPayload(payload);
+            } catch (e: any) {
+              this.notification.error(e?.message ?? 'Browser print failed');
+              this.testingId = null;
+              return;
+            }
+          }
+          this.notification.success(`Test label sent to ${profile.name}`);
+          this.testingId = null;
+        },
+        error: () => (this.testingId = null),
+      });
+  }
+
+  /** Open the designer on the profile's default (or first) template, creating one if needed. */
+  openDesigner(profile: PrinterProfile): void {
+    const templates = profile.templates ?? [];
+    const target = templates.find((t) => t.isDefault) ?? templates[0];
+    if (target) {
+      this.router.navigate(['/settings/printers', profile.id, 'designer', target.id]);
+      return;
+    }
+    this.createDefaultTemplate(profile);
+  }
+
+  createDefaultTemplate(profile: PrinterProfile): void {
+    if (this.creatingTemplateId === profile.id) return;
+    this.creatingTemplateId = profile.id;
+    this.api
+      .post<ApiResponse<LabelTemplateRow>>(
+        `/printing/profiles/${profile.id}/templates`,
+        DEFAULT_TEMPLATE_BODY
+      )
+      .subscribe({
+        next: (res) => {
+          this.creatingTemplateId = null;
+          this.notification.success('Default template created');
+          this.router.navigate(['/settings/printers', profile.id, 'designer', res.data.id]);
+        },
+        error: () => (this.creatingTemplateId = null),
+      });
   }
 
   setDefault(profile: PrinterProfile): void {
