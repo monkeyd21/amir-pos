@@ -6,6 +6,15 @@ import { CdkDrag, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { LabelPrintService } from '../../../shared/label-print.service';
+
+interface TestPrintResult {
+  labelsPrinted: number;
+  itemCount: number;
+  transport: string;
+  driver: string;
+  browserPayload?: { contentType: string; base64: string };
+}
 
 // ─── Types (mirror backend IR) ──────────────────────────────────
 
@@ -157,7 +166,8 @@ export class LabelDesignerComponent implements OnInit {
     private api: ApiService,
     private route: ActivatedRoute,
     private router: Router,
-    private notification: NotificationService
+    private notification: NotificationService,
+    private labelPrint: LabelPrintService
   ) {}
 
   ngOnInit(): void {
@@ -256,7 +266,7 @@ export class LabelDesignerComponent implements OnInit {
     if (!this.profile || !this.template || this.printing) return;
     this.printing = true;
     this.api
-      .post<ApiResponse<unknown>>(`/printing/profiles/${this.profile.id}/test`, {
+      .post<ApiResponse<TestPrintResult>>(`/printing/profiles/${this.profile.id}/test`, {
         overrideTemplate: {
           widthMm: this.template.widthMm,
           heightMm: this.template.heightMm,
@@ -267,7 +277,17 @@ export class LabelDesignerComponent implements OnInit {
         },
       })
       .subscribe({
-        next: () => {
+        next: async (res) => {
+          const payload = res.data?.browserPayload;
+          if (payload) {
+            try {
+              await this.labelPrint.handleBrowserPayload(payload);
+            } catch (e: any) {
+              this.notification.error(e?.message ?? 'Browser print failed');
+              this.printing = false;
+              return;
+            }
+          }
           this.printing = false;
           this.notification.success('Test label sent to printer');
         },

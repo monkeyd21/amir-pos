@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 
@@ -71,7 +72,8 @@ export class BarcodesComponent implements OnInit, OnDestroy {
 
   constructor(
     private api: ApiService,
-    private notification: NotificationService
+    private notification: NotificationService,
+    private labelPrint: LabelPrintService
   ) {}
 
   ngOnInit(): void {
@@ -208,25 +210,18 @@ export class BarcodesComponent implements OnInit, OnDestroy {
     }));
 
     this.printing = true;
-    // Uses the new printing module. With no profileId/templateId supplied,
-    // the backend picks the branch's default printer profile and its default
-    // template (configured in Settings → Printers & Labels).
-    this.api
-      .post<ApiResponse<{ labelsPrinted: number; itemCount: number; driver: string; transport: string }>>(
-        '/printing/print',
-        { items }
-      )
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          const count = res.data?.labelsPrinted ?? this.totalStickers;
-          const driver = res.data?.driver ?? '';
-          this.notification.success(`Printed ${count} label(s) via ${driver}`);
-          this.printing = false;
-        },
-        error: () => {
-          this.printing = false;
-        },
+    // With no profileId/templateId supplied, the backend picks the branch's
+    // default printer profile and its default template. For 'browser'
+    // transport, LabelPrintService streams the bytes over WebUSB.
+    this.labelPrint.print(items)
+      .then((data) => {
+        const count = data.labelsPrinted ?? this.totalStickers;
+        this.notification.success(`Printed ${count} label(s) via ${data.driver ?? ''}`);
+        this.printing = false;
+      })
+      .catch((err: any) => {
+        this.notification.error(err?.message || 'Failed to print labels');
+        this.printing = false;
       });
   }
 

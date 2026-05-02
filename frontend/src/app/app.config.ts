@@ -9,7 +9,10 @@ import { errorInterceptor } from './core/interceptors/error.interceptor';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+    // authInterceptor first so its catchError sees 401s before errorInterceptor
+    // (interceptors run LIFO on the response path) — that lets it transparently
+    // refresh the access token instead of bouncing the user to /login.
+    provideHttpClient(withInterceptors([errorInterceptor, authInterceptor])),
     provideAnimationsAsync(),
   ],
 };

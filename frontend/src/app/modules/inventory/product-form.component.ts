@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, forkJoin, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
@@ -125,7 +126,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     private api: ApiService,
     private notification: NotificationService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private labelPrint: LabelPrintService
   ) {}
 
   ngOnInit(): void {
@@ -475,19 +477,16 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     }
     this.printing = true;
 
-    this.api.post<any>('/printing/print', { items })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.printing = false;
-          this.notification.success(
-            `Printed ${res.data?.labelsPrinted ?? items.length} label(s)`
-          );
-        },
-        error: () => {
-          this.printing = false;
-          this.notification.error('Failed to print labels');
-        },
+    this.labelPrint.print(items)
+      .then((data) => {
+        this.printing = false;
+        this.notification.success(
+          `Printed ${data.labelsPrinted ?? items.length} label(s)`
+        );
+      })
+      .catch((err: any) => {
+        this.printing = false;
+        this.notification.error(err?.message || 'Failed to print labels');
       });
   }
 

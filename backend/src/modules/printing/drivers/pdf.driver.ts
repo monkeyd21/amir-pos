@@ -117,10 +117,27 @@ function drawText(
 
   const xPt = el.xMm * MM_TO_PT;
   const yPt = el.yMm * MM_TO_PT;
-  const fontSize = el.fontSizePt ?? 12;
+  const designedSize = el.fontSizePt ?? 12;
 
   // Helvetica is built into every PDF reader and covers all ASCII.
   const fontName = el.weight === 'bold' ? 'Helvetica-Bold' : 'Helvetica';
+
+  // Shrink-to-fit: pdfkit's `lineBreak: false` doesn't reliably keep text on
+  // one line when both `width` and `align` are set, so long real-world values
+  // (e.g. "Levis 501 Original Jeans" in a 45mm productName slot) wrapped and
+  // overlapped neighboring elements. Step the font size down until the text
+  // fits on a single line, with a 6pt floor — better than truncating, since
+  // labels still need the full text to be legible.
+  let fontSize = designedSize;
+  if (el.widthMm) {
+    const maxWidthPt = el.widthMm * MM_TO_PT;
+    doc.font(fontName);
+    while (fontSize > 6) {
+      doc.fontSize(fontSize);
+      if (doc.widthOfString(text) <= maxWidthPt) break;
+      fontSize -= 0.5;
+    }
+  }
   doc.font(fontName).fontSize(fontSize);
 
   if (el.widthMm && el.align) {

@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PageHeaderComponent } from '../../../shared/page-header/page-header.component';
+import { LabelPrintService } from '../../../shared/label-print.service';
 import {
   ApiResponse,
   DriverDescriptor,
@@ -14,6 +15,14 @@ import {
   TransportDescriptor,
   TransportName,
 } from './types';
+
+interface TestPrintResult {
+  labelsPrinted: number;
+  itemCount: number;
+  transport: string;
+  driver: string;
+  browserPayload?: { contentType: string; base64: string };
+}
 
 /**
  * Form for creating or editing a printer profile manually. Shows only
@@ -133,8 +142,13 @@ import {
               </label>
             }
             @if (profile.transport === 'browser') {
-              <div class="md:col-span-2 text-xs font-body text-on-surface-variant">
-                Browser transport returns the rendered label to the frontend as bytes. Your browser opens a print dialog and you pick the printer from there. No server-side connection needed — works on any OS.
+              <div class="md:col-span-2 text-xs font-body text-on-surface-variant space-y-2">
+                <p>
+                  Browser transport returns the rendered label to the frontend. With a raw printer driver (TSPL/ZPL/EPL2/ESC-POS) the bytes are streamed directly to a USB-paired printer via WebUSB — silent, no print dialog. With the PDF driver, a print dialog opens for the user to pick the printer.
+                </p>
+                <p class="text-on-surface-variant/70">
+                  Requires Chrome or Edge desktop. On Windows, the OS print spooler claims the USB device by default — replace its driver with WinUSB once via <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener" class="text-primary hover:underline">Zadig</a> before WebUSB can talk to the printer.
+                </p>
               </div>
             }
           </div>
@@ -221,7 +235,8 @@ export class PrinterFormComponent implements OnInit {
     private api: ApiService,
     private route: ActivatedRoute,
     private router: Router,
-    private notification: NotificationService
+    private notification: NotificationService,
+    private labelPrint: LabelPrintService
   ) {}
 
   ngOnInit(): void {
@@ -328,9 +343,19 @@ export class PrinterFormComponent implements OnInit {
     if (!this.editingId || this.testing) return;
     this.testing = true;
     this.api
-      .post<ApiResponse<unknown>>(`/printing/profiles/${this.editingId}/test`, {})
+      .post<ApiResponse<TestPrintResult>>(`/printing/profiles/${this.editingId}/test`, {})
       .subscribe({
-        next: () => {
+        next: async (res) => {
+          const payload = res.data?.browserPayload;
+          if (payload) {
+            try {
+              await this.labelPrint.handleBrowserPayload(payload);
+            } catch (e: any) {
+              this.notification.error(e?.message ?? 'Browser print failed');
+              this.testing = false;
+              return;
+            }
+          }
           this.notification.success('Test label sent');
           this.testing = false;
         },
