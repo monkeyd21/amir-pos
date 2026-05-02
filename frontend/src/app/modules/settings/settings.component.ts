@@ -31,7 +31,7 @@ export class SettingsComponent implements OnInit {
   ];
 
   // General settings
-  storeName = 'Atelier Fashion';
+  storeName = "Sabiha's Ethnic";
   storeAddress = '123 Fashion Street, Mumbai, India';
   storePhone = '+91 98765 43210';
   taxRate = 18;

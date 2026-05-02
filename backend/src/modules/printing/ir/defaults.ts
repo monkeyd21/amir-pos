@@ -20,7 +20,7 @@ export const DEFAULT_LABEL_TEMPLATE: LabelTemplate = {
       fontSizePt: 18,
       align: 'center',
       widthMm: 45,
-      content: 'ATELIER',
+      content: "SABIHA'S ETHNIC",
       visible: true,
     },
     {

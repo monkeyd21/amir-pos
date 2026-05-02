@@ -35,7 +35,7 @@ const DEFAULT_TEMPLATE_BODY = {
   speed: 4,
   isDefault: true,
   elements: [
-    { id: 'brand', type: 'brand', xMm: 2.5, yMm: 2.5, fontSizePt: 18, align: 'center', widthMm: 45, content: 'ATELIER', visible: true },
+    { id: 'brand', type: 'brand', xMm: 2.5, yMm: 2.5, fontSizePt: 18, align: 'center', widthMm: 45, content: "SABIHA'S ETHNIC", visible: true },
     { id: 'productName', type: 'productName', xMm: 2.5, yMm: 9, fontSizePt: 14, align: 'center', widthMm: 45, visible: true },
     { id: 'variant', type: 'variant', xMm: 2.5, yMm: 14, fontSizePt: 12, align: 'center', widthMm: 45, visible: true },
     { id: 'barcode', type: 'barcode', xMm: 5, yMm: 19, barcodeType: 'code128', barcodeHeightMm: 12.5, showBarcodeText: true, visible: true },

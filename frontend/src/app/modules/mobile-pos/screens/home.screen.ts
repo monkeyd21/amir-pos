@@ -52,7 +52,7 @@ interface Envelope<T> {
     <div class="mobile-pos-root">
       <div class="mp-screen home-screen">
         <header class="mp-header">
-          <div class="mp-header__title">Atelier POS</div>
+          <div class="mp-header__title">Sabiha's Ethnic POS</div>
           <div class="header-actions">
             <button
               type="button"

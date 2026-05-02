@@ -104,7 +104,7 @@ interface CloseResponse {
                 </span>
                 <div class="row-link__body">
                   <div class="row-link__label">About</div>
-                  <div class="row-link__hint">Atelier POS v1.0</div>
+                  <div class="row-link__hint">Sabiha's Ethnic POS v1.0</div>
                 </div>
               </div>
             </div>
@@ -399,7 +399,7 @@ export class MobileProfileScreen implements OnInit {
   }
 
   logout(): void {
-    const ok = window.confirm('Log out of Atelier POS?');
+    const ok = window.confirm("Log out of Sabiha's Ethnic POS?");
     if (!ok) return;
     this.auth.logout();
     this.router.navigate(['/mobile-pos/login']);

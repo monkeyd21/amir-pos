@@ -16,7 +16,7 @@ import { AuthService } from '../../../core/services/auth.service';
             <div class="brand__logo">
               <span class="brand__logo-icon material-icons">point_of_sale</span>
             </div>
-            <h1 class="brand__name">Atelier POS</h1>
+            <h1 class="brand__name">Sabiha's Ethnic POS</h1>
             <p class="brand__tagline">Sign in to start selling</p>
           </div>
 
