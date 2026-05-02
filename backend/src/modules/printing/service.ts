@@ -272,10 +272,14 @@ export async function deleteTemplate(branchId: number, id: number) {
 // ─── Print orchestration ────────────────────────────────────────
 
 /**
- * Resolve the profile and template for a print request, falling back to
- * the branch default profile and its default template.
+ * Resolve the profile and template for a print request. Falls back through
+ * default → any-template → built-in DEFAULT_LABEL_TEMPLATE so a fresh
+ * customer install with no flagged default still prints something usable.
  */
-async function resolveProfileAndTemplate(branchId: number, req: PrintRequest) {
+async function resolveProfileAndTemplate(
+  branchId: number,
+  req: PrintRequest
+): Promise<{ profile: { id: number; name: string; driver: string; transport: string; connection: unknown; dpi: number }; template: LabelTemplate }> {
   const profile = req.profileId
     ? await getProfile(branchId, req.profileId)
     : await prisma.printerProfile.findFirst({
@@ -290,24 +294,32 @@ async function resolveProfileAndTemplate(branchId: number, req: PrintRequest) {
     );
   }
 
-  const template = req.templateId
+  let templateRow = req.templateId
     ? await prisma.labelTemplate.findUnique({ where: { id: req.templateId } })
     : await prisma.labelTemplate.findFirst({
         where: { printerProfileId: profile.id, isDefault: true },
       });
 
-  if (!template) {
+  // No default flagged — pick any template on this profile rather than failing.
+  if (!templateRow && !req.templateId) {
+    templateRow = await prisma.labelTemplate.findFirst({
+      where: { printerProfileId: profile.id },
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  if (templateRow && templateRow.printerProfileId !== profile.id) {
     throw new AppError(
-      `No label template found for printer '${profile.name}'. Open Settings → Printers → Templates to design one.`,
+      `Template ${templateRow.id} does not belong to printer profile ${profile.id}.`,
       400
     );
   }
-  if (template.printerProfileId !== profile.id) {
-    throw new AppError(
-      `Template ${template.id} does not belong to printer profile ${profile.id}.`,
-      400
-    );
-  }
+
+  // No templates at all on this profile — fall back to the built-in default
+  // so the customer can still print while they design their own.
+  const template: LabelTemplate = templateRow
+    ? toIrTemplate(templateRow)
+    : DEFAULT_LABEL_TEMPLATE;
 
   return { profile, template };
 }
@@ -343,8 +355,7 @@ export async function print(
   const driver = getDriver(profile.driver);
   const transport = getTransport(profile.transport);
 
-  const irTemplate = toIrTemplate(template);
-  const output = await driver.render(irTemplate, req.items, { dpi: profile.dpi });
+  const output = await driver.render(template, req.items, { dpi: profile.dpi });
 
   const totalLabels = req.items.reduce((sum, i) => sum + (i.copies ?? 1), 0);
 
@@ -393,16 +404,24 @@ export async function testPrint(
   if (overrideTemplate) {
     irTemplate = overrideTemplate;
   } else {
-    const templateRow = templateId
+    let templateRow = templateId
       ? await prisma.labelTemplate.findUnique({ where: { id: templateId } })
       : await prisma.labelTemplate.findFirst({
           where: { printerProfileId: profile.id, isDefault: true },
         });
-    if (!templateRow) throw new AppError('No template available for test print', 400);
-    if (templateRow.printerProfileId !== profile.id) {
+    // No default flagged — pick any template on this profile.
+    if (!templateRow && !templateId) {
+      templateRow = await prisma.labelTemplate.findFirst({
+        where: { printerProfileId: profile.id },
+        orderBy: { id: 'asc' },
+      });
+    }
+    if (templateRow && templateRow.printerProfileId !== profile.id) {
       throw new AppError('Template does not belong to this profile', 400);
     }
-    irTemplate = toIrTemplate(templateRow);
+    // Final fallback: built-in default so a freshly added profile can
+    // still emit a sample label without forcing the user into the designer.
+    irTemplate = templateRow ? toIrTemplate(templateRow) : DEFAULT_LABEL_TEMPLATE;
   }
 
   const sample: LabelData = {
