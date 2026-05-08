@@ -135,6 +135,7 @@ model User {
   commissions        Commission[]
   upiPaymentIntents  UpiPaymentIntent[]
   agentSaleItems     SaleItem[]          @relation("SaleItemAgent")
+  vendorPayments     VendorPayment[]
 
   @@map("users")
 }
@@ -203,7 +204,14 @@ model Product {
   basePrice    Decimal  @db.Decimal(10, 2)
   costPrice    Decimal  @db.Decimal(10, 2)
   landingPrice Decimal? @db.Decimal(10, 2)
-  taxRate      Decimal  @default(18) @db.Decimal(5, 2)
+  // GST is split into CGST + SGST per Indian tax rules. For non-clothing
+  // verticals these can both be 0. Effective rate the POS sees = cgst + sgst.
+  hsnCode      String?  @db.VarChar(10)
+  cgstRate     Decimal  @default(9) @db.Decimal(5, 2)
+  sgstRate     Decimal  @default(9) @db.Decimal(5, 2)
+  // When true (the Indian retail convention), basePrice is the MRP — tax is
+  // already extracted from inside it. When false, tax is added on top at POS.
+  priceIncludesTax Boolean @default(true)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -266,12 +274,24 @@ enum MovementType {
   adjustment
 }
 
+enum InventoryPaymentMode {
+  cash
+  credit
+}
+
 model InventoryMovement {
   id            Int          @id @default(autoincrement())
   variantId     Int
   branchId      Int
   type          MovementType
   quantity      Int
+  // Per-unit cost paid to vendor at time of purchase. Only meaningful for
+  // type=purchase movements; null for sales / transfers / adjustments.
+  unitCost      Decimal?     @db.Decimal(10, 2)
+  // CASH = paid in full at receipt; CREDIT = recorded as accounts-payable
+  // and settled later via VendorPayment rows. Null for non-purchase types.
+  paymentMode   InventoryPaymentMode?
+  dueDate       DateTime?
   referenceId   Int?
   referenceType String?
   notes         String?
@@ -286,6 +306,27 @@ model InventoryMovement {
   vendor  Vendor?        @relation(fields: [vendorId], references: [id])
 
   @@map("inventory_movements")
+}
+
+// Subsequent payments against credit purchases — each row reduces the
+// vendor's outstanding balance. We don't try to allocate a payment to
+// specific movements (would force the cashier into bookkeeping); the
+// balance is just (sum of credit purchase costs) − (sum of payments).
+model VendorPayment {
+  id          Int      @id @default(autoincrement())
+  vendorId    Int
+  amount      Decimal  @db.Decimal(10, 2)
+  method      String   // cash | bank_transfer | upi | cheque
+  reference   String?  // cheque number, UTR, txn id
+  notes       String?
+  paymentDate DateTime
+  createdBy   Int
+  createdAt   DateTime @default(now())
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+  user   User   @relation(fields: [createdBy], references: [id])
+
+  @@map("vendor_payments")
 }
 
 // ─── Vendor ──────────────────────────────────────────
@@ -305,6 +346,7 @@ model Vendor {
   updatedAt     DateTime @updatedAt
 
   inventoryMovements InventoryMovement[]
+  payments           VendorPayment[]
 
   @@map("vendors")
 }

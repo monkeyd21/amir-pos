@@ -280,6 +280,10 @@ export async function executeImport(
           },
         });
 
+        // Excel "Tax Rate" column is the combined GST rate; split half/half
+        // into CGST + SGST per Indian intra-state convention.
+        const halfRate = Math.round((first.taxRate / 2) * 100) / 100;
+
         if (product) {
           // Update base price / cost if they differ
           await tx.product.update({
@@ -287,7 +291,8 @@ export async function executeImport(
             data: {
               basePrice: first.basePrice,
               costPrice: first.costPrice,
-              taxRate: first.taxRate,
+              cgstRate: halfRate,
+              sgstRate: first.taxRate - halfRate,
             },
           });
           result.productsUpdated++;
@@ -304,7 +309,8 @@ export async function executeImport(
               categoryId,
               basePrice: first.basePrice,
               costPrice: first.costPrice,
-              taxRate: first.taxRate,
+              cgstRate: halfRate,
+              sgstRate: first.taxRate - halfRate,
             },
           });
           result.productsCreated++;

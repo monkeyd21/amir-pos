@@ -168,9 +168,16 @@ export class PosService {
           );
         }
 
-        const unitPrice = Number(variant.priceOverride ?? variant.product.basePrice);
+        const rawPrice = Number(variant.priceOverride ?? variant.product.basePrice);
         const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
-        const taxRate = Number(variant.product.taxRate);
+        const taxRate =
+          Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+        // Internally we always carry the tax-inclusive amount so the
+        // existing extract-from-inclusive math (lineTax = price × rate /
+        // (100 + rate)) keeps working for both flags.
+        const unitPrice = variant.product.priceIncludesTax
+          ? rawPrice
+          : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
 
         saleItemsData.push({
           variantId: variant.id,
@@ -600,11 +607,33 @@ export class PosService {
       productName: variant.product.name,
       brand: variant.product.brand?.name,
       category: variant.product.category?.name,
-      price: Number(variant.priceOverride ?? variant.product.basePrice),
+      price: this.computeInclusivePrice(variant),
       costPrice: Number(variant.costOverride ?? variant.product.costPrice),
-      taxRate: Number(variant.product.taxRate),
+      taxRate:
+        Number(variant.product.cgstRate) + Number(variant.product.sgstRate),
       stock: inventory?.quantity ?? 0,
     };
+  }
+
+  /**
+   * Always return the inclusive (customer-facing) price to the cart, even
+   * for products configured as tax-exclusive — the cashier sees the same
+   * number as the customer pays. Tax is extracted from this on checkout.
+   */
+  private computeInclusivePrice(variant: {
+    priceOverride: { toString(): string } | null;
+    product: {
+      basePrice: { toString(): string };
+      cgstRate: { toString(): string };
+      sgstRate: { toString(): string };
+      priceIncludesTax: boolean;
+    };
+  }): number {
+    const raw = Number(variant.priceOverride ?? variant.product.basePrice);
+    if (variant.product.priceIncludesTax) return raw;
+    const rate =
+      Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+    return Math.round(raw * (1 + rate / 100) * 100) / 100;
   }
 
   async searchProducts(query: string, branchId: number) {
@@ -644,7 +673,10 @@ export class PosService {
       productName: v.product.name,
       brand: v.product.brand?.name,
       category: v.product.category?.name,
-      price: Number(v.priceOverride ?? v.product.basePrice),
+      // Always return the inclusive price the customer pays — handles both
+      // tax-incl products (passthrough) and tax-excl ones (grossed up).
+      price: this.computeInclusivePrice(v),
+      taxRate: Number(v.product.cgstRate) + Number(v.product.sgstRate),
       stock: stockMap.get(v.id) ?? 0,
     }));
   }
@@ -770,9 +802,13 @@ export class PosService {
         );
       }
 
-      const unitPrice = Number(variant.priceOverride ?? variant.product.basePrice);
+      const taxRate =
+        Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+      const rawPrice = Number(variant.priceOverride ?? variant.product.basePrice);
+      const unitPrice = variant.product.priceIncludesTax
+        ? rawPrice
+        : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
       const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
-      const taxRate = Number(variant.product.taxRate);
 
       cartItems.push({
         variantId: variant.id,

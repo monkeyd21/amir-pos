@@ -9,7 +9,10 @@ export const createProductSchema = z.object({
     basePrice: z.number().positive('Base price must be positive'),
     costPrice: z.number().positive('Cost price must be positive'),
     landingPrice: z.number().positive().optional().nullable(),
-    taxRate: z.number().min(0).max(100).optional(),
+    hsnCode: z.string().max(10).optional().nullable(),
+    cgstRate: z.number().min(0).max(50).optional(),
+    sgstRate: z.number().min(0).max(50).optional(),
+    priceIncludesTax: z.boolean().optional(),
     vendorId: z.number().int().positive().optional().nullable(),
     lotCode: z.string().optional().nullable(),
     variants: z.array(z.object({
@@ -34,7 +37,10 @@ export const updateProductSchema = z.object({
     basePrice: z.number().positive().optional(),
     costPrice: z.number().positive().optional(),
     landingPrice: z.number().positive().optional().nullable(),
-    taxRate: z.number().min(0).max(100).optional(),
+    hsnCode: z.string().max(10).optional().nullable(),
+    cgstRate: z.number().min(0).max(50).optional(),
+    sgstRate: z.number().min(0).max(50).optional(),
+    priceIncludesTax: z.boolean().optional(),
     isActive: z.boolean().optional(),
   }),
 });

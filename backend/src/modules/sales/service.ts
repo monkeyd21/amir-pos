@@ -491,8 +491,12 @@ export class SalesService {
           );
         }
 
-        const unitPrice = Number(variant.priceOverride ?? variant.product.basePrice);
-        const taxRate = Number(variant.product.taxRate);
+        const rawPrice = Number(variant.priceOverride ?? variant.product.basePrice);
+        const taxRate =
+          Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+        const unitPrice = variant.product.priceIncludesTax
+          ? rawPrice
+          : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
         const lineSubtotal = unitPrice * item.quantity;
         // Tax-inclusive extraction — MRP already contains GST.
         const lineTax = lineSubtotal * (taxRate / (100 + taxRate));
