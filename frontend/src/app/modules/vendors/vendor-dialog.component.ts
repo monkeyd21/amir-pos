@@ -10,6 +10,7 @@ import { DialogRef } from '../../shared/dialog/dialog-ref';
 import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
 
 export interface Vendor {
   id: number;
@@ -31,7 +32,7 @@ interface VendorDialogData {
 @Component({
   selector: 'app-vendor-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AutoCapsDirective],
   templateUrl: './vendor-dialog.component.html',
 })
 export class VendorDialogComponent implements OnInit {

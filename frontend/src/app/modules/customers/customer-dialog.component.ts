@@ -10,6 +10,7 @@ import { DialogRef } from '../../shared/dialog/dialog-ref';
 import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
 
 interface CustomerDialogData {
   customer: {
@@ -25,7 +26,7 @@ interface CustomerDialogData {
 @Component({
   selector: 'app-customer-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AutoCapsDirective],
   templateUrl: './customer-dialog.component.html',
 })
 export class CustomerDialogComponent implements OnInit {

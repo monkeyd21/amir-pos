@@ -4,6 +4,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
 
 interface Branch {
   id: number;
@@ -18,7 +19,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-employee-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AutoCapsDirective],
   templateUrl: './employee-dialog.component.html',
 })
 export class EmployeeDialogComponent implements OnInit, OnDestroy {
