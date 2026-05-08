@@ -15,6 +15,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       // Backend sends { error: "..." } or { message: "..." }
       const apiMessage = error.error?.error || error.error?.message;
 
+      const isAuthCall =
+        req.url.includes('/auth/login') || req.url.includes('/auth/refresh');
+
       switch (error.status) {
         case 0:
           message = 'Unable to connect to the server. Please check your connection.';
@@ -23,11 +26,18 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           message = apiMessage || 'Bad request';
           break;
         case 401:
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('currentUser');
-          router.navigate(['/login']);
-          message = 'Session expired. Please log in again.';
+          if (isAuthCall) {
+            // Wrong password / expired refresh token — surface the API's own
+            // message instead of the generic "Session expired" path, and
+            // don't wipe storage that wasn't there to begin with.
+            message = apiMessage || 'Invalid credentials';
+          } else {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('currentUser');
+            router.navigate(['/login']);
+            message = 'Session expired. Please log in again.';
+          }
           break;
         case 403:
           message = apiMessage || 'You do not have permission to perform this action.';

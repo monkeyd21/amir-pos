@@ -5,7 +5,7 @@ import {
   HttpRequest,
 } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { BehaviorSubject, throwError, filter, take, switchMap, catchError } from 'rxjs';
+import { Subject, throwError, take, switchMap, catchError, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 interface RefreshResponse {
@@ -17,9 +17,10 @@ interface RefreshResponse {
 }
 
 // Module-level state so concurrent 401s share a single refresh round-trip.
-// Cleared as soon as the refresh resolves (or fails).
+// Subject (not BehaviorSubject) so we can both .next() on success and .error()
+// on failure — queued requests propagate the failure instead of stalling.
 let refreshing = false;
-const refreshSignal$ = new BehaviorSubject<string | null>(null);
+let refresh$: Subject<string> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const http = inject(HttpClient);
@@ -37,32 +38,34 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
       if (!refreshing) {
         refreshing = true;
-        refreshSignal$.next(null);
+        refresh$ = new Subject<string>();
+        const subject = refresh$;
         return http
           .post<RefreshResponse>(`${environment.apiUrl}/auth/refresh`, { refreshToken })
           .pipe(
-            switchMap((res) => {
+            tap((res) => {
               localStorage.setItem('accessToken', res.data.accessToken);
               localStorage.setItem('refreshToken', res.data.refreshToken);
               if (res.data.user) {
                 localStorage.setItem('currentUser', JSON.stringify(res.data.user));
               }
               refreshing = false;
-              refreshSignal$.next(res.data.accessToken);
-              return next(attachAuth(req));
+              subject.next(res.data.accessToken);
+              subject.complete();
             }),
+            switchMap(() => next(attachAuth(req))),
             catchError((refreshErr) => {
               refreshing = false;
-              refreshSignal$.next(null);
-              // Refresh token expired/invalid — propagate the original 401
-              // so errorInterceptor wipes state and routes to /login.
+              // Push the failure to queued waiters so they unstall and surface
+              // the 401 through errorInterceptor (which routes to /login).
+              subject.error(refreshErr);
               return throwError(() => err);
             })
           );
       }
       // Another request is already refreshing — wait for it, then retry.
-      return refreshSignal$.pipe(
-        filter((t) => t !== null),
+      // If the in-flight refresh errors, this subscription errors too.
+      return refresh$!.pipe(
         take(1),
         switchMap(() => next(attachAuth(req)))
       );
