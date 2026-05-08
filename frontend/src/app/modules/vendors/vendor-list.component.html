@@ -77,7 +77,10 @@
                       <span class="material-symbols-outlined text-primary text-[18px]">store</span>
                     </div>
                     <div>
-                      <div class="text-sm font-body font-medium text-on-surface">{{ vendor.name }}</div>
+                      <a
+                        [routerLink]="['/vendors', vendor.id]"
+                        class="text-sm font-body font-medium text-on-surface hover:text-primary hover:underline cursor-pointer"
+                      >{{ vendor.name }}</a>
                       @if (vendor.contactPerson) {
                         <div class="text-xs font-body text-on-surface-variant/70">{{ vendor.contactPerson }}</div>
                       }

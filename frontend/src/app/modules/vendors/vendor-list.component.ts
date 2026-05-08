@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { DialogService } from '../../shared/dialog/dialog.service';
@@ -21,6 +22,7 @@ interface VendorResponse {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     LoadingSpinnerComponent,
     EmptyStateComponent,
     SearchInputComponent,

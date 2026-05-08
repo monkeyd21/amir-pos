@@ -44,3 +44,16 @@ export const listVendorsSchema = z.object({
     isActive: z.enum(['true', 'false']).optional(),
   }),
 });
+
+export const recordPaymentSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, 'ID must be a number'),
+  }),
+  body: z.object({
+    amount: z.number().positive('Amount must be > 0'),
+    method: z.enum(['cash', 'bank_transfer', 'upi', 'cheque']),
+    reference: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    paymentDate: z.string().datetime().optional().or(z.string().optional()),
+  }),
+});

@@ -46,3 +46,29 @@ export const deleteVendor = async (req: AuthRequest, res: Response, next: NextFu
     next(error);
   }
 };
+
+export const getVendorLedger = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await vendorService.getVendorLedger(parseInt(req.params.id, 10));
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const recordPayment = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const payment = await vendorService.recordVendorPayment({
+      vendorId: parseInt(req.params.id, 10),
+      amount: req.body.amount,
+      method: req.body.method,
+      reference: req.body.reference,
+      notes: req.body.notes,
+      paymentDate: req.body.paymentDate,
+      createdBy: req.user!.userId,
+    });
+    res.status(201).json({ success: true, data: payment });
+  } catch (error) {
+    next(error);
+  }
+};

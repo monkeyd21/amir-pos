@@ -200,6 +200,62 @@
           ></textarea>
         </div>
 
+        <!-- Payment mode -->
+        <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+          <label class="label-upper">Payment</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              (click)="paymentMode = 'cash'"
+              [class]="paymentMode === 'cash'
+                ? 'p-3 rounded-lg border-2 border-primary bg-primary-container/15 text-on-surface text-xs font-semibold cursor-pointer text-left'
+                : 'p-3 rounded-lg border-2 border-outline-variant/15 hover:border-outline-variant/30 text-on-surface-variant text-xs font-medium cursor-pointer transition-colors text-left'"
+            >
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="material-symbols-outlined text-base">payments</span>
+                <span class="font-bold">Cash</span>
+              </div>
+              <p class="text-[10px] opacity-70">Paid in full at receipt</p>
+            </button>
+            <button
+              type="button"
+              (click)="paymentMode = 'credit'"
+              [class]="paymentMode === 'credit'
+                ? 'p-3 rounded-lg border-2 border-primary bg-primary-container/15 text-on-surface text-xs font-semibold cursor-pointer text-left'
+                : 'p-3 rounded-lg border-2 border-outline-variant/15 hover:border-outline-variant/30 text-on-surface-variant text-xs font-medium cursor-pointer transition-colors text-left'"
+            >
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="material-symbols-outlined text-base">schedule</span>
+                <span class="font-bold">Credit</span>
+              </div>
+              <p class="text-[10px] opacity-70">Adds to vendor balance</p>
+            </button>
+          </div>
+
+          @if (paymentMode === 'credit') {
+            <div>
+              <label class="label-upper mb-1.5 block">Due Date</label>
+              <input
+                type="date"
+                [(ngModel)]="dueDate"
+                class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+              />
+            </div>
+          }
+        </div>
+
+        <!-- Cost summary -->
+        @if (totalSpend > 0) {
+          <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-1">
+              {{ paymentMode === 'cash' ? 'Cash Outflow' : 'Adds to Vendor Balance' }}
+            </p>
+            <p class="text-lg font-bold text-on-surface font-mono">
+              Rs. {{ totalSpend | number:'1.0-0' }}
+            </p>
+          </div>
+        }
+
         <!-- Summary -->
         @if (totalUnits > 0) {
           <div class="bg-green-500/5 border border-green-500/15 rounded-xl p-4">
@@ -281,6 +337,7 @@
                   <th class="px-3 py-2.5">Size</th>
                   <th class="px-3 py-2.5">Color</th>
                   <th class="px-3 py-2.5 text-right">Current Stock</th>
+                  <th class="px-3 py-2.5 text-right">Unit Cost</th>
                   <th class="px-3 py-2.5 text-right">Add Qty</th>
                   <th class="px-3 py-2.5 text-right">New Stock</th>
                 </tr>
@@ -296,6 +353,16 @@
                         [class.text-error]="row.currentStock === 0"
                         [class.text-tertiary]="row.currentStock > 0 && row.currentStock <= 5">
                       {{ row.currentStock }}
+                    </td>
+                    <td class="px-3 py-1.5 text-right">
+                      <input
+                        type="number"
+                        [(ngModel)]="row.unitCost"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        class="w-20 px-2 py-1 text-xs font-mono text-right bg-surface-container-lowest border border-outline-variant/20 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
                     </td>
                     <td class="px-3 py-1.5 text-right">
                       <input

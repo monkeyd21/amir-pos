@@ -182,7 +182,9 @@ export class InventoryService {
     vendorId: number;
     lotCode: string;
     notes?: string | null;
-    items: { variantId: number; quantity: number }[];
+    paymentMode?: 'cash' | 'credit';
+    dueDate?: string | Date | null;
+    items: { variantId: number; quantity: number; unitCost?: number | null }[];
   }, userId: number, branchId: number) {
     return prisma.$transaction(async (tx) => {
       // Verify product exists and all variants belong to it
@@ -225,6 +227,9 @@ export class InventoryService {
             branchId,
             type: MovementType.purchase,
             quantity: item.quantity,
+            unitCost: item.unitCost ?? null,
+            paymentMode: data.paymentMode ?? null,
+            dueDate: data.dueDate ? new Date(data.dueDate) : null,
             lotCode: data.lotCode,
             notes: data.notes || `Restock from ${vendor.name}`,
             createdBy: userId,

@@ -28,11 +28,14 @@ export const restockSchema = z.object({
     vendorId: z.number().int().positive(),
     lotCode: z.string().min(1, 'Lot code is required'),
     notes: z.string().optional().nullable(),
+    paymentMode: z.enum(['cash', 'credit']).optional(),
+    dueDate: z.string().optional().nullable(),
     items: z
       .array(
         z.object({
           variantId: z.number().int().positive(),
           quantity: z.number().int().positive(),
+          unitCost: z.number().nonnegative().optional().nullable(),
         })
       )
       .min(1, 'At least one variant must have quantity'),

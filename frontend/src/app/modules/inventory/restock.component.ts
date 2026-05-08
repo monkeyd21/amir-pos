@@ -40,6 +40,7 @@ interface RestockRow {
   color: string;
   currentStock: number;
   addQty: number;
+  unitCost: number | null;
 }
 
 @Component({
@@ -65,6 +66,8 @@ export class RestockComponent implements OnInit, OnDestroy {
   vendorId: number | null = null;
   lotCode = '';
   notes = '';
+  paymentMode: 'cash' | 'credit' = 'cash';
+  dueDate = '';
 
   // Post-restock print flow
   restockDone = false;
@@ -112,6 +115,9 @@ export class RestockComponent implements OnInit, OnDestroy {
 
   private buildRows(): void {
     if (!this.product) return;
+    const defaultUnitCost = this.product.costPrice
+      ? Number(this.product.costPrice)
+      : null;
     this.rows = this.product.variants
       .filter((v) => v.isActive)
       .map((v) => ({
@@ -121,6 +127,7 @@ export class RestockComponent implements OnInit, OnDestroy {
         color: v.color,
         currentStock: v.inventory?.[0]?.quantity ?? 0,
         addQty: 0,
+        unitCost: defaultUnitCost,
       }));
     this.applySorting();
   }
@@ -143,6 +150,13 @@ export class RestockComponent implements OnInit, OnDestroy {
 
   get totalUnits(): number {
     return this.rows.reduce((sum, r) => sum + (r.addQty || 0), 0);
+  }
+
+  get totalSpend(): number {
+    return this.rows.reduce(
+      (sum, r) => sum + (r.addQty || 0) * (Number(r.unitCost) || 0),
+      0
+    );
   }
 
   get variantsWithQty(): number {
@@ -169,7 +183,11 @@ export class RestockComponent implements OnInit, OnDestroy {
 
     const items = this.rows
       .filter((r) => r.addQty > 0)
-      .map((r) => ({ variantId: r.variantId, quantity: r.addQty }));
+      .map((r) => ({
+        variantId: r.variantId,
+        quantity: r.addQty,
+        unitCost: r.unitCost ?? undefined,
+      }));
 
     this.api
       .post<any>('/inventory/restock', {
@@ -177,6 +195,9 @@ export class RestockComponent implements OnInit, OnDestroy {
         vendorId: this.vendorId,
         lotCode: this.lotCode.trim(),
         notes: this.notes.trim() || undefined,
+        paymentMode: this.paymentMode,
+        dueDate:
+          this.paymentMode === 'credit' && this.dueDate ? this.dueDate : undefined,
         items,
       })
       .pipe(takeUntil(this.destroy$))
