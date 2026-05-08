@@ -2,13 +2,22 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, forkJoin, takeUntil } from 'rxjs';
+import {
+  Subject,
+  forkJoin,
+  takeUntil,
+  debounceTime,
+  distinctUntilChanged,
+  switchMap,
+  of,
+} from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
+import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
 
 interface Brand {
   id: number;
@@ -54,6 +63,7 @@ interface ApiResponse<T> {
     PageHeaderComponent,
     BulkVariantGeneratorComponent,
     VendorPickerComponent,
+    AutoCapsDirective,
   ],
   templateUrl: './product-form.component.html',
 })
@@ -79,6 +89,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   description = '';
   vendorId: number | null = null;
   lotCode = '';
+  // GST per Indian retail rules: HSN + CGST + SGST. Default 9+9 = 18%.
+  hsnCode = '';
+  cgstRate: number | null = 9;
+  sgstRate: number | null = 9;
+  priceIncludesTax = true;
 
   // Post-creation print flow
   createdProduct: any = null;
@@ -101,6 +116,12 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     sku?: string;
     initialStock?: number;
   }> = [];
+
+  // Existing-product suggestions (create mode only) — surface dupes early
+  // so the cashier doesn't accidentally make a second "Black Kurti" record.
+  private nameSearch$ = new Subject<string>();
+  nameSuggestions: { id: number; name: string; brand?: { name: string } }[] = [];
+  showNameSuggestions = false;
 
   // Inline add-brand
   addingBrand = false;
@@ -165,6 +186,47 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           this.notification.error('Failed to load form data');
         },
       });
+
+    // Wire the name typeahead. Only meaningful in create mode — in edit
+    // mode the user is confirming an existing product, not searching.
+    if (!this.isEdit) {
+      this.nameSearch$
+        .pipe(
+          debounceTime(250),
+          distinctUntilChanged(),
+          switchMap((q) => {
+            const trimmed = q.trim();
+            if (trimmed.length < 2) return of({ data: [] as any[] });
+            return this.api.get<any>('/products', { search: trimmed, limit: '5' });
+          }),
+          takeUntil(this.destroy$)
+        )
+        .subscribe({
+          next: (res: any) => {
+            this.nameSuggestions = res?.data ?? [];
+            this.showNameSuggestions = this.nameSuggestions.length > 0;
+          },
+        });
+    }
+  }
+
+  onNameInput(): void {
+    if (this.isEdit) return;
+    this.nameSearch$.next(this.name);
+  }
+
+  pickExistingProduct(p: { id: number }): void {
+    this.showNameSuggestions = false;
+    // Take them to the existing product's edit page rather than creating
+    // a duplicate. The cashier can still cancel out and force-create if
+    // it really is a different product.
+    this.router.navigate(['/inventory/products', p.id, 'edit']);
+  }
+
+  hideNameSuggestions(): void {
+    // setTimeout so click handlers on suggestions still fire before the
+    // dropdown blurs away.
+    setTimeout(() => (this.showNameSuggestions = false), 150);
   }
 
   ngOnDestroy(): void {
@@ -180,6 +242,10 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.costPrice = p.costPrice ?? null;
     this.landingPrice = p.landingPrice ?? null;
     this.description = p.description || '';
+    this.hsnCode = p.hsnCode || '';
+    this.cgstRate = p.cgstRate !== undefined && p.cgstRate !== null ? Number(p.cgstRate) : 9;
+    this.sgstRate = p.sgstRate !== undefined && p.sgstRate !== null ? Number(p.sgstRate) : 9;
+    this.priceIncludesTax = p.priceIncludesTax !== false;
   }
 
   get isValid(): boolean {
@@ -389,6 +455,10 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       description: this.description.trim() || undefined,
       vendorId: this.vendorId || undefined,
       lotCode: this.lotCode.trim() || undefined,
+      hsnCode: this.hsnCode.trim() || null,
+      cgstRate: this.cgstRate !== null ? Number(this.cgstRate) : 0,
+      sgstRate: this.sgstRate !== null ? Number(this.sgstRate) : 0,
+      priceIncludesTax: this.priceIncludesTax,
     };
 
     if (!this.isEdit) {

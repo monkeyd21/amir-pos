@@ -1,0 +1,205 @@
+<app-page-header
+  title="Brands & Categories"
+  subtitle="Manage product taxonomy. Renaming updates existing products instantly; deactivating only hides from new-product pickers."
+></app-page-header>
+
+@if (loading) {
+  <div class="flex items-center justify-center py-20 text-on-surface-variant">
+    <span class="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+    Loading…
+  </div>
+} @else {
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Brands -->
+    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary-container/20">
+          <span class="material-symbols-outlined text-primary">sell</span>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-base font-headline font-bold text-on-surface">Brands</h3>
+          <p class="text-xs text-on-surface-variant">{{ brands.length }} active</p>
+        </div>
+      </div>
+
+      <!-- Add new brand -->
+      <div class="flex gap-2 mb-4">
+        <input
+          appAutoCaps
+          type="text"
+          [(ngModel)]="newBrandName"
+          (keyup.enter)="addBrand()"
+          placeholder="New brand name…"
+          class="flex-1 px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+        />
+        <button
+          (click)="addBrand()"
+          [disabled]="!newBrandName.trim() || savingBrand"
+          class="px-4 py-2 text-sm font-semibold bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+        >
+          @if (savingBrand) { Adding… } @else { Add }
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="relative mb-3">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-lg">search</span>
+        <input
+          type="text"
+          [(ngModel)]="brandSearch"
+          placeholder="Filter…"
+          class="w-full pl-9 pr-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/10 rounded-lg focus:border-primary focus:outline-none transition-colors"
+        />
+      </div>
+
+      <!-- List -->
+      <div class="divide-y divide-outline-variant/10 max-h-[500px] overflow-y-auto">
+        @for (brand of filteredBrands; track brand.id) {
+          <div class="flex items-center gap-2 py-2.5 px-1 hover:bg-surface-container-high/30 transition-colors">
+            @if (editingBrandId === brand.id) {
+              <input
+                appAutoCaps
+                type="text"
+                [(ngModel)]="editName"
+                (keyup.enter)="saveEditBrand(brand)"
+                (keyup.escape)="cancelEditBrand()"
+                class="flex-1 px-3 py-1.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-primary rounded-lg focus:outline-none"
+              />
+              <button
+                (click)="saveEditBrand(brand)"
+                class="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                title="Save"
+              >
+                <span class="material-symbols-outlined text-lg">check</span>
+              </button>
+              <button
+                (click)="cancelEditBrand()"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
+                title="Cancel"
+              >
+                <span class="material-symbols-outlined text-lg">close</span>
+              </button>
+            } @else {
+              <span class="flex-1 text-sm font-body text-on-surface">{{ brand.name }}</span>
+              <button
+                (click)="startEditBrand(brand)"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+                title="Rename"
+              >
+                <span class="material-symbols-outlined text-lg">edit</span>
+              </button>
+              <button
+                (click)="deactivateBrand(brand)"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                title="Deactivate"
+              >
+                <span class="material-symbols-outlined text-lg">delete</span>
+              </button>
+            }
+          </div>
+        } @empty {
+          <p class="py-6 text-center text-sm text-on-surface-variant/60">
+            @if (brandSearch) { No matches for "{{ brandSearch }}". }
+            @else { No brands yet — add one above. }
+          </p>
+        }
+      </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary-container/20">
+          <span class="material-symbols-outlined text-primary">category</span>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-base font-headline font-bold text-on-surface">Categories</h3>
+          <p class="text-xs text-on-surface-variant">{{ categories.length }} active</p>
+        </div>
+      </div>
+
+      <!-- Add new category -->
+      <div class="flex gap-2 mb-4">
+        <input
+          appAutoCaps
+          type="text"
+          [(ngModel)]="newCategoryName"
+          (keyup.enter)="addCategory()"
+          placeholder="New category name…"
+          class="flex-1 px-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+        />
+        <button
+          (click)="addCategory()"
+          [disabled]="!newCategoryName.trim() || savingCategory"
+          class="px-4 py-2 text-sm font-semibold bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+        >
+          @if (savingCategory) { Adding… } @else { Add }
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="relative mb-3">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-lg">search</span>
+        <input
+          type="text"
+          [(ngModel)]="categorySearch"
+          placeholder="Filter…"
+          class="w-full pl-9 pr-3 py-2 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/10 rounded-lg focus:border-primary focus:outline-none transition-colors"
+        />
+      </div>
+
+      <!-- List -->
+      <div class="divide-y divide-outline-variant/10 max-h-[500px] overflow-y-auto">
+        @for (cat of filteredCategories; track cat.id) {
+          <div class="flex items-center gap-2 py-2.5 px-1 hover:bg-surface-container-high/30 transition-colors">
+            @if (editingCategoryId === cat.id) {
+              <input
+                appAutoCaps
+                type="text"
+                [(ngModel)]="editName"
+                (keyup.enter)="saveEditCategory(cat)"
+                (keyup.escape)="cancelEditCategory()"
+                class="flex-1 px-3 py-1.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-primary rounded-lg focus:outline-none"
+              />
+              <button
+                (click)="saveEditCategory(cat)"
+                class="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                title="Save"
+              >
+                <span class="material-symbols-outlined text-lg">check</span>
+              </button>
+              <button
+                (click)="cancelEditCategory()"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"
+                title="Cancel"
+              >
+                <span class="material-symbols-outlined text-lg">close</span>
+              </button>
+            } @else {
+              <span class="flex-1 text-sm font-body text-on-surface">{{ cat.name }}</span>
+              <button
+                (click)="startEditCategory(cat)"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+                title="Rename"
+              >
+                <span class="material-symbols-outlined text-lg">edit</span>
+              </button>
+              <button
+                (click)="deactivateCategory(cat)"
+                class="p-1.5 rounded-lg text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                title="Deactivate"
+              >
+                <span class="material-symbols-outlined text-lg">delete</span>
+              </button>
+            }
+          </div>
+        } @empty {
+          <p class="py-6 text-center text-sm text-on-surface-variant/60">
+            @if (categorySearch) { No matches for "{{ categorySearch }}". }
+            @else { No categories yet — add one above. }
+          </p>
+        }
+      </div>
+    </div>
+  </div>
+}

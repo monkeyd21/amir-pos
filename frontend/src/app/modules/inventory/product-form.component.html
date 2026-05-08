@@ -133,14 +133,38 @@
         </h3>
 
         <!-- Name -->
-        <div>
+        <div class="relative">
           <label class="label-upper mb-1.5 block">Product Name *</label>
           <input
+            appAutoCaps
             type="text"
             [(ngModel)]="name"
+            (input)="onNameInput()"
+            (focus)="onNameInput()"
+            (blur)="hideNameSuggestions()"
             placeholder="e.g. Slim Fit Chinos"
+            autocomplete="off"
             class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
           />
+          @if (!isEdit && showNameSuggestions && nameSuggestions.length > 0) {
+            <div class="absolute z-20 mt-1 w-full bg-surface-container-low border border-outline-variant/20 rounded-lg shadow-lg overflow-hidden">
+              <div class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60 bg-surface-container-high/40">
+                Existing products — click to edit instead of creating a duplicate
+              </div>
+              @for (sug of nameSuggestions; track sug.id) {
+                <button
+                  type="button"
+                  (mousedown)="pickExistingProduct(sug)"
+                  class="w-full text-left px-3 py-2 text-sm hover:bg-primary-container/15 transition-colors cursor-pointer flex items-center justify-between gap-2"
+                >
+                  <span class="text-on-surface truncate">{{ sug.name }}</span>
+                  @if (sug.brand?.name) {
+                    <span class="text-xs text-on-surface-variant shrink-0">{{ sug.brand?.name }}</span>
+                  }
+                </button>
+              }
+            </div>
+          }
         </div>
 
         <!-- Brand -->
@@ -168,6 +192,7 @@
           } @else {
             <div class="flex gap-2">
               <input
+                appAutoCaps
                 type="text"
                 [(ngModel)]="newBrandName"
                 (keyup.enter)="saveNewBrand()"
@@ -222,6 +247,7 @@
           } @else {
             <div class="flex gap-2">
               <input
+                appAutoCaps
                 type="text"
                 [(ngModel)]="newCategoryName"
                 (keyup.enter)="saveNewCategory()"
@@ -287,6 +313,82 @@
               step="1"
               class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
             />
+          </div>
+
+          <!-- GST -->
+          <div class="pt-4 border-t border-outline-variant/10 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="label-upper">GST Configuration</label>
+              <span class="text-[10px] text-on-surface-variant/60">
+                Total: {{ (cgstRate || 0) + (sgstRate || 0) }}%
+              </span>
+            </div>
+            <div>
+              <label class="label-upper mb-1.5 block">HSN Code</label>
+              <input
+                type="text"
+                [(ngModel)]="hsnCode"
+                placeholder="e.g. 6203 (apparel)"
+                maxlength="10"
+                class="w-full px-4 py-2.5 text-sm font-mono bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors uppercase"
+              />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="label-upper mb-1.5 block">CGST %</label>
+                <input
+                  type="number"
+                  [(ngModel)]="cgstRate"
+                  placeholder="9"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+              <div>
+                <label class="label-upper mb-1.5 block">SGST %</label>
+                <input
+                  type="number"
+                  [(ngModel)]="sgstRate"
+                  placeholder="9"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+            <div class="bg-surface-container-low/50 rounded-lg p-3 space-y-2">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">Selling Price Includes Tax?</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  (click)="priceIncludesTax = true"
+                  [class]="priceIncludesTax
+                    ? 'p-2.5 rounded-lg border-2 border-primary bg-primary-container/15 text-on-surface text-xs font-semibold cursor-pointer'
+                    : 'p-2.5 rounded-lg border-2 border-outline-variant/15 hover:border-outline-variant/30 text-on-surface-variant text-xs font-medium cursor-pointer transition-colors'"
+                >
+                  Inclusive (MRP)
+                </button>
+                <button
+                  type="button"
+                  (click)="priceIncludesTax = false"
+                  [class]="!priceIncludesTax
+                    ? 'p-2.5 rounded-lg border-2 border-primary bg-primary-container/15 text-on-surface text-xs font-semibold cursor-pointer'
+                    : 'p-2.5 rounded-lg border-2 border-outline-variant/15 hover:border-outline-variant/30 text-on-surface-variant text-xs font-medium cursor-pointer transition-colors'"
+                >
+                  Exclusive (+ tax)
+                </button>
+              </div>
+              <p class="text-[10px] text-on-surface-variant/60 leading-snug">
+                @if (priceIncludesTax) {
+                  Selling Price is the all-in MRP — tax is extracted from inside it on the bill.
+                } @else {
+                  Selling Price is pre-tax — {{ (cgstRate || 0) + (sgstRate || 0) }}% GST is added on top at checkout.
+                }
+              </p>
+            </div>
           </div>
         </div>
 

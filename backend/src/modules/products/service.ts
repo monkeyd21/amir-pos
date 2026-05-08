@@ -91,7 +91,10 @@ export const createProduct = async (data: {
   basePrice: number;
   costPrice: number;
   landingPrice?: number | null;
-  taxRate?: number;
+  hsnCode?: string | null;
+  cgstRate?: number;
+  sgstRate?: number;
+  priceIncludesTax?: boolean;
   vendorId?: number;
   lotCode?: string;
   variants?: Array<{
@@ -137,7 +140,10 @@ export const createProduct = async (data: {
       basePrice: data.basePrice,
       costPrice: data.costPrice,
       landingPrice: data.landingPrice ?? null,
-      taxRate: data.taxRate ?? 18,
+      hsnCode: data.hsnCode ?? null,
+      cgstRate: data.cgstRate ?? 9,
+      sgstRate: data.sgstRate ?? 9,
+      priceIncludesTax: data.priceIncludesTax ?? true,
       variants: {
         create: variantData,
       },
@@ -208,7 +214,10 @@ export const updateProduct = async (id: number, data: {
   basePrice?: number;
   costPrice?: number;
   landingPrice?: number | null;
-  taxRate?: number;
+  hsnCode?: string | null;
+  cgstRate?: number;
+  sgstRate?: number;
+  priceIncludesTax?: boolean;
   isActive?: boolean;
 }) => {
   const product = await prisma.product.findUnique({ where: { id } });
@@ -404,9 +413,30 @@ export const bulkCreateVariants = async (
     return { created: [], skipped };
   }
 
+  // Hoisted out of the per-variant loop — the active branch list doesn't
+  // change during a single bulk-create call, so one read is enough no
+  // matter how many variants the user is generating.
+  const branches = await prisma.branch.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+
   const result = await prisma.$transaction(async (tx) => {
     const createdVariants: any[] = [];
+    const stockMovements: Array<{
+      variantId: number;
+      branchId: number;
+      type: MovementType;
+      quantity: number;
+      notes: string;
+      createdBy: number;
+      vendorId: number | null;
+    }> = [];
 
+    // Variant creation has to stay sequential — we need the auto-incremented
+    // `id` for downstream inventory + movement rows, and Prisma 5.12 lacks
+    // `createManyAndReturn`. Inventory + movement writes, however, get
+    // batched per-variant so we send fewer round-trips overall.
     for (const v of toCreate) {
       const sku = v.sku && v.sku.trim()
         ? v.sku.trim()
@@ -425,50 +455,35 @@ export const bulkCreateVariants = async (
         },
       });
 
-      // Create inventory records (qty 0) for all active branches
-      const branches = await tx.branch.findMany({
-        where: { isActive: true },
-        select: { id: true },
-      });
-
       if (branches.length > 0) {
         await tx.inventory.createMany({
           data: branches.map((b) => ({
             variantId: variant.id,
             branchId: b.id,
-            quantity: 0,
+            quantity: b.id === branchId ? (v.initialStock ?? 0) : 0,
             minStockLevel: 5,
           })),
           skipDuplicates: true,
         });
       }
 
-      // If initial stock, set it on the current branch and log a movement
       if (v.initialStock && v.initialStock > 0) {
-        await tx.inventory.update({
-          where: {
-            variantId_branchId: {
-              variantId: variant.id,
-              branchId,
-            },
-          },
-          data: { quantity: v.initialStock },
-        });
-
-        await tx.inventoryMovement.create({
-          data: {
-            variantId: variant.id,
-            branchId,
-            type: MovementType.adjustment,
-            quantity: v.initialStock,
-            notes: 'bulk variant creation',
-            createdBy: userId,
-            vendorId: data.vendorId ?? null,
-          },
+        stockMovements.push({
+          variantId: variant.id,
+          branchId,
+          type: MovementType.adjustment,
+          quantity: v.initialStock,
+          notes: 'bulk variant creation',
+          createdBy: userId,
+          vendorId: data.vendorId ?? null,
         });
       }
 
       createdVariants.push(variant);
+    }
+
+    if (stockMovements.length > 0) {
+      await tx.inventoryMovement.createMany({ data: stockMovements });
     }
 
     return createdVariants;
