@@ -1,13 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <title>Sabiha's Ethnic</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#FBF6E6">
+  <meta name="theme-color" content="#050816" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/jpeg" href="assets/brand/sabihas-logo.jpeg">
   <link rel="apple-touch-icon" href="assets/brand/sabihas-logo.jpeg">
+  <script>
+    // Apply persisted theme before Angular boots — avoids flash of wrong mode.
+    // Dark is the default; light is opt-in.
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        var mode = saved === 'light' || saved === 'dark' ? saved : 'dark';
+        document.documentElement.dataset.theme = mode;
+      } catch (e) { /* localStorage blocked — keep default */ }
+    })();
+  </script>
 </head>
 <body>
   <app-root></app-root>

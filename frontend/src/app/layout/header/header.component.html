@@ -4,18 +4,31 @@
     <div class="relative flex items-center">
       <span class="material-symbols-outlined absolute left-3 text-on-surface-variant">search</span>
       <input
-        class="w-full bg-white border border-outline-variant/40 rounded-xl py-2 pl-12 pr-4 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-4 focus:ring-teal-500/20 text-sm transition-all"
+        class="w-full bg-surface-container border border-outline-variant/40 rounded-xl py-2 pl-12 pr-4 text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 text-sm transition-all"
         placeholder="Search orders, clients, or inventory..."
         type="text"
       />
     </div>
   </div>
 
-  <!-- Right: notifications, user -->
+  <!-- Right: theme toggle, notifications, user -->
   <div class="flex items-center gap-4">
-    <button class="p-2 text-on-surface-variant hover:bg-saffron-100 hover:text-on-surface rounded-lg transition-colors relative">
+    <!-- Theme toggle -->
+    <button
+      type="button"
+      class="p-2 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface rounded-lg transition-colors"
+      [attr.aria-label]="themeMode() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+      [attr.title]="themeMode() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+      (click)="toggleTheme()"
+    >
+      <span class="material-symbols-outlined">
+        {{ themeMode() === 'dark' ? 'light_mode' : 'dark_mode' }}
+      </span>
+    </button>
+
+    <button class="p-2 text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface rounded-lg transition-colors relative">
       <span class="material-symbols-outlined">notifications</span>
-      <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-henna-500 ring-2 ring-surface"></span>
+      <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error ring-2 ring-surface"></span>
     </button>
 
     <div class="h-8 w-[1px] bg-outline-variant/40 mx-2"></div>
@@ -23,14 +36,14 @@
     <!-- User area -->
     <div class="relative">
       <button
-        class="flex items-center gap-3 cursor-pointer hover:bg-saffron-100 rounded-lg px-2 py-1 transition-colors"
+        class="flex items-center gap-3 cursor-pointer hover:bg-surface-container-low rounded-lg px-2 py-1 transition-colors"
         (click)="toggleUserMenu()"
       >
         <div class="text-right">
           <p class="text-xs font-bold text-on-surface">{{ userName }}</p>
           <p class="text-[10px] text-on-surface-variant">{{ userRole }}</p>
         </div>
-        <div class="w-8 h-8 rounded-full bg-ink-800 flex items-center justify-center text-xs font-extrabold text-saffron-200 font-display">
+        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-extrabold text-white font-display">
           {{ initials }}
         </div>
       </button>
@@ -38,10 +51,10 @@
       <!-- Dropdown menu -->
       @if (showUserMenu) {
         <div
-          class="absolute right-0 top-full mt-2 w-48 bg-white border border-outline-variant/30 rounded-xl shadow-card py-1 z-50"
+          class="absolute right-0 top-full mt-2 w-48 bg-surface-container border border-outline-variant/30 rounded-xl shadow-card py-1 z-50"
         >
           <button
-            class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-saffron-100 hover:text-on-surface transition-colors"
+            class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors"
             (click)="logout()"
           >
             <span class="material-symbols-outlined text-[18px]">logout</span>
