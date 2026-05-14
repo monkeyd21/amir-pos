@@ -95,6 +95,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   sgstRate: number | null = 9;
   priceIncludesTax = true;
 
+  // Vendor payment terms — used when the user adds stock from the edit
+  // page (or from initial creation with a vendor + lot).
+  paymentMode: 'cash' | 'credit' = 'cash';
+  dueDate = '';
+
   // Post-creation print flow
   createdProduct: any = null;
   printCopies: Map<number, number> = new Map();
@@ -441,11 +446,53 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   }
 
   // ─── Submit / Cancel ────────────────────────────────────────────
+  /**
+   * Collect manual + bulk variant rows, dedup by (size, color) with
+   * manual winning, and stamp the per-variant cost from the form's
+   * costPrice unless the row supplied its own override.
+   */
+  private collectVariantsForSubmit(): any[] {
+    const fallbackUnitCost = this.costPrice ? Number(this.costPrice) : null;
+    const manual = this.variants
+      .filter((v) => v.size.trim() && v.color.trim())
+      .map((v) => ({
+        size: v.size.trim(),
+        color: v.color.trim(),
+        ...(v.priceOverride ? { priceOverride: Number(v.priceOverride) } : {}),
+        ...(v.costOverride ? { costOverride: Number(v.costOverride) } : {}),
+        ...(v.costOverride
+          ? { unitCost: Number(v.costOverride) }
+          : fallbackUnitCost !== null
+          ? { unitCost: fallbackUnitCost }
+          : {}),
+      }));
+
+    const seen = new Set(
+      manual.map((v) => `${v.size.toLowerCase()}|${v.color.toLowerCase()}`)
+    );
+    const bulk = (this.bulkGeneratedVariants || [])
+      .filter((v) => {
+        const key = `${v.size.toLowerCase()}|${(v.color || '').toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((v) => ({
+        ...v,
+        unitCost:
+          v.priceOverride && fallbackUnitCost === null
+            ? null
+            : fallbackUnitCost,
+      }));
+
+    return [...manual, ...bulk];
+  }
+
   onSubmit(): void {
     if (!this.isValid || this.saving) return;
     this.saving = true;
 
-    const payload: Record<string, any> = {
+    const productPayload: Record<string, any> = {
       name: this.name.trim(),
       brandId: this.brandId,
       categoryId: this.categoryId,
@@ -453,68 +500,98 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       costPrice: Number(this.costPrice),
       landingPrice: this.landingPrice ? Number(this.landingPrice) : undefined,
       description: this.description.trim() || undefined,
-      vendorId: this.vendorId || undefined,
-      lotCode: this.lotCode.trim() || undefined,
       hsnCode: this.hsnCode.trim() || null,
       cgstRate: this.cgstRate !== null ? Number(this.cgstRate) : 0,
       sgstRate: this.sgstRate !== null ? Number(this.sgstRate) : 0,
       priceIncludesTax: this.priceIncludesTax,
     };
 
+    const variants = this.collectVariantsForSubmit();
+    const supplierMeta = {
+      vendorId: this.vendorId || undefined,
+      lotCode: this.lotCode.trim() || undefined,
+      paymentMode: this.paymentMode,
+      dueDate:
+        this.paymentMode === 'credit' && this.dueDate ? this.dueDate : undefined,
+    };
+
     if (!this.isEdit) {
-      const manual = this.variants
-        .filter((v) => v.size.trim() && v.color.trim())
-        .map((v) => ({
-          size: v.size.trim(),
-          color: v.color.trim(),
-          ...(v.priceOverride ? { priceOverride: Number(v.priceOverride) } : {}),
-          ...(v.costOverride ? { costOverride: Number(v.costOverride) } : {}),
-        }));
+      // Create flow: variants are nested into the product create payload.
+      if (variants.length > 0) productPayload['variants'] = variants;
+      productPayload['vendorId'] = supplierMeta.vendorId;
+      productPayload['lotCode'] = supplierMeta.lotCode;
 
-      // De-dupe bulk-generated rows against manual entries on
-      // (size, color). Manual wins — cashier just typed those.
-      const seen = new Set(
-        manual.map((v) => `${v.size.toLowerCase()}|${v.color.toLowerCase()}`)
-      );
-      const bulk = (this.bulkGeneratedVariants || []).filter((v) => {
-        const key = `${v.size.toLowerCase()}|${(v.color || '').toLowerCase()}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-
-      const all = [...manual, ...bulk];
-      if (all.length > 0) payload['variants'] = all;
+      this.api
+        .post('/products', productPayload)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (res: any) => {
+            this.saving = false;
+            this.createdProduct = res.data;
+            for (const v of (this.createdProduct.variants || [])) {
+              const bulkMatch = this.bulkGeneratedVariants.find(
+                (bv) =>
+                  bv.size?.toLowerCase() === v.size?.toLowerCase() &&
+                  (bv.color || '').toLowerCase() === (v.color || '').toLowerCase()
+              );
+              this.printCopies.set(v.id, bulkMatch?.initialStock || 1);
+            }
+            this.notification.success('Product created');
+          },
+          error: () => {
+            this.saving = false;
+            this.notification.error('Failed to create product');
+          },
+        });
+      return;
     }
 
-    const req = this.isEdit
-      ? this.api.put(`/products/${this.productId}`, payload)
-      : this.api.post('/products', payload);
-
-    req.pipe(takeUntil(this.destroy$)).subscribe({
-      next: (res: any) => {
-        this.saving = false;
-        if (this.isEdit) {
-          this.notification.success('Product updated');
-          this.router.navigate(['/inventory/products']);
-        } else {
-          this.createdProduct = res.data;
-          // Default print copies to initial stock or 1
-          for (const v of (this.createdProduct.variants || [])) {
-            const bulkMatch = this.bulkGeneratedVariants.find(
-              (bv) => bv.size?.toLowerCase() === v.size?.toLowerCase() &&
-                      (bv.color || '').toLowerCase() === (v.color || '').toLowerCase()
-            );
-            this.printCopies.set(v.id, bulkMatch?.initialStock || 1);
+    // Edit flow: PUT the product fields, then if there are any variant
+    // rows entered, POST them to the bulk endpoint which now both
+    // creates new size+color combos AND tops up stock on existing ones.
+    this.api
+      .put(`/products/${this.productId}`, productPayload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          if (variants.length === 0) {
+            this.saving = false;
+            this.notification.success('Product updated');
+            this.router.navigate(['/inventory/products']);
+            return;
           }
-          this.notification.success('Product created');
-        }
-      },
-      error: () => {
-        this.saving = false;
-        this.notification.error('Failed to save product');
-      },
-    });
+
+          const bulkBody: any = {
+            variants,
+            ...supplierMeta,
+          };
+          this.api
+            .post<any>(`/products/${this.productId}/variants/bulk`, bulkBody)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (bulkRes: any) => {
+                this.saving = false;
+                const created = bulkRes.data?.created?.length || 0;
+                const incremented = bulkRes.data?.incremented?.length || 0;
+                const parts: string[] = ['Product updated'];
+                if (created) parts.push(`${created} new variant(s)`);
+                if (incremented) parts.push(`${incremented} restocked`);
+                this.notification.success(parts.join(' · '));
+                this.router.navigate(['/inventory/products']);
+              },
+              error: () => {
+                this.saving = false;
+                this.notification.error(
+                  'Product saved but failed to add variants — try again.'
+                );
+              },
+            });
+        },
+        error: () => {
+          this.saving = false;
+          this.notification.error('Failed to save product');
+        },
+      });
   }
 
   onPrintCopiesChange(variantId: number, value: number): void {

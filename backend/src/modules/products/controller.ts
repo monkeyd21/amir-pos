@@ -81,12 +81,14 @@ export const bulkCreateVariants = async (req: AuthRequest, res: Response, next: 
       req.user!.userId,
       req.user!.branchId
     );
+    const parts: string[] = [];
+    if (result.created.length) parts.push(`Created ${result.created.length}`);
+    if (result.incremented.length) parts.push(`restocked ${result.incremented.length}`);
+    if (result.skipped.length) parts.push(`skipped ${result.skipped.length}`);
     res.status(201).json({
       success: true,
       data: result,
-      message: `Created ${result.created.length} variant(s)${
-        result.skipped.length ? `, skipped ${result.skipped.length}` : ''
-      }`,
+      message: parts.join(', ') || 'No changes',
     });
   } catch (error) {
     next(error);

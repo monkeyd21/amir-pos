@@ -353,16 +353,21 @@ export const bulkCreateVariants = async (
       priceOverride?: number;
       costOverride?: number;
       initialStock?: number;
+      unitCost?: number | null;
     }>;
     branchId?: number;
     vendorId?: number;
+    lotCode?: string | null;
+    paymentMode?: 'cash' | 'credit';
+    dueDate?: string | Date | null;
+    notes?: string | null;
   },
   userId: number,
   userBranchId: number
 ) => {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { brand: true, variants: { select: { size: true, color: true } } },
+    include: { brand: true, variants: { select: { id: true, size: true, color: true } } },
   });
 
   if (!product) {
@@ -385,32 +390,51 @@ export const bulkCreateVariants = async (
   const branch = await prisma.branch.findUnique({ where: { id: branchId } });
   if (!branch) throw new AppError('Branch not found', 404);
 
-  // Detect collisions against existing variants (by size+color, case-insensitive)
-  const existingKeys = new Set(
-    product.variants.map((v) => `${v.size.toLowerCase()}|${v.color.toLowerCase()}`)
-  );
+  // Build a (size,color) → existing variant map so we can both detect
+  // collisions AND increment stock on the matched variant when the
+  // caller is using this endpoint as a "restock-or-create" from the
+  // edit page.
+  const existingByKey = new Map<string, { id: number }>();
+  for (const v of product.variants) {
+    existingByKey.set(`${v.size.toLowerCase()}|${v.color.toLowerCase()}`, v);
+  }
 
   const toCreate: typeof data.variants = [];
+  const toIncrement: Array<{ variantId: number; quantity: number; unitCost: number | null; size: string; color: string }> = [];
   const skipped: Array<{ size: string; color: string; reason: string }> = [];
 
-  // Also detect collisions within the incoming batch
   const seenInBatch = new Set<string>();
   for (const v of data.variants) {
     const key = `${v.size.toLowerCase()}|${v.color.toLowerCase()}`;
-    if (existingKeys.has(key)) {
-      skipped.push({ size: v.size, color: v.color, reason: 'already exists on product' });
-      continue;
-    }
     if (seenInBatch.has(key)) {
       skipped.push({ size: v.size, color: v.color, reason: 'duplicate within batch' });
       continue;
     }
     seenInBatch.add(key);
+
+    const existing = existingByKey.get(key);
+    if (existing) {
+      // Already on the product — top up its stock if the caller passed
+      // a quantity, otherwise it's a no-op (skip with a clear reason).
+      if (v.initialStock && v.initialStock > 0) {
+        toIncrement.push({
+          variantId: existing.id,
+          quantity: v.initialStock,
+          unitCost: v.unitCost ?? null,
+          size: v.size,
+          color: v.color,
+        });
+      } else {
+        skipped.push({ size: v.size, color: v.color, reason: 'already exists, no stock to add' });
+      }
+      continue;
+    }
+
     toCreate.push(v);
   }
 
-  if (toCreate.length === 0) {
-    return { created: [], skipped };
+  if (toCreate.length === 0 && toIncrement.length === 0) {
+    return { created: [], incremented: [], skipped };
   }
 
   // Hoisted out of the per-variant loop — the active branch list doesn't
@@ -421,18 +445,74 @@ export const bulkCreateVariants = async (
     select: { id: true },
   });
 
+  const dueDateValue = data.dueDate ? new Date(data.dueDate) : null;
+  // When the caller passes vendor + lot + payment metadata, we treat all
+  // movements created here as "purchase" so they show up in the vendor
+  // ledger. Without that metadata it's just an adjustment.
+  const isPurchase = Boolean(data.vendorId && data.lotCode);
+  const movementType = isPurchase ? MovementType.purchase : MovementType.adjustment;
+  const movementNote = data.notes?.trim() || (isPurchase ? 'restock from edit' : 'bulk variant creation');
+
   const result = await prisma.$transaction(async (tx) => {
     const createdVariants: any[] = [];
+    const incrementedVariants: Array<{
+      variantId: number;
+      size: string;
+      color: string;
+      addedQty: number;
+    }> = [];
     const stockMovements: Array<{
       variantId: number;
       branchId: number;
       type: MovementType;
       quantity: number;
+      unitCost: number | null;
+      paymentMode: 'cash' | 'credit' | null;
+      dueDate: Date | null;
+      lotCode: string | null;
       notes: string;
       createdBy: number;
       vendorId: number | null;
     }> = [];
 
+    // ─── Existing variants — top up their stock ─────────────────────
+    for (const inc of toIncrement) {
+      await tx.inventory.upsert({
+        where: {
+          variantId_branchId: { variantId: inc.variantId, branchId },
+        },
+        update: { quantity: { increment: inc.quantity } },
+        create: {
+          variantId: inc.variantId,
+          branchId,
+          quantity: inc.quantity,
+          minStockLevel: 5,
+        },
+      });
+
+      stockMovements.push({
+        variantId: inc.variantId,
+        branchId,
+        type: movementType,
+        quantity: inc.quantity,
+        unitCost: inc.unitCost,
+        paymentMode: isPurchase ? data.paymentMode ?? null : null,
+        dueDate: isPurchase ? dueDateValue : null,
+        lotCode: data.lotCode ?? null,
+        notes: movementNote,
+        createdBy: userId,
+        vendorId: data.vendorId ?? null,
+      });
+
+      incrementedVariants.push({
+        variantId: inc.variantId,
+        size: inc.size,
+        color: inc.color,
+        addedQty: inc.quantity,
+      });
+    }
+
+    // ─── New variants — create + inventory + movement ───────────────
     // Variant creation has to stay sequential — we need the auto-incremented
     // `id` for downstream inventory + movement rows, and Prisma 5.12 lacks
     // `createManyAndReturn`. Inventory + movement writes, however, get
@@ -471,9 +551,13 @@ export const bulkCreateVariants = async (
         stockMovements.push({
           variantId: variant.id,
           branchId,
-          type: MovementType.adjustment,
+          type: movementType,
           quantity: v.initialStock,
-          notes: 'bulk variant creation',
+          unitCost: v.unitCost ?? null,
+          paymentMode: isPurchase ? data.paymentMode ?? null : null,
+          dueDate: isPurchase ? dueDateValue : null,
+          lotCode: data.lotCode ?? null,
+          notes: movementNote,
           createdBy: userId,
           vendorId: data.vendorId ?? null,
         });
@@ -486,10 +570,10 @@ export const bulkCreateVariants = async (
       await tx.inventoryMovement.createMany({ data: stockMovements });
     }
 
-    return createdVariants;
+    return { created: createdVariants, incremented: incrementedVariants };
   });
 
-  return { created: result, skipped };
+  return { ...result, skipped };
 };
 
 export const deleteVariant = async (productId: number, variantId: number) => {

@@ -110,10 +110,15 @@ export const bulkCreateVariantsSchema = z.object({
           priceOverride: z.number().positive().optional(),
           costOverride: z.number().positive().optional(),
           initialStock: z.number().int().nonnegative().optional(),
+          unitCost: z.number().nonnegative().optional().nullable(),
         })
       )
       .min(1, 'At least one variant is required'),
     branchId: z.number().int().positive().optional(),
     vendorId: z.number().int().positive().optional(),
+    lotCode: z.string().optional().nullable(),
+    paymentMode: z.enum(['cash', 'credit']).optional(),
+    dueDate: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
   }),
 });
