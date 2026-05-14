@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
 @import 'app/modules/mobile-pos/mobile-pos.scss';
@@ -13,20 +13,12 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  body {
-    background-image:
-      radial-gradient(1100px 600px at 8% -10%, rgba(241, 220, 92, 0.30), transparent 60%),
-      radial-gradient(900px 700px at 105% 8%, rgba(60, 174, 199, 0.10), transparent 60%);
-    background-attachment: fixed;
-  }
-
   h1, h2, h3, .headline {
-    font-family: 'Archivo', sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Manrope', sans-serif;
   }
 
   ::selection {
-    @apply bg-saffron-200 text-ink-800;
+    @apply bg-primary-container text-on-primary-container;
   }
 
   ::-webkit-scrollbar {
@@ -34,20 +26,19 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    @apply bg-surface;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(20, 33, 61, 0.18);
-    border-radius: 999px;
+    @apply bg-surface-variant rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(20, 33, 61, 0.30);
+    @apply bg-surface-bright;
   }
 
   input[type="date"],
   input[type="time"],
   select {
-    color-scheme: light;
+    color-scheme: dark;
   }
 }
 
@@ -62,29 +53,29 @@
   }
 
   .glass-header {
-    background: rgba(251, 246, 230, 0.85);
+    background: rgba(11, 19, 38, 0.8);
     backdrop-filter: blur(12px);
   }
 
   .glass-panel {
-    background: rgba(255, 255, 255, 0.75);
+    background: rgba(49, 57, 77, 0.6);
     backdrop-filter: blur(24px);
   }
 
   .gradient-primary {
-    background: linear-gradient(135deg, #14213D 0%, #1F2B52 100%);
+    background: linear-gradient(135deg, #465fff 0%, #bbc3ff 100%);
   }
 
   .gradient-cta {
-    background: linear-gradient(135deg, #3CAEC7 0%, #1F6E83 100%);
+    background: linear-gradient(135deg, #465fff 0%, #384389 100%);
   }
 
   .label-upper {
-    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant;
+    @apply text-[10px] font-bold uppercase tracking-widest text-on-surface-variant;
   }
 
   .kpi-value {
-    @apply text-4xl font-display font-extrabold text-on-surface tracking-tight;
+    @apply text-4xl font-headline font-extrabold text-on-surface;
   }
 
   .th-label {
@@ -98,11 +89,12 @@
   .active-nav .material-symbols-outlined {
     font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
+
 }
 
 /* Inventory tab active styles */
 .inventory-tab-active {
-  color: #14213D !important;
+  color: #bbc3ff !important;
   font-weight: 700 !important;
 }
 .inventory-tab-active .material-symbols-outlined {
