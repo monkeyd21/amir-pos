@@ -1,38 +1,41 @@
-<aside class="flex flex-col h-screen py-6 bg-[#131b2e] w-64 fixed left-0 top-0 z-40">
-  <!-- Logo -->
-  <div class="px-6 mb-10 flex items-center gap-3 shrink-0">
-    <div class="w-10 h-10 bg-[#465fff] rounded-xl flex items-center justify-center">
-      <span class="material-symbols-outlined text-white icon-filled">store</span>
+<aside class="flex flex-col h-screen py-6 w-64 fixed left-0 top-0 z-40 bg-ink-800 text-saffron-200"
+       style="background-image:
+              radial-gradient(400px 200px at 0% 0%, rgba(60,174,199,0.18), transparent 60%),
+              radial-gradient(400px 320px at 100% 100%, rgba(241,220,92,0.06), transparent 60%);">
+  <!-- Brand -->
+  <div class="px-6 mb-8 flex items-center gap-3 shrink-0 pb-5 border-b border-saffron-200/15">
+    <div class="w-11 h-11 rounded-[10px] overflow-hidden ring-1 ring-saffron-300/60 bg-saffron-300 flex items-center justify-center shrink-0">
+      <img src="assets/brand/sabihas-logo.jpeg" alt="Sabiha's Ethnic" class="w-full h-full object-cover" />
     </div>
-    <div>
-      <h2 class="text-xl font-black text-[#dae2fd] leading-tight font-[Manrope]">Sabiha's Ethnic</h2>
-      <p class="text-[10px] text-[#c5c5d8] uppercase tracking-widest">Boutique POS</p>
+    <div class="leading-tight">
+      <h2 class="font-display font-extrabold text-[15px] tracking-[0.02em] uppercase text-saffron-200">Sabiha's</h2>
+      <p class="text-[11px] mt-1 text-teal-300 uppercase tracking-[0.14em] font-semibold">Boutique · POS</p>
     </div>
   </div>
 
   <!-- Main Nav -->
-  <nav class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 space-y-1">
+  <nav class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 space-y-0.5">
     @for (item of mainNav; track item.path) {
       <a
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-saffron-100/70 hover:bg-white/5 hover:text-saffron-100"
         [routerLink]="item.path"
-        routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
+        routerLinkActive="!bg-saffron-300 !text-ink-800 !font-bold active-nav"
         [routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }"
       >
         <span class="material-symbols-outlined text-[20px]">{{ item.icon }}</span>
-        <span class="text-sm font-medium">{{ item.label }}</span>
+        <span>{{ item.label }}</span>
       </a>
     }
 
     <!-- Settings separated -->
     <div class="mt-8">
       <a
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-saffron-100/70 hover:bg-white/5 hover:text-saffron-100"
         [routerLink]="settingsNav.path"
-        routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
+        routerLinkActive="!bg-saffron-300 !text-ink-800 !font-bold active-nav"
       >
         <span class="material-symbols-outlined text-[20px]">{{ settingsNav.icon }}</span>
-        <span class="text-sm font-medium">{{ settingsNav.label }}</span>
+        <span>{{ settingsNav.label }}</span>
       </a>
     </div>
   </nav>

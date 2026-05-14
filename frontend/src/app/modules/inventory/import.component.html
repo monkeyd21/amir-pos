@@ -19,8 +19,9 @@
       (click)="fileInput.click()"
       class="relative flex flex-col items-center justify-center py-20 px-8 border-2 border-dashed rounded-2xl cursor-pointer transition-all hover:bg-surface-container-high/30"
       [class.border-primary]="dragOver"
-      [class.bg-blue-50]="dragOver"
-      [class.border-gray-300]="!dragOver"
+      [class.bg-teal-300]="dragOver"
+      [class.bg-opacity-20]="dragOver"
+      [class.border-outline-variant]="!dragOver"
     >
       <input
         #fileInput

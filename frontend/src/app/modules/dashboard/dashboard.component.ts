@@ -161,8 +161,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!ctx) return;
 
     const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(70, 95, 255, 0.6)');
-    gradient.addColorStop(1, 'rgba(70, 95, 255, 0.05)');
+    gradient.addColorStop(0, 'rgba(60, 174, 199, 0.45)');
+    gradient.addColorStop(1, 'rgba(60, 174, 199, 0.02)');
 
     this.chart = new Chart(canvas, {
       type: 'line',
@@ -173,12 +173,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             label: 'Revenue',
             data: this.weeklySalesData.values,
             backgroundColor: gradient,
-            borderColor: '#465fff',
+            borderColor: '#3CAEC7',
             borderWidth: 2,
             fill: true,
             tension: 0.35,
-            pointBackgroundColor: '#465fff',
-            pointBorderColor: '#1a1b2e',
+            pointBackgroundColor: '#3CAEC7',
+            pointBorderColor: '#FFFFFF',
             pointBorderWidth: 2,
             pointRadius: 4,
             pointHoverRadius: 6,
@@ -191,10 +191,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#222a3d',
-            titleColor: '#dae2fd',
-            bodyColor: '#c5c5d8',
-            borderColor: '#444656',
+            backgroundColor: '#14213D',
+            titleColor: '#F6E796',
+            bodyColor: '#DDE2EE',
+            borderColor: '#1F2B52',
             borderWidth: 1,
             cornerRadius: 8,
             padding: 12,
@@ -213,11 +213,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: '#8f8fa2', font: { size: 11 } },
+            ticks: { color: '#5A6A95', font: { size: 11 } },
             border: { display: false },
           },
           y: {
-            grid: { color: 'rgba(68, 70, 86, 0.3)' },
+            grid: { color: 'rgba(20, 33, 61, 0.08)' },
             ticks: {
               color: '#8f8fa2',
               font: { size: 11 },

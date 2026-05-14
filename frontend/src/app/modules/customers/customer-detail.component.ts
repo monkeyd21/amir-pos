@@ -283,10 +283,10 @@ export class CustomerDetailComponent implements OnInit {
 
   getLoyaltyTypeClass(type: string): string {
     switch (type) {
-      case 'earned': return 'text-green-600';
-      case 'redeemed': return 'text-blue-600';
-      case 'adjusted': return 'text-orange-600';
-      case 'expired': return 'text-red-500';
+      case 'earned': return 'text-sage-500';
+      case 'redeemed': return 'text-teal-700';
+      case 'adjusted': return 'text-saffron-500';
+      case 'expired': return 'text-henna-500';
       default: return 'text-on-surface-variant';
     }
   }
