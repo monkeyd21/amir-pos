@@ -2,121 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
 @import 'app/modules/mobile-pos/mobile-pos.scss';
 
-/* ===========================================================
-   SABIHA'S ETHNIC — brand tokens (indigo + white, dark primary)
-   Light + dark surfaces flip via `<html data-theme="..."/>`.
-   =========================================================== */
-:root {
-  /* SLATE refs — exposed as CSS vars for use outside tailwind */
-  --slate-50:  #F8FAFC;
-  --slate-100: #F1F5F9;
-  --slate-200: #E2E8F0;
-  --slate-300: #CBD5E1;
-  --slate-400: #94A3B8;
-  --slate-500: #64748B;
-  --slate-600: #475569;
-  --slate-700: #334155;
-  --slate-800: #1E293B;
-  --slate-900: #0F172A;
-  --slate-950: #050816;
-
-  /* INDIGO refs */
-  --indigo-50:  #EEF0FF;
-  --indigo-100: #DDE1FF;
-  --indigo-200: #BEC4FF;
-  --indigo-300: #9099FF;
-  --indigo-400: #6E73F5;
-  --indigo-500: #5B5BE8;
-  --indigo-600: #4A47D6;
-  --indigo-700: #3B36B0;
-  --indigo-800: #2A267A;
-  --indigo-900: #1A1846;
-
-  /* SEMANTIC — LIGHT MODE */
-  --bg:             #FFFFFF;
-  --bg-subtle:      var(--slate-50);
-  --bg-elevated:    #FFFFFF;
-  --rail-bg:        var(--slate-900);  /* icon rail stays dark in both modes */
-  --rail-text:      var(--slate-300);
-  --rail-active:    var(--indigo-500);
-  --nav-bg:         #FFFFFF;
-  --nav-text:       var(--slate-700);
-  --nav-active-bg:  var(--indigo-50);
-  --nav-active-text:var(--indigo-700);
-  --text:           var(--slate-900);
-  --text-soft:      var(--slate-600);
-  --text-muted:     var(--slate-500);
-  --border:         var(--slate-200);
-  --border-strong:  var(--slate-300);
-  --accent:         var(--indigo-500);
-  --accent-soft:    var(--indigo-50);
-  --accent-strong:  var(--indigo-600);
-  --shadow-soft:    0 1px 2px rgba(15,23,42,0.04), 0 4px 12px -4px rgba(15,23,42,0.06);
-  --shadow-card:    0 1px 2px rgba(15,23,42,0.05), 0 12px 28px -8px rgba(15,23,42,0.12);
-  --glass-bg:       rgba(255, 255, 255, 0.78);
-  --glass-panel:    rgba(255, 255, 255, 0.85);
-}
-
-[data-theme="dark"] {
-  --bg:             var(--slate-950);
-  --bg-subtle:      #0B1224;
-  --bg-elevated:    #111A33;
-  --rail-bg:        #050816;
-  --rail-text:      var(--slate-400);
-  --rail-active:    var(--indigo-400);
-  --nav-bg:         #0B1224;
-  --nav-text:       var(--slate-300);
-  --nav-active-bg:  rgba(91, 91, 232, 0.16);
-  --nav-active-text:var(--indigo-200);
-  --text:           #F1F5F9;
-  --text-soft:      var(--slate-300);
-  --text-muted:     var(--slate-400);
-  --border:         rgba(255, 255, 255, 0.08);
-  --border-strong:  rgba(255, 255, 255, 0.14);
-  --accent:         var(--indigo-400);
-  --accent-soft:    rgba(91, 91, 232, 0.14);
-  --accent-strong:  var(--indigo-300);
-  --shadow-soft:    0 1px 2px rgba(0, 0, 0, 0.40), 0 4px 12px -4px rgba(0, 0, 0, 0.50);
-  --shadow-card:    0 1px 2px rgba(0, 0, 0, 0.50), 0 12px 28px -8px rgba(0, 0, 0, 0.55);
-  --glass-bg:       rgba(11, 18, 36, 0.78);
-  --glass-panel:    rgba(17, 26, 51, 0.85);
-}
-
 @layer base {
   html, body {
-    @apply font-body antialiased;
-    background: var(--bg);
-    color: var(--text);
+    @apply bg-surface text-on-surface font-body antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    transition: background-color .2s ease, color .2s ease;
   }
 
   body {
     background-image:
-      radial-gradient(1100px 600px at 8% -10%, rgba(91, 91, 232, 0.10), transparent 60%),
-      radial-gradient(900px 700px at 105% 8%, rgba(91, 91, 232, 0.06), transparent 60%);
+      radial-gradient(1100px 600px at 8% -10%, rgba(241, 220, 92, 0.30), transparent 60%),
+      radial-gradient(900px 700px at 105% 8%, rgba(60, 174, 199, 0.10), transparent 60%);
     background-attachment: fixed;
   }
 
-  [data-theme="dark"] body {
-    background-image:
-      radial-gradient(1100px 600px at 8% -10%, rgba(91, 91, 232, 0.18), transparent 60%),
-      radial-gradient(900px 700px at 105% 8%, rgba(91, 91, 232, 0.10), transparent 60%);
-  }
-
   h1, h2, h3, .headline {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Archivo', sans-serif;
     letter-spacing: -0.02em;
   }
 
   ::selection {
-    background: var(--accent-soft);
-    color: var(--text);
+    @apply bg-saffron-200 text-ink-800;
   }
 
   ::-webkit-scrollbar {
@@ -127,22 +37,17 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
+    background: rgba(20, 33, 61, 0.18);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: rgba(20, 33, 61, 0.30);
   }
 
   input[type="date"],
   input[type="time"],
   select {
     color-scheme: light;
-  }
-  [data-theme="dark"] input[type="date"],
-  [data-theme="dark"] input[type="time"],
-  [data-theme="dark"] select {
-    color-scheme: dark;
   }
 }
 
@@ -157,21 +62,21 @@
   }
 
   .glass-header {
-    background: var(--glass-bg);
+    background: rgba(251, 246, 230, 0.85);
     backdrop-filter: blur(12px);
   }
 
   .glass-panel {
-    background: var(--glass-panel);
+    background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(24px);
   }
 
   .gradient-primary {
-    background: linear-gradient(135deg, var(--indigo-500) 0%, var(--indigo-700) 100%);
+    background: linear-gradient(135deg, #14213D 0%, #1F2B52 100%);
   }
 
   .gradient-cta {
-    background: linear-gradient(135deg, var(--indigo-500) 0%, var(--indigo-600) 100%);
+    background: linear-gradient(135deg, #3CAEC7 0%, #1F6E83 100%);
   }
 
   .label-upper {
@@ -197,7 +102,7 @@
 
 /* Inventory tab active styles */
 .inventory-tab-active {
-  color: var(--accent) !important;
+  color: #14213D !important;
   font-weight: 700 !important;
 }
 .inventory-tab-active .material-symbols-outlined {

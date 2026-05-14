@@ -119,7 +119,7 @@
         <div class="grid grid-cols-2 gap-3">
           <button
             (click)="setCommissionMode('item_level')"
-            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'item_level' ? 'border-primary bg-primary/10' : 'border-outline-variant')"
+            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'item_level' ? 'border-primary bg-saffron-100' : 'border-outline-variant')"
           >
             <div class="flex items-center gap-2 mb-2">
               <span class="material-symbols-outlined text-lg" [class.text-primary]="commissionMode === 'item_level'">person</span>
@@ -131,7 +131,7 @@
           </button>
           <button
             (click)="setCommissionMode('bill_level')"
-            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'bill_level' ? 'border-primary bg-primary/10' : 'border-outline-variant')"
+            [class]="'p-4 rounded-xl border-2 text-left transition-all cursor-pointer ' + (commissionMode === 'bill_level' ? 'border-primary bg-saffron-100' : 'border-outline-variant')"
           >
             <div class="flex items-center gap-2 mb-2">
               <span class="material-symbols-outlined text-lg" [class.text-primary]="commissionMode === 'bill_level'">receipt_long</span>

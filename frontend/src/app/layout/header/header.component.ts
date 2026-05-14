@@ -1,7 +1,6 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AuthService } from '../../core/services/auth.service';
-import { ThemeService } from '../../core/services/theme.service';
+import { AuthService, User } from '../../core/services/auth.service';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -17,8 +16,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
   showUserMenu = false;
 
   private destroy$ = new Subject<void>();
-  private themeService = inject(ThemeService);
-  readonly themeMode = this.themeService.mode;
 
   constructor(private authService: AuthService) {}
 
@@ -43,10 +40,6 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   closeUserMenu(): void {
     this.showUserMenu = false;
-  }
-
-  toggleTheme(): void {
-    this.themeService.toggle();
   }
 
   logout(): void {

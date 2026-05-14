@@ -236,14 +236,14 @@ export class StockHistoryComponent implements OnInit, OnDestroy {
 
   typeBadgeClass(type: string): string {
     const map: Record<string, string> = {
-      purchase: 'bg-sage-500/15 text-sage-500',
-      sale: 'bg-primary/15 text-primary',
-      return: 'bg-gold-500/15 text-gold-500',
-      adjustment: 'bg-on-surface/10 text-on-surface',
-      transfer_in: 'bg-indigo-300/30 text-indigo-700 dark:text-indigo-300',
+      purchase: 'bg-sage-500/15 text-[#3F6650]',
+      sale: 'bg-teal-500/15 text-teal-700',
+      return: 'bg-saffron-300/30 text-ink-800',
+      adjustment: 'bg-ink-800/10 text-ink-800',
+      transfer_in: 'bg-teal-300/30 text-teal-700',
       transfer_out: 'bg-henna-500/15 text-henna-500',
     };
-    return map[type] || 'bg-on-surface/10 text-on-surface-variant';
+    return map[type] || 'bg-ink-200/40 text-ink-500';
   }
 
   formatDate(iso: string): string {

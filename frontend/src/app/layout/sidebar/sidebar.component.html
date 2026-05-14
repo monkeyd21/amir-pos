@@ -1,16 +1,15 @@
-<aside class="flex flex-col h-screen py-6 w-64 fixed left-0 top-0 z-40 text-slate-300"
-       style="background: var(--rail-bg);
-              background-image:
-                radial-gradient(420px 220px at 0% 0%, rgba(91, 91, 232, 0.22), transparent 60%),
-                radial-gradient(420px 320px at 100% 100%, rgba(91, 91, 232, 0.08), transparent 60%);">
+<aside class="flex flex-col h-screen py-6 w-64 fixed left-0 top-0 z-40 bg-ink-800 text-saffron-200"
+       style="background-image:
+              radial-gradient(400px 200px at 0% 0%, rgba(60,174,199,0.18), transparent 60%),
+              radial-gradient(400px 320px at 100% 100%, rgba(241,220,92,0.06), transparent 60%);">
   <!-- Brand -->
-  <div class="px-6 mb-8 flex items-center gap-3 shrink-0 pb-5 border-b border-white/10">
-    <div class="w-11 h-11 rounded-[10px] overflow-hidden ring-1 ring-white/15 bg-saffron-300 flex items-center justify-center shrink-0">
+  <div class="px-6 mb-8 flex items-center gap-3 shrink-0 pb-5 border-b border-saffron-200/15">
+    <div class="w-11 h-11 rounded-[10px] overflow-hidden ring-1 ring-saffron-300/60 bg-saffron-300 flex items-center justify-center shrink-0">
       <img src="assets/brand/sabihas-logo.jpeg" alt="Sabiha's Ethnic" class="w-full h-full object-cover" />
     </div>
     <div class="leading-tight">
-      <h2 class="font-display font-extrabold text-[15px] tracking-[0.02em] uppercase text-white">Sabiha's</h2>
-      <p class="text-[11px] mt-1 text-indigo-300 uppercase tracking-[0.14em] font-semibold">Boutique · POS</p>
+      <h2 class="font-display font-extrabold text-[15px] tracking-[0.02em] uppercase text-saffron-200">Sabiha's</h2>
+      <p class="text-[11px] mt-1 text-teal-300 uppercase tracking-[0.14em] font-semibold">Boutique · POS</p>
     </div>
   </div>
 
@@ -18,9 +17,9 @@
   <nav class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 space-y-0.5">
     @for (item of mainNav; track item.path) {
       <a
-        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-slate-300/80 hover:bg-white/5 hover:text-white"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-saffron-100/70 hover:bg-white/5 hover:text-saffron-100"
         [routerLink]="item.path"
-        routerLinkActive="!bg-indigo-500 !text-white !font-bold active-nav"
+        routerLinkActive="!bg-saffron-300 !text-ink-800 !font-bold active-nav"
         [routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }"
       >
         <span class="material-symbols-outlined text-[20px]">{{ item.icon }}</span>
@@ -31,9 +30,9 @@
     <!-- Settings separated -->
     <div class="mt-8">
       <a
-        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-slate-300/80 hover:bg-white/5 hover:text-white"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 text-[14px] font-medium text-saffron-100/70 hover:bg-white/5 hover:text-saffron-100"
         [routerLink]="settingsNav.path"
-        routerLinkActive="!bg-indigo-500 !text-white !font-bold active-nav"
+        routerLinkActive="!bg-saffron-300 !text-ink-800 !font-bold active-nav"
       >
         <span class="material-symbols-outlined text-[20px]">{{ settingsNav.icon }}</span>
         <span>{{ settingsNav.label }}</span>

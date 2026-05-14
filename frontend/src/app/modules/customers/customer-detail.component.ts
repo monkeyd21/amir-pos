@@ -285,7 +285,7 @@ export class CustomerDetailComponent implements OnInit {
     switch (type) {
       case 'earned': return 'text-sage-500';
       case 'redeemed': return 'text-teal-700';
-      case 'adjusted': return 'text-gold-500';
+      case 'adjusted': return 'text-saffron-500';
       case 'expired': return 'text-henna-500';
       default: return 'text-on-surface-variant';
     }
