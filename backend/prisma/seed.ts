@@ -128,7 +128,8 @@ async function main() {
       description: 'Classic straight fit jeans',
       basePrice: 3999,
       costPrice: 2200,
-      taxRate: 18,
+      cgstRate: 9,
+      sgstRate: 9,
     },
   });
 
@@ -170,7 +171,8 @@ async function main() {
       description: 'Performance polo shirt',
       basePrice: 2499,
       costPrice: 1400,
-      taxRate: 18,
+      cgstRate: 9,
+      sgstRate: 9,
     },
   });
 
