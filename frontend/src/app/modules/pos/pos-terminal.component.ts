@@ -341,7 +341,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private openSession(): void {
     this.api
-      .post<ApiResponse<PosSession>>('/pos/sessions', { openingAmount: 0 })
+      .post<ApiResponse<PosSession>>('/pos/sessions/open', { openingAmount: 0 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {

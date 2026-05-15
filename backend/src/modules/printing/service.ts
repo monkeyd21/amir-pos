@@ -86,8 +86,13 @@ export async function createProfile(branchId: number, input: CreateProfileInput)
   getTransport(input.transport);
 
   return prisma.$transaction(async (tx) => {
-    // If new profile should be default, clear any existing default first
-    if (input.isDefault) {
+    // First profile for a branch becomes the default automatically — otherwise
+    // the print resolver (which requires isDefault) would reject every print
+    // job until the user remembered to flip the toggle.
+    const existingCount = await tx.printerProfile.count({ where: { branchId } });
+    const shouldDefault = input.isDefault || existingCount === 0;
+
+    if (shouldDefault) {
       await tx.printerProfile.updateMany({
         where: { branchId, isDefault: true },
         data: { isDefault: false },
@@ -105,7 +110,7 @@ export async function createProfile(branchId: number, input: CreateProfileInput)
         dpi: input.dpi ?? 203,
         maxWidthMm: input.maxWidthMm ?? 108,
         capabilities: (input.capabilities as any) ?? {},
-        isDefault: input.isDefault ?? false,
+        isDefault: shouldDefault,
       },
     });
     // Seed a default template for the new profile so the designer has
@@ -280,12 +285,23 @@ async function resolveProfileAndTemplate(
   branchId: number,
   req: PrintRequest
 ): Promise<{ profile: { id: number; name: string; driver: string; transport: string; connection: unknown; dpi: number }; template: LabelTemplate }> {
-  const profile = req.profileId
+  let profile = req.profileId
     ? await getProfile(branchId, req.profileId)
     : await prisma.printerProfile.findFirst({
         where: { branchId, isDefault: true, isActive: true },
         include: { templates: true },
       });
+
+  // No default flagged — pick any active profile on this branch rather than
+  // failing. Older installs created profiles via the discovery wizard with
+  // isDefault hardcoded to false.
+  if (!profile && !req.profileId) {
+    profile = await prisma.printerProfile.findFirst({
+      where: { branchId, isActive: true },
+      orderBy: { id: 'asc' },
+      include: { templates: true },
+    });
+  }
 
   if (!profile) {
     throw new AppError(
