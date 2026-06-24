@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
@@ -37,6 +37,19 @@ interface SaleReturn {
   createdAt: string;
 }
 
+interface ExchangeReturn {
+  id: number;
+  returnNumber: string;
+  total: number | string;
+  originalSale?: { id: number; saleNumber: string } | null;
+  items: Array<{
+    quantity: number;
+    unitPrice: number | string;
+    condition?: string;
+    variant?: { size?: string; color?: string; product?: { name?: string } };
+  }>;
+}
+
 interface Sale {
   id: number;
   saleNumber: string;
@@ -51,6 +64,9 @@ interface Sale {
   status: string;
   createdAt: string;
   notes?: string;
+  exchangeCreditAmount?: number | string | null;
+  exchangeReturnId?: number | null;
+  exchangeReturn?: ExchangeReturn | null;
 }
 
 interface SaleResponse {
@@ -64,6 +80,7 @@ interface SaleResponse {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     StatusBadgeComponent,
     LoadingSpinnerComponent,
     ReturnDialogComponent,
@@ -204,6 +221,31 @@ export class SaleDetailComponent implements OnInit {
       return `${this.sale.user.firstName} ${this.sale.user.lastName}`.trim();
     }
     return '-';
+  }
+
+  // ─── Exchange (return credited against this sale) ───────────────
+  get isExchange(): boolean {
+    return Number(this.sale?.exchangeCreditAmount) > 0 || !!this.sale?.exchangeReturn;
+  }
+
+  get exchangeCredit(): number {
+    return Number(this.sale?.exchangeCreditAmount) || 0;
+  }
+
+  /** Cash refunded to the customer (credit beyond the new purchase value). */
+  get exchangeRefund(): number {
+    const r = this.exchangeCredit - Number(this.sale?.total || 0);
+    return r > 0 ? Math.round(r * 100) / 100 : 0;
+  }
+
+  /** What the customer actually paid for the new items after the credit. */
+  get exchangeNetPaid(): number {
+    const n = Number(this.sale?.total || 0) - this.exchangeCredit;
+    return n > 0 ? Math.round(n * 100) / 100 : 0;
+  }
+
+  num(v: unknown): number {
+    return Number(v) || 0;
   }
 
   get canReturn(): boolean {

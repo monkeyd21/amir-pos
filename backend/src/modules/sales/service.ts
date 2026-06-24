@@ -127,6 +127,25 @@ export class SalesService {
     };
   }
 
+  /** Attach the originating Return (original bill + returned items) when this
+   *  sale settled part of its value with an exchange credit. exchangeReturnId
+   *  is a plain scalar (no relation), so we resolve it here. */
+  private async attachExchangeReturn(sale: any) {
+    if (!sale?.exchangeReturnId) return sale;
+    const exchangeReturn = await prisma.return.findUnique({
+      where: { id: sale.exchangeReturnId },
+      include: {
+        originalSale: { select: { id: true, saleNumber: true } },
+        items: {
+          include: {
+            variant: { include: { product: { include: { brand: true } } } },
+          },
+        },
+      },
+    });
+    return { ...sale, exchangeReturn };
+  }
+
   async getSaleById(id: number) {
     const sale = await prisma.sale.findUnique({
       where: { id },
@@ -162,7 +181,7 @@ export class SalesService {
       throw new AppError('Sale not found', 404);
     }
 
-    return sale;
+    return this.attachExchangeReturn(sale);
   }
 
   async getSaleBySaleNumber(saleNumber: string) {
@@ -200,7 +219,7 @@ export class SalesService {
       throw new AppError('Sale not found', 404);
     }
 
-    return sale;
+    return this.attachExchangeReturn(sale);
   }
 
   async getReceiptData(id: number) {
@@ -224,6 +243,21 @@ export class SalesService {
     if (!sale) {
       throw new AppError('Sale not found', 404);
     }
+
+    // Exchange: goods returned at the counter, credited against this bill.
+    const exchangeCredit = Number(sale.exchangeCreditAmount || 0);
+    let exchangeOriginalSaleNumber: string | null = null;
+    if (sale.exchangeReturnId) {
+      const ret = await prisma.return.findUnique({
+        where: { id: sale.exchangeReturnId },
+        select: { originalSale: { select: { saleNumber: true } } },
+      });
+      exchangeOriginalSaleNumber = ret?.originalSale?.saleNumber ?? null;
+    }
+    const exchangeRefund =
+      exchangeCredit > Number(sale.total)
+        ? Math.round((exchangeCredit - Number(sale.total)) * 100) / 100
+        : 0;
 
     return {
       receiptHeader: sale.branch.receiptHeader,
@@ -258,6 +292,9 @@ export class SalesService {
       })),
       loyaltyPointsEarned: sale.loyaltyPointsEarned,
       loyaltyPointsRedeemed: sale.loyaltyPointsRedeemed,
+      exchangeCredit,
+      exchangeRefund,
+      exchangeOriginalSaleNumber,
     };
   }
 

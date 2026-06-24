@@ -37,6 +37,9 @@ interface ReceiptData {
   payments: ReceiptPayment[];
   loyaltyPointsEarned: number;
   loyaltyPointsRedeemed: number;
+  exchangeCredit?: number;
+  exchangeRefund?: number;
+  exchangeOriginalSaleNumber?: string | null;
 }
 
 interface ReceiptResponse {
@@ -103,6 +106,29 @@ export class ReceiptPrintService {
     const totalVal = this.formatCurrency(r.total);
     const totalLine = `<strong>${totalLabel}${this.pad(totalLabel, totalVal)}${totalVal}</strong>`;
 
+    // Exchange: goods returned and credited against this bill.
+    const exchangeCredit = r.exchangeCredit || 0;
+    const exchangeRefund = r.exchangeRefund || 0;
+    let exchangeLines = '';
+    if (exchangeCredit > 0) {
+      const cLabel = 'Exchange credit:';
+      const cVal = `-${this.formatCurrency(exchangeCredit)}`;
+      let block = `\n${cLabel}${this.pad(cLabel, cVal)}${cVal}`;
+      if (r.exchangeOriginalSaleNumber) {
+        block += `\n  vs ${this.esc(r.exchangeOriginalSaleNumber)}`;
+      }
+      if (exchangeRefund > 0) {
+        const rLabel = 'REFUND:';
+        const rVal = this.formatCurrency(exchangeRefund);
+        block += `\n<strong>${rLabel}${this.pad(rLabel, rVal)}${rVal}</strong>`;
+      } else {
+        const nLabel = 'Net Payable:';
+        const nVal = this.formatCurrency(Math.max(0, r.total - exchangeCredit));
+        block += `\n<strong>${nLabel}${this.pad(nLabel, nVal)}${nVal}</strong>`;
+      }
+      exchangeLines = block;
+    }
+
     const paymentsHtml = r.payments
       .map((p) => {
         const methodLabel = this.formatPaymentMethod(p.method);
@@ -115,7 +141,8 @@ export class ReceiptPrintService {
       })
       .join('\n');
 
-    const changeAmount = r.payments.reduce((sum, p) => sum + p.amount, 0) - r.total;
+    const amountDue = Math.max(0, r.total - exchangeCredit);
+    const changeAmount = r.payments.reduce((sum, p) => sum + p.amount, 0) - amountDue;
     let changeLine = '';
     if (changeAmount > 0.01) {
       const changeLabel = 'Change:';
@@ -248,7 +275,7 @@ ${thinDivider}
 ${subtotalLine}${discountLine}
 ${taxLine}
 ${thinDivider}
-${totalLine}
+${totalLine}${exchangeLines}
 ${thinDivider}
 
 PAYMENT:

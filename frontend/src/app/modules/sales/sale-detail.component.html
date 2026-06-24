@@ -164,6 +164,80 @@
     </div>
   </div>
 
+  <!-- Exchange Section -->
+  @if (isExchange) {
+    <div class="mb-8">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-amber-500">swap_horiz</span>
+        <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight">Exchange</h2>
+      </div>
+      <div class="p-5 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-4">
+        <!-- Returned goods credited against this bill -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-sm font-body text-on-surface-variant">
+            Goods returned against
+            @if (sale.exchangeReturn?.originalSale) {
+              <a [routerLink]="['/sales', sale.exchangeReturn!.originalSale!.id]" class="font-semibold text-primary hover:underline">{{ sale.exchangeReturn!.originalSale!.saleNumber }}</a>
+            } @else {
+              <span class="font-semibold text-on-surface">a previous bill</span>
+            }
+            and credited here.
+          </p>
+        </div>
+
+        @if (sale.exchangeReturn?.items?.length) {
+          <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-container-low/60 text-on-surface-variant">
+                  <th class="text-left px-4 py-2 text-[11px] font-label font-semibold uppercase tracking-wider">Returned item</th>
+                  <th class="text-left px-4 py-2 text-[11px] font-label font-semibold uppercase tracking-wider">Size / Colour</th>
+                  <th class="text-left px-4 py-2 text-[11px] font-label font-semibold uppercase tracking-wider">Condition</th>
+                  <th class="text-right px-4 py-2 text-[11px] font-label font-semibold uppercase tracking-wider">Qty</th>
+                  <th class="text-right px-4 py-2 text-[11px] font-label font-semibold uppercase tracking-wider">Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (ri of sale.exchangeReturn!.items; track $index) {
+                  <tr class="border-t border-outline-variant/10">
+                    <td class="px-4 py-2 text-on-surface">{{ ri.variant?.product?.name || 'Item' }}</td>
+                    <td class="px-4 py-2 text-on-surface-variant">{{ ri.variant?.size }} / {{ ri.variant?.color }}</td>
+                    <td class="px-4 py-2 text-on-surface-variant capitalize">{{ ri.condition || '-' }}</td>
+                    <td class="px-4 py-2 text-right text-on-surface-variant">{{ ri.quantity }}</td>
+                    <td class="px-4 py-2 text-right text-on-surface">{{ formatCurrency(num(ri.unitPrice) * ri.quantity) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <!-- Money breakdown -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="p-3 rounded-xl bg-surface-container/50">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">New items</p>
+            <p class="text-lg font-headline font-bold text-on-surface">{{ formatCurrency(sale.total) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-surface-container/50">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Exchange credit</p>
+            <p class="text-lg font-headline font-bold text-amber-500">&minus;{{ formatCurrency(exchangeCredit) }}</p>
+          </div>
+          @if (exchangeRefund > 0) {
+            <div class="p-3 rounded-xl bg-green-500/10">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Refunded to customer</p>
+              <p class="text-lg font-headline font-bold text-green-500">{{ formatCurrency(exchangeRefund) }}</p>
+            </div>
+          } @else {
+            <div class="p-3 rounded-xl bg-surface-container/50">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Customer paid</p>
+              <p class="text-lg font-headline font-bold text-on-surface">{{ formatCurrency(exchangeNetPaid) }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- Customer Info -->
   <div class="mb-8">
     <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight mb-4">Customer Information</h2>
