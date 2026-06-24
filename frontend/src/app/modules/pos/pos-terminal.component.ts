@@ -236,14 +236,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   showExchangePanel = false;
   exchangeLookupQuery = '';
   exchangeLoading = false;
-  // Lookup mode inside the exchange panel: by bill number, or by customer.
-  exchangeMode: 'bill' | 'customer' = 'bill';
+  // Lookup mode inside the exchange panel: bill number, customer, or scan item.
+  exchangeMode: 'bill' | 'customer' | 'scan' = 'scan';
   exchangeCustomerQuery = '';
   exchangeCustomerResults: any[] = [];
   exchangeCustomerSearching = false;
   exchangePickedCustomer: any = null;
   exchangeCustomerBills: any[] = [];
   private exchangeCustomerTimer: any = null;
+  // Scan-the-returned-item mode
+  exchangeScanQuery = '';
+  exchangeScanResults: any[] = [];
+  exchangeScanVariant: any = null;
+  exchangeScanned = false;
 
   constructor(
     private api: ApiService,
@@ -1134,8 +1139,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeItems = [];
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
-    this.exchangeMode = 'bill';
+    this.exchangeMode = 'scan';
     this.clearExchangeCustomer();
+    this.clearExchangeScan();
   }
 
   closeSearchResults(): void {
@@ -1273,7 +1279,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   /** Load a previous bill's items for return selection. Accepts a numeric id
    *  or a bill number (e.g. "SL-..."), so it works from the Bills panel and
    *  from a scanned/typed receipt number alike. */
-  startExchange(saleIdOrNumber: number | string): void {
+  startExchange(saleIdOrNumber: number | string, preselectSaleItemId?: number): void {
     this.exchangeLoading = true;
     this.api.get<ApiResponse<any>>(`/sales/${saleIdOrNumber}`).subscribe({
       next: (res) => {
@@ -1286,16 +1292,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         const items = (sale.items || [])
           .map((it: any) => {
             const available = (it.quantity || 0) - (it.returnedQuantity || 0);
+            const preselected = preselectSaleItemId === it.id;
             return {
               saleItemId: it.id,
               productName: it.variant?.product?.name || it.productName || 'Item',
               size: it.variant?.size || '-',
               color: it.variant?.color || '-',
               available,
-              quantity: available,
+              // A scanned item means "this one unit is coming back" — default
+              // its qty to 1; otherwise default to all returnable.
+              quantity: preselected ? 1 : available,
               condition: 'resellable' as const,
               unitPrice: Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
-              selected: false,
+              selected: preselected,
             };
           })
           .filter((i: any) => i.available > 0);
@@ -1373,6 +1382,44 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeCustomerResults = [];
   }
 
+  /** Scan the returned product's barcode; finds which past bill(s) it came
+   *  from so the cashier can pick one and start the exchange. */
+  scanExchangeItem(): void {
+    const code = this.exchangeScanQuery.trim();
+    if (!code) return;
+    this.exchangeLoading = true;
+    this.exchangeScanned = true;
+    this.api.get<ApiResponse<any>>(`/sales/returnable/${encodeURIComponent(code)}`).subscribe({
+      next: (res) => {
+        this.exchangeLoading = false;
+        this.exchangeScanVariant = res.data?.variant || null;
+        this.exchangeScanResults = res.data?.candidates || [];
+        this.exchangeScanQuery = '';
+        if (this.exchangeScanResults.length === 0) {
+          this.notify.error('No returnable bill found for that item');
+        }
+      },
+      error: (err) => {
+        this.exchangeLoading = false;
+        this.exchangeScanResults = [];
+        this.exchangeScanVariant = null;
+        this.notify.error(err.error?.error || 'Item not found');
+      },
+    });
+  }
+
+  /** Open the exchange for a scanned candidate, pre-selecting that line. */
+  startExchangeFromCandidate(c: any): void {
+    this.startExchange(c.saleId, c.saleItemId);
+  }
+
+  clearExchangeScan(): void {
+    this.exchangeScanQuery = '';
+    this.exchangeScanResults = [];
+    this.exchangeScanVariant = null;
+    this.exchangeScanned = false;
+  }
+
   clampExchangeQty(item: { quantity: number; available: number }): void {
     if (!item.quantity || item.quantity < 1) item.quantity = 1;
     if (item.quantity > item.available) item.quantity = item.available;
@@ -1385,6 +1432,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
     this.clearExchangeCustomer();
+    this.clearExchangeScan();
   }
 
   heldCustomerName(held: any): string {

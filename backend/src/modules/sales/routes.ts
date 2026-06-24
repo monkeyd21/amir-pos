@@ -7,6 +7,7 @@ import {
   saleIdParamSchema,
   processReturnSchema,
   processExchangeSchema,
+  returnableByBarcodeSchema,
 } from './validators';
 
 const router = Router();
@@ -14,6 +15,12 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', validate(listSalesSchema), salesController.list);
+// Static route MUST precede '/:id' so "returnable" isn't matched as an id.
+router.get(
+  '/returnable/:barcode',
+  validate(returnableByBarcodeSchema),
+  salesController.returnableByBarcode
+);
 router.get('/:id', validate(saleIdParamSchema), salesController.getById);
 router.get('/:id/receipt', validate(saleIdParamSchema), salesController.receipt);
 router.get('/:id/receipt.pdf', validate(saleIdParamSchema), salesController.receiptPdf);

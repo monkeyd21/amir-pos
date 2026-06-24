@@ -60,6 +60,73 @@ export class SalesService {
     };
   }
 
+  /**
+   * Find the bills that contain a still-returnable unit of the scanned
+   * barcode's variant. Powers "scan the returned item to start an exchange":
+   * the cashier scans the physical product, we surface which past sale(s) it
+   * came from so they can pick the right one.
+   */
+  async getReturnableByBarcode(barcode: string, branchId: number) {
+    const variant = await prisma.productVariant.findFirst({
+      where: { barcode },
+      include: { product: { include: { brand: true } } },
+    });
+    if (!variant) {
+      throw new AppError(`Barcode not found: ${barcode}`, 404);
+    }
+
+    const saleItems = await prisma.saleItem.findMany({
+      where: {
+        variantId: variant.id,
+        sale: {
+          branchId,
+          status: { in: ['completed', 'partially_returned'] },
+        },
+      },
+      include: {
+        sale: {
+          select: {
+            id: true,
+            saleNumber: true,
+            createdAt: true,
+            customer: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { sale: { createdAt: 'desc' } },
+      take: 50,
+    });
+
+    // Column-to-column (returnedQuantity < quantity) can't be expressed in the
+    // where clause, so filter the still-returnable lines here.
+    const candidates = saleItems
+      .filter((si) => si.quantity - si.returnedQuantity > 0)
+      .slice(0, 20)
+      .map((si) => ({
+        saleId: si.sale.id,
+        saleNumber: si.sale.saleNumber,
+        saleDate: si.sale.createdAt,
+        customerName: si.sale.customer
+          ? `${si.sale.customer.firstName} ${si.sale.customer.lastName}`.trim()
+          : null,
+        saleItemId: si.id,
+        productName: variant.product.name,
+        size: variant.size,
+        color: variant.color,
+        available: si.quantity - si.returnedQuantity,
+        unitPrice: Number(si.effectiveUnitPrice ?? si.unitPrice),
+      }));
+
+    return {
+      variant: {
+        productName: variant.product.name,
+        size: variant.size,
+        color: variant.color,
+      },
+      candidates,
+    };
+  }
+
   async getSaleById(id: number) {
     const sale = await prisma.sale.findUnique({
       where: { id },

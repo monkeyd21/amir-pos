@@ -15,6 +15,18 @@ export class SalesController {
     }
   }
 
+  async returnableByBarcode(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await salesService.getReturnableByBarcode(
+        req.params.barcode,
+        req.user!.branchId
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const param = req.params.id;

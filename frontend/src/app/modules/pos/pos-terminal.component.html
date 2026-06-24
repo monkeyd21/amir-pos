@@ -985,15 +985,20 @@
             @if (!exchangeSale) {
               <!-- Mode toggle -->
               <div class="flex p-1 rounded-lg bg-surface-container-high/60 text-xs font-semibold">
+                <button (click)="exchangeMode = 'scan'"
+                  class="flex-1 py-2 rounded-md transition-colors flex items-center justify-center gap-1"
+                  [class]="exchangeMode === 'scan' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'">
+                  <span class="material-symbols-outlined text-sm">barcode_scanner</span>Scan item
+                </button>
                 <button (click)="exchangeMode = 'bill'"
                   class="flex-1 py-2 rounded-md transition-colors"
                   [class]="exchangeMode === 'bill' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'">
-                  By bill no.
+                  Bill no.
                 </button>
                 <button (click)="exchangeMode = 'customer'"
                   class="flex-1 py-2 rounded-md transition-colors"
                   [class]="exchangeMode === 'customer' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'">
-                  By customer
+                  Customer
                 </button>
               </div>
 
@@ -1013,7 +1018,7 @@
                     Find
                   </button>
                 </div>
-              } @else {
+              } @else if (exchangeMode === 'customer') {
                 <!-- By customer: search, pick, then choose a bill -->
                 @if (!exchangePickedCustomer) {
                   <div class="relative">
@@ -1059,6 +1064,43 @@
                       <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">swap_horiz</span>
                     </button>
                   }
+                }
+              } @else {
+                <!-- Scan the returned product's barcode -->
+                <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+                  Scan the barcode on the item the customer is returning. We'll find the bill it was sold on.
+                </p>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">barcode_scanner</span>
+                  <input
+                    [(ngModel)]="exchangeScanQuery"
+                    (keyup.enter)="scanExchangeItem()"
+                    placeholder="Scan or type item barcode..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm pl-10 pr-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                    autocomplete="off"
+                  />
+                </div>
+                @if (exchangeScanVariant && exchangeScanResults.length > 0) {
+                  <p class="text-xs text-on-surface-variant">
+                    <span class="font-semibold text-on-surface">{{ exchangeScanVariant.productName }}</span>
+                    ({{ exchangeScanVariant.size }} / {{ exchangeScanVariant.color }}) — sold on:
+                  </p>
+                }
+                @for (c of exchangeScanResults; track c.saleItemId) {
+                  <button (click)="startExchangeFromCandidate(c)"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 transition-colors text-left">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-on-surface truncate">
+                        {{ c.saleNumber }}
+                        @if (c.customerName) { <span class="text-on-surface-variant font-normal">· {{ c.customerName }}</span> }
+                      </p>
+                      <p class="text-[11px] text-on-surface-variant">{{ c.saleDate | date:'d MMM, h:mm a' }} · {{ formatCurrency(c.unitPrice) }} · {{ c.available }} returnable</p>
+                    </div>
+                    <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">swap_horiz</span>
+                  </button>
+                }
+                @if (exchangeScanned && !exchangeLoading && exchangeScanResults.length === 0) {
+                  <p class="text-xs text-on-surface-variant/60 text-center py-6">No returnable bill found for that item.</p>
                 }
               }
 

@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const returnableByBarcodeSchema = z.object({
+  params: z.object({
+    barcode: z.string().min(1),
+  }),
+});
+
 export const listSalesSchema = z.object({
   query: z.object({
     branchId: z.string().optional(),
