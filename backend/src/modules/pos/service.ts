@@ -433,16 +433,6 @@ export class PosService {
 
         exchangeCredit = Math.round(returnSubtotal * 100) / 100;
 
-        // Refunds are handled in the Sales tab, not POS. If the returned goods
-        // are worth more than the new purchase, stop and tell the cashier.
-        if (exchangeCredit > saleTotal) {
-          throw new AppError(
-            `Return value ₹${exchangeCredit.toFixed(2)} is more than the new purchase ₹${saleTotal.toFixed(2)}. ` +
-              `Process this as a refund in the Sales tab instead.`,
-            400
-          );
-        }
-
         const returnNumber = generateNumber('RT');
         const returnRecord = await tx.return.create({
           data: {
@@ -506,15 +496,20 @@ export class PosService {
         });
       }
 
+      // net = new purchase − return credit. Positive ⇒ customer pays the
+      // difference; negative ⇒ the shop refunds the customer the difference.
       const netPayable = Math.round((saleTotal - exchangeCredit) * 100) / 100;
+      const amountDue = Math.max(0, netPayable);
+      const refundDue = Math.max(0, Math.round(-netPayable * 100) / 100);
 
-      // 5. Validate payments cover what the customer actually owes (net of any
-      // exchange credit).
+      // 5. Validate payments cover what the customer actually owes. When a
+      // refund is due (return worth more than the purchase) amountDue is 0, so
+      // no tender is required — the cashier hands the difference back.
       const totalPayments = data.payments.reduce((sum, p) => sum + p.amount, 0);
 
-      if (totalPayments < netPayable) {
+      if (totalPayments < amountDue) {
         throw new AppError(
-          `Payment shortfall. Payable: ${netPayable}, Paid: ${totalPayments}`,
+          `Payment shortfall. Payable: ${amountDue}, Paid: ${totalPayments}`,
           400
         );
       }
@@ -666,9 +661,9 @@ export class PosService {
 
       // 10. Calculate change — against what the customer owed (net of any
       // exchange credit), so an overpayment in cash returns the right change.
-      const change = Math.round((totalPayments - netPayable) * 100) / 100;
+      const change = Math.round((totalPayments - amountDue) * 100) / 100;
 
-      return { sale, change };
+      return { sale, change, refund: refundDue };
     });
   }
 

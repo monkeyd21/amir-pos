@@ -957,12 +957,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   /** True when the returned goods are worth more than the new purchase —
-   *  POS can't refund the difference, so checkout is blocked (→ Sales tab). */
+   *  the shop refunds the difference to the customer at the counter. */
   get exchangeRefundOwed(): boolean {
     return this.exchangeCredit > this.total + 0.0001;
   }
 
-  /** What the customer actually pays = bill total minus the exchange credit. */
+  /** Cash to hand back when the return is worth more than the purchase. */
+  get refundDue(): number {
+    return Math.max(0, Math.round((this.exchangeCredit - this.total) * 100) / 100);
+  }
+
+  /** What the customer actually pays = bill total minus the exchange credit
+   *  (never below zero — any excess credit becomes a refund instead). */
   get netPayable(): number {
     return Math.max(0, Math.round((this.total - this.exchangeCredit) * 100) / 100);
   }
@@ -996,8 +1002,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   get canCheckout(): boolean {
     if (this.cart.length === 0) return false;
     if (this.checkoutLoading) return false;
-    // Refunds are handled in the Sales tab, not POS.
-    if (this.exchangeRefundOwed) return false;
+    // When a refund is owed netPayable is 0, so no tender is required — the
+    // cashier hands the difference back after completing.
     return this.amountPaid + 0.0001 >= this.netPayable;
   }
 
@@ -1102,12 +1108,17 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       .post<ApiResponse<any>>('/pos/checkout', body)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (res) => {
+        next: (res: any) => {
           this.checkoutLoading = false;
           const saleId = res.data?.sale?.id || res.data?.id;
-          this.notify.success(
-            `Sale completed! ${res.data?.saleNumber || ''}`
-          );
+          const refund = Number(res?.refund) || 0;
+          if (refund > 0) {
+            this.notify.success(
+              `Exchange done — refund ${this.formatCurrency(refund)} to the customer`
+            );
+          } else {
+            this.notify.success(`Sale completed! ${res.data?.saleNumber || ''}`);
+          }
           if (saleId) {
             this.receiptPrint.printReceipt(saleId);
           }

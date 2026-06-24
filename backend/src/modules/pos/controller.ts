@@ -58,6 +58,7 @@ export class PosController {
         success: true,
         data: result.sale,
         change: result.change,
+        refund: result.refund,
         message: 'Sale completed successfully',
       });
     } catch (error) {

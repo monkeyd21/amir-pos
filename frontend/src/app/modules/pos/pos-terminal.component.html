@@ -677,9 +677,11 @@
                     <span class="text-amber-400 font-medium">&minus;{{ formatCurrency(exchangeCredit) }}</span>
                   </div>
                   @if (exchangeRefundOwed) {
-                    <p class="text-[11px] text-error leading-snug">
-                      Return is worth more than the purchase. Refunds aren't done in POS — process this in the <span class="font-semibold">Sales</span> tab.
-                    </p>
+                    <div class="flex justify-between pt-1 border-t border-amber-500/20">
+                      <span class="text-on-surface font-bold font-headline">Refund to customer</span>
+                      <span class="text-green-400 font-headline font-extrabold text-xl">{{ formatCurrency(refundDue) }}</span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant/70 leading-snug">Return is worth more than the purchase — hand {{ formatCurrency(refundDue) }} back to the customer.</p>
                   } @else {
                     <div class="flex justify-between pt-1 border-t border-amber-500/20">
                       <span class="text-on-surface font-bold font-headline">Net payable</span>
@@ -855,7 +857,9 @@
             } @else {
               <span class="material-symbols-outlined text-xl">shopping_cart_checkout</span>
               <span>{{ exchangeSale ? 'Complete Exchange' : 'Complete Sale' }}</span>
-              @if (netPayable > 0) {
+              @if (exchangeRefundOwed) {
+                <span class="ml-1 opacity-70">&mdash; refund {{ formatCurrency(refundDue) }}</span>
+              } @else if (netPayable > 0) {
                 <span class="ml-1 opacity-70">&mdash; {{ formatCurrency(netPayable) }}</span>
               }
             }
