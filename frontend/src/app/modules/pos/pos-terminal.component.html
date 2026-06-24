@@ -981,23 +981,87 @@
           </div>
 
           <div class="flex-1 overflow-y-auto p-4 space-y-3">
-            <!-- Bill lookup (scan or type) -->
+            <!-- Bill lookup — by bill number or by customer -->
             @if (!exchangeSale) {
-              <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-                Scan or type the bill number of the original purchase, or open <span class="font-semibold">Bills</span> and hit Exchange on a bill.
-              </p>
-              <div class="flex gap-2">
-                <input
-                  [(ngModel)]="exchangeLookupQuery"
-                  (keyup.enter)="lookupExchangeBill()"
-                  placeholder="Bill no. e.g. SL-..."
-                  class="flex-1 bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm px-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
-                  autocomplete="off"
-                />
-                <button (click)="lookupExchangeBill()" [disabled]="exchangeLoading || !exchangeLookupQuery.trim()" class="px-4 rounded-lg bg-primary-container text-on-primary-container text-sm font-bold disabled:opacity-40">
-                  Find
+              <!-- Mode toggle -->
+              <div class="flex p-1 rounded-lg bg-surface-container-high/60 text-xs font-semibold">
+                <button (click)="exchangeMode = 'bill'"
+                  class="flex-1 py-2 rounded-md transition-colors"
+                  [class]="exchangeMode === 'bill' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'">
+                  By bill no.
+                </button>
+                <button (click)="exchangeMode = 'customer'"
+                  class="flex-1 py-2 rounded-md transition-colors"
+                  [class]="exchangeMode === 'customer' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant'">
+                  By customer
                 </button>
               </div>
+
+              @if (exchangeMode === 'bill') {
+                <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+                  Scan or type the bill number of the original purchase, or open <span class="font-semibold">Bills</span> and hit Exchange on a bill.
+                </p>
+                <div class="flex gap-2">
+                  <input
+                    [(ngModel)]="exchangeLookupQuery"
+                    (keyup.enter)="lookupExchangeBill()"
+                    placeholder="Bill no. e.g. SL-..."
+                    class="flex-1 bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm px-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                    autocomplete="off"
+                  />
+                  <button (click)="lookupExchangeBill()" [disabled]="exchangeLoading || !exchangeLookupQuery.trim()" class="px-4 rounded-lg bg-primary-container text-on-primary-container text-sm font-bold disabled:opacity-40">
+                    Find
+                  </button>
+                </div>
+              } @else {
+                <!-- By customer: search, pick, then choose a bill -->
+                @if (!exchangePickedCustomer) {
+                  <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">person_search</span>
+                    <input
+                      [(ngModel)]="exchangeCustomerQuery"
+                      (input)="onExchangeCustomerInput()"
+                      placeholder="Search customer by name or phone..."
+                      class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm pl-10 pr-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                      autocomplete="off"
+                    />
+                    @if (exchangeCustomerSearching) {
+                      <div class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                    }
+                  </div>
+                  @for (c of exchangeCustomerResults; track c.id) {
+                    <button (click)="pickExchangeCustomer(c)"
+                      class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 transition-colors text-left">
+                      <div class="w-7 h-7 rounded-full bg-primary-container/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                        {{ (c.firstName || '?')[0] }}{{ (c.lastName || '?')[0] }}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm text-on-surface truncate">{{ c.firstName }} {{ c.lastName }}</p>
+                        <p class="text-[10px] text-on-surface-variant">{{ c.phone || c.email }}</p>
+                      </div>
+                    </button>
+                  }
+                } @else {
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs text-on-surface-variant">Bills for <span class="font-semibold text-on-surface">{{ exchangePickedCustomer.firstName }} {{ exchangePickedCustomer.lastName }}</span></p>
+                    <button (click)="clearExchangeCustomer()" class="text-[11px] text-primary hover:underline">Change</button>
+                  </div>
+                  @if (!exchangeLoading && exchangeCustomerBills.length === 0) {
+                    <p class="text-xs text-on-surface-variant/60 text-center py-6">No bills for this customer.</p>
+                  }
+                  @for (sale of exchangeCustomerBills; track sale.id) {
+                    <button (click)="startExchange(sale.id)"
+                      class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 transition-colors text-left">
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-on-surface truncate">{{ sale.saleNumber }}</p>
+                        <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'d MMM, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
+                      </div>
+                      <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">swap_horiz</span>
+                    </button>
+                  }
+                }
+              }
+
               @if (exchangeLoading) {
                 <div class="flex justify-center py-8"><div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div></div>
               }

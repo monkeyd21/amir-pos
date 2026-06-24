@@ -236,6 +236,14 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   showExchangePanel = false;
   exchangeLookupQuery = '';
   exchangeLoading = false;
+  // Lookup mode inside the exchange panel: by bill number, or by customer.
+  exchangeMode: 'bill' | 'customer' = 'bill';
+  exchangeCustomerQuery = '';
+  exchangeCustomerResults: any[] = [];
+  exchangeCustomerSearching = false;
+  exchangePickedCustomer: any = null;
+  exchangeCustomerBills: any[] = [];
+  private exchangeCustomerTimer: any = null;
 
   constructor(
     private api: ApiService,
@@ -1126,6 +1134,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeItems = [];
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
+    this.exchangeMode = 'bill';
+    this.clearExchangeCustomer();
   }
 
   closeSearchResults(): void {
@@ -1312,6 +1322,57 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     if (q) this.startExchange(q);
   }
 
+  /** Debounced customer search for the "by customer" exchange lookup. */
+  onExchangeCustomerInput(): void {
+    clearTimeout(this.exchangeCustomerTimer);
+    const q = this.exchangeCustomerQuery.trim();
+    if (q.length < 2) {
+      this.exchangeCustomerResults = [];
+      return;
+    }
+    this.exchangeCustomerTimer = setTimeout(() => {
+      this.exchangeCustomerSearching = true;
+      this.api.get<ApiResponse<any[]>>('/customers/search', { query: q }).subscribe({
+        next: (res) => {
+          this.exchangeCustomerResults = res.data || [];
+          this.exchangeCustomerSearching = false;
+        },
+        error: () => {
+          this.exchangeCustomerResults = [];
+          this.exchangeCustomerSearching = false;
+        },
+      });
+    }, 250);
+  }
+
+  /** Pick a customer and load their recent bills to choose one to exchange. */
+  pickExchangeCustomer(c: any): void {
+    this.exchangePickedCustomer = c;
+    this.exchangeCustomerResults = [];
+    this.exchangeCustomerBills = [];
+    this.exchangeLoading = true;
+    this.api.get<ApiResponse<any[]>>('/sales', { customerId: c.id, limit: 25 }).subscribe({
+      next: (res) => {
+        this.exchangeCustomerBills = res.data || [];
+        this.exchangeLoading = false;
+        if (this.exchangeCustomerBills.length === 0) {
+          this.notify.error('No bills found for this customer');
+        }
+      },
+      error: () => {
+        this.exchangeCustomerBills = [];
+        this.exchangeLoading = false;
+      },
+    });
+  }
+
+  clearExchangeCustomer(): void {
+    this.exchangePickedCustomer = null;
+    this.exchangeCustomerBills = [];
+    this.exchangeCustomerQuery = '';
+    this.exchangeCustomerResults = [];
+  }
+
   clampExchangeQty(item: { quantity: number; available: number }): void {
     if (!item.quantity || item.quantity < 1) item.quantity = 1;
     if (item.quantity > item.available) item.quantity = item.available;
@@ -1323,6 +1384,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeItems = [];
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
+    this.clearExchangeCustomer();
   }
 
   heldCustomerName(held: any): string {
