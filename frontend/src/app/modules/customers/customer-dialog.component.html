@@ -83,7 +83,7 @@
     <!-- Phone -->
     <div>
       <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
-        Phone
+        Phone *
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[16px] text-on-surface-variant/40">phone</span>
@@ -94,6 +94,12 @@
           class="w-full pl-9 pr-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none placeholder:text-on-surface-variant/30 transition-colors"
         />
       </div>
+      @if (hasError('phone', 'required')) {
+        <p class="mt-1 text-[11px] font-body text-error">Phone is required</p>
+      }
+      @if (hasError('phone', 'minlength')) {
+        <p class="mt-1 text-[11px] font-body text-error">Phone must be at least 10 digits</p>
+      }
     </div>
 
     <!-- Address -->

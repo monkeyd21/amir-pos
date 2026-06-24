@@ -35,7 +35,7 @@ export class CustomerDialogComponent implements OnInit {
   isEdit = false;
 
   constructor(
-    public dialogRef: DialogRef<boolean>,
+    public dialogRef: DialogRef<boolean | any>,
     @Inject(DIALOG_DATA) public data: CustomerDialogData,
     private fb: FormBuilder,
     private api: ApiService,
@@ -57,7 +57,10 @@ export class CustomerDialogComponent implements OnInit {
         this.data?.customer?.email || '',
         [Validators.email],
       ],
-      phone: [this.data?.customer?.phone || ''],
+      phone: [
+        this.data?.customer?.phone || '',
+        [Validators.required, Validators.minLength(10)],
+      ],
       address: [this.data?.customer?.address || ''],
     });
   }
@@ -73,21 +76,33 @@ export class CustomerDialogComponent implements OnInit {
     }
 
     this.saving = true;
-    const body = this.form.value;
+    const raw = this.form.value;
+    // Clean empty strings to undefined — the backend rejects email: '' with
+    // "Invalid email" (z.string().email()), so a name+phone-only customer
+    // (the common POS case) would fail to save otherwise.
+    const body: Record<string, any> = {
+      firstName: raw.firstName?.trim(),
+      lastName: raw.lastName?.trim(),
+      email: raw.email?.trim() || undefined,
+      phone: raw.phone?.trim() || undefined,
+      address: raw.address?.trim() || undefined,
+    };
 
     const request$ = this.isEdit
       ? this.api.put(`/customers/${this.data.customer!.id}`, body)
       : this.api.post('/customers', body);
 
     request$.subscribe({
-      next: () => {
+      next: (res: any) => {
         this.notification.success(
           this.isEdit
             ? 'Customer updated successfully'
             : 'Customer created successfully'
         );
         this.saving = false;
-        this.dialogRef.close(true);
+        // On create, return the new customer so callers (e.g. the POS terminal)
+        // can auto-select it. On edit, keep the legacy truthy `true`.
+        this.dialogRef.close(this.isEdit ? true : (res?.data ?? true));
       },
       error: (err) => {
         this.notification.error(

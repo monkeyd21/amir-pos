@@ -41,7 +41,7 @@ export class VendorDialogComponent implements OnInit {
   isEdit = false;
 
   constructor(
-    public dialogRef: DialogRef<boolean>,
+    public dialogRef: DialogRef<boolean | Vendor>,
     @Inject(DIALOG_DATA) public data: VendorDialogData,
     private fb: FormBuilder,
     private api: ApiService,
@@ -92,12 +92,14 @@ export class VendorDialogComponent implements OnInit {
       : this.api.post('/vendors', body);
 
     request$.subscribe({
-      next: () => {
+      next: (res: any) => {
         this.notification.success(
           this.isEdit ? 'Vendor updated successfully' : 'Vendor created successfully'
         );
         this.saving = false;
-        this.dialogRef.close(true);
+        // On create, return the new vendor so callers (e.g. the vendor picker)
+        // can auto-select it. On edit, keep the legacy truthy `true`.
+        this.dialogRef.close(this.isEdit ? true : (res?.data ?? true));
       },
       error: (err) => {
         this.notification.error(

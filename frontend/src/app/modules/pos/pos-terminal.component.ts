@@ -1,12 +1,14 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService, User } from '../../core/services/auth.service';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
+import { DialogService } from '../../shared/dialog/dialog.service';
+import { CustomerDialogComponent } from '../customers/customer-dialog.component';
 
 /**
  * A single payment entry the cashier has added to a sale. One sale can have
@@ -203,11 +205,25 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   private customerSearchSubject = new Subject<string>();
   selectedCustomer: any = null;
 
+  // ─── Hold / parked bills ────────────────────────────────────────
+  // Held bills persist server-side (HeldTransaction) so they survive a
+  // refresh and can be resumed from any terminal in the branch.
+  heldBills: any[] = [];
+  showHeldPanel = false;
+  holdLoading = false;
+
+  // ─── Previous bills (recent sales) ──────────────────────────────
+  recentBills: any[] = [];
+  showBillsPanel = false;
+  billsLoading = false;
+
   constructor(
     private api: ApiService,
     private notify: NotificationService,
     private auth: AuthService,
-    private receiptPrint: ReceiptPrintService
+    private receiptPrint: ReceiptPrintService,
+    private dialog: DialogService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -219,6 +235,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.setupCartEvaluation();
     this.loadAgents();
     this.loadLoyaltyConfig();
+    this.loadHeld();
   }
 
   private loadLoyaltyConfig(): void {
@@ -527,6 +544,20 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.customerSearchQuery = '';
     this.customerSearchResults = [];
     this.showCustomerResults = false;
+  }
+
+  addCustomer(): void {
+    const ref = this.dialog.open<CustomerDialogComponent, any, boolean | any>(
+      CustomerDialogComponent,
+      { data: { customer: null }, width: '32rem' }
+    );
+    ref.afterClosed().subscribe((result) => {
+      // On create the dialog returns the new customer object — auto-select it
+      // so the cashier can carry straight on with the sale.
+      if (result && typeof result === 'object') {
+        this.selectCustomer(result);
+      }
+    });
   }
 
   clearCustomer(): void {
@@ -1039,6 +1070,135 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     }, 200);
   }
 
+  // ─── Hold / parked bills ──────────────────────────────────────────
+
+  /** Snapshot of everything that makes up the in-progress sale, stored as
+   *  freeform JSON in HeldTransaction.cartData and restored on resume. */
+  private buildCartSnapshot(): any {
+    return {
+      cart: this.cart,
+      customerId: this.customerId,
+      selectedCustomer: this.selectedCustomer,
+      defaultAgentId: this.defaultAgentId,
+      discountMode: this.discountMode,
+      discountValue: this.discountValue,
+      specialDiscount: this.specialDiscount,
+      roundMode: this.roundMode,
+      loyaltyPointsRedeem: this.loyaltyPointsRedeem,
+    };
+  }
+
+  /** Park the current cart so the cashier can serve another customer and
+   *  come back to it. Clears the terminal afterwards. */
+  holdCart(): void {
+    if (this.cart.length === 0) {
+      this.notify.error('Cart is empty — nothing to hold');
+      return;
+    }
+    this.holdLoading = true;
+    const body: any = { cartData: this.buildCartSnapshot() };
+    if (this.customerId) body.customerId = this.customerId;
+    this.api.post('/pos/hold', body).subscribe({
+      next: () => {
+        this.holdLoading = false;
+        this.notify.success('Bill held');
+        this.resetCart();
+        this.loadHeld();
+      },
+      error: (err) => {
+        this.holdLoading = false;
+        this.notify.error(err.error?.error || 'Failed to hold bill');
+      },
+    });
+  }
+
+  loadHeld(): void {
+    this.api.get<ApiResponse<any[]>>('/pos/held').subscribe({
+      next: (res) => (this.heldBills = res.data || []),
+      error: () => {},
+    });
+  }
+
+  openHeldPanel(): void {
+    this.loadHeld();
+    this.showHeldPanel = true;
+  }
+
+  /** Restore a held bill into the terminal. The backend deletes it on resume
+   *  so it can't be double-spent. Warns if the current cart has items. */
+  resumeHeld(held: any): void {
+    if (this.cart.length > 0 &&
+        !confirm('Resuming will replace the current cart. Continue?')) {
+      return;
+    }
+    this.api.post<ApiResponse<any>>(`/pos/held/${held.id}/resume`, {}).subscribe({
+      next: (res) => {
+        const snap = res.data?.cartData || {};
+        this.cart = snap.cart || [];
+        this.customerId = snap.customerId ?? null;
+        this.selectedCustomer = snap.selectedCustomer ?? null;
+        this.defaultAgentId = snap.defaultAgentId ?? this.defaultAgentId;
+        this.discountMode = snap.discountMode || 'percent';
+        this.discountValue = snap.discountValue ?? null;
+        this.specialDiscount = snap.specialDiscount ?? null;
+        this.roundMode = snap.roundMode || 'none';
+        this.loyaltyPointsRedeem = snap.loyaltyPointsRedeem ?? null;
+        this.tenders = [];
+        this.showHeldPanel = false;
+        this.refreshCartOffers();
+        this.loadHeld();
+        this.notify.success('Bill resumed');
+      },
+      error: (err) => this.notify.error(err.error?.error || 'Failed to resume bill'),
+    });
+  }
+
+  deleteHeld(held: any, event: Event): void {
+    event.stopPropagation();
+    if (!confirm('Discard this held bill?')) return;
+    this.api.delete(`/pos/held/${held.id}`).subscribe({
+      next: () => this.loadHeld(),
+      error: (err) => this.notify.error(err.error?.error || 'Failed to delete'),
+    });
+  }
+
+  // ─── Previous bills (recent sales) ────────────────────────────────
+
+  openBillsPanel(): void {
+    this.showBillsPanel = true;
+    this.billsLoading = true;
+    this.api.get<ApiResponse<any[]>>('/sales', { limit: 25 }).subscribe({
+      next: (res) => {
+        this.recentBills = res.data || [];
+        this.billsLoading = false;
+      },
+      error: () => {
+        this.billsLoading = false;
+        this.notify.error('Failed to load previous bills');
+      },
+    });
+  }
+
+  reprintBill(sale: any, event: Event): void {
+    event.stopPropagation();
+    this.receiptPrint.printReceipt(sale.id);
+  }
+
+  viewBill(sale: any): void {
+    this.router.navigate(['/sales', sale.saleNumber || sale.id]);
+  }
+
+  heldCustomerName(held: any): string {
+    const c = held?.customer;
+    if (!c) return 'Walk-in';
+    return `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Walk-in';
+  }
+
+  cartSnapshotCount(held: any): number {
+    const items = held?.cartData?.cart;
+    return Array.isArray(items) ? items.reduce((n, i) => n + (i.quantity || 0), 0) : 0;
+  }
+
   formatCurrency(value: number): string {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -1056,6 +1216,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       case 'bronze': return 'bg-amber-500/20 text-amber-400';
       default: return 'bg-surface-container-high text-on-surface-variant';
     }
+  }
+
+  /** Prisma Decimal fields arrive as strings over JSON — coerce for display. */
+  toNum(value: unknown): number {
+    return Number(value) || 0;
   }
 
   formatNumber(value: number): string {

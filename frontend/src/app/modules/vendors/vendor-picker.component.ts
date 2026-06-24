@@ -2,7 +2,8 @@ import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
-import { Vendor } from './vendor-dialog.component';
+import { DialogService } from '../../shared/dialog/dialog.service';
+import { Vendor, VendorDialogComponent } from './vendor-dialog.component';
 
 interface VendorResponse {
   success: boolean;
@@ -73,6 +74,14 @@ interface VendorResponse {
               No vendors found
             </div>
           }
+          <button
+            type="button"
+            (click)="addVendor()"
+            class="w-full sticky bottom-0 flex items-center gap-2 px-3.5 py-2.5 text-sm font-medium text-primary bg-surface-container border-t border-outline-variant/15 hover:bg-surface-container-high/60 transition-colors cursor-pointer"
+          >
+            <span class="material-symbols-outlined text-[18px]">add</span>
+            Add new vendor
+          </button>
         </div>
       }
     </div>
@@ -89,7 +98,7 @@ export class VendorPickerComponent implements OnInit {
   open = false;
   selected: Vendor | null = null;
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private dialog: DialogService) {}
 
   ngOnInit(): void {
     this.api.get<VendorResponse>('/vendors', { isActive: 'true', limit: 100 }).subscribe({
@@ -126,6 +135,24 @@ export class VendorPickerComponent implements OnInit {
     this.selectedId = v.id;
     this.selectedIdChange.emit(v.id);
     this.open = false;
+  }
+
+  addVendor(): void {
+    this.open = false;
+    const ref = this.dialog.open<VendorDialogComponent, any, boolean | Vendor>(
+      VendorDialogComponent,
+      { data: { vendor: null }, width: '32rem' }
+    );
+    ref.afterClosed().subscribe((result) => {
+      // On create the dialog returns the new vendor object — add it to the
+      // list and auto-select it so the user doesn't have to reopen.
+      if (result && typeof result === 'object') {
+        const vendor = result as Vendor;
+        this.vendors = [vendor, ...this.vendors];
+        this.onSearchInput();
+        this.select(vendor);
+      }
+    });
   }
 
   clearSelection(): void {

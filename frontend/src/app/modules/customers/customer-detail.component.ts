@@ -239,6 +239,36 @@ export class CustomerDetailComponent implements OnInit {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
+  // ─── Expandable itemised purchase rows ──────────────────────────
+  expandedSales = new Set<number>();
+
+  toggleSale(saleId: number): void {
+    if (this.expandedSales.has(saleId)) this.expandedSales.delete(saleId);
+    else this.expandedSales.add(saleId);
+  }
+
+  isExpanded(saleId: number): boolean {
+    return this.expandedSales.has(saleId);
+  }
+
+  itemName(item: SaleItem): string {
+    return item.variant?.product?.name || item.productName || 'Item';
+  }
+
+  itemBrand(item: SaleItem): string {
+    return item.variant?.product?.brand?.name || '-';
+  }
+
+  itemSizeColor(item: SaleItem): string {
+    const parts = [item.variant?.size, item.variant?.color].filter(Boolean);
+    return parts.length ? parts.join(' / ') : '-';
+  }
+
+  /** Prisma Decimal fields arrive as strings over JSON — coerce for math. */
+  num(value: unknown): number {
+    return Number(value) || 0;
+  }
+
   getItemsSummary(sale: Sale): string {
     if (!sale.items || sale.items.length === 0) return '-';
     const names = sale.items.map(

@@ -169,6 +169,7 @@
               <table class="w-full">
                 <thead>
                   <tr class="bg-surface-container-low">
+                    <th class="w-10 px-3 py-3.5"></th>
                     <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Date</th>
                     <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Sale #</th>
                     <th class="text-left px-6 py-3.5 text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider">Items</th>
@@ -179,12 +180,19 @@
                 </thead>
                 <tbody>
                   @for (sale of sales; track sale.id) {
-                    <tr class="border-t border-outline-variant hover:bg-surface-container-high transition-colors">
+                    <tr
+                      (click)="toggleSale(sale.id)"
+                      class="border-t border-outline-variant hover:bg-surface-container-high transition-colors cursor-pointer"
+                      [class.bg-surface-container-high]="isExpanded(sale.id)"
+                    >
+                      <td class="px-3 py-4 text-center">
+                        <span class="material-symbols-outlined text-lg text-on-surface-variant/60 transition-transform" [class.rotate-90]="isExpanded(sale.id)">chevron_right</span>
+                      </td>
                       <td class="px-6 py-4">
                         <span class="text-sm font-body text-on-surface-variant">{{ formatDate(sale.createdAt) }}</span>
                       </td>
                       <td class="px-6 py-4">
-                        <a [routerLink]="['/sales', sale.id]" class="text-sm font-mono font-medium text-primary hover:underline">
+                        <a [routerLink]="['/sales', sale.id]" (click)="$event.stopPropagation()" class="text-sm font-mono font-medium text-primary hover:underline">
                           {{ sale.saleNumber || '#' + sale.id }}
                         </a>
                       </td>
@@ -201,6 +209,40 @@
                         <span class="text-sm font-body text-on-surface-variant">{{ getPaymentMethod(sale) }}</span>
                       </td>
                     </tr>
+                    @if (isExpanded(sale.id)) {
+                      <tr class="bg-surface-container-low/60">
+                        <td colspan="7" class="px-6 py-4">
+                          @if (sale.items && sale.items.length > 0) {
+                            <table class="w-full">
+                              <thead>
+                                <tr class="text-on-surface-variant/70">
+                                  <th class="text-left py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Product</th>
+                                  <th class="text-left py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Brand</th>
+                                  <th class="text-left py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Size / Colour</th>
+                                  <th class="text-right py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Qty</th>
+                                  <th class="text-right py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Rate</th>
+                                  <th class="text-right py-1.5 text-[10px] font-label font-semibold uppercase tracking-wider">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (item of sale.items; track item.id) {
+                                  <tr class="border-t border-outline-variant/40">
+                                    <td class="py-2 text-sm font-body text-on-surface">{{ itemName(item) }}</td>
+                                    <td class="py-2 text-sm font-body text-on-surface-variant">{{ itemBrand(item) }}</td>
+                                    <td class="py-2 text-sm font-body text-on-surface-variant">{{ itemSizeColor(item) }}</td>
+                                    <td class="py-2 text-sm font-body text-on-surface-variant text-right">{{ item.quantity }}</td>
+                                    <td class="py-2 text-sm font-body text-on-surface-variant text-right">{{ formatCurrency(num(item.unitPrice)) }}</td>
+                                    <td class="py-2 text-sm font-body font-medium text-on-surface text-right">{{ formatCurrency(num(item.total)) }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          } @else {
+                            <p class="text-sm font-body text-on-surface-variant/60 italic">Item details not available for this sale.</p>
+                          }
+                        </td>
+                      </tr>
+                    }
                   }
                 </tbody>
               </table>
