@@ -30,19 +30,14 @@
         Print Receipt
       </button>
       @if (canReturn) {
-        <button
-          (click)="openExchangeDialog()"
-          class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant bg-surface-container-high/50 border border-outline-variant/20 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer"
-        >
-          <span class="material-symbols-outlined text-lg">swap_horiz</span>
-          Exchange
-        </button>
+        <!-- Exchanges are handled at the POS counter (return credited against a
+             new purchase). The Sales tab keeps refund-style returns. -->
         <button
           (click)="openReturnDialog()"
           class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-error-container/80 text-on-error-container rounded-xl hover:bg-error-container transition-colors cursor-pointer"
         >
           <span class="material-symbols-outlined text-lg">undo</span>
-          Process Return
+          Process Return / Refund
         </button>
       }
     </div>

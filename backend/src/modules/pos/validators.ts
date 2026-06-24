@@ -26,6 +26,9 @@ export const checkoutSchema = z.object({
       )
       .min(1, 'At least one item is required'),
     customerId: z.number().int().positive().optional(),
+    // Usually ≥1 payment, but an even exchange (return credit exactly covers
+    // the new purchase) settles at ₹0 with no tender. The service validates
+    // that payments actually cover the net payable, so empty is safe.
     payments: z
       .array(
         z.object({
@@ -33,14 +36,32 @@ export const checkoutSchema = z.object({
           amount: z.number().positive(),
           referenceNumber: z.string().optional(),
         })
-      )
-      .min(1, 'At least one payment is required'),
+      ),
     // Negative values are allowed to accommodate round-up surcharges
     // (the cashier bumps the total to the next ₹10). Capped at ₹10 on
     // the negative side so a stray sign can't turn into a huge surcharge.
     discountAmount: z.number().gte(-10).optional(),
     loyaltyPointsRedeem: z.number().int().min(0).optional(),
     notes: z.string().optional(),
+    // Optional exchange: goods returned from a previous sale, credited against
+    // this purchase. The new items are `items` above (scanned as normal). The
+    // backend computes the return credit and the customer pays the difference.
+    // A net refund (credit > purchase) is rejected — handle it in the Sales tab.
+    exchange: z
+      .object({
+        originalSaleId: z.number().int().positive(),
+        returnItems: z
+          .array(
+            z.object({
+              saleItemId: z.number().int().positive(),
+              quantity: z.number().int().positive(),
+              condition: z.enum(['resellable', 'damaged']),
+            })
+          )
+          .min(1, 'At least one return item is required'),
+        reason: z.string().optional(),
+      })
+      .optional(),
   }),
 });
 

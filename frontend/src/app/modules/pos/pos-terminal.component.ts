@@ -217,6 +217,26 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   showBillsPanel = false;
   billsLoading = false;
 
+  // ─── Exchange (goods returned, credited against this purchase) ───
+  // The new items are the normal cart (scanned by barcode). The returned
+  // goods come from a previous bill; their value offsets the amount due.
+  // A net refund (return worth more than the cart) is blocked → Sales tab.
+  exchangeSale: { id: number; saleNumber: string } | null = null;
+  exchangeItems: Array<{
+    saleItemId: number;
+    productName: string;
+    size: string;
+    color: string;
+    available: number;
+    quantity: number;
+    condition: 'resellable' | 'damaged';
+    unitPrice: number;
+    selected: boolean;
+  }> = [];
+  showExchangePanel = false;
+  exchangeLookupQuery = '';
+  exchangeLoading = false;
+
   constructor(
     private api: ApiService,
     private notify: NotificationService,
@@ -911,9 +931,32 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     return this.tenders.reduce((sum, t) => sum + t.amount, 0);
   }
 
+  /** ₹ value of the goods being returned in this exchange (selected lines). */
+  get exchangeCredit(): number {
+    if (!this.exchangeSale) return 0;
+    return (
+      Math.round(
+        this.exchangeItems
+          .filter((i) => i.selected)
+          .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0) * 100
+      ) / 100
+    );
+  }
+
+  /** True when the returned goods are worth more than the new purchase —
+   *  POS can't refund the difference, so checkout is blocked (→ Sales tab). */
+  get exchangeRefundOwed(): boolean {
+    return this.exchangeCredit > this.total + 0.0001;
+  }
+
+  /** What the customer actually pays = bill total minus the exchange credit. */
+  get netPayable(): number {
+    return Math.max(0, Math.round((this.total - this.exchangeCredit) * 100) / 100);
+  }
+
   /** How much is still owed. Clamped at zero so the UI never shows negative. */
   get remaining(): number {
-    return Math.max(0, Math.round((this.total - this.amountPaid) * 100) / 100);
+    return Math.max(0, Math.round((this.netPayable - this.amountPaid) * 100) / 100);
   }
 
   /**
@@ -940,7 +983,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   get canCheckout(): boolean {
     if (this.cart.length === 0) return false;
     if (this.checkoutLoading) return false;
-    return this.amountPaid + 0.0001 >= this.total;
+    // Refunds are handled in the Sales tab, not POS.
+    if (this.exchangeRefundOwed) return false;
+    return this.amountPaid + 0.0001 >= this.netPayable;
   }
 
   // ─── Tender management ──────────────────────────────────────────
@@ -1025,6 +1070,21 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.selectedCustomer?.loyaltyPoints ?? 0);
     if (redeemPts > 0) body.loyaltyPointsRedeem = redeemPts;
 
+    // Exchange — returned goods credited against this purchase.
+    const returnSelections = this.exchangeSale
+      ? this.exchangeItems.filter((i) => i.selected && i.quantity > 0)
+      : [];
+    if (this.exchangeSale && returnSelections.length > 0) {
+      body.exchange = {
+        originalSaleId: this.exchangeSale.id,
+        returnItems: returnSelections.map((i) => ({
+          saleItemId: i.saleItemId,
+          quantity: i.quantity,
+          condition: i.condition,
+        })),
+      };
+    }
+
     this.api
       .post<ApiResponse<any>>('/pos/checkout', body)
       .pipe(takeUntil(this.destroy$))
@@ -1062,6 +1122,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.customerId = null;
     this.selectedCustomer = null;
     this.customerSearchQuery = '';
+    this.exchangeSale = null;
+    this.exchangeItems = [];
+    this.exchangeLookupQuery = '';
+    this.showExchangePanel = false;
   }
 
   closeSearchResults(): void {
@@ -1186,6 +1250,79 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   viewBill(sale: any): void {
     this.router.navigate(['/sales', sale.saleNumber || sale.id]);
+  }
+
+  // ─── Exchange ─────────────────────────────────────────────────────
+
+  /** Open the exchange panel. If no bill is loaded yet it shows a
+   *  scan/type-bill-number box; the Bills panel can also start one directly. */
+  openExchangePanel(): void {
+    this.showExchangePanel = true;
+  }
+
+  /** Load a previous bill's items for return selection. Accepts a numeric id
+   *  or a bill number (e.g. "SL-..."), so it works from the Bills panel and
+   *  from a scanned/typed receipt number alike. */
+  startExchange(saleIdOrNumber: number | string): void {
+    this.exchangeLoading = true;
+    this.api.get<ApiResponse<any>>(`/sales/${saleIdOrNumber}`).subscribe({
+      next: (res) => {
+        const sale = res.data;
+        this.exchangeLoading = false;
+        if (!sale) {
+          this.notify.error('Bill not found');
+          return;
+        }
+        const items = (sale.items || [])
+          .map((it: any) => {
+            const available = (it.quantity || 0) - (it.returnedQuantity || 0);
+            return {
+              saleItemId: it.id,
+              productName: it.variant?.product?.name || it.productName || 'Item',
+              size: it.variant?.size || '-',
+              color: it.variant?.color || '-',
+              available,
+              quantity: available,
+              condition: 'resellable' as const,
+              unitPrice: Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
+              selected: false,
+            };
+          })
+          .filter((i: any) => i.available > 0);
+
+        if (items.length === 0) {
+          this.notify.error('Nothing left to return on this bill');
+          return;
+        }
+        this.exchangeSale = { id: sale.id, saleNumber: sale.saleNumber };
+        this.exchangeItems = items;
+        this.exchangeLookupQuery = '';
+        this.showBillsPanel = false;
+        this.showExchangePanel = true;
+      },
+      error: (err) => {
+        this.exchangeLoading = false;
+        this.notify.error(err.error?.error || 'Bill not found');
+      },
+    });
+  }
+
+  lookupExchangeBill(): void {
+    const q = this.exchangeLookupQuery.trim();
+    if (q) this.startExchange(q);
+  }
+
+  clampExchangeQty(item: { quantity: number; available: number }): void {
+    if (!item.quantity || item.quantity < 1) item.quantity = 1;
+    if (item.quantity > item.available) item.quantity = item.available;
+  }
+
+  /** Drop the whole exchange — back to a plain sale. */
+  cancelExchange(): void {
+    this.exchangeSale = null;
+    this.exchangeItems = [];
+    this.exchangeLookupQuery = '';
+    this.showExchangePanel = false;
   }
 
   heldCustomerName(held: any): string {

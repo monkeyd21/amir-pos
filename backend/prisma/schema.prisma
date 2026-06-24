@@ -412,6 +412,13 @@ model Sale {
   total                Decimal    @db.Decimal(10, 2)
   loyaltyPointsEarned  Int        @default(0)
   loyaltyPointsRedeemed Int       @default(0)
+  // When this sale settled part of its value with an exchange credit (goods
+  // returned at the counter against the new purchase), the credited amount is
+  // stored here and `exchangeReturnId` points at the originating Return.
+  // sale.total stays the full new-items value (correct GST); the customer's
+  // recorded payments cover only (total − exchangeCreditAmount).
+  exchangeCreditAmount Decimal?   @default(0) @db.Decimal(10, 2)
+  exchangeReturnId     Int?
   notes                String?
   createdAt            DateTime   @default(now())
 

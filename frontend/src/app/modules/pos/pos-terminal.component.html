@@ -56,6 +56,17 @@
           <span>Bills</span>
         </button>
 
+        <!-- Exchange -->
+        <button
+          (click)="openExchangePanel()"
+          class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+          [class]="exchangeSale ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'"
+          title="Exchange against a previous bill"
+        >
+          <span class="material-symbols-outlined text-base">swap_horiz</span>
+          <span>Exchange</span>
+        </button>
+
         <!-- User -->
         @if (currentUser) {
           <span class="text-xs text-on-surface-variant">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
@@ -648,6 +659,35 @@
                 <span class="text-on-surface font-bold text-lg font-headline">Total</span>
                 <span class="text-primary font-headline font-extrabold text-2xl">{{ formatCurrency(total) }}</span>
               </div>
+
+              <!-- Exchange credit applied -->
+              @if (exchangeSale && exchangeCredit > 0) {
+                <div class="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <button (click)="openExchangePanel()" class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 hover:underline">
+                      <span class="material-symbols-outlined text-sm">swap_horiz</span>
+                      Exchange vs {{ exchangeSale.saleNumber }}
+                    </button>
+                    <button (click)="cancelExchange()" class="text-on-surface-variant/50 hover:text-error" title="Remove exchange">
+                      <span class="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                  <div class="flex justify-between text-sm">
+                    <span class="text-on-surface-variant">Return credit</span>
+                    <span class="text-amber-400 font-medium">&minus;{{ formatCurrency(exchangeCredit) }}</span>
+                  </div>
+                  @if (exchangeRefundOwed) {
+                    <p class="text-[11px] text-error leading-snug">
+                      Return is worth more than the purchase. Refunds aren't done in POS — process this in the <span class="font-semibold">Sales</span> tab.
+                    </p>
+                  } @else {
+                    <div class="flex justify-between pt-1 border-t border-amber-500/20">
+                      <span class="text-on-surface font-bold font-headline">Net payable</span>
+                      <span class="text-amber-300 font-headline font-extrabold text-xl">{{ formatCurrency(netPayable) }}</span>
+                    </div>
+                  }
+                </div>
+              }
             </div>
           </div>
 
@@ -657,7 +697,7 @@
               <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant">Payment</h2>
               @if (tenders.length > 0) {
                 <span class="text-[10px] font-mono text-on-surface-variant/70">
-                  Paid {{ formatCurrency(amountPaid) }} / {{ formatCurrency(total) }}
+                  Paid {{ formatCurrency(amountPaid) }} / {{ formatCurrency(netPayable) }}
                 </span>
               }
             </div>
@@ -814,9 +854,9 @@
               <span>Processing...</span>
             } @else {
               <span class="material-symbols-outlined text-xl">shopping_cart_checkout</span>
-              <span>Complete Sale</span>
-              @if (total > 0) {
-                <span class="ml-1 opacity-70">&mdash; {{ formatCurrency(total) }}</span>
+              <span>{{ exchangeSale ? 'Complete Exchange' : 'Complete Sale' }}</span>
+              @if (netPayable > 0) {
+                <span class="ml-1 opacity-70">&mdash; {{ formatCurrency(netPayable) }}</span>
               }
             }
           </button>
@@ -909,6 +949,9 @@
                   </p>
                   <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'d MMM, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
                 </div>
+                <button (click)="startExchange(sale.id)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors" title="Exchange against this bill">
+                  <span class="material-symbols-outlined text-base">swap_horiz</span>
+                </button>
                 <button (click)="reprintBill(sale, $event)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-container/20 text-primary text-[11px] font-bold hover:bg-primary-container/30 transition-colors" title="Reprint receipt">
                   <span class="material-symbols-outlined text-base">print</span>
                 </button>
@@ -918,6 +961,95 @@
               </div>
             }
           </div>
+        </div>
+      </div>
+    }
+
+    <!-- ═══ Exchange slide-over ═══ -->
+    @if (showExchangePanel) {
+      <div class="fixed inset-0 z-[9000] flex justify-end" (click)="showExchangePanel = false">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-md h-full bg-surface-container shadow-2xl flex flex-col" (click)="$event.stopPropagation()">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10 shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-amber-400">swap_horiz</span>
+              <h2 class="text-on-surface font-headline font-bold">Exchange</h2>
+            </div>
+            <button (click)="showExchangePanel = false" class="text-on-surface-variant hover:text-on-surface">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-4 space-y-3">
+            <!-- Bill lookup (scan or type) -->
+            @if (!exchangeSale) {
+              <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+                Scan or type the bill number of the original purchase, or open <span class="font-semibold">Bills</span> and hit Exchange on a bill.
+              </p>
+              <div class="flex gap-2">
+                <input
+                  [(ngModel)]="exchangeLookupQuery"
+                  (keyup.enter)="lookupExchangeBill()"
+                  placeholder="Bill no. e.g. SL-..."
+                  class="flex-1 bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm px-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                  autocomplete="off"
+                />
+                <button (click)="lookupExchangeBill()" [disabled]="exchangeLoading || !exchangeLookupQuery.trim()" class="px-4 rounded-lg bg-primary-container text-on-primary-container text-sm font-bold disabled:opacity-40">
+                  Find
+                </button>
+              </div>
+              @if (exchangeLoading) {
+                <div class="flex justify-center py-8"><div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div></div>
+              }
+            } @else {
+              <!-- Returnable items from the original bill -->
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-on-surface-variant">Returning against <span class="font-semibold text-on-surface">{{ exchangeSale.saleNumber }}</span></p>
+                <button (click)="cancelExchange()" class="text-[11px] text-error hover:underline">Remove</button>
+              </div>
+              @for (it of exchangeItems; track it.saleItemId) {
+                <div class="p-3 rounded-xl border transition-colors"
+                  [class]="it.selected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-surface-container-high/40 border-outline-variant/10'">
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" [(ngModel)]="it.selected" class="mt-1 accent-amber-500 w-4 h-4" />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-on-surface truncate">{{ it.productName }}</p>
+                      <p class="text-[11px] text-on-surface-variant">{{ it.size }} / {{ it.color }} · {{ formatCurrency(it.unitPrice) }} each · {{ it.available }} returnable</p>
+                    </div>
+                  </label>
+                  @if (it.selected) {
+                    <div class="flex items-center gap-3 mt-3 pl-7">
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] text-on-surface-variant">Qty</span>
+                        <input type="number" min="1" [max]="it.available" [(ngModel)]="it.quantity" (ngModelChange)="clampExchangeQty(it)"
+                          class="w-14 bg-surface-container-lowest border border-outline-variant/20 text-on-surface text-sm text-center px-2 py-1 rounded-md outline-none" />
+                      </div>
+                      <select [(ngModel)]="it.condition" class="text-xs bg-surface-container-lowest border border-outline-variant/20 text-on-surface px-2 py-1.5 rounded-md outline-none">
+                        <option value="resellable">Resellable (restock)</option>
+                        <option value="damaged">Damaged (no restock)</option>
+                      </select>
+                      <span class="ml-auto text-sm font-semibold text-amber-400">{{ formatCurrency(it.unitPrice * it.quantity) }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            }
+          </div>
+
+          @if (exchangeSale) {
+            <div class="px-5 py-4 border-t border-outline-variant/10 shrink-0 space-y-3">
+              <div class="flex justify-between text-sm">
+                <span class="text-on-surface-variant">Total return credit</span>
+                <span class="font-bold text-amber-400">{{ formatCurrency(exchangeCredit) }}</span>
+              </div>
+              @if (cart.length === 0) {
+                <p class="text-[11px] text-on-surface-variant/70 leading-snug">Now scan the new item(s) into the cart. The credit is applied against them.</p>
+              }
+              <button (click)="showExchangePanel = false" class="w-full py-2.5 rounded-lg bg-primary-container text-on-primary-container text-sm font-bold">
+                Done — back to cart
+              </button>
+            </div>
+          }
         </div>
       </div>
     }

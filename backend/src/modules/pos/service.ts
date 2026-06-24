@@ -107,6 +107,11 @@ export class PosService {
       discountAmount?: number;
       loyaltyPointsRedeem?: number;
       notes?: string;
+      exchange?: {
+        originalSaleId: number;
+        returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
+        reason?: string;
+      };
     },
     userId: number,
     branchId: number
@@ -370,12 +375,146 @@ export class PosService {
         throw new AppError('Discount exceeds sale total', 400);
       }
 
-      // 5. Validate payments cover the total
+      // 4b. Exchange — return goods from a prior sale and credit the value
+      // against THIS purchase. The returned items are restocked and a Return
+      // record is created here, inside the same transaction as the new sale,
+      // so the swap is atomic. The new sale keeps its full value (correct GST);
+      // the customer only pays (saleTotal − exchangeCredit).
+      let exchangeCredit = 0;
+      let exchangeReturnId: number | null = null;
+      let exchangeOriginalNumber: string | null = null;
+
+      if (data.exchange) {
+        const orig = await tx.sale.findUnique({
+          where: { id: data.exchange.originalSaleId },
+          include: { items: true },
+        });
+        if (!orig) throw new AppError('Original sale for the exchange was not found', 404);
+        if (orig.status === 'void') throw new AppError('Cannot exchange against a voided sale', 400);
+        exchangeOriginalNumber = orig.saleNumber;
+
+        const origItems = new Map(orig.items.map((i) => [i.id, i]));
+        let returnSubtotal = 0;
+        let returnTax = 0;
+        const restock: Array<{
+          saleItemId: number;
+          variantId: number;
+          quantity: number;
+          unitPrice: number;
+          condition: 'resellable' | 'damaged';
+        }> = [];
+
+        for (const ri of data.exchange.returnItems) {
+          const si = origItems.get(ri.saleItemId);
+          if (!si) {
+            throw new AppError(`Return item ${ri.saleItemId} is not part of sale ${orig.saleNumber}`, 400);
+          }
+          const available = si.quantity - si.returnedQuantity;
+          if (ri.quantity > available) {
+            throw new AppError(
+              `Cannot return ${ri.quantity} of that line — only ${available} left to return.`,
+              400
+            );
+          }
+          // Credit at the price actually paid per unit (effective price honours
+          // any offer the original line had). MRP is tax-inclusive, so the
+          // credit IS the line subtotal.
+          const unit = Number(si.effectiveUnitPrice ?? si.unitPrice);
+          returnSubtotal += unit * ri.quantity;
+          returnTax += (Number(si.taxAmount) / si.quantity) * ri.quantity;
+          restock.push({
+            saleItemId: si.id,
+            variantId: si.variantId,
+            quantity: ri.quantity,
+            unitPrice: unit,
+            condition: ri.condition,
+          });
+        }
+
+        exchangeCredit = Math.round(returnSubtotal * 100) / 100;
+
+        // Refunds are handled in the Sales tab, not POS. If the returned goods
+        // are worth more than the new purchase, stop and tell the cashier.
+        if (exchangeCredit > saleTotal) {
+          throw new AppError(
+            `Return value ₹${exchangeCredit.toFixed(2)} is more than the new purchase ₹${saleTotal.toFixed(2)}. ` +
+              `Process this as a refund in the Sales tab instead.`,
+            400
+          );
+        }
+
+        const returnNumber = generateNumber('RT');
+        const returnRecord = await tx.return.create({
+          data: {
+            originalSaleId: orig.id,
+            branchId,
+            userId,
+            returnNumber,
+            type: 'exchange',
+            reason: data.exchange.reason || 'Exchange at POS',
+            subtotal: exchangeCredit,
+            taxAmount: Math.round(returnTax * 100) / 100,
+            total: exchangeCredit,
+            status: 'completed',
+            items: {
+              create: restock.map((r) => ({
+                saleItemId: r.saleItemId,
+                variantId: r.variantId,
+                quantity: r.quantity,
+                unitPrice: r.unitPrice,
+                condition: r.condition,
+              })),
+            },
+          },
+        });
+        exchangeReturnId = returnRecord.id;
+
+        for (const r of restock) {
+          await tx.saleItem.update({
+            where: { id: r.saleItemId },
+            data: { returnedQuantity: { increment: r.quantity } },
+          });
+          if (r.condition === 'resellable') {
+            await tx.inventory.upsert({
+              where: { variantId_branchId: { variantId: r.variantId, branchId } },
+              update: { quantity: { increment: r.quantity } },
+              create: { variantId: r.variantId, branchId, quantity: r.quantity },
+            });
+            await tx.inventoryMovement.create({
+              data: {
+                variantId: r.variantId,
+                branchId,
+                type: MovementType.return,
+                quantity: r.quantity,
+                referenceId: returnRecord.id,
+                referenceType: 'return',
+                createdBy: userId,
+              },
+            });
+          }
+        }
+
+        // Roll the original sale's status forward.
+        const updated = await tx.saleItem.findMany({ where: { saleId: orig.id } });
+        const allReturned = updated.every((i) => i.returnedQuantity >= i.quantity);
+        const someReturned = updated.some((i) => i.returnedQuantity > 0);
+        await tx.sale.update({
+          where: { id: orig.id },
+          data: {
+            status: allReturned ? 'returned' : someReturned ? 'partially_returned' : orig.status,
+          },
+        });
+      }
+
+      const netPayable = Math.round((saleTotal - exchangeCredit) * 100) / 100;
+
+      // 5. Validate payments cover what the customer actually owes (net of any
+      // exchange credit).
       const totalPayments = data.payments.reduce((sum, p) => sum + p.amount, 0);
 
-      if (totalPayments < saleTotal) {
+      if (totalPayments < netPayable) {
         throw new AppError(
-          `Payment shortfall. Total: ${saleTotal}, Paid: ${totalPayments}`,
+          `Payment shortfall. Payable: ${netPayable}, Paid: ${totalPayments}`,
           400
         );
       }
@@ -404,7 +543,11 @@ export class PosService {
           discountAmount: totalDiscount,
           total: saleTotal,
           loyaltyPointsRedeemed: data.loyaltyPointsRedeem || 0,
-          notes: data.notes,
+          exchangeCreditAmount: exchangeCredit,
+          exchangeReturnId,
+          notes: exchangeOriginalNumber
+            ? `${data.notes ? data.notes + ' | ' : ''}Exchange credit ₹${exchangeCredit.toFixed(2)} vs ${exchangeOriginalNumber}`
+            : data.notes,
           items: {
             create: itemsForCreation,
           },
@@ -470,7 +613,9 @@ export class PosService {
           const pointsPer = loyaltyConfig.pointsPerAmount;
           const amountPer = loyaltyConfig.amountPerPoint;
 
-          pointsEarned = Math.floor((saleTotal / amountPer) * pointsPer * multiplier);
+          // Earn on what the customer actually paid (net of any exchange
+          // credit) so a swap doesn't hand out points for value returned.
+          pointsEarned = Math.floor((Math.max(0, netPayable) / amountPer) * pointsPer * multiplier);
         }
 
         // Deduct redeemed points and add earned points
@@ -480,7 +625,7 @@ export class PosService {
           where: { id: data.customerId },
           data: {
             visitCount: { increment: 1 },
-            totalSpent: { increment: saleTotal },
+            totalSpent: { increment: Math.max(0, netPayable) },
             loyaltyPoints: { increment: pointsDelta },
           },
         });
@@ -519,8 +664,9 @@ export class PosService {
         sale.loyaltyPointsEarned = pointsEarned;
       }
 
-      // 10. Calculate change for cash payments
-      const change = Math.round((totalPayments - saleTotal) * 100) / 100;
+      // 10. Calculate change — against what the customer owed (net of any
+      // exchange credit), so an overpayment in cash returns the right change.
+      const change = Math.round((totalPayments - netPayable) * 100) / 100;
 
       return { sale, change };
     });
