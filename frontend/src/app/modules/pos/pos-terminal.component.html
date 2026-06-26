@@ -590,6 +590,7 @@
                         appNoSpin
                         type="number"
                         [(ngModel)]="discountValue"
+                        (ngModelChange)="reclampTenders()"
                         min="0"
                         [max]="discountMode === 'percent' ? 100 : discountBase"
                         placeholder="0"
@@ -617,6 +618,7 @@
                     appNoSpin
                     type="number"
                     [(ngModel)]="specialDiscount"
+                    (ngModelChange)="reclampTenders()"
                     min="0"
                     placeholder="0"
                     class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-6 pr-2 py-2 rounded-lg transition-all outline-none"
@@ -626,21 +628,22 @@
 
               <!-- Loyalty points redemption -->
               @if (selectedCustomer && selectedCustomer.loyaltyPoints > 0) {
-                @if (selectedCustomer.loyaltyPoints >= loyaltyMinRedeem) {
+                @if (loyaltyRedeemable > 0) {
                   <div class="space-y-1.5">
                     <div class="flex items-center justify-between gap-3">
                       <span class="flex items-center gap-1.5 text-sm text-on-surface-variant">
                         <span class="material-symbols-outlined text-sm text-amber-400">stars</span>
                         Redeem Points
-                        <span class="text-[10px] font-mono text-on-surface-variant/60">({{ selectedCustomer.loyaltyPoints }} avail)</span>
+                        <span class="text-[10px] font-mono text-on-surface-variant/60">({{ loyaltyRedeemable }} redeemable)</span>
                       </span>
                       <div class="relative w-24">
                         <input
                           appNoSpin
                           type="number"
                           [(ngModel)]="loyaltyPointsRedeem"
+                          (ngModelChange)="reclampTenders()"
                           min="0"
-                          [max]="selectedCustomer.loyaltyPoints"
+                          [max]="loyaltyRedeemable"
                           placeholder="0"
                           class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-2 pr-6 py-2 rounded-lg transition-all outline-none"
                         />
@@ -652,12 +655,12 @@
                         <span class="text-[11px] text-amber-400 font-mono">&equals; &minus;{{ formatCurrency(loyaltyDiscount) }}</span>
                       </div>
                     }
-                    <p class="text-[9px] text-on-surface-variant/50">1 point = {{ formatCurrency(loyaltyRedemptionValue) }} &middot; min {{ loyaltyMinRedeem }} pts</p>
+                    <p class="text-[9px] text-on-surface-variant/50">1 point = {{ formatCurrency(loyaltyRedemptionValue) }} &middot; {{ selectedCustomer.loyaltyPoints }} pts, keep min {{ loyaltyMinRedeem }}</p>
                   </div>
                 } @else {
                   <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/50">
                     <span class="material-symbols-outlined text-sm">stars</span>
-                    {{ selectedCustomer.loyaltyPoints }} pts (need {{ loyaltyMinRedeem }} to redeem)
+                    {{ selectedCustomer.loyaltyPoints }} pts — none redeemable (must keep min {{ loyaltyMinRedeem }})
                   </div>
                 }
               }

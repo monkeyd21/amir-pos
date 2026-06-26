@@ -318,12 +318,17 @@ export class PosService {
           );
         }
 
-        // Get loyalty config for redemption value + minimum threshold
+        // Get loyalty config for redemption value + minimum retained balance.
+        // The customer must ALWAYS keep `minRedeem` points — only the excess is
+        // redeemable (not "redeem all once you cross the threshold").
         const loyaltyConfig = await tx.loyaltyConfig.findFirst();
         const minRedeem = loyaltyConfig?.minRedeemPoints ?? 100;
-        if (customer.loyaltyPoints < minRedeem) {
+        const redeemable = Math.max(0, customer.loyaltyPoints - minRedeem);
+        if (data.loyaltyPointsRedeem > redeemable) {
           throw new AppError(
-            `Minimum ${minRedeem} points required to redeem. Customer has ${customer.loyaltyPoints}.`,
+            redeemable === 0
+              ? `No redeemable points — a minimum balance of ${minRedeem} must be kept (customer has ${customer.loyaltyPoints}).`
+              : `Can redeem at most ${redeemable} points — a minimum balance of ${minRedeem} must be kept.`,
             400
           );
         }

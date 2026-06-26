@@ -23,7 +23,12 @@ import { OfflineService } from '../../core/services/offline.service';
  */
 interface Tender {
   method: 'cash' | 'card' | 'upi';
+  /** Amount of this tender actually APPLIED to the bill — derived, re-fit
+   *  whenever the bill total changes (e.g. a discount entered after tendering). */
   amount: number;
+  /** What the customer handed over for this method. `amount` ≤ `received`;
+   *  for cash the difference is change. Stays fixed; `amount` is recomputed. */
+  received: number;
   cashReceived?: number;
   // Bank/account name for card/UPI tenders, captured for reconciliation.
   identifier?: string;
@@ -416,6 +421,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
               item.excludeFromDiscount = !!line.qualified;
             }
           }
+          // Offers just changed the total — re-fit any tenders already entered.
+          this.reclampTenders();
         },
         error: () => {
           // Silent — don't spam the user. The cart still works without offer info.
@@ -966,12 +973,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    * a multiple of ₹10 (the customer pays a tiny surcharge, e.g. ₹7, so the
    * total becomes a clean ₹2760 instead of ₹2753).
    */
-  /** Rs. value of loyalty points being redeemed */
+  /**
+   * Points the customer may redeem = balance − the minimum that must always
+   * stay in the account. Only the excess is spendable (not "all once eligible").
+   */
+  get loyaltyRedeemable(): number {
+    return Math.max(0, (this.selectedCustomer?.loyaltyPoints ?? 0) - this.loyaltyMinRedeem);
+  }
+
+  /** Rs. value of loyalty points being redeemed (capped at the redeemable excess). */
   get loyaltyDiscount(): number {
     const pts = this.loyaltyPointsRedeem ?? 0;
     if (pts <= 0) return 0;
-    const available = this.selectedCustomer?.loyaltyPoints ?? 0;
-    const clamped = Math.min(pts, available);
+    const clamped = Math.min(pts, this.loyaltyRedeemable);
     return clamped * this.loyaltyRedemptionValue;
   }
 
@@ -993,15 +1007,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   applyRoundDown(): void {
     this.roundMode = 'down';
+    this.reclampTenders();
   }
 
   /** Round up to the nearest ₹10. */
   applyRoundUp(): void {
     this.roundMode = 'up';
+    this.reclampTenders();
   }
 
   clearRoundOff(): void {
     this.roundMode = 'none';
+    this.reclampTenders();
   }
 
   setDiscountMode(mode: 'amount' | 'percent'): void {
@@ -1012,6 +1029,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // against the old discount amount.
     this.discountValue = null;
     this.roundMode = 'none';
+    this.reclampTenders();
   }
 
   /**
@@ -1136,24 +1154,25 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   addTender(): void {
     if (this.remaining <= 0) return;
-    const entered = this.effectivePendingAmount;
+    const entered = Math.round((this.effectivePendingAmount || 0) * 100) / 100;
     if (!entered || entered <= 0) return;
 
     if (this.pendingMethod === 'cash') {
-      const covering = Math.min(entered, this.remaining);
       this.tenders.push({
         method: 'cash',
-        amount: Math.round(covering * 100) / 100,
-        cashReceived: Math.round(entered * 100) / 100,
+        amount: 0, // set by reclampTenders()
+        received: entered,
+        cashReceived: entered,
       });
     } else {
-      const capped = Math.min(entered, this.remaining);
       this.tenders.push({
         method: this.pendingMethod,
-        amount: Math.round(capped * 100) / 100,
+        amount: 0,
+        received: entered,
         identifier: this.pendingIdentifier.trim() || undefined,
       });
     }
+    this.reclampTenders();
 
     // Reset the pending entry so the next add-tender starts fresh.
     // Snap the method back to cash — the remaining balance always defaults to
@@ -1165,8 +1184,24 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.pendingIdentifier = '';
   }
 
+  /**
+   * Re-fit every tender's APPLIED amount to the current bill, in the order they
+   * were added. Fixes the "discount entered after tendering" case: when the
+   * total drops, the cash that over-covers becomes change instead of staying
+   * frozen at the old (higher) applied amount.
+   */
+  reclampTenders(): void {
+    let bill = Math.max(0, Math.round((this.netPayable - this.voucherTotal) * 100) / 100);
+    for (const t of this.tenders) {
+      const applied = Math.max(0, Math.min(t.received, bill));
+      t.amount = Math.round(applied * 100) / 100;
+      bill = Math.round((bill - applied) * 100) / 100;
+    }
+  }
+
   removeTender(index: number): void {
     this.tenders.splice(index, 1);
+    this.reclampTenders();
   }
 
   /** Look up a voucher by code and apply it, capped at the remaining balance
@@ -1196,6 +1231,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         const amount = Math.min(balance, this.remaining);
         this.voucherTenders.push({ code, amount: Math.round(amount * 100) / 100, balance });
         this.pendingVoucherCode = '';
+        this.reclampTenders();
       },
       error: (err) => {
         this.voucherLookupLoading = false;
@@ -1206,6 +1242,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   removeVoucher(index: number): void {
     this.voucherTenders.splice(index, 1);
+    this.reclampTenders();
   }
 
   /**
@@ -1272,7 +1309,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.manualDiscount !== 0) body.discountAmount = this.manualDiscount;
     if (this.customerId) body.customerId = this.customerId;
     // Loyalty points redeemed — separate from manual discount
-    const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.selectedCustomer?.loyaltyPoints ?? 0);
+    const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.loyaltyRedeemable);
     if (redeemPts > 0) body.loyaltyPointsRedeem = redeemPts;
 
     // Exchange — returned goods credited against this purchase.

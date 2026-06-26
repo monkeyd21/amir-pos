@@ -15,6 +15,7 @@ export class LoyaltyService {
     pointsPerAmount?: number;
     amountPerPoint?: number;
     redemptionValue?: number;
+    minRedeemPoints?: number;
     tierThresholds?: Record<string, number>;
     earningMultipliers?: Record<string, number>;
   }) {
@@ -29,6 +30,7 @@ export class LoyaltyService {
         ...(data.pointsPerAmount !== undefined && { pointsPerAmount: data.pointsPerAmount }),
         ...(data.amountPerPoint !== undefined && { amountPerPoint: data.amountPerPoint }),
         ...(data.redemptionValue !== undefined && { redemptionValue: data.redemptionValue }),
+        ...(data.minRedeemPoints !== undefined && { minRedeemPoints: data.minRedeemPoints }),
         ...(data.tierThresholds !== undefined && { tierThresholds: data.tierThresholds }),
         ...(data.earningMultipliers !== undefined && { earningMultipliers: data.earningMultipliers }),
       },

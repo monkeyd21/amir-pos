@@ -5,6 +5,9 @@ export const updateConfigSchema = z.object({
     pointsPerAmount: z.number().int().positive().optional(),
     amountPerPoint: z.number().int().positive().optional(),
     redemptionValue: z.number().positive().optional(),
+    // Minimum points balance to be eligible to redeem. Was missing here, so the
+    // validator silently stripped it and the setting never persisted.
+    minRedeemPoints: z.number().int().min(0).optional(),
     tierThresholds: z
       .object({
         silver: z.number().int().positive(),
