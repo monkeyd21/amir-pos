@@ -116,7 +116,9 @@ export class SalesService {
         size: variant.size,
         color: variant.color,
         available: si.quantity - si.returnedQuantity,
-        unitPrice: Number(si.effectiveUnitPrice ?? si.unitPrice),
+        // Show the price actually paid per unit (net of every discount), so the
+        // exchange panel credits 3.6k for a 4k item sold at 10% off — not 4k.
+        unitPrice: Math.round((Number(si.total) / si.quantity) * 100) / 100,
       }));
 
     return {
@@ -678,8 +680,10 @@ export class SalesService {
           );
         }
 
-        // See comment in `processReturn` — refund at effectiveUnitPrice when offer applied.
-        const unitPrice = Number(saleItem.effectiveUnitPrice ?? saleItem.unitPrice);
+        // Credit the actual paid-per-unit (SaleItem.total nets out every
+        // discount — offer + manual + loyalty), not the shelf/effective price.
+        // Matches processReturn; fixes over-crediting a manually-discounted item.
+        const unitPrice = Math.round((Number(saleItem.total) / saleItem.quantity) * 100) / 100;
         const itemSubtotal = unitPrice * item.quantity;
         const itemTax = (Number(saleItem.taxAmount) / saleItem.quantity) * item.quantity;
 

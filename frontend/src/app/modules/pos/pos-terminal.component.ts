@@ -1543,7 +1543,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
               // its qty to 1; otherwise default to all returnable.
               quantity: preselected ? 1 : available,
               condition: 'resellable' as const,
-              unitPrice: Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
+              // Credit the actual paid-per-unit (line total ÷ qty, net of every
+              // discount), not MRP/effective — so a 10%-off 4k item credits 3.6k.
+              unitPrice:
+                it.total != null && it.quantity
+                  ? Number(it.total) / it.quantity
+                  : Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
               selected: preselected,
             };
           })

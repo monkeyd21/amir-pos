@@ -526,10 +526,12 @@ export class PosService {
               400
             );
           }
-          // Credit at the price actually paid per unit (effective price honours
-          // any offer the original line had). MRP is tax-inclusive, so the
-          // credit IS the line subtotal.
-          const unit = Number(si.effectiveUnitPrice ?? si.unitPrice);
+          // Credit the price the customer ACTUALLY paid per unit. SaleItem.total
+          // nets out every discount — the offer AND the apportioned bill-level
+          // manual discount AND loyalty — so (total / quantity) is the true paid
+          // amount. (effectiveUnitPrice only reflected offers, so a manually
+          // discounted item was over-credited at near-MRP — the 4k-vs-3.6k bug.)
+          const unit = Number(si.total) / si.quantity;
           returnSubtotal += unit * ri.quantity;
           returnTax += (Number(si.taxAmount) / si.quantity) * ri.quantity;
           restock.push({
