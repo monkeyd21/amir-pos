@@ -303,9 +303,30 @@ async function resolveProfileAndTemplate(
     });
   }
 
+  // Nothing set up for this branch (fresh DB, or migrations didn't backfill).
+  // Auto-provision a safe software default so printing JUST WORKS: a PDF rendered
+  // for browser printing — no hardware needed. The shop can still add a thermal
+  // printer later in Settings → Printers and flag it default.
+  if (!profile && !req.profileId) {
+    profile = await prisma.printerProfile.create({
+      data: {
+        branchId,
+        name: 'Browser PDF (default)',
+        vendor: 'generic',
+        driver: 'pdf',
+        transport: 'browser',
+        connection: {},
+        dpi: 203,
+        isDefault: true,
+        isActive: true,
+      },
+      include: { templates: true },
+    });
+  }
+
   if (!profile) {
     throw new AppError(
-      'No printer profile configured for this branch. Go to Settings → Printers to add one.',
+      `Printer profile ${req.profileId} not found for this branch.`,
       400
     );
   }

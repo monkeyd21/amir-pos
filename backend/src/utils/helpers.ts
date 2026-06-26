@@ -10,6 +10,13 @@ export const generateNumber = (prefix: string): string => {
 };
 
 /**
+ * Join a person's name, tolerating a missing last name (customers may have
+ * only a first name — last name is optional).
+ */
+export const fullName = (p: { firstName: string; lastName?: string | null }): string =>
+  `${p.firstName} ${p.lastName ?? ''}`.trim();
+
+/**
  * Generate EAN-13 barcode with check digit
  */
 export const generateEAN13 = (prefix: string = '200'): string => {

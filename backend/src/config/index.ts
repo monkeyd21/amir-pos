@@ -9,7 +9,10 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'change-me',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'change-me-refresh',
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    // A retail cashier stands at the till for a full shift — a 15-minute access
+    // token meant constant silent refreshes and, on any refresh hiccup, surprise
+    // logouts. Default to a shift-length token; the 7-day refresh still rotates.
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
 

@@ -54,12 +54,13 @@ export class PosController {
         req.user!.userId,
         req.user!.branchId
       );
-      res.status(201).json({
+      res.status(result.idempotent ? 200 : 201).json({
         success: true,
         data: result.sale,
         change: result.change,
         refund: result.refund,
-        message: 'Sale completed successfully',
+        idempotent: result.idempotent ?? false,
+        message: result.idempotent ? 'Sale already recorded' : 'Sale completed successfully',
       });
     } catch (error) {
       next(error);
@@ -71,6 +72,15 @@ export class PosController {
       const query = (req.query.q || req.query.query || '') as string;
       const results = await posService.searchProducts(query, req.user!.branchId);
       res.json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async catalog(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await posService.getCatalog(req.user!.branchId);
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }

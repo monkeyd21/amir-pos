@@ -9,6 +9,7 @@ import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-sp
 import { ReturnDialogComponent } from './return-dialog.component';
 import { ExchangeDialogComponent } from './exchange-dialog.component';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
+import { AuthService } from '../../core/services/auth.service';
 
 interface SaleItem {
   id: number;
@@ -100,8 +101,20 @@ export class SaleDetailComponent implements OnInit {
     private router: Router,
     private api: ApiService,
     private notify: NotificationService,
-    private receiptPrint: ReceiptPrintService
+    private receiptPrint: ReceiptPrintService,
+    private auth: AuthService
   ) {}
+
+  get canEdit(): boolean {
+    return (
+      this.auth.hasRole(['owner', 'manager']) &&
+      (this.sale?.status === 'completed' || this.sale?.status === 'partially_returned')
+    );
+  }
+
+  goEdit(): void {
+    if (this.sale) this.router.navigate(['/sales', this.sale.id, 'edit']);
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -211,7 +224,7 @@ export class SaleDetailComponent implements OnInit {
 
   getCustomerName(): string {
     if (this.sale?.customer) {
-      return `${this.sale.customer.firstName} ${this.sale.customer.lastName}`.trim();
+      return `${this.sale.customer.firstName} ${this.sale.customer.lastName || ''}`.trim();
     }
     return 'Walk-in Customer';
   }

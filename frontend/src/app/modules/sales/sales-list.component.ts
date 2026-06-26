@@ -118,7 +118,7 @@ export class SalesListComponent implements OnInit {
 
   getCustomerName(sale: Sale): string {
     if (sale.customer) {
-      return `${sale.customer.firstName} ${sale.customer.lastName}`.trim();
+      return `${sale.customer.firstName} ${sale.customer.lastName || ''}`.trim();
     }
     return 'Walk-in Customer';
   }

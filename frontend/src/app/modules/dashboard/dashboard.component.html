@@ -187,7 +187,7 @@
               {{ sale.saleNumber || '#' + sale.id }}
             </td>
             <td class="px-8 py-6 text-sm text-on-surface">
-              {{ sale.customer ? sale.customer.firstName + ' ' + sale.customer.lastName : 'Walk-in' }}
+              {{ sale.customer ? (sale.customer.firstName + ' ' + (sale.customer.lastName || '')).trim() : 'Walk-in' }}
             </td>
             <td class="px-8 py-6 text-sm text-on-surface-variant">
               {{ formatDate(sale.createdAt) }}

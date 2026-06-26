@@ -78,6 +78,16 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./modules/settings/settings.routes').then((m) => m.SETTINGS_ROUTES),
       },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./modules/audit/audit-log.component').then((m) => m.AuditLogComponent),
+      },
+      {
+        path: 'vouchers',
+        loadComponent: () =>
+          import('./modules/vouchers/voucher-list.component').then((m) => m.VoucherListComponent),
+      },
     ],
   },
   {

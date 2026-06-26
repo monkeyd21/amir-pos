@@ -67,6 +67,21 @@
           <span>Exchange</span>
         </button>
 
+        <!-- Offline / pending-sync indicator -->
+        @if (isOffline) {
+          <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-400">
+            <span class="material-symbols-outlined text-base">cloud_off</span> Offline
+          </span>
+        }
+        @if (pendingSync > 0) {
+          <button (click)="runSync()" [disabled]="syncing || isOffline"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface disabled:opacity-50"
+            title="Bills waiting to sync">
+            <span class="material-symbols-outlined text-base" [class.animate-spin]="syncing">sync</span>
+            {{ syncing ? 'Syncing…' : pendingSync + ' to sync' }}
+          </button>
+        }
+
         <!-- User -->
         @if (currentUser) {
           <span class="text-xs text-on-surface-variant">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
@@ -352,6 +367,18 @@
                               {{ item.excludeFromDiscount ? 'lock' : 'lock_open' }}
                             </span>
                           </button>
+                          <button
+                            (click)="toggleNonReturnable(item)"
+                            [title]="item.nonReturnable
+                              ? 'Sold as-is — this line can be returned again by un-marking'
+                              : 'Mark sold as-is — block returns on this line (clearance/defective)'"
+                            class="w-6 h-6 rounded flex items-center justify-center transition-colors"
+                            [class]="item.nonReturnable
+                              ? 'text-error bg-error/10 hover:bg-error/20'
+                              : 'text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high'"
+                          >
+                            <span class="material-symbols-outlined text-sm">do_not_disturb_on</span>
+                          </button>
                         </div>
                       </td>
                       <!-- Line total (post all discounts) -->
@@ -385,6 +412,31 @@
       <div class="flex flex-col flex-1 bg-surface-container-lowest overflow-hidden">
 
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
+
+          <!-- Sales channel: drives the bill-number prefix (W-0001 / O-0001) -->
+          <div>
+            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3">Channel</h2>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                (click)="channel = 'walkin'"
+                class="flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 transition-all text-xs font-bold uppercase tracking-wider"
+                [class]="channel === 'walkin'
+                  ? 'border-primary-container bg-primary-container/10 text-primary'
+                  : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                <span class="material-symbols-outlined text-base">storefront</span> Walk-in
+              </button>
+              <button
+                (click)="channel = 'online'"
+                class="flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 transition-all text-xs font-bold uppercase tracking-wider"
+                [class]="channel === 'online'
+                  ? 'border-primary-container bg-primary-container/10 text-primary'
+                  : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/40'"
+              >
+                <span class="material-symbols-outlined text-base">language</span> Online
+              </button>
+            </div>
+          </div>
 
           <!-- Customer Search -->
           <div>
@@ -535,6 +587,7 @@
                     <!-- Value input -->
                     <div class="relative w-24">
                       <input
+                        appNoSpin
                         type="number"
                         [(ngModel)]="discountValue"
                         min="0"
@@ -561,6 +614,7 @@
                 <div class="relative w-24">
                   <span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant/60 text-xs pointer-events-none">&#8377;</span>
                   <input
+                    appNoSpin
                     type="number"
                     [(ngModel)]="specialDiscount"
                     min="0"
@@ -582,6 +636,7 @@
                       </span>
                       <div class="relative w-24">
                         <input
+                          appNoSpin
                           type="number"
                           [(ngModel)]="loyaltyPointsRedeem"
                           min="0"
@@ -719,6 +774,9 @@
                           Received {{ formatCurrency(t.cashReceived) }} · change {{ formatCurrency(t.cashReceived - t.amount) }}
                         </div>
                       }
+                      @if (t.identifier) {
+                        <div class="text-[10px] text-on-surface-variant/70 truncate">{{ t.identifier }}</div>
+                      }
                     </div>
                     <div class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(t.amount) }}</div>
                     <button
@@ -733,13 +791,52 @@
               </div>
             }
 
+            <!-- Applied gift vouchers -->
+            @if (voucherTenders.length > 0) {
+              <div class="mb-3 space-y-1.5">
+                @for (v of voucherTenders; track v.code; let i = $index) {
+                  <div class="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span class="material-symbols-outlined text-base text-amber-500">redeem</span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-xs font-bold uppercase tracking-wider text-on-surface">Voucher</div>
+                      <div class="text-[10px] font-mono text-on-surface-variant/70 truncate">{{ v.code }} · bal {{ formatCurrency(v.balance) }}</div>
+                    </div>
+                    <div class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(v.amount) }}</div>
+                    <button (click)="removeVoucher(i)" class="p-1 rounded text-on-surface-variant/60 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remove">
+                      <span class="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- Gift voucher entry -->
+            @if (remaining > 0 && total > 0) {
+              <div class="mb-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  [(ngModel)]="pendingVoucherCode"
+                  (keyup.enter)="addVoucher()"
+                  placeholder="Gift voucher code"
+                  class="flex-1 bg-surface-container border border-outline-variant/20 focus:border-amber-500/40 text-on-surface text-sm px-3 py-2 rounded-lg outline-none placeholder:text-on-surface-variant/40 uppercase"
+                />
+                <button
+                  (click)="addVoucher()"
+                  [disabled]="voucherLookupLoading || !pendingVoucherCode.trim()"
+                  class="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-600 text-xs font-bold uppercase tracking-wider hover:bg-amber-500/25 disabled:opacity-40 transition-all"
+                >
+                  {{ voucherLookupLoading ? '…' : 'Apply' }}
+                </button>
+              </div>
+            }
+
             <!-- Remaining / Change summary -->
             @if (remaining > 0) {
               <div class="mb-3 flex items-center justify-between p-3 rounded-lg bg-primary-container/10 border border-primary-container/30">
                 <span class="text-sm text-primary font-bold">Remaining</span>
                 <span class="text-lg font-headline font-bold text-primary">{{ formatCurrency(remaining) }}</span>
               </div>
-            } @else if (tenders.length > 0) {
+            } @else if (tenders.length > 0 || voucherTenders.length > 0) {
               <div class="mb-3 flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                 <span class="text-sm text-green-400 font-bold">
                   {{ changeDue > 0 ? 'Change Due' : 'Fully Paid' }}
@@ -799,6 +896,16 @@
                   />
                 </div>
 
+                <!-- Bank / account name for card & UPI (reconciliation aid) -->
+                @if (pendingMethod !== 'cash') {
+                  <input
+                    type="text"
+                    [(ngModel)]="pendingIdentifier"
+                    placeholder="Bank / account name (optional)"
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-4 pr-4 py-2 rounded-lg transition-all outline-none placeholder:text-outline/40"
+                  />
+                }
+
                 <!-- Quick amounts (cash only) -->
                 @if (pendingMethod === 'cash') {
                   <div class="grid grid-cols-4 gap-1.5">
@@ -831,6 +938,18 @@
             }
           </div>
         </div>
+
+        <!-- Hold remarks: optional note saved when parking the bill -->
+        @if (cart.length > 0) {
+          <div class="px-6 pt-3 shrink-0">
+            <input
+              type="text"
+              [(ngModel)]="holdRemarks"
+              placeholder="Remarks for held bill (optional) — e.g. customer will return, alteration"
+              class="w-full bg-surface-container border border-outline-variant/15 focus:border-primary-container text-on-surface text-xs px-3 py-2 rounded-lg outline-none placeholder:text-on-surface-variant/40"
+            />
+          </div>
+        }
 
         <!-- Complete Sale Button -->
         <div class="p-6 border-t border-outline-variant/10 shrink-0 flex items-stretch gap-3">

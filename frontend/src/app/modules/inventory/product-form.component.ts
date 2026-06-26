@@ -94,6 +94,9 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   cgstRate: number | null = 9;
   sgstRate: number | null = 9;
   priceIncludesTax = true;
+  // Return policy flags (e.g. clearance/sale/defective goods).
+  nonReturnable = false;
+  exchangeOnly = false;
 
   // Vendor payment terms — used when the user adds stock from the edit
   // page (or from initial creation with a vendor + lot).
@@ -251,6 +254,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.cgstRate = p.cgstRate !== undefined && p.cgstRate !== null ? Number(p.cgstRate) : 9;
     this.sgstRate = p.sgstRate !== undefined && p.sgstRate !== null ? Number(p.sgstRate) : 9;
     this.priceIncludesTax = p.priceIncludesTax !== false;
+    this.nonReturnable = p.nonReturnable === true;
+    this.exchangeOnly = p.exchangeOnly === true;
   }
 
   get isValid(): boolean {
@@ -504,6 +509,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       cgstRate: this.cgstRate !== null ? Number(this.cgstRate) : 0,
       sgstRate: this.sgstRate !== null ? Number(this.sgstRate) : 0,
       priceIncludesTax: this.priceIncludesTax,
+      nonReturnable: this.nonReturnable,
+      exchangeOnly: this.exchangeOnly,
     };
 
     const variants = this.collectVariantsForSubmit();

@@ -29,6 +29,15 @@
         <span class="material-symbols-outlined text-lg">print</span>
         Print Receipt
       </button>
+      @if (canEdit) {
+        <button
+          (click)="goEdit()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-lg">edit</span>
+          Edit Bill
+        </button>
+      }
       @if (canReturn) {
         <!-- Exchanges are handled at the POS counter (return credited against a
              new purchase). The Sales tab keeps refund-style returns. -->

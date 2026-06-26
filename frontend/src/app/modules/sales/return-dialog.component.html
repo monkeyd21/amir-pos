@@ -41,6 +41,25 @@
         </select>
       </div>
 
+      <!-- Refund method (manager/owner only). Default mirrors the original
+           payment split; an override is recorded in the audit log. -->
+      @if (canOverrideRefund) {
+        <div class="mb-5">
+          <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Refund To</label>
+          <select
+            [(ngModel)]="refundMode"
+            class="w-full sm:w-64 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+          >
+            @for (m of refundModes; track m.value) {
+              <option [value]="m.value">{{ m.label }}</option>
+            }
+          </select>
+          @if (refundMode !== 'proportional') {
+            <p class="mt-1 text-[11px] font-body text-amber-500">Overriding the original payment method — this will be logged.</p>
+          }
+        </div>
+      }
+
       @if (items.length === 0) {
         <div class="py-8 text-center">
           <p class="text-sm font-body text-on-surface-variant">No returnable items available.</p>

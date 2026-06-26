@@ -5,7 +5,7 @@ import {
   HttpRequest,
 } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Subject, throwError, take, switchMap, catchError, tap } from 'rxjs';
+import { ReplaySubject, throwError, take, switchMap, catchError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 interface RefreshResponse {
@@ -16,11 +16,12 @@ interface RefreshResponse {
   };
 }
 
-// Module-level state so concurrent 401s share a single refresh round-trip.
-// Subject (not BehaviorSubject) so we can both .next() on success and .error()
-// on failure — queued requests propagate the failure instead of stalling.
-let refreshing = false;
-let refresh$: Subject<string> | null = null;
+// Module-level state so concurrent 401s share ONE refresh round-trip. A
+// ReplaySubject(1) replays the new token to late subscribers too, so a burst of
+// parallel 401s (e.g. a dashboard's many requests when the token just expired)
+// can't have some requests miss the emission and stall/log out. Reset to null
+// once settled so the next expiry triggers a fresh refresh.
+let refresh$: ReplaySubject<string> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const http = inject(HttpClient);
@@ -36,38 +37,35 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) return throwError(() => err);
 
-      if (!refreshing) {
-        refreshing = true;
-        refresh$ = new Subject<string>();
-        const subject = refresh$;
-        return http
+      if (!refresh$) {
+        const subject = new ReplaySubject<string>(1);
+        refresh$ = subject;
+        http
           .post<RefreshResponse>(`${environment.apiUrl}/auth/refresh`, { refreshToken })
-          .pipe(
-            tap((res) => {
+          .subscribe({
+            next: (res) => {
               localStorage.setItem('accessToken', res.data.accessToken);
               localStorage.setItem('refreshToken', res.data.refreshToken);
               if (res.data.user) {
                 localStorage.setItem('currentUser', JSON.stringify(res.data.user));
               }
-              refreshing = false;
               subject.next(res.data.accessToken);
               subject.complete();
-            }),
-            switchMap(() => next(attachAuth(req))),
-            catchError((refreshErr) => {
-              refreshing = false;
-              // Push the failure to queued waiters so they unstall and surface
-              // the 401 through errorInterceptor (which routes to /login).
+              refresh$ = null;
+            },
+            error: (refreshErr) => {
+              // Surface the failure to all waiters → errorInterceptor → /login.
               subject.error(refreshErr);
-              return throwError(() => err);
-            })
-          );
+              refresh$ = null;
+            },
+          });
       }
-      // Another request is already refreshing — wait for it, then retry.
-      // If the in-flight refresh errors, this subscription errors too.
-      return refresh$!.pipe(
+      // Wait for the shared refresh, then retry the original request. If the
+      // refresh failed, surface the original 401 (errorInterceptor logs out).
+      return refresh$.pipe(
         take(1),
-        switchMap(() => next(attachAuth(req)))
+        switchMap(() => next(attachAuth(req))),
+        catchError(() => throwError(() => err))
       );
     })
   );

@@ -9,6 +9,9 @@ import { AuthService, User } from '../../core/services/auth.service';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { CustomerDialogComponent } from '../customers/customer-dialog.component';
+import { ScanSoundService } from '../../core/services/scan-sound.service';
+import { NoSpinDirective } from '../../shared/directives/no-spin.directive';
+import { OfflineService } from '../../core/services/offline.service';
 
 /**
  * A single payment entry the cashier has added to a sale. One sale can have
@@ -22,6 +25,8 @@ interface Tender {
   method: 'cash' | 'card' | 'upi';
   amount: number;
   cashReceived?: number;
+  // Bank/account name for card/UPI tenders, captured for reconciliation.
+  identifier?: string;
 }
 
 interface ProductVariant {
@@ -89,6 +94,8 @@ interface CartItem {
   discountLockTouched?: boolean;
   /** Agent/salesman who sold this line item. Defaults to current cashier. */
   agentId: number;
+  /** Cashier-set "sold as-is" flag — this line can't be returned (clearance/defective). */
+  nonReturnable?: boolean;
 }
 
 interface EvaluatedLine {
@@ -119,7 +126,7 @@ interface ApiResponse<T> {
 @Component({
   selector: 'app-pos-terminal',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, NoSpinDirective],
   templateUrl: './pos-terminal.component.html',
 })
 export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
@@ -192,6 +199,17 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   tenders: Tender[] = [];
   pendingMethod: 'cash' | 'card' | 'upi' = 'cash';
   pendingAmount: number | null = null;
+  // Bank/account name entered alongside a card/UPI tender (reconciliation aid).
+  pendingIdentifier = '';
+
+  // ─── Gift-voucher tenders ────────────────────────────────────────
+  // Vouchers applied to this bill. Each covers part of the total like cash.
+  voucherTenders: { code: string; amount: number; balance: number }[] = [];
+  pendingVoucherCode = '';
+  voucherLookupLoading = false;
+
+  // Sales channel — drives the bill-number prefix (walk-in W-0001 / online O-0001).
+  channel: 'walkin' | 'online' = 'walkin';
 
   checkoutLoading = false;
   customerId: number | null = null;
@@ -211,6 +229,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   heldBills: any[] = [];
   showHeldPanel = false;
   holdLoading = false;
+  // Free-text remarks captured when parking a bill (e.g. "customer will return",
+  // "waiting for payment", "alteration"). Shown again when resuming.
+  holdRemarks = '';
 
   // ─── Previous bills (recent sales) ──────────────────────────────
   recentBills: any[] = [];
@@ -256,7 +277,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     private auth: AuthService,
     private receiptPrint: ReceiptPrintService,
     private dialog: DialogService,
-    private router: Router
+    private router: Router,
+    private scanSound: ScanSoundService,
+    private offline: OfflineService
   ) {}
 
   ngOnInit(): void {
@@ -269,6 +292,47 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadAgents();
     this.loadLoyaltyConfig();
     this.loadHeld();
+    this.initOffline();
+  }
+
+  // ─── Offline mode ────────────────────────────────────────────────
+  offlineReady = false; // catalog cached at least once
+  pendingSync = 0;
+  syncing = false;
+
+  private initOffline(): void {
+    // Mirror connectivity + pending-sync state into the UI.
+    this.offline.online$.pipe(takeUntil(this.destroy$)).subscribe((online) => {
+      if (online) this.runSync();
+    });
+    this.offline.pending$.pipe(takeUntil(this.destroy$)).subscribe((n) => (this.pendingSync = n));
+    this.offlineReady = this.offline.getCatalog().items.length > 0;
+    // Pull a fresh catalog so scanning works if the network drops later.
+    if (this.offline.isOnline) {
+      this.offline.refreshCatalog().then((n) => (this.offlineReady = n > 0)).catch(() => {});
+      this.runSync();
+    }
+  }
+
+  get isOffline(): boolean {
+    return !this.offline.isOnline;
+  }
+
+  async runSync(): Promise<void> {
+    if (this.syncing || this.offline.pendingCount === 0) return;
+    this.syncing = true;
+    try {
+      const { synced, remaining } = await this.offline.sync();
+      if (synced > 0) {
+        this.notify.success(`Synced ${synced} offline bill${synced > 1 ? 's' : ''}`);
+        this.loadHeld();
+      }
+      if (remaining > 0 && this.offline.isOnline) {
+        this.notify.warning(`${remaining} bill(s) still pending — open a POS session to sync them`);
+      }
+    } finally {
+      this.syncing = false;
+    }
   }
 
   private loadLoyaltyConfig(): void {
@@ -360,6 +424,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private refreshCartOffers(): void {
+    // Offers are resolved server-side; offline we price at MRP only (matching
+    // how an offline bill is recorded on sync), so skip evaluation.
+    if (this.isOffline) return;
     this.cartEvalSubject.next();
   }
 
@@ -511,6 +578,28 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       return;
     }
 
+    // 3a. Offline — resolve the barcode against the cached catalog.
+    if (this.isOffline) {
+      const item = this.offline.lookupBarcode(query);
+      if (item) {
+        this.addToCart({
+          variantId: item.variantId,
+          sku: item.sku,
+          barcode: item.barcode,
+          productName: item.productName,
+          size: item.size,
+          color: item.color,
+          price: item.price,
+          stock: item.stock,
+        } as ProductVariant);
+      } else {
+        this.scanSound.invalid();
+        this.notify.warning(`"${query}" not in the offline catalog`);
+        this.focusSearchInput();
+      }
+      return;
+    }
+
     // 3. Fall back to direct barcode lookup (scanner outran the debounce).
     this.api
       .get<ApiResponse<ProductVariant>>(
@@ -522,11 +611,13 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           if (res?.data) {
             this.addToCart(res.data);
           } else {
+            this.scanSound.invalid();
             this.notify.warning(`No product found for "${query}"`);
             this.focusSearchInput();
           }
         },
         error: (err) => {
+          this.scanSound.invalid();
           this.notify.warning(
             err.error?.error || `No product found for "${query}"`
           );
@@ -623,6 +714,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // with an "Insufficient stock" error, so there's no point letting them
     // land in the cart and surprising the cashier at the end of the sale.
     if (stock <= 0 && !existing) {
+      this.scanSound.invalid();
       this.notify.warning(
         `${variant.productName || variant.product?.name || 'Item'} is out of stock`
       );
@@ -632,12 +724,16 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (existing) {
       if (existing.quantity >= existing.maxStock) {
+        this.scanSound.invalid();
         this.notify.warning('Maximum stock reached');
         this.focusSearchInput();
         return;
       }
       existing.quantity++;
+      // Re-scan of an item already in the cart — distinct cue from a fresh add.
+      this.scanSound.duplicate();
     } else {
+      this.scanSound.valid();
       this.cart.push({
         variantId: vid,
         barcode: variant.barcode || variant.sku || '',
@@ -665,6 +761,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   removeFromCart(index: number): void {
     this.cart.splice(index, 1);
     this.refreshCartOffers();
+  }
+
+  /** Mark/unmark a line as sold-as-is (no returns) — clearance/defective goods. */
+  toggleNonReturnable(item: CartItem): void {
+    item.nonReturnable = !item.nonReturnable;
   }
 
   incrementQty(item: CartItem): void {
@@ -939,9 +1040,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // ─── Derived split-tender state ──────────────────────────────────
 
-  /** Sum of amounts already applied to the bill by confirmed tenders. */
+  /** Sum of amounts already applied to the bill — cash/card/UPI tenders plus
+   *  any gift vouchers (vouchers cover the bill like cash). */
   get amountPaid(): number {
-    return this.tenders.reduce((sum, t) => sum + t.amount, 0);
+    return (
+      this.tenders.reduce((sum, t) => sum + t.amount, 0) +
+      this.voucherTotal
+    );
+  }
+
+  /** ₹ value covered by applied gift vouchers. */
+  get voucherTotal(): number {
+    return Math.round(this.voucherTenders.reduce((s, v) => s + v.amount, 0) * 100) / 100;
   }
 
   /** ₹ value of the goods being returned in this exchange (selected lines). */
@@ -1013,6 +1123,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.pendingMethod = method;
     // Reset the typed amount so the default (= remaining) kicks in again.
     this.pendingAmount = null;
+    // The bank/account identifier only applies to card/UPI — clear it on cash.
+    if (method === 'cash') this.pendingIdentifier = '';
   }
 
   /**
@@ -1039,6 +1151,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       this.tenders.push({
         method: this.pendingMethod,
         amount: Math.round(capped * 100) / 100,
+        identifier: this.pendingIdentifier.trim() || undefined,
       });
     }
 
@@ -1049,10 +1162,50 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // can still click Card/UPI explicitly if they need to split further.
     this.pendingAmount = null;
     this.pendingMethod = 'cash';
+    this.pendingIdentifier = '';
   }
 
   removeTender(index: number): void {
     this.tenders.splice(index, 1);
+  }
+
+  /** Look up a voucher by code and apply it, capped at the remaining balance
+   *  due (gift vouchers never return cash). */
+  addVoucher(): void {
+    const code = this.pendingVoucherCode.trim().toUpperCase();
+    if (!code) return;
+    if (this.voucherTenders.some((v) => v.code === code)) {
+      this.notify.warning('That voucher is already applied');
+      return;
+    }
+    if (this.remaining <= 0) {
+      this.notify.warning('Nothing left to pay — voucher not needed');
+      return;
+    }
+    this.voucherLookupLoading = true;
+    this.api.get<any>(`/vouchers/lookup/${encodeURIComponent(code)}`).subscribe({
+      next: (res: any) => {
+        this.voucherLookupLoading = false;
+        const v = res.data;
+        if (!v?.redeemable) {
+          this.notify.error(`Voucher ${code} is ${v?.effectiveStatus || 'not redeemable'}`);
+          return;
+        }
+        const balance = Number(v.balance);
+        // Apply the lesser of the voucher balance and what's still owed.
+        const amount = Math.min(balance, this.remaining);
+        this.voucherTenders.push({ code, amount: Math.round(amount * 100) / 100, balance });
+        this.pendingVoucherCode = '';
+      },
+      error: (err) => {
+        this.voucherLookupLoading = false;
+        this.notify.error(err.error?.error || `Voucher ${code} not found`);
+      },
+    });
+  }
+
+  removeVoucher(index: number): void {
+    this.voucherTenders.splice(index, 1);
   }
 
   /**
@@ -1074,12 +1227,45 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         barcode: item.barcode,
         quantity: item.quantity,
         agentId: item.agentId || undefined,
+        nonReturnable: item.nonReturnable || undefined,
       })),
       payments: this.tenders.map((t) => ({
         method: t.method,
         amount: t.amount,
+        identifier: t.identifier || undefined,
       })),
+      channel: this.channel,
+      // Idempotency key for this bill — dedups retries and offline re-syncs.
+      clientRef: this.offline.newClientRef(),
     };
+
+    // Offline: queue the bill with a temporary number; it syncs when the
+    // network returns. Vouchers/loyalty/exchange aren't available offline.
+    if (this.isOffline) {
+      const offlineBody = {
+        items: body.items,
+        payments: body.payments,
+        channel: body.channel,
+        ...(this.manualDiscount !== 0 ? { discountAmount: this.manualDiscount } : {}),
+        ...(this.customerId ? { customerId: this.customerId } : {}),
+      };
+      const tempNumber = `OFF-${Date.now().toString().slice(-6)}`;
+      this.offline.queueSale({
+        clientRef: body.clientRef,
+        tempNumber,
+        createdAt: new Date().toISOString(),
+        total: this.netPayable,
+        payload: offlineBody,
+      });
+      this.checkoutLoading = false;
+      this.notify.success(`Saved offline as ${tempNumber} — will sync when back online`);
+      this.resetCart();
+      return;
+    }
+
+    if (this.voucherTenders.length > 0) {
+      body.vouchers = this.voucherTenders.map((v) => ({ code: v.code, amount: v.amount }));
+    }
 
     // Sent even when negative — round-up surcharges encode as a negative
     // "discount" so the backend total rises to the nearest ₹10.
@@ -1143,6 +1329,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.tenders = [];
     this.pendingMethod = 'cash';
     this.pendingAmount = null;
+    this.pendingIdentifier = '';
+    this.voucherTenders = [];
+    this.pendingVoucherCode = '';
+    this.channel = 'walkin';
     this.customerId = null;
     this.selectedCustomer = null;
     this.customerSearchQuery = '';
@@ -1189,10 +1379,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.holdLoading = true;
     const body: any = { cartData: this.buildCartSnapshot() };
     if (this.customerId) body.customerId = this.customerId;
+    if (this.holdRemarks.trim()) body.notes = this.holdRemarks.trim();
     this.api.post('/pos/hold', body).subscribe({
       next: () => {
         this.holdLoading = false;
         this.notify.success('Bill held');
+        this.holdRemarks = '';
         this.resetCart();
         this.loadHeld();
       },

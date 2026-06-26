@@ -360,6 +360,7 @@ export class EmployeeService {
             agent: { select: { id: true, commissionRate: true } },
           },
         },
+        returns: { select: { total: true } },
       },
     });
 
@@ -391,7 +392,10 @@ export class EmployeeService {
         const rate = Number(sale.user.commissionRate);
         if (rate <= 0) continue;
 
-        const amount = Math.round(Number(sale.total) * (rate / 100) * 100) / 100;
+        // Net out anything already refunded — no commission on returned value.
+        const refunded = sale.returns.reduce((s, r) => s + Number(r.total), 0);
+        const netTotal = Math.max(0, Number(sale.total) - refunded);
+        const amount = Math.round(netTotal * (rate / 100) * 100) / 100;
         newCommissions.push({
           userId: sale.userId,
           saleId: sale.id,
@@ -405,8 +409,12 @@ export class EmployeeService {
         const agentTotals = new Map<number, number>();
         for (const item of sale.items) {
           if (!item.agentId || !item.agent) continue;
+          // Commission base is the value still sold — exclude returned units.
+          const live = item.quantity - item.returnedQuantity;
+          if (live <= 0) continue;
+          const netLine = Number(item.total) * (live / item.quantity);
           const current = agentTotals.get(item.agentId) ?? 0;
-          agentTotals.set(item.agentId, current + Number(item.total));
+          agentTotals.set(item.agentId, current + netLine);
         }
 
         for (const [agentId, lineTotal] of agentTotals) {

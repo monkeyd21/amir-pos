@@ -40,6 +40,10 @@ export class SettingsComponent implements OnInit {
   // Commission mode
   commissionMode: 'item_level' | 'bill_level' = 'item_level';
 
+  // Bill numbering — per-channel prefixes for human-friendly sale numbers
+  billNumbering = { walkin: 'W', online: 'O', pad: 4 };
+  savingBillNumbering = false;
+
   // Loyalty config
   loyalty = {
     amountPerPoint: 100,    // Rs. spent per 1 point earned
@@ -79,6 +83,31 @@ export class SettingsComponent implements OnInit {
     this.loadCommissionMode();
     this.loadLoyaltyConfig();
     this.loadMessagingConfig();
+    this.loadBillNumbering();
+  }
+
+  loadBillNumbering(): void {
+    this.api.get<any>('/settings/bill-numbering').subscribe({
+      next: (res) => {
+        if (res.data) this.billNumbering = { ...this.billNumbering, ...res.data };
+      },
+      error: () => {},
+    });
+  }
+
+  saveBillNumbering(): void {
+    this.savingBillNumbering = true;
+    this.api.put<any>('/settings/bill-numbering', this.billNumbering).subscribe({
+      next: (res) => {
+        if (res.data) this.billNumbering = { ...this.billNumbering, ...res.data };
+        this.savingBillNumbering = false;
+        this.notification.success('Bill numbering saved');
+      },
+      error: (err) => {
+        this.savingBillNumbering = false;
+        this.notification.error(err.error?.error || 'Failed to save bill numbering');
+      },
+    });
   }
 
   loadLoyaltyConfig(): void {

@@ -1,9 +1,35 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { generateNumber } from '../../utils/helpers';
-import { MovementType, PaymentMethod } from '@prisma/client';
+import { MovementType, PaymentMethod, Prisma, SaleChannel } from '@prisma/client';
 import { getPaymentGateway } from '../../services/payment-gateway';
 import { evaluateCart as evaluateCartEngine, CartLine } from '../offers/engine';
+import { getSetting } from '../settings/service';
+import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
+import { redeemVouchers } from '../vouchers/service';
+
+/**
+ * Atomically allocate the next human-friendly bill number for a channel
+ * (W-0001 walk-in / O-0001 online). The counter row is keyed by the stable
+ * channel name, so changing the display prefix in Settings never resets it.
+ * Must run inside a transaction.
+ */
+async function nextBillNumber(
+  tx: Prisma.TransactionClient,
+  channel: SaleChannel
+): Promise<string> {
+  const cfg = await getSetting<{ walkin: string; online: string; pad: number }>(
+    'billNumbering',
+    { walkin: 'W', online: 'O', pad: 4 }
+  );
+  const seq = await tx.billSequence.upsert({
+    where: { key: channel },
+    create: { key: channel, lastNumber: 1 },
+    update: { lastNumber: { increment: 1 } },
+  });
+  const prefix = channel === 'online' ? cfg.online : cfg.walkin;
+  return `${prefix}-${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
+}
 
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
@@ -101,9 +127,77 @@ export class PosService {
 
   async checkout(
     data: {
-      items: { barcode: string; quantity: number; agentId?: number }[];
+      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean }[];
       customerId?: number;
-      payments: { method: string; amount: number; referenceNumber?: string }[];
+      channel?: 'walkin' | 'online';
+      // Idempotency key (UUID). A repeat checkout with the same key returns the
+      // original sale — the anti-duplicate guarantee for retries and offline sync.
+      clientRef?: string;
+      // Offline bill being synced: priced at MRP − manual discount only (no
+      // offers/loyalty/exchange/voucher) and tolerant of stock going negative,
+      // because the goods already physically left the counter.
+      offline?: boolean;
+      payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
+      // Gift vouchers redeemed as a tender. Each covers part of the bill; the
+      // balance is debited and a 'voucher' Payment row is recorded per voucher.
+      vouchers?: { code: string; amount: number }[];
+      discountAmount?: number;
+      loyaltyPointsRedeem?: number;
+      notes?: string;
+      exchange?: {
+        originalSaleId: number;
+        returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
+        reason?: string;
+      };
+    },
+    userId: number,
+    branchId: number
+  ) {
+    const saleInclude = {
+      items: { include: { variant: { include: { product: true } } } },
+      payments: true,
+      customer: true,
+    } as const;
+
+    // Idempotency fast-path: this bill was already recorded (e.g. an offline
+    // sale re-synced, or a double-tapped checkout) — return it, don't re-create.
+    if (data.clientRef) {
+      const existing = await prisma.sale.findUnique({
+        where: { clientRef: data.clientRef },
+        include: saleInclude,
+      });
+      if (existing) return { sale: existing, change: 0, refund: 0, idempotent: true };
+    }
+
+    try {
+      const result = await this._checkoutTxn(data, userId, branchId);
+      return { ...result, idempotent: false };
+    } catch (e) {
+      // Lost a race on the unique clientRef — the winning request created it.
+      if (
+        data.clientRef &&
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        const existing = await prisma.sale.findUnique({
+          where: { clientRef: data.clientRef },
+          include: saleInclude,
+        });
+        if (existing) return { sale: existing, change: 0, refund: 0, idempotent: true };
+      }
+      throw e;
+    }
+  }
+
+  private async _checkoutTxn(
+    data: {
+      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean }[];
+      customerId?: number;
+      channel?: 'walkin' | 'online';
+      clientRef?: string;
+      offline?: boolean;
+      payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
+      vouchers?: { code: string; amount: number }[];
       discountAmount?: number;
       loyaltyPointsRedeem?: number;
       notes?: string;
@@ -152,6 +246,7 @@ export class PosService {
         costPrice: number;
         taxRate: number;
         agentId: number | null;
+        nonReturnable: boolean;
       }> = [];
 
       for (const item of data.items) {
@@ -166,7 +261,9 @@ export class PosService {
           },
         });
 
-        if (!inventory || inventory.quantity < item.quantity) {
+        // Offline bills already left the counter — record them even if stock
+        // reads short (it may go negative; the count is reconciled later).
+        if (!data.offline && (!inventory || inventory.quantity < item.quantity)) {
           throw new AppError(
             `Insufficient stock for ${variant.product.name} (${variant.size}/${variant.color}). Available: ${inventory?.quantity ?? 0}, Requested: ${item.quantity}`,
             400
@@ -191,6 +288,7 @@ export class PosService {
           costPrice,
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
+          nonReturnable: item.nonReturnable === true,
         });
       }
 
@@ -198,8 +296,9 @@ export class PosService {
       const discountAmount = data.discountAmount || 0;
       let loyaltyDiscount = 0;
 
-      // Handle loyalty points redemption
-      if (data.loyaltyPointsRedeem && data.loyaltyPointsRedeem > 0) {
+      // Handle loyalty points redemption (not available offline — the live
+      // balance can't be trusted without the server).
+      if (!data.offline && data.loyaltyPointsRedeem && data.loyaltyPointsRedeem > 0) {
         if (!data.customerId) {
           throw new AppError('Customer is required to redeem loyalty points', 400);
         }
@@ -232,13 +331,15 @@ export class PosService {
         loyaltyDiscount = data.loyaltyPointsRedeem * redemptionValue;
       }
 
-      // 3b. Resolve offers server-side (never trust the client)
+      // 3b. Resolve offers server-side (never trust the client). Offline bills
+      // are priced at MRP − manual discount only, so the total the customer was
+      // charged offline matches exactly what's recorded on sync (no offer drift).
       const cartLines: CartLine[] = saleItemsData.map((i) => ({
         variantId: i.variantId,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       }));
-      const evaluated = await evaluateCartEngine(cartLines);
+      const evaluated = data.offline ? [] : await evaluateCartEngine(cartLines);
       const offerByVariantId = new Map<
         number,
         { offerId: number; discount: number; effectiveUnitPrice: number }
@@ -284,6 +385,7 @@ export class PosService {
         offerId: number | null;
         effectiveUnitPrice: number | null;
         agentId: number | null;
+        nonReturnable: boolean;
       }
       const lines: LineAccumulator[] = [];
       let subtotal = 0;
@@ -303,6 +405,7 @@ export class PosService {
           offerId: offerInfo?.offerId ?? null,
           effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
           agentId: item.agentId,
+          nonReturnable: item.nonReturnable,
         });
         subtotal += lineGross;
         totalOfferDiscount += offerDiscount;
@@ -336,6 +439,7 @@ export class PosService {
         offerId?: number | null;
         effectiveUnitPrice?: number | null;
         agentId?: number | null;
+        nonReturnable?: boolean;
       }> = [];
 
       for (const line of lines) {
@@ -360,6 +464,7 @@ export class PosService {
           offerId: line.offerId,
           effectiveUnitPrice: line.effectiveUnitPrice,
           agentId: line.agentId,
+          nonReturnable: line.nonReturnable,
         });
       }
 
@@ -384,7 +489,7 @@ export class PosService {
       let exchangeReturnId: number | null = null;
       let exchangeOriginalNumber: string | null = null;
 
-      if (data.exchange) {
+      if (data.exchange && !data.offline) {
         const orig = await tx.sale.findUnique({
           where: { id: data.exchange.originalSaleId },
           include: { items: true },
@@ -494,6 +599,9 @@ export class PosService {
             status: allReturned ? 'returned' : someReturned ? 'partially_returned' : orig.status,
           },
         });
+
+        // Returned goods reduce the original sale's value — re-settle commission.
+        await reconcileCommissionsForSale(tx, orig.id, userId, branchId);
       }
 
       // net = new purchase − return credit. Positive ⇒ customer pays the
@@ -502,14 +610,24 @@ export class PosService {
       const amountDue = Math.max(0, netPayable);
       const refundDue = Math.max(0, Math.round(-netPayable * 100) / 100);
 
-      // 5. Validate payments cover what the customer actually owes. When a
-      // refund is due (return worth more than the purchase) amountDue is 0, so
-      // no tender is required — the cashier hands the difference back.
+      // 5. Validate tenders cover what the customer owes. Gift vouchers are a
+      // tender too: they cover part of amountDue, so the cash/card/UPI only
+      // needs to cover the rest. A voucher can't exceed the bill (no cash back),
+      // and the actual balance debit happens after the sale is created.
+      const voucherRequests = data.offline ? [] : (data.vouchers ?? []).filter((v) => v.amount > 0);
+      const voucherTotal = Math.round(voucherRequests.reduce((s, v) => s + v.amount, 0) * 100) / 100;
+      if (voucherTotal > amountDue + 0.0001) {
+        throw new AppError(
+          `Voucher amount ${voucherTotal} exceeds the payable ${amountDue}. Gift vouchers don't return cash.`,
+          400
+        );
+      }
+      const cashDue = Math.max(0, Math.round((amountDue - voucherTotal) * 100) / 100);
       const totalPayments = data.payments.reduce((sum, p) => sum + p.amount, 0);
 
-      if (totalPayments < amountDue) {
+      if (totalPayments < cashDue) {
         throw new AppError(
-          `Payment shortfall. Payable: ${amountDue}, Paid: ${totalPayments}`,
+          `Payment shortfall. Payable: ${cashDue}, Paid: ${totalPayments}`,
           400
         );
       }
@@ -525,7 +643,8 @@ export class PosService {
       }
 
       // 7. Create the sale
-      const saleNumber = generateNumber('SL');
+      const channel: SaleChannel = data.channel === 'online' ? 'online' : 'walkin';
+      const saleNumber = await nextBillNumber(tx, channel);
 
       const sale = await tx.sale.create({
         data: {
@@ -533,6 +652,8 @@ export class PosService {
           userId,
           customerId: data.customerId || null,
           saleNumber,
+          channel,
+          clientRef: data.clientRef || null,
           subtotal,
           taxAmount: totalTax,
           discountAmount: totalDiscount,
@@ -551,6 +672,7 @@ export class PosService {
               method: p.method as PaymentMethod,
               amount: p.amount,
               referenceNumber: p.referenceNumber,
+              identifier: p.identifier,
             })),
           },
         },
@@ -566,6 +688,23 @@ export class PosService {
           customer: true,
         },
       });
+
+      // 7b. Redeem gift vouchers as a tender: debit balances, log redemptions,
+      // and record matching 'voucher' Payment rows so sale.payments sum to the
+      // bill total (keeps reporting and the proportional-refund split consistent).
+      if (voucherRequests.length > 0) {
+        const { applied } = await redeemVouchers(tx, voucherRequests, sale.id, userId, branchId);
+        for (const v of applied) {
+          await tx.payment.create({
+            data: {
+              saleId: sale.id,
+              method: 'voucher' as PaymentMethod,
+              amount: v.amount,
+              referenceNumber: v.code,
+            },
+          });
+        }
+      }
 
       // 8. Deduct inventory and create movement records
       for (const item of saleItemsData) {
@@ -659,9 +798,9 @@ export class PosService {
         sale.loyaltyPointsEarned = pointsEarned;
       }
 
-      // 10. Calculate change — against what the customer owed (net of any
-      // exchange credit), so an overpayment in cash returns the right change.
-      const change = Math.round((totalPayments - amountDue) * 100) / 100;
+      // 10. Calculate change — against the cash-side due (after vouchers), so an
+      // overpayment in cash returns the right change and vouchers give no cash back.
+      const change = Math.round((totalPayments - cashDue) * 100) / 100;
 
       return { sale, change, refund: refundDue };
     });
@@ -710,6 +849,39 @@ export class PosService {
       lineTotal: result?.lineTotal ?? line.unitPrice * line.quantity,
       hint: result?.hint,
     }));
+  }
+
+  /**
+   * Catalog snapshot for offline caching. Returns every active variant with the
+   * barcode, tax-inclusive MRP, tax rate and current branch stock — everything
+   * the terminal needs to scan and price a bill with no network. The `price`
+   * here matches exactly what checkout computes (offline pricing is MRP-only),
+   * so an offline bill totals the same on the device and on sync.
+   */
+  async getCatalog(branchId: number) {
+    const variants = await prisma.productVariant.findMany({
+      where: { isActive: true },
+      include: { product: true, inventory: { where: { branchId } } },
+    });
+    const items = variants.map((v) => {
+      const taxRate = Number(v.product.cgstRate) + Number(v.product.sgstRate);
+      const raw = Number(v.priceOverride ?? v.product.basePrice);
+      const price = v.product.priceIncludesTax
+        ? raw
+        : Math.round(raw * (1 + taxRate / 100) * 100) / 100;
+      return {
+        variantId: v.id,
+        barcode: v.barcode,
+        sku: v.sku,
+        productName: v.product.name,
+        size: v.size,
+        color: v.color,
+        price,
+        taxRate,
+        stock: v.inventory[0]?.quantity ?? 0,
+      };
+    });
+    return { items, syncedAt: new Date().toISOString(), count: items.length };
   }
 
   async lookupBarcode(barcode: string, branchId: number) {
@@ -1162,8 +1334,8 @@ export class PosService {
       subtotal = Math.round(subtotal * 100) / 100;
       totalTax = Math.round(totalTax * 100) / 100;
 
-      // Create the sale
-      const saleNumber = generateNumber('SL');
+      // Create the sale (UPI gateway flow is an at-counter walk-in tender)
+      const saleNumber = await nextBillNumber(tx, 'walkin');
 
       const sale = await tx.sale.create({
         data: {

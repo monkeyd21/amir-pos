@@ -89,12 +89,15 @@ export class SalesController {
         parseInt(req.params.saleId),
         req.body,
         req.user!.userId,
-        req.user!.branchId
+        req.user!.branchId,
+        req.user!.role
       );
       res.status(201).json({
         success: true,
         data: result.returnRecord,
         refundAmount: result.refundAmount,
+        refundBreakup: result.refundBreakup,
+        refundMode: result.refundMode,
         message: 'Return processed successfully',
       });
     } catch (error) {
@@ -115,6 +118,21 @@ export class SalesController {
         data: result,
         message: result.message,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async editSale(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await salesService.editSale(
+        parseInt(req.params.saleId),
+        req.body,
+        req.user!.userId,
+        req.user!.branchId,
+        req.user!.role
+      );
+      res.json({ success: true, data: result, message: 'Bill updated' });
     } catch (error) {
       next(error);
     }

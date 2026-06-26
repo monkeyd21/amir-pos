@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { AuthService } from '../../core/services/auth.service';
 
 interface ReturnItem {
   saleItemId: number;
@@ -32,6 +33,19 @@ export class ReturnDialogComponent implements OnInit {
   submitting = false;
   reason = 'changed_mind';
 
+  // Refund method. 'proportional' (default) mirrors the original payment split;
+  // forcing a single method is a manager/owner action and is audited server-side.
+  refundMode: 'proportional' | 'cash' | 'card' | 'upi' = 'proportional';
+  refundModes = [
+    { value: 'proportional', label: 'Same as original payment' },
+    { value: 'cash', label: 'Cash' },
+    { value: 'card', label: 'Card' },
+    { value: 'upi', label: 'UPI' },
+  ];
+  get canOverrideRefund(): boolean {
+    return this.auth.hasRole(['owner', 'manager']);
+  }
+
   reasons = [
     { value: 'defective', label: 'Defective' },
     { value: 'wrong_size', label: 'Wrong Size' },
@@ -47,7 +61,8 @@ export class ReturnDialogComponent implements OnInit {
 
   constructor(
     private api: ApiService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private auth: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -60,7 +75,13 @@ export class ReturnDialogComponent implements OnInit {
       quantity: 1,
       condition: 'resellable',
       selected: false,
-      unitPrice: item.unitPrice || 0,
+      // The refund is what the customer actually paid per unit, i.e. the line
+      // total (net of every discount) ÷ quantity — NOT the shelf MRP. Fall back
+      // to unitPrice only if the line total isn't present.
+      unitPrice:
+        item.total != null && item.quantity
+          ? Number(item.total) / item.quantity
+          : item.unitPrice || 0,
     }));
   }
 
@@ -101,7 +122,7 @@ export class ReturnDialogComponent implements OnInit {
     if (!this.canSubmit) return;
     this.submitting = true;
 
-    const body = {
+    const body: any = {
       reason: this.reason,
       items: this.selectedItems.map((item) => ({
         saleItemId: item.saleItemId,
@@ -109,14 +130,22 @@ export class ReturnDialogComponent implements OnInit {
         condition: item.condition,
       })),
     };
+    if (this.canOverrideRefund && this.refundMode !== 'proportional') {
+      body.refundMode = this.refundMode;
+    }
 
     this.api.post(`/sales/${this.sale.id}/return`, body).subscribe({
-      next: () => {
+      next: (res: any) => {
         this.submitting = false;
+        const breakup: { method: string; amount: number }[] = res?.refundBreakup || [];
+        const summary = breakup
+          .map((b) => `${this.formatCurrency(b.amount)} to ${b.method}`)
+          .join(' + ');
+        this.notify.success(summary ? `Refund: ${summary}` : 'Return processed');
         this.returnComplete.emit();
       },
-      error: () => {
-        this.notify.error('Failed to process return');
+      error: (err) => {
+        this.notify.error(err.error?.error || 'Failed to process return');
         this.submitting = false;
       },
     });

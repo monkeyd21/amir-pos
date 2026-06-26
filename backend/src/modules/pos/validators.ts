@@ -22,10 +22,18 @@ export const checkoutSchema = z.object({
           barcode: z.string().min(1),
           quantity: z.number().int().positive(),
           agentId: z.number().int().positive().optional(),
+          // Cashier flags this line as sold as-is (clearance/defective) — blocks returns.
+          nonReturnable: z.boolean().optional(),
         })
       )
       .min(1, 'At least one item is required'),
     customerId: z.number().int().positive().optional(),
+    // Sales channel drives the bill-number prefix (walk-in W-0001 / online O-0001).
+    channel: z.enum(['walkin', 'online']).optional(),
+    // Idempotency key — repeat checkouts with the same key return the original sale.
+    clientRef: z.string().min(1).max(100).optional(),
+    // Offline bill being synced (MRP-only pricing, stock-tolerant).
+    offline: z.boolean().optional(),
     // Usually ≥1 payment, but an even exchange (return credit exactly covers
     // the new purchase) settles at ₹0 with no tender. The service validates
     // that payments actually cover the net payable, so empty is safe.
@@ -35,8 +43,19 @@ export const checkoutSchema = z.object({
           method: z.enum(['cash', 'card', 'upi']),
           amount: z.number().positive(),
           referenceNumber: z.string().optional(),
+          // Bank/account name for card/UPI reconciliation.
+          identifier: z.string().optional(),
         })
       ),
+    // Gift vouchers redeemed as a tender (code + amount applied to this bill).
+    vouchers: z
+      .array(
+        z.object({
+          code: z.string().min(1),
+          amount: z.number().positive(),
+        })
+      )
+      .optional(),
     // Negative values are allowed to accommodate round-up surcharges
     // (the cashier bumps the total to the next ₹10). Capped at ₹10 on
     // the negative side so a stray sign can't turn into a huge surcharge.

@@ -49,10 +49,9 @@ export class CustomerDialogComponent implements OnInit {
         this.data?.customer?.firstName || '',
         [Validators.required, Validators.minLength(2)],
       ],
-      lastName: [
-        this.data?.customer?.lastName || '',
-        [Validators.required, Validators.minLength(1)],
-      ],
+      // Last name is optional — a first name + phone is enough to create a
+      // customer (the common walk-in POS case).
+      lastName: [this.data?.customer?.lastName || ''],
       email: [
         this.data?.customer?.email || '',
         [Validators.email],
@@ -82,7 +81,7 @@ export class CustomerDialogComponent implements OnInit {
     // (the common POS case) would fail to save otherwise.
     const body: Record<string, any> = {
       firstName: raw.firstName?.trim(),
-      lastName: raw.lastName?.trim(),
+      lastName: raw.lastName?.trim() || undefined,
       email: raw.email?.trim() || undefined,
       phone: raw.phone?.trim() || undefined,
       address: raw.address?.trim() || undefined,

@@ -37,6 +37,47 @@ router.put(
   }
 );
 
+// Bill numbering: per-channel prefixes for human-friendly sale numbers (W-0001 / O-0001).
+// `pad` controls zero-padding width of the running counter.
+const DEFAULT_BILL_NUMBERING = { walkin: 'W', online: 'O', pad: 4 };
+
+router.get('/bill-numbering', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await getSetting('billNumbering', DEFAULT_BILL_NUMBERING);
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put(
+  '/bill-numbering',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const existing = await getSetting<any>('billNumbering', DEFAULT_BILL_NUMBERING);
+      const updated = { ...existing };
+      if (typeof req.body.walkin === 'string' && req.body.walkin.trim()) {
+        updated.walkin = req.body.walkin.trim().toUpperCase();
+      }
+      if (typeof req.body.online === 'string' && req.body.online.trim()) {
+        updated.online = req.body.online.trim().toUpperCase();
+      }
+      if (req.body.pad !== undefined) {
+        const pad = Number(req.body.pad);
+        if (!Number.isInteger(pad) || pad < 1 || pad > 10) {
+          return res.status(400).json({ success: false, error: 'pad must be an integer between 1 and 10' });
+        }
+        updated.pad = pad;
+      }
+      await setSetting('billNumbering', updated);
+      res.json({ success: true, data: updated, message: 'Bill numbering updated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Messaging config (stored in settings table, not env vars — so it's editable at runtime)
 router.get('/messaging', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {

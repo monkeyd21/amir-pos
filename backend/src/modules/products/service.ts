@@ -95,6 +95,8 @@ export const createProduct = async (data: {
   cgstRate?: number;
   sgstRate?: number;
   priceIncludesTax?: boolean;
+  nonReturnable?: boolean;
+  exchangeOnly?: boolean;
   vendorId?: number;
   lotCode?: string;
   variants?: Array<{
@@ -144,6 +146,8 @@ export const createProduct = async (data: {
       cgstRate: data.cgstRate ?? 9,
       sgstRate: data.sgstRate ?? 9,
       priceIncludesTax: data.priceIncludesTax ?? true,
+      nonReturnable: data.nonReturnable ?? false,
+      exchangeOnly: data.exchangeOnly ?? false,
       variants: {
         create: variantData,
       },
@@ -218,6 +222,8 @@ export const updateProduct = async (id: number, data: {
   cgstRate?: number;
   sgstRate?: number;
   priceIncludesTax?: boolean;
+  nonReturnable?: boolean;
+  exchangeOnly?: boolean;
   isActive?: boolean;
 }) => {
   const product = await prisma.product.findUnique({ where: { id } });

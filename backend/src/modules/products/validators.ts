@@ -13,6 +13,8 @@ export const createProductSchema = z.object({
     cgstRate: z.number().min(0).max(50).optional(),
     sgstRate: z.number().min(0).max(50).optional(),
     priceIncludesTax: z.boolean().optional(),
+    nonReturnable: z.boolean().optional(),
+    exchangeOnly: z.boolean().optional(),
     vendorId: z.number().int().positive().optional().nullable(),
     lotCode: z.string().optional().nullable(),
     variants: z.array(z.object({
@@ -41,6 +43,8 @@ export const updateProductSchema = z.object({
     cgstRate: z.number().min(0).max(50).optional(),
     sgstRate: z.number().min(0).max(50).optional(),
     priceIncludesTax: z.boolean().optional(),
+    nonReturnable: z.boolean().optional(),
+    exchangeOnly: z.boolean().optional(),
     isActive: z.boolean().optional(),
   }),
 });

@@ -123,7 +123,7 @@ export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
     doc.text(`Date: ${saleDate}`);
     doc.text(`Cashier: ${sale.user.firstName} ${sale.user.lastName}`);
     if (sale.customer) {
-      doc.text(`Customer: ${sale.customer.firstName} ${sale.customer.lastName}`);
+      doc.text(`Customer: ${`${sale.customer.firstName} ${sale.customer.lastName ?? ''}`.trim()}`);
       doc.text(`Phone: ${sale.customer.phone}`);
     }
 

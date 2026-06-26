@@ -21,12 +21,14 @@ export class SidebarComponent {
     { icon: 'inventory_2', label: 'Inventory', path: '/inventory' },
     { icon: 'payments', label: 'Sales', path: '/sales' },
     { icon: 'sell', label: 'Offers', path: '/offers' },
+    { icon: 'redeem', label: 'Vouchers', path: '/vouchers' },
     { icon: 'group', label: 'Customers', path: '/customers' },
     { icon: 'store', label: 'Vendors', path: '/vendors' },
     { icon: 'badge', label: 'Employees', path: '/employees' },
     { icon: 'receipt_long', label: 'Expenses', path: '/expenses' },
     { icon: 'account_balance', label: 'Accounting', path: '/accounting' },
     { icon: 'analytics', label: 'Reports', path: '/reports' },
+    { icon: 'history', label: 'Audit Log', path: '/audit' },
   ];
 
   settingsNav: NavItem = { icon: 'settings', label: 'Settings', path: '/settings' };

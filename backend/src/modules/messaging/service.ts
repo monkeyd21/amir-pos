@@ -50,7 +50,7 @@ export class MessagingService {
         to: customer.phone,
         templateName: 'bill_receipt',
         templateParams: [
-          `${customer.firstName} ${customer.lastName}`,
+          `${customer.firstName} ${customer.lastName ?? ''}`.trim(),
           sale.saleNumber,
           sale.total.toString(),
           sale.branch.name,
@@ -158,7 +158,7 @@ export class MessagingService {
     return (
       `${appName} - Receipt\n` +
       `Sale: ${sale.saleNumber}\n` +
-      `Customer: ${customer.firstName} ${customer.lastName}\n` +
+      `Customer: ${`${customer.firstName} ${customer.lastName ?? ''}`.trim()}\n` +
       `Items: ${sale.items.length}\n` +
       `Subtotal: ${currency} ${sale.subtotal}\n` +
       `Tax: ${currency} ${sale.taxAmount}\n` +

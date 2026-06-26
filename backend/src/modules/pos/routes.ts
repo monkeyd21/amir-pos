@@ -30,6 +30,9 @@ router.get('/upi/:intentId/status', validate(checkUpiPaymentSchema), posControll
 router.get('/products/search', posController.searchProducts);
 router.get('/lookup/:barcode', posController.lookupBarcode);
 
+// Catalog snapshot for offline caching (scan + price with no network)
+router.get('/catalog', posController.catalog);
+
 // Cart evaluation — returns applicable offers and computed discounts
 router.post('/cart/evaluate', validate(evaluateCartSchema), posController.evaluateCart);
 

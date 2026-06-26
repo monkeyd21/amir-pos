@@ -47,8 +47,33 @@ model Branch {
   attendance         Attendance[]
   upiPaymentIntents  UpiPaymentIntent[]
   printerProfiles    PrinterProfile[]
+  auditLogs          AuditLog[]
+  giftVouchers       GiftVoucher[]
 
   @@map("branches")
+}
+
+// ─── Audit log ───────────────────────────────────────
+// Append-only trail of sensitive operations (refunds, refund-method overrides,
+// commission reversals, loyalty adjustments, bill edits, voucher ops…). Every
+// entry records who, when, what changed (data.original / data.updated), and why.
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  branchId   Int?
+  userId     Int?
+  action     String   // e.g. 'return.created', 'refund.method_overridden', 'commission.reversed'
+  entityType String   // 'sale' | 'return' | 'commission' | 'loyalty' | 'payment' | …
+  entityId   String?  // id of the affected entity (string so it's type-agnostic)
+  reason     String?
+  data       Json?    // { original?, updated?, … } or any structured detail
+  createdAt  DateTime @default(now())
+
+  user   User?   @relation(fields: [userId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([branchId, createdAt])
+  @@map("audit_logs")
 }
 
 // ─── Printing (barcode label printers) ───────────────
@@ -136,6 +161,7 @@ model User {
   upiPaymentIntents  UpiPaymentIntent[]
   agentSaleItems     SaleItem[]          @relation("SaleItemAgent")
   vendorPayments     VendorPayment[]
+  auditLogs          AuditLog[]
 
   @@map("users")
 }
@@ -212,6 +238,11 @@ model Product {
   // When true (the Indian retail convention), basePrice is the MRP — tax is
   // already extracted from inside it. When false, tax is added on top at POS.
   priceIncludesTax Boolean @default(true)
+  // Sale-policy flags. `nonReturnable` blocks both refund-returns and exchanges
+  // (e.g. clearance/sale/defective goods). `exchangeOnly` allows an exchange but
+  // blocks a refund-return. The POS enforces these when goods come back.
+  nonReturnable Boolean @default(false)
+  exchangeOnly  Boolean @default(false)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -399,12 +430,25 @@ enum SaleStatus {
   void
 }
 
+enum SaleChannel {
+  walkin
+  online
+}
+
 model Sale {
   id                   Int        @id @default(autoincrement())
   branchId             Int
   customerId           Int?
   userId               Int
   saleNumber           String     @unique
+  // Client-generated idempotency key (UUID). Every checkout — online or an
+  // offline bill replayed on sync — carries one. A second checkout with the
+  // same key returns the existing sale instead of creating a duplicate, so a
+  // retry, double-tap, or re-sync can never double-bill. NULL for legacy rows.
+  clientRef            String?    @unique
+  // Sales channel drives the bill-number prefix (walk-in W-0001 vs online O-0001).
+  // Prefixes themselves are configurable in Settings; the channel is the stable key.
+  channel              SaleChannel @default(walkin)
   status               SaleStatus @default(completed)
   subtotal             Decimal    @db.Decimal(10, 2)
   taxAmount            Decimal    @db.Decimal(10, 2)
@@ -430,6 +474,7 @@ model Sale {
   returns  Return[]
   commissions Commission[]
   loyaltyTransactions LoyaltyTransaction[]
+  voucherRedemptions VoucherRedemption[]
   upiPaymentIntent UpiPaymentIntent?
 
   @@index([branchId, createdAt])
@@ -449,6 +494,10 @@ model SaleItem {
   offerId            Int?
   effectiveUnitPrice Decimal? @db.Decimal(10, 2)
   agentId            Int?
+  // Per-bill "sold as-is" flag the cashier can set at checkout (clearance,
+  // defective, final-sale goods) even when the product itself is returnable.
+  // Returns are blocked if this OR the product's nonReturnable flag is set.
+  nonReturnable      Boolean @default(false)
 
   sale        Sale           @relation(fields: [saleId], references: [id])
   variant     ProductVariant @relation(fields: [variantId], references: [id])
@@ -520,6 +569,52 @@ enum PaymentMethod {
   cash
   card
   upi
+  voucher
+}
+
+// ─── Gift vouchers ───────────────────────────────────
+// Stored-value vouchers redeemed as a tender at checkout. Partial redemption is
+// supported via `balance`; each use is logged in VoucherRedemption. A voucher
+// refund (returning a voucher-paid sale) re-credits the balance.
+enum VoucherStatus {
+  active
+  redeemed  // balance exhausted
+  expired
+  cancelled
+}
+
+model GiftVoucher {
+  id           Int           @id @default(autoincrement())
+  code         String        @unique
+  initialValue Decimal       @db.Decimal(10, 2)
+  balance      Decimal       @db.Decimal(10, 2)
+  status       VoucherStatus @default(active)
+  expiresAt    DateTime?
+  customerId   Int? // optionally issued to a specific customer
+  branchId     Int
+  issuedBy     Int
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  customer    Customer?           @relation(fields: [customerId], references: [id])
+  branch      Branch              @relation(fields: [branchId], references: [id])
+  redemptions VoucherRedemption[]
+
+  @@map("gift_vouchers")
+}
+
+model VoucherRedemption {
+  id        Int      @id @default(autoincrement())
+  voucherId Int
+  saleId    Int?
+  amount    Decimal  @db.Decimal(10, 2) // positive = redeemed, negative = re-credited on refund
+  createdAt DateTime @default(now())
+
+  voucher GiftVoucher @relation(fields: [voucherId], references: [id])
+  sale    Sale?       @relation(fields: [saleId], references: [id])
+
+  @@map("voucher_redemptions")
 }
 
 enum PaymentStatus {
@@ -534,6 +629,8 @@ model Payment {
   method          PaymentMethod
   amount          Decimal       @db.Decimal(10, 2)
   referenceNumber String?
+  // For card/UPI tenders: bank or account name, captured for reconciliation.
+  identifier      String?
   status          PaymentStatus @default(completed)
   createdAt       DateTime      @default(now())
 
@@ -567,6 +664,16 @@ model Return {
   taxAmount      Decimal      @db.Decimal(10, 2)
   total          Decimal      @db.Decimal(10, 2)
   status         ReturnStatus @default(pending)
+  // How the refund was settled. `proportional` (default) mirrors the original
+  // payment split (card→card, points→wallet); an override forces a single
+  // method and requires manager approval (recorded in `approvedBy` + audit log).
+  refundMode            String   @default("proportional")
+  // Per-method cash/card/upi refund breakup: [{ method, amount }]. Loyalty is
+  // tracked separately in the points columns below (it's not a cash tender).
+  refundBreakup         Json?
+  loyaltyPointsRestored Int      @default(0) // redeemed points returned to wallet
+  loyaltyPointsReversed Int      @default(0) // earned points clawed back
+  approvedBy            Int?     // manager/owner who authorised a method override
   createdAt      DateTime     @default(now())
 
   originalSale Sale         @relation(fields: [originalSaleId], references: [id])
@@ -639,6 +746,17 @@ model HeldTransaction {
   @@map("held_transactions")
 }
 
+// Monotonic per-channel counter for human-friendly bill numbers (W-0001, O-0001).
+// `key` is the stable channel ("walkin"/"online") so editing the display prefix in
+// Settings never resets the running count. Incremented atomically inside checkout.
+model BillSequence {
+  key        String   @id
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("bill_sequences")
+}
+
 // ─── Customer & Loyalty ──────────────────────────────
 
 enum LoyaltyTier {
@@ -651,7 +769,7 @@ enum LoyaltyTier {
 model Customer {
   id           Int        @id @default(autoincrement())
   firstName    String
-  lastName     String
+  lastName     String?
   phone        String     @unique
   email        String?
   address      String?
@@ -667,6 +785,7 @@ model Customer {
   loyaltyTransactions LoyaltyTransaction[]
   messageLogs        MessageLog[]
   upiPaymentIntents  UpiPaymentIntent[]
+  giftVouchers       GiftVoucher[]
 
   @@map("customers")
 }
