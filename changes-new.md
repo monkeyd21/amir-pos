@@ -69,7 +69,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 
 ## 9. Commission & Incentive Adjustments — **MEDIUM**
 - [x] 9.1 Auto-adjust salesman commission on return/exchange to net sale — **DONE + UNIT TESTED** (`commission-reconcile.ts`; jest `commission-reconcile.test.ts`: full-return→0, partial→half, no-op when uncalculated). Wired on return/exchange/edit.
-- [ ] 9.2 Monthly statement: original → deductions → net — **PARTIAL** (commission list + report exist; **no original/deduction/net progression view**).
+- [x] 9.2 Monthly statement: original → deductions → net — **DONE + E2E TESTED** (`/employees/commissions/statement`; commissions-page statement table). `section9-statement` ✓.
 
 ## 10. Business Performance Dashboard — **HIGH**
 - [x] 10.1 Overall summary: Total Sales, Cost, Profit, Avg Profit % — **DONE + E2E TESTED** (`/reports/performance` COGS/profit/margin; dashboard cards). `section10-performance` ✓.

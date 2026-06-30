@@ -119,6 +119,15 @@ export class EmployeeController {
       next(error);
     }
   }
+
+  async getCommissionStatement(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await employeeService.getCommissionStatement(req.query as any);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const employeeController = new EmployeeController();

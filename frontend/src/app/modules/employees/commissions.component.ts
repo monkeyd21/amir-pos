@@ -172,7 +172,23 @@ export class CommissionsComponent implements OnInit, OnDestroy {
       });
   }
 
+  // §9.2 — commission statement (original → deductions → net per employee).
+  statement: { userId: number; name: string; original: number; deductions: number; net: number }[] = [];
+
+  private loadStatement(): void {
+    const sd = this.filterStartDate || '2020-01-01';
+    const ed = this.filterEndDate || new Date().toISOString().split('T')[0];
+    this.api
+      .get<ApiResponse<{ rows: any[] }>>('/employees/commissions/statement', { startDate: sd, endDate: ed })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.statement = res?.data?.rows ?? []),
+        error: () => (this.statement = []),
+      });
+  }
+
   loadCommissions(): void {
+    this.loadStatement();
     this.loading = true;
     const params: any = {
       page: this.page,

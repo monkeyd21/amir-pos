@@ -62,6 +62,33 @@
       </p>
     </div>
 
+    <!-- §9.2 — Commission statement: original → deductions → net -->
+    @if (statement.length > 0) {
+      <div class="bg-surface-container rounded-xl p-5" data-testid="commission-statement">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Commission Statement</h3>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[10px] uppercase tracking-widest text-on-surface-variant">
+              <th class="pb-2">Employee</th>
+              <th class="pb-2 text-right">Original</th>
+              <th class="pb-2 text-right">Deductions</th>
+              <th class="pb-2 text-right">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of statement; track row.userId) {
+              <tr class="border-t border-outline-variant/10">
+                <td class="py-2 text-on-surface">{{ row.name }}</td>
+                <td class="py-2 text-right font-mono text-on-surface">{{ formatCurrency(row.original) }}</td>
+                <td class="py-2 text-right font-mono text-error">{{ row.deductions > 0 ? '−' + formatCurrency(row.deductions) : '—' }}</td>
+                <td class="py-2 text-right font-mono font-bold text-on-surface">{{ formatCurrency(row.net) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
     <!-- Bulk Pay -->
     @if (pendingCommissions > 0) {
       <div class="bg-surface-container rounded-xl p-5">

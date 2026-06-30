@@ -496,6 +496,63 @@ export class EmployeeService {
     return { paidCount: result.count };
   }
 
+  /**
+   * §9.2 — monthly commission statement: per employee, the original commission
+   * (had nothing been returned), the deductions from returns/exchanges, and the
+   * net retained. Net comes from the live commission rows (already reconciled);
+   * original is recomputed from the full sale value at the same rate.
+   */
+  async getCommissionStatement(query: { startDate: string; endDate: string; branchId?: string }) {
+    const where: any = {
+      payPeriodStart: { gte: new Date(query.startDate) },
+      payPeriodEnd: { lte: new Date(query.endDate) },
+    };
+    if (query.branchId) where.sale = { branchId: parseInt(query.branchId) };
+
+    const commissions = await prisma.commission.findMany({
+      where,
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        sale: {
+          select: { id: true, userId: true, total: true, items: { select: { agentId: true, total: true } } },
+        },
+      },
+    });
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const byUser = new Map<number, { user: any; original: number; net: number }>();
+    const seen = new Set<string>();
+
+    for (const c of commissions) {
+      let u = byUser.get(c.userId);
+      if (!u) {
+        u = { user: c.user, original: 0, net: 0 };
+        byUser.set(c.userId, u);
+      }
+      u.net += Number(c.amount);
+      const key = `${c.saleId}-${c.userId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        let grossBase = c.sale.items
+          .filter((i) => i.agentId === c.userId)
+          .reduce((s, i) => s + Number(i.total), 0);
+        // bill-level fallback: the cashier earns on the whole bill.
+        if (grossBase === 0 && c.sale.userId === c.userId) grossBase = Number(c.sale.total);
+        u.original += grossBase * (Number(c.rate) / 100);
+      }
+    }
+
+    const rows = [...byUser.values()].map((u) => ({
+      userId: u.user?.id,
+      name: u.user ? `${u.user.firstName} ${u.user.lastName ?? ''}`.trim() : '',
+      original: round2(u.original),
+      deductions: round2(u.original - u.net),
+      net: round2(u.net),
+    }));
+
+    return { period: { startDate: query.startDate, endDate: query.endDate }, rows };
+  }
+
   async getCommissionSummary(query: {
     startDate: string;
     endDate: string;

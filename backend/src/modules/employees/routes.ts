@@ -54,6 +54,11 @@ router.get('/commissions/summary', validate(commissionSummarySchema), (req, res,
   employeeController.getCommissionSummary(req, res, next)
 );
 
+// §9.2 — commission statement (original → deductions → net per employee).
+router.get('/commissions/statement', validate(commissionSummarySchema), (req, res, next) =>
+  employeeController.getCommissionStatement(req, res, next)
+);
+
 router.post('/commissions/pay-bulk', authorize('owner', 'manager'), (req, res, next) =>
   employeeController.payCommissionsBulk(req, res, next)
 );
