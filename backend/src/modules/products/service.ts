@@ -88,6 +88,7 @@ export const createProduct = async (data: {
   brandId: number;
   categoryId: number;
   description?: string;
+  mrp?: number | null;
   basePrice: number;
   costPrice: number;
   landingPrice?: number | null;
@@ -139,6 +140,7 @@ export const createProduct = async (data: {
       brandId: data.brandId,
       categoryId: data.categoryId,
       description: data.description,
+      mrp: data.mrp ?? null,
       basePrice: data.basePrice,
       costPrice: data.costPrice,
       landingPrice: data.landingPrice ?? null,
@@ -215,6 +217,7 @@ export const updateProduct = async (id: number, data: {
   brandId?: number;
   categoryId?: number;
   description?: string | null;
+  mrp?: number | null;
   basePrice?: number;
   costPrice?: number;
   landingPrice?: number | null;

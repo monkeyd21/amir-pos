@@ -227,6 +227,9 @@ model Product {
   name        String
   slug        String   @unique
   description String?
+  // §13.3 — MRP is the printed list price; basePrice is the effective Sale Price
+  // (auto-calculated as MRP − 10% at entry). Both are printed on the barcode label.
+  mrp          Decimal? @db.Decimal(10, 2)
   basePrice    Decimal  @db.Decimal(10, 2)
   costPrice    Decimal  @db.Decimal(10, 2)
   landingPrice Decimal? @db.Decimal(10, 2)

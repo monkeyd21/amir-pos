@@ -9,6 +9,7 @@ const elementTypeEnum = z.enum([
   'barcode',
   'sku',
   'price',
+  'mrp',
   'lotCode',
   'text',
 ]);

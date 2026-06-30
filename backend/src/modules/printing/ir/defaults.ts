@@ -54,6 +54,18 @@ export const DEFAULT_LABEL_TEMPLATE: LabelTemplate = {
       visible: true,
     },
     {
+      // §13.3 — MRP printed above the Sale Price.
+      id: 'mrp',
+      type: 'mrp',
+      xMm: 2.5,
+      yMm: 33,
+      fontSizePt: 11,
+      align: 'center',
+      widthMm: 45,
+      content: 'MRP Rs.',
+      visible: true,
+    },
+    {
       id: 'price',
       type: 'price',
       xMm: 2.5,

@@ -71,6 +71,8 @@ export const printBatch = async (variantIds: number[]) => {
     size: v.size,
     color: v.color,
     price: v.priceOverride ?? v.product.basePrice,
+    // §13.3 — MRP for the label (falls back to sale price if unset).
+    mrp: v.product.mrp ?? v.priceOverride ?? v.product.basePrice,
   }));
 
   return barcodeData;

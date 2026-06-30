@@ -279,11 +279,27 @@
 
         <!-- Pricing -->
         <div class="space-y-4">
+          <!-- §13.3 — MRP drives the Sale Price (auto-calc MRP − 10%, rounded). -->
+          <div>
+            <label class="label-upper mb-1.5 block">MRP (INR) *</label>
+            <input
+              type="number"
+              data-testid="mrp-input"
+              [(ngModel)]="mrp"
+              (ngModelChange)="onMrpChange()"
+              placeholder="0"
+              min="0"
+              step="1"
+              class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <p class="text-[11px] text-on-surface-variant/60 mt-1">Sale Price auto-fills to MRP − 10% (editable).</p>
+          </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="label-upper mb-1.5 block">Selling Price (INR) *</label>
+              <label class="label-upper mb-1.5 block">Sale Price (INR) *</label>
               <input
                 type="number"
+                data-testid="sale-price-input"
                 [(ngModel)]="basePrice"
                 placeholder="0"
                 min="0"

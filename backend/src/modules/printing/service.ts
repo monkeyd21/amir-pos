@@ -466,6 +466,7 @@ export async function testPrint(
     productName: 'Sample Product',
     variantLabel: 'M / Blue',
     price: 1999,
+    mrp: 2199,
     copies: 1,
   };
 

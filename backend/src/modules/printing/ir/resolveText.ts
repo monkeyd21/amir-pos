@@ -26,6 +26,13 @@ export function resolveElementText(
       const amount = Math.round(data.price ?? 0);
       return prefix ? `${prefix} ${amount}` : String(amount);
     }
+    case 'mrp': {
+      // §13.3 — MRP printed alongside the Sale Price. Falls back to the sale
+      // price when no separate MRP is set, so legacy products still print.
+      const prefix = (el.content ?? 'MRP').trim();
+      const amount = Math.round(data.mrp ?? data.price ?? 0);
+      return prefix ? `${prefix} ${amount}` : String(amount);
+    }
     case 'text':
       return el.content ?? '';
     default:

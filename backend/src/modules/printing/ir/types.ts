@@ -17,6 +17,7 @@ export type LabelElementType =
   | 'barcode'
   | 'sku'
   | 'price'
+  | 'mrp'
   | 'lotCode'
   | 'text';
 
@@ -89,6 +90,8 @@ export interface LabelData {
   productName: string;
   variantLabel?: string;
   price: number;
+  /** §13.3 — printed MRP (list price). Sale Price is `price`. */
+  mrp?: number;
   lotCode?: string;
   /** Number of copies of this exact label. */
   copies?: number;

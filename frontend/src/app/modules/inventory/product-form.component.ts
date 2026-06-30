@@ -83,9 +83,17 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   name = '';
   brandId: number | null = null;
   categoryId: number | null = null;
+  mrp: number | null = null;
   basePrice: number | null = null;
   costPrice: number | null = null;
   landingPrice: number | null = null;
+
+  /** §13.3 — Sale Price = MRP − 10%, rounded to whole rupees (odd values OK). */
+  onMrpChange(): void {
+    if (this.mrp != null && this.mrp > 0) {
+      this.basePrice = Math.round(this.mrp * 0.9);
+    }
+  }
   description = '';
   vendorId: number | null = null;
   lotCode = '';
@@ -246,6 +254,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.name = p.name || '';
     this.brandId = p.brand?.id || p.brandId || null;
     this.categoryId = p.category?.id || p.categoryId || null;
+    this.mrp = (p as any).mrp ?? null;
     this.basePrice = p.basePrice ?? null;
     this.costPrice = p.costPrice ?? null;
     this.landingPrice = p.landingPrice ?? null;
@@ -501,6 +510,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       name: this.name.trim(),
       brandId: this.brandId,
       categoryId: this.categoryId,
+      mrp: this.mrp != null ? Number(this.mrp) : undefined,
       basePrice: Number(this.basePrice),
       costPrice: Number(this.costPrice),
       landingPrice: this.landingPrice ? Number(this.landingPrice) : undefined,

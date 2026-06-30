@@ -93,7 +93,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 ## 13. Inventory Management — **MEDIUM**
 - [ ] 13.1 Margin config: whole-lot or per-line during inventory entry — **PARTIAL** (bulk-variant-generator has margin base; **no explicit margin % input / auto-price at import**).
 - [ ] 13.2 Automated expense tracking: freight/delivery auto-captured under Expense — **GAP** (no freight fields on `InventoryMovement`; no auto-Expense creation).
-- [ ] 13.3 **[ADDED 2026-06-30]** Pricing & barcode: capture **MRP + Sale Price** at inventory entry; auto-calc Sale Price = MRP − 10% (round to 0 dp, odd ok); print **both MRP and Sale Price** on the barcode label — **GAP**.
+- [x] 13.3 **[ADDED 2026-06-30]** Pricing & barcode — **DONE + E2E TESTED**: `Product.mrp` column; product form auto-fills Sale Price = round(MRP×0.9); MRP persists + flows to barcode `LabelData.mrp`; new `mrp` IR element type + default-template line + `resolveText`. `section13-pricing` ✓ (100→90, 999→899, persistence).
 - [ ] 13.? ⚠️ **Doc truncated — re-check source for remaining 13.x / section 14+ items.**
 
 ---
