@@ -942,14 +942,27 @@
                   />
                 </div>
 
-                <!-- Bank / account name for card & UPI (reconciliation aid) -->
+                <!-- Bank / account for card & UPI (reconciliation aid) -->
                 @if (pendingMethod !== 'cash') {
-                  <input
-                    type="text"
-                    [(ngModel)]="pendingIdentifier"
-                    placeholder="Bank / account name (optional)"
-                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-4 pr-4 py-2 rounded-lg transition-all outline-none placeholder:text-outline/40"
-                  />
+                  <!-- §2.2/2.4 — pick a configured account (default pre-selected); free-text fallback. -->
+                  @if (pendingAccounts.length > 0) {
+                    <select
+                      [(ngModel)]="pendingIdentifier"
+                      data-testid="payment-account-select"
+                      class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm px-4 py-2 rounded-lg outline-none"
+                    >
+                      @for (acc of pendingAccounts; track acc.name) {
+                        <option [value]="acc.name">{{ acc.name }}{{ acc.isDefault ? ' (default)' : '' }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <input
+                      type="text"
+                      [(ngModel)]="pendingIdentifier"
+                      placeholder="Bank / account name (optional)"
+                      class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-4 pr-4 py-2 rounded-lg transition-all outline-none placeholder:text-outline/40"
+                    />
+                  }
                 }
 
                 <!-- Quick amounts (cash only) -->

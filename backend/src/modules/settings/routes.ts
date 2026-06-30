@@ -78,6 +78,50 @@ router.put(
   }
 );
 
+// §2.1/2.2/2.4 — Card & UPI payment accounts (bank/gateway list + a default per
+// mode). Stored as { card: [{name, isDefault}], upi: [{name, isDefault}] }.
+const DEFAULT_PAYMENT_ACCOUNTS = { card: [] as any[], upi: [] as any[] };
+
+function normalizeAccounts(list: any): { name: string; isDefault: boolean }[] {
+  if (!Array.isArray(list)) return [];
+  const cleaned = list
+    .map((a) => ({ name: String(a?.name ?? '').trim(), isDefault: !!a?.isDefault }))
+    .filter((a) => a.name.length > 0);
+  // At most one default per mode — keep the first flagged.
+  let seenDefault = false;
+  for (const a of cleaned) {
+    if (a.isDefault && !seenDefault) seenDefault = true;
+    else a.isDefault = false;
+  }
+  return cleaned;
+}
+
+router.get('/payment-accounts', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await getSetting('paymentAccounts', DEFAULT_PAYMENT_ACCOUNTS);
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put(
+  '/payment-accounts',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const updated = {
+        card: normalizeAccounts(req.body.card),
+        upi: normalizeAccounts(req.body.upi),
+      };
+      await setSetting('paymentAccounts', updated);
+      res.json({ success: true, data: updated, message: 'Payment accounts updated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Messaging config (stored in settings table, not env vars — so it's editable at runtime)
 router.get('/messaging', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {

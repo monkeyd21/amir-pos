@@ -26,9 +26,54 @@ export class SettingsComponent implements OnInit {
   tabs = [
     { id: 'general', label: 'General', icon: 'settings' },
     { id: 'branches', label: 'Branches', icon: 'store' },
+    { id: 'payments', label: 'Payments', icon: 'credit_card' },
     { id: 'users', label: 'Users', icon: 'group' },
     { id: 'integrations', label: 'Integrations', icon: 'extension' },
   ];
+
+  // §2.1/2.2 — Card & UPI payment accounts (bank/gateway list + default).
+  paymentAccounts: { card: { name: string; isDefault: boolean }[]; upi: { name: string; isDefault: boolean }[] } = { card: [], upi: [] };
+  newAccountName: { card: string; upi: string } = { card: '', upi: '' };
+  savingAccounts = false;
+
+  loadPaymentAccounts(): void {
+    this.api.get<any>('/settings/payment-accounts').subscribe({
+      next: (res) => {
+        if (res?.data) this.paymentAccounts = { card: res.data.card || [], upi: res.data.upi || [] };
+      },
+      error: () => {},
+    });
+  }
+
+  addPaymentAccount(mode: 'card' | 'upi'): void {
+    const name = this.newAccountName[mode].trim();
+    if (!name) return;
+    const list = this.paymentAccounts[mode];
+    list.push({ name, isDefault: list.length === 0 });
+    this.newAccountName[mode] = '';
+    this.savePaymentAccounts();
+  }
+
+  removePaymentAccount(mode: 'card' | 'upi', i: number): void {
+    this.paymentAccounts[mode].splice(i, 1);
+    this.savePaymentAccounts();
+  }
+
+  setDefaultAccount(mode: 'card' | 'upi', i: number): void {
+    this.paymentAccounts[mode].forEach((a, idx) => (a.isDefault = idx === i));
+    this.savePaymentAccounts();
+  }
+
+  savePaymentAccounts(): void {
+    this.savingAccounts = true;
+    this.api.put<any>('/settings/payment-accounts', this.paymentAccounts).subscribe({
+      next: (res) => {
+        if (res?.data) this.paymentAccounts = { card: res.data.card || [], upi: res.data.upi || [] };
+        this.savingAccounts = false;
+      },
+      error: () => (this.savingAccounts = false),
+    });
+  }
 
   // General settings
   storeName = "Sabiha's Ethnic";
@@ -84,6 +129,7 @@ export class SettingsComponent implements OnInit {
     this.loadLoyaltyConfig();
     this.loadMessagingConfig();
     this.loadBillNumbering();
+    this.loadPaymentAccounts();
   }
 
   loadBillNumbering(): void {

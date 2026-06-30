@@ -18,10 +18,10 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 1.5 **[ADDED] RETURN workflow** — **DONE + UNIT TESTED**: policy windows enforced — refund-returns ≤1 day (`processReturn`), exchanges ≤15 days (POS exchange); `isWithinPolicyWindow` helper, jest `helpers.test.ts`. (Returns + GSTR-1 credit-note + intact original bill already done.) Windows = consts (Settings-wire follow-up).
 
 ## 2. Payment Identification (UPI / Card) — **HIGH**
-- [ ] 2.1 Settings: separate Card/UPI config sections + bank-account/gateway list — **GAP** (settings module only has commissionMode/billNumbering/messaging).
-- [ ] 2.2 "Set as Default" account per mode, auto-populate at billing — **GAP** (depends on 2.1).
+- [x] 2.1 Settings: separate Card/UPI config sections + bank-account list — **DONE + E2E TESTED** (`GET/PUT /settings/payment-accounts`; Settings "Payments" tab). `section2-payment-accounts` ✓.
+- [x] 2.2 "Set as Default" account per mode, auto-populate at billing — **DONE + E2E TESTED** (single-default enforced; POS pre-selects default). `section2-payment-accounts` ✓.
 - [x] 2.3 Capture payment identifier per txn — **DONE + E2E TESTED** (`Payment.identifier`). `built-section1-7 §2.3` ✓ (card identifier entered in UI persists on the sale).
-- [ ] 2.4 Cashier override default & pick another account per bill — **PARTIAL** (can enter free-text identifier per tender; no account dropdown to override — blocked by 2.1).
+- [x] 2.4 Cashier override default & pick another account per bill — **DONE + E2E TESTED** (POS account dropdown; override per tender). `section2-payment-accounts` ✓.
 - [x] 2.5 **[ADDED]** Lock payment interface until all discounts applied — **DONE + E2E TESTED** (`paymentUnlocked` gate; tender panel hidden behind a "Proceed to Payment" step, reset per bill). `section2-payment-lock` ✓.
 
 ## 3. Seamless Bill Editing (POS Integration) — **HIGH**

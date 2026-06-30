@@ -429,6 +429,62 @@
     </div>
   }
 
+  <!-- §2.1 Payments Tab — Card & UPI accounts -->
+  @if (activeTab === 'payments') {
+    <div class="space-y-6" data-testid="payments-tab">
+      <!-- Card accounts -->
+      <div class="bg-surface-container rounded-xl p-5">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">Card Accounts</h3>
+        <div class="space-y-2 mb-3">
+          @for (acc of paymentAccounts.card; track acc.name; let i = $index) {
+            <div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-surface-container-high/40">
+              <span class="text-sm text-on-surface">{{ acc.name }}</span>
+              <div class="flex items-center gap-2">
+                @if (acc.isDefault) {
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-primary-container/30 text-primary">Default</span>
+                } @else {
+                  <button (click)="setDefaultAccount('card', i)" class="text-[10px] font-bold text-on-surface-variant hover:text-primary uppercase">Set default</button>
+                }
+                <button (click)="removePaymentAccount('card', i)" class="text-on-surface-variant/50 hover:text-error"><span class="material-symbols-outlined text-base">close</span></button>
+              </div>
+            </div>
+          }
+          @if (paymentAccounts.card.length === 0) { <p class="text-xs text-on-surface-variant/60">No card accounts yet.</p> }
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" [(ngModel)]="newAccountName.card" data-testid="card-account-input" placeholder="e.g. HDFC Bank"
+            class="flex-1 px-3 py-2 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+          <button (click)="addPaymentAccount('card')" data-testid="card-account-add" class="px-4 py-2 text-sm font-semibold bg-primary-container text-on-primary-container rounded-lg">Add</button>
+        </div>
+      </div>
+      <!-- UPI accounts -->
+      <div class="bg-surface-container rounded-xl p-5">
+        <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase mb-3">UPI Accounts</h3>
+        <div class="space-y-2 mb-3">
+          @for (acc of paymentAccounts.upi; track acc.name; let i = $index) {
+            <div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-surface-container-high/40">
+              <span class="text-sm text-on-surface">{{ acc.name }}</span>
+              <div class="flex items-center gap-2">
+                @if (acc.isDefault) {
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-primary-container/30 text-primary">Default</span>
+                } @else {
+                  <button (click)="setDefaultAccount('upi', i)" class="text-[10px] font-bold text-on-surface-variant hover:text-primary uppercase">Set default</button>
+                }
+                <button (click)="removePaymentAccount('upi', i)" class="text-on-surface-variant/50 hover:text-error"><span class="material-symbols-outlined text-base">close</span></button>
+              </div>
+            </div>
+          }
+          @if (paymentAccounts.upi.length === 0) { <p class="text-xs text-on-surface-variant/60">No UPI accounts yet.</p> }
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" [(ngModel)]="newAccountName.upi" data-testid="upi-account-input" placeholder="e.g. PhonePe"
+            class="flex-1 px-3 py-2 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+          <button (click)="addPaymentAccount('upi')" data-testid="upi-account-add" class="px-4 py-2 text-sm font-semibold bg-primary-container text-on-primary-container rounded-lg">Add</button>
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- Users Tab -->
   @if (activeTab === 'users') {
     <div class="bg-surface-container rounded-xl p-12 text-center">

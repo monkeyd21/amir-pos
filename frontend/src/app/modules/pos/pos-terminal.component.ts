@@ -206,6 +206,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   pendingAmount: number | null = null;
   // Bank/account name entered alongside a card/UPI tender (reconciliation aid).
   pendingIdentifier = '';
+  /** §2.1/2.2/2.4 — configured Card/UPI accounts (with a default per mode). */
+  paymentAccounts: { card: { name: string; isDefault: boolean }[]; upi: { name: string; isDefault: boolean }[] } = { card: [], upi: [] };
 
   // ─── Gift-voucher tenders ────────────────────────────────────────
   // Vouchers applied to this bill. Each covers part of the total like cash.
@@ -369,6 +371,16 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.setupCustomerSearch();
     this.setupCartEvaluation();
     this.loadAgents();
+    // §2.1/2.2 — load configured Card/UPI accounts for auto-populate + override.
+    this.api
+      .get<ApiResponse<{ card: any[]; upi: any[] }>>('/settings/payment-accounts')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          if (res?.data) this.paymentAccounts = { card: res.data.card || [], upi: res.data.upi || [] };
+        },
+        error: () => {},
+      });
     this.loadLoyaltyConfig();
     this.loadHeld();
     this.initOffline();
@@ -1258,7 +1270,20 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // Reset the typed amount so the default (= remaining) kicks in again.
     this.pendingAmount = null;
     // The bank/account identifier only applies to card/UPI — clear it on cash.
-    if (method === 'cash') this.pendingIdentifier = '';
+    if (method === 'cash') {
+      this.pendingIdentifier = '';
+    } else {
+      // §2.2 — auto-populate the default account for this mode.
+      const accounts = this.paymentAccounts[method] || [];
+      const def = accounts.find((a) => a.isDefault) || accounts[0];
+      this.pendingIdentifier = def ? def.name : '';
+    }
+  }
+
+  /** §2.4 — accounts the cashier can pick from for the selected card/UPI mode. */
+  get pendingAccounts(): { name: string; isDefault: boolean }[] {
+    if (this.pendingMethod === 'cash') return [];
+    return this.paymentAccounts[this.pendingMethod] || [];
   }
 
   /**
