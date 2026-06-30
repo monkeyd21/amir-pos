@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
-import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
+import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow, billPaymentStatus } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
 
 // §1.5 — return/exchange policy windows (configurable later via Settings).
@@ -1020,6 +1020,7 @@ export class SalesService {
       settlementIdentifier?: string;
       payments?: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
       vouchers?: { code: string; amount: number }[];
+      pin?: string;
     },
     userId: number,
     branchId: number,
@@ -1037,6 +1038,20 @@ export class SalesService {
       });
       if (!sale) throw new AppError('Sale not found', 404);
       if (sale.status === 'void') throw new AppError('Cannot edit a voided sale', 400);
+
+      // §3.4 — edit lock by payment status. A fully-paid bill can't be edited
+      // (use return/exchange); a partially-paid bill needs a supervisor PIN
+      // (which authorizes voiding the partial payment before editing).
+      const paidTotal = sale.payments
+        .filter((p) => p.status !== 'refunded')
+        .reduce((s, p) => s + Number(p.amount), 0);
+      const payStatus = billPaymentStatus(paidTotal, Number(sale.total));
+      if (payStatus === 'paid') {
+        throw new AppError('This bill is fully paid — edits are blocked. Use return/exchange instead.', 400);
+      }
+      if (payStatus === 'partial') {
+        await verifySupervisorPin((data as any).pin);
+      }
 
       const existingById = new Map(sale.items.map((i) => [i.id, i]));
 

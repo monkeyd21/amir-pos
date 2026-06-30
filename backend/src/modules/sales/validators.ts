@@ -82,6 +82,8 @@ export const editSaleSchema = z.object({
     // New manual discount (₹) for the whole bill; offers + loyalty recompute.
     discountAmount: z.number().min(0).optional(),
     reason: z.string().min(1, 'A reason is required'),
+    // §3.4 — supervisor PIN, required to edit a partially-paid bill.
+    pin: z.string().optional(),
     // Simple settlement for a price rise: name the method and the server collects
     // the EXACT computed difference (no client-side total math needed).
     settlementMethod: z.enum(['cash', 'card', 'upi']).optional(),

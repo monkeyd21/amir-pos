@@ -1,4 +1,17 @@
-import { generateEAN13, generateSKU, slugify, getPagination, buildPaginationMeta, isWithinPolicyWindow } from '../helpers';
+import { generateEAN13, generateSKU, slugify, getPagination, buildPaginationMeta, isWithinPolicyWindow, billPaymentStatus } from '../helpers';
+
+describe('§3.4 billPaymentStatus (edit lock)', () => {
+  it('unpaid when nothing is paid', () => {
+    expect(billPaymentStatus(0, 1000)).toBe('unpaid');
+  });
+  it('partial when some but not all is paid', () => {
+    expect(billPaymentStatus(400, 1000)).toBe('partial');
+  });
+  it('paid when the full amount (or more) is covered', () => {
+    expect(billPaymentStatus(1000, 1000)).toBe('paid');
+    expect(billPaymentStatus(1200, 1000)).toBe('paid');
+  });
+});
 
 describe('§1.5 isWithinPolicyWindow (return/exchange policy windows)', () => {
   const now = new Date('2026-06-30T12:00:00Z');

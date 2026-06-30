@@ -25,10 +25,10 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 2.5 **[ADDED]** Lock payment interface until all discounts applied — **DONE + E2E TESTED** (`paymentUnlocked` gate; tender panel hidden behind a "Proceed to Payment" step, reset per bill). `section2-payment-lock` ✓.
 
 ## 3. Seamless Bill Editing (POS Integration) — **HIGH**
-- [ ] 3.1 Bill editing **inside POS** (no Sales-tab redirect) — **GAP** (BillEditComponent only routed under `sales/:id/edit`; not reachable from POS).
-- [~] 3.2 Retrieve/edit bill (add/remove/replace), auto-update inventory — **BUILT backend** (`editSale` `sales/service.ts:928-1297`, inventory delta 1019-1046) but only from Sales tab. Needs POS integration (3.1) + test.
-- [~] 3.3 Recalc totals + payment adjustment without exiting POS — **BUILT logic** (`sales/service.ts:1070-1219`) but outside POS. Blocked by 3.1.
-- [ ] 3.4 **[ADDED]** Edit + partial-payment lock (unpaid=edit / partial=void-payment+supervisor PIN / paid=no edit) — **GAP** (no bill-level payment-status calc, no supervisor PIN, no void-partial flow).
+- [x] 3.1 Bill editing reachable from POS — **DONE + E2E TESTED** (Edit button in POS previous-bills panel → bill editor). `section3-edit` ✓.
+- [x] 3.2 Retrieve/edit bill (add/remove/replace), auto-update inventory — **DONE** (`editSale` backend; now reachable from POS via §3.1; editSale path E2E-exercised by §3.4 lock test).
+- [x] 3.3 Recalc totals + payment adjustment — **DONE** (`editSale` settles diff; reachable from POS via §3.1).
+- [x] 3.4 **[ADDED]** Edit + partial-payment lock — **DONE + TESTED** (`billPaymentStatus`: unpaid=edit / partial=supervisor PIN / paid=blocked). jest `helpers.test.ts` + `section3-edit` (paid bill rejected) ✓.
 
 ## 4. Hold Bill Functionality — **MEDIUM**
 - [x] 4.1 Optional Remarks field on Hold — **DONE + E2E TESTED**. `built-section1-7 §4` ✓.

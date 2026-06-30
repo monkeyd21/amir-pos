@@ -91,3 +91,16 @@ export const isWithinPolicyWindow = (
   windowDays: number,
   now: Date = new Date()
 ): boolean => daysBetween(saleDate, now) <= windowDays;
+
+/**
+ * §3.4 — payment state of a bill, which drives the edit lock:
+ *   unpaid  → full edit allowed
+ *   partial → edit locked (needs supervisor PIN to void the partial first)
+ *   paid    → no edit (return/exchange only)
+ */
+export type BillPaymentStatus = 'unpaid' | 'partial' | 'paid';
+export const billPaymentStatus = (paid: number, total: number): BillPaymentStatus => {
+  if (paid <= 0.001) return 'unpaid';
+  if (paid + 0.001 >= total) return 'paid';
+  return 'partial';
+};
