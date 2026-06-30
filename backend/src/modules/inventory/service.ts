@@ -184,6 +184,8 @@ export class InventoryService {
     notes?: string | null;
     paymentMode?: 'cash' | 'credit';
     dueDate?: string | Date | null;
+    // §13.2 — freight/delivery cost for this purchase; auto-booked as an Expense.
+    freight?: number | null;
     items: { variantId: number; quantity: number; unitCost?: number | null }[];
   }, userId: number, branchId: number) {
     return prisma.$transaction(async (tx) => {
@@ -240,10 +242,36 @@ export class InventoryService {
         results.push({ variantId: item.variantId, previousQty: prevQty, newQty });
       }
 
+      // §13.2 — auto-capture freight/delivery as an Expense under a dedicated
+      // category, linked to this lot + vendor.
+      let freightExpenseId: number | null = null;
+      const freight = Number(data.freight || 0);
+      if (freight > 0) {
+        let category = await tx.expenseCategory.findFirst({
+          where: { name: 'Freight & Delivery' },
+        });
+        if (!category) {
+          category = await tx.expenseCategory.create({ data: { name: 'Freight & Delivery' } });
+        }
+        const expense = await tx.expense.create({
+          data: {
+            branchId,
+            categoryId: category.id,
+            amount: freight,
+            description: `Freight for lot ${data.lotCode} from ${vendor.name}`,
+            date: new Date(),
+            paymentMethod: data.paymentMode === 'credit' ? 'credit' : 'cash',
+            createdBy: userId,
+          },
+        });
+        freightExpenseId = expense.id;
+      }
+
       return {
         productId: data.productId,
         vendorId: data.vendorId,
         lotCode: data.lotCode,
+        freightExpenseId,
         variantsRestocked: results.length,
         totalUnitsAdded: data.items.reduce((sum, i) => sum + i.quantity, 0),
         details: results,

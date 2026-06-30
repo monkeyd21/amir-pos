@@ -30,6 +30,8 @@ export const restockSchema = z.object({
     notes: z.string().optional().nullable(),
     paymentMode: z.enum(['cash', 'credit']).optional(),
     dueDate: z.string().optional().nullable(),
+    // §13.2 — freight/delivery cost auto-booked as an Expense.
+    freight: z.number().nonnegative().optional().nullable(),
     items: z
       .array(
         z.object({

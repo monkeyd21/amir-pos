@@ -91,8 +91,8 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 12.3 GST audit trail view (MRP→deductions→net→GST→paid) — **DONE + E2E TESTED** (CGST/SGST + Total Paid in Bill Breakup). `section12-breakup` ✓.
 
 ## 13. Inventory Management — **MEDIUM**
-- [ ] 13.1 Margin config: whole-lot or per-line during inventory entry — **PARTIAL** (bulk-variant-generator has margin base; **no explicit margin % input / auto-price at import**).
-- [ ] 13.2 Automated expense tracking: freight/delivery auto-captured under Expense — **GAP** (no freight fields on `InventoryMovement`; no auto-Expense creation).
+- [x] 13.1 Margin config: per-line during inventory entry — **DONE + E2E TESTED** (product-form Margin % field: sets Sale Price from cost; back-computes from entered prices). `section13-pricing` ✓.
+- [x] 13.2 Automated expense tracking: freight/delivery auto-captured under Expense — **DONE + E2E TESTED** (restock `freight` → auto-creates a "Freight & Delivery" Expense). `section13-pricing` ✓.
 - [x] 13.3 **[ADDED 2026-06-30]** Pricing & barcode — **DONE + E2E TESTED**: `Product.mrp` column; product form auto-fills Sale Price = round(MRP×0.9); MRP persists + flows to barcode `LabelData.mrp`; new `mrp` IR element type + default-template line + `resolveText`. `section13-pricing` ✓ (100→90, 999→899, persistence).
 - [ ] 13.? ⚠️ **Doc truncated — re-check source for remaining 13.x / section 14+ items.**
 

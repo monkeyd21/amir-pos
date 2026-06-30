@@ -87,11 +87,28 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   basePrice: number | null = null;
   costPrice: number | null = null;
   landingPrice: number | null = null;
+  /** §13.1 — profit margin % over cost; two-way with Sale Price. */
+  marginPercent: number | null = null;
 
   /** §13.3 — Sale Price = MRP − 10%, rounded to whole rupees (odd values OK). */
   onMrpChange(): void {
     if (this.mrp != null && this.mrp > 0) {
       this.basePrice = Math.round(this.mrp * 0.9);
+      this.recomputeMargin();
+    }
+  }
+
+  /** §13.1 — entering a margin % sets the Sale Price from cost. */
+  onMarginChange(): void {
+    if (this.costPrice != null && this.costPrice > 0 && this.marginPercent != null) {
+      this.basePrice = Math.round(this.costPrice * (1 + this.marginPercent / 100));
+    }
+  }
+
+  /** §13.1 — keep the displayed margin % in sync when price/cost change directly. */
+  recomputeMargin(): void {
+    if (this.costPrice != null && this.costPrice > 0 && this.basePrice != null) {
+      this.marginPercent = Math.round(((this.basePrice - this.costPrice) / this.costPrice) * 100);
     }
   }
   description = '';
