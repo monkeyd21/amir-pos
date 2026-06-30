@@ -752,6 +752,9 @@ model HeldTransaction {
   customerId Int?
   notes      String?
   createdAt  DateTime @default(now())
+  // §4.4 — holds auto-expire (default 24h). Expired holds drop off the active
+  // list on the next read (released/archived).
+  expiresAt  DateTime?
 
   branch   Branch    @relation(fields: [branchId], references: [id])
   user     User      @relation(fields: [userId], references: [id])

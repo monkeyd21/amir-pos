@@ -33,9 +33,9 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 ## 4. Hold Bill Functionality — **MEDIUM**
 - [x] 4.1 Optional Remarks field on Hold — **DONE + E2E TESTED**. `built-section1-7 §4` ✓.
 - [x] 4.2 Remarks visible when retrieving held bill — **DONE + E2E TESTED** (held card shows `held.notes`). `built-section1-7 §4` ✓.
-- [ ] 4.3 **[ADDED]** Any cashier can retrieve (✓ built) + held items soft-reserved in inventory — **PARTIAL** (retrieval BUILT; **soft-reserve GAP** — no `onHold`/`reserved` inventory field).
-- [ ] 4.4 **[ADDED]** Hold auto-expires 24h (configurable) + release inventory + archive — **GAP** (no `expiresAt`/`archivedAt`, no cleanup job).
-- [ ] 4.5 **[ADDED]** EOD report of active holds (cashier, remarks, age) — **GAP** (daily summary excludes holds).
+- [x] 4.3 **[ADDED]** Any cashier retrieves (✓) + held items soft-reserved — **DONE + E2E TESTED** (catalog now returns `reserved`+`available` from active holds). `section4-holds` ✓.
+- [x] 4.4 **[ADDED]** Hold auto-expires 24h + release + archive — **DONE + E2E TESTED** (`HeldTransaction.expiresAt`; `listHeld`/daily-summary sweep expired). `section4-holds` ✓.
+- [x] 4.5 **[ADDED]** EOD report of active holds (cashier, remarks, age) — **DONE + E2E TESTED** (`daily-summary.activeHolds`). `section4-holds` ✓.
 
 ## 5. Streamlined Customer Creation — **HIGH**
 - [x] 5.1 Auto New-Customer prompt on unrecognized phone — **DONE + E2E TESTED** (POS auto-opens add-customer dialog on a no-match 10-digit phone). `section5-customers` ✓.

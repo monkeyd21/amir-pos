@@ -935,6 +935,23 @@ export class PosService {
    * so an offline bill totals the same on the device and on sync.
    */
   async getCatalog(branchId: number) {
+    // §4.3 — quantities soft-reserved by active (non-expired) held bills, so the
+    // catalog can show stock as "on hold" rather than freely available.
+    const holds = await prisma.heldTransaction.findMany({
+      where: { branchId, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      select: { cartData: true },
+    });
+    const reserved = new Map<number, number>();
+    for (const h of holds) {
+      const lines = (h.cartData as any)?.cart;
+      if (!Array.isArray(lines)) continue;
+      for (const line of lines) {
+        const vid = Number(line?.variantId);
+        const qty = Number(line?.quantity);
+        if (vid && qty > 0) reserved.set(vid, (reserved.get(vid) ?? 0) + qty);
+      }
+    }
+
     const variants = await prisma.productVariant.findMany({
       where: { isActive: true },
       include: { product: true, inventory: { where: { branchId } } },
@@ -955,6 +972,9 @@ export class PosService {
         price,
         taxRate,
         stock: v.inventory[0]?.quantity ?? 0,
+        // §4.3 — soft reservation: held quantity + what's freely sellable.
+        reserved: reserved.get(v.id) ?? 0,
+        available: Math.max(0, (v.inventory[0]?.quantity ?? 0) - (reserved.get(v.id) ?? 0)),
       };
     });
     return { items, syncedAt: new Date().toISOString(), count: items.length };
@@ -1077,6 +1097,7 @@ export class PosService {
     customerId?: number,
     notes?: string
   ) {
+    const HOLD_EXPIRY_HOURS = 24; // §4.4 — configurable later via Settings.
     const held = await prisma.heldTransaction.create({
       data: {
         branchId,
@@ -1084,6 +1105,7 @@ export class PosService {
         cartData,
         customerId: customerId || null,
         notes,
+        expiresAt: new Date(Date.now() + HOLD_EXPIRY_HOURS * 60 * 60 * 1000),
       },
       include: { customer: true },
     });
@@ -1092,6 +1114,11 @@ export class PosService {
   }
 
   async listHeld(branchId: number) {
+    // §4.4 — sweep expired holds (released/archived) before listing the active ones.
+    await prisma.heldTransaction.deleteMany({
+      where: { branchId, expiresAt: { not: null, lt: new Date() } },
+    });
+
     const held = await prisma.heldTransaction.findMany({
       where: { branchId },
       include: {

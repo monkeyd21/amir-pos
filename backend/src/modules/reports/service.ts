@@ -384,6 +384,24 @@ export class ReportService {
       );
     }
 
+    // §4.5 — active held bills for the EOD report (cashier, remarks, age).
+    await prisma.heldTransaction.deleteMany({
+      where: { expiresAt: { not: null, lt: new Date() } },
+    });
+    const heldRows = await prisma.heldTransaction.findMany({
+      where: query.branchId ? { branchId: parseInt(query.branchId) } : {},
+      include: { user: { select: { firstName: true, lastName: true } }, customer: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const now = Date.now();
+    const activeHolds = heldRows.map((h) => ({
+      id: h.id,
+      cashier: h.user ? `${h.user.firstName} ${h.user.lastName ?? ''}`.trim() : '',
+      customer: h.customer ? `${h.customer.firstName} ${h.customer.lastName ?? ''}`.trim() : null,
+      remarks: h.notes ?? null,
+      ageMinutes: Math.floor((now - new Date(h.createdAt).getTime()) / 60000),
+    }));
+
     return {
       date: targetDate.toISOString().split('T')[0],
       totalSales,
@@ -393,6 +411,8 @@ export class ReportService {
       totalExpenses,
       netRevenue,
       branchBreakdown,
+      activeHolds,
+      activeHoldsCount: activeHolds.length,
     };
   }
 }
