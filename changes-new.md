@@ -72,9 +72,9 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [ ] 9.2 Monthly statement: original → deductions → net — **PARTIAL** (commission list + report exist; **no original/deduction/net progression view**).
 
 ## 10. Business Performance Dashboard — **HIGH**
-- [ ] 10.1 Overall summary: Total Sales, Cost, Profit, Avg Profit % — **GAP** (no COGS/profit/margin; dashboard shows revenue only).
-- [ ] 10.2 Day-of-week performance + rating (Best/Strong/Good/Slow) — **GAP** (7-day chart exists; no DOW aggregation or ratings).
-- [ ] 10.3 Monthly breakdown: Sales/Profit/Margin % + insights — **GAP** (no monthly grouping, margin %, or insights; "coming soon").
+- [x] 10.1 Overall summary: Total Sales, Cost, Profit, Avg Profit % — **DONE + E2E TESTED** (`/reports/performance` COGS/profit/margin; dashboard cards). `section10-performance` ✓.
+- [x] 10.2 Day-of-week performance + rating (Best/Strong/Good/Slow) — **DONE + E2E TESTED** (7 weekday buckets + rating; dashboard tiles). `section10-performance` ✓.
+- [x] 10.3 Monthly breakdown: Sales/Profit/Margin % + insights — **DONE + E2E TESTED** (monthly array + best/worst month/day insights). `section10-performance` ✓.
 - [ ] 10.4 Predictive AI recommendations — **GAP** (no ML/forecasting).
 
 ## 11. Offline Mode Behaviour — **ADDED / NEW**

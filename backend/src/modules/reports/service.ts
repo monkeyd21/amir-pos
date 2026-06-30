@@ -415,6 +415,92 @@ export class ReportService {
       activeHoldsCount: activeHolds.length,
     };
   }
+
+  /**
+   * §10 — Business performance: profit summary (10.1), day-of-week ratings
+   * (10.2), and monthly sales/profit/margin with insights (10.3).
+   */
+  async getPerformance(query: { startDate?: string; endDate?: string; branchId?: string }) {
+    const where: any = { status: { in: ['completed', 'partially_returned'] } };
+    if (query.branchId) where.branchId = parseInt(query.branchId);
+    if (query.startDate || query.endDate) {
+      where.createdAt = {};
+      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
+      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
+    }
+
+    const sales = await prisma.sale.findMany({
+      where,
+      select: {
+        total: true,
+        createdAt: true,
+        items: { select: { quantity: true, variant: { select: { product: { select: { costPrice: true } } } } } },
+      },
+    });
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    let totalSales = 0;
+    let totalCost = 0;
+    const dow = Array.from({ length: 7 }, () => ({ total: 0, count: 0 }));
+    const monthly = new Map<string, { sales: number; cost: number }>();
+
+    for (const s of sales) {
+      const amt = Number(s.total);
+      const cogs = s.items.reduce(
+        (c, i) => c + i.quantity * Number(i.variant?.product?.costPrice || 0),
+        0
+      );
+      totalSales += amt;
+      totalCost += cogs;
+      const d = new Date(s.createdAt);
+      dow[d.getDay()].total += amt;
+      dow[d.getDay()].count += 1;
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = monthly.get(mk) ?? { sales: 0, cost: 0 };
+      m.sales += amt;
+      m.cost += cogs;
+      monthly.set(mk, m);
+    }
+
+    const totalProfit = round2(totalSales - totalCost);
+    const avgProfitPercent = totalSales > 0 ? round2((totalProfit / totalSales) * 100) : 0;
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dowAgg = dow.map((d, i) => ({
+      day: dayNames[i],
+      totalSales: round2(d.total),
+      avgSales: d.count ? round2(d.total / d.count) : 0,
+      transactions: d.count,
+    }));
+    const maxAvg = Math.max(...dowAgg.map((d) => d.avgSales), 1);
+    const dayOfWeek = dowAgg.map((d) => {
+      const r = d.avgSales / maxAvg;
+      const rating = r >= 0.8 ? 'Best' : r >= 0.6 ? 'Strong' : r >= 0.3 ? 'Good' : 'Slow';
+      return { ...d, rating };
+    });
+
+    const monthlyArr = [...monthly.entries()].sort().map(([month, v]) => {
+      const profit = round2(v.sales - v.cost);
+      return { month, sales: round2(v.sales), profit, marginPercent: v.sales > 0 ? round2((profit / v.sales) * 100) : 0 };
+    });
+
+    const pick = (arr: any[], cmp: (a: any, b: any) => boolean) =>
+      arr.reduce((best, x) => (best === null || cmp(x, best) ? x : best), null as any);
+    const bestMonth = pick(monthlyArr, (a, b) => a.sales > b.sales);
+    const worstMonth = pick(monthlyArr, (a, b) => a.sales < b.sales);
+    const bestDay = pick(dayOfWeek, (a, b) => a.avgSales > b.avgSales);
+
+    return {
+      overall: { totalSales: round2(totalSales), totalCost: round2(totalCost), totalProfit, avgProfitPercent },
+      dayOfWeek,
+      monthly: monthlyArr,
+      insights: {
+        bestMonth: bestMonth?.month ?? null,
+        worstMonth: worstMonth?.month ?? null,
+        bestDay: bestDay?.day ?? null,
+      },
+    };
+  }
 }
 
 export const reportService = new ReportService();

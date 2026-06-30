@@ -39,4 +39,9 @@ router.get('/daily-summary', validate(dailySummarySchema), (req, res, next) =>
   reportController.dailySummary(req, res, next)
 );
 
+// §10 — business performance (profit summary, day-of-week, monthly + insights).
+router.get('/performance', (req, res, next) =>
+  reportController.performance(req, res, next)
+);
+
 export default router;

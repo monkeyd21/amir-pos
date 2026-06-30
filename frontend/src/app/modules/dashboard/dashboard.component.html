@@ -214,4 +214,42 @@
     </div>
   </section>
 
+  <!-- §10 — Business Performance -->
+  <section class="mb-8" *ngIf="performance" data-testid="performance-section">
+    <h2 class="text-lg font-headline font-bold text-on-surface mb-1">Business Performance</h2>
+    <p class="text-sm text-on-surface-variant mb-4">Profit, margins, and weekly patterns</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Sales</p>
+        <h3 class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(performance.overall.totalSales) }}</h3>
+      </div>
+      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Cost</p>
+        <h3 class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(performance.overall.totalCost) }}</h3>
+      </div>
+      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Profit</p>
+        <h3 class="text-2xl font-headline font-bold text-green-400">{{ formatCurrency(performance.overall.totalProfit) }}</h3>
+      </div>
+      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Avg Profit %</p>
+        <h3 class="text-2xl font-headline font-bold text-on-surface" data-testid="avg-margin">{{ performance.overall.avgProfitPercent }}%</h3>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-7 gap-2" data-testid="dow-ratings">
+      <div *ngFor="let d of performance.dayOfWeek" class="p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 text-center">
+        <p class="text-xs font-bold text-on-surface">{{ d.day }}</p>
+        <p class="text-[10px] text-on-surface-variant">{{ formatCurrency(d.avgSales) }}</p>
+        <span class="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+          [class]="d.rating === 'Best' ? 'bg-green-500/20 text-green-400' : d.rating === 'Strong' ? 'bg-primary-container/30 text-primary' : d.rating === 'Good' ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-container text-on-surface-variant'">
+          {{ d.rating }}
+        </span>
+      </div>
+    </div>
+    <p class="text-xs text-on-surface-variant mt-3" *ngIf="performance.insights.bestDay">
+      Best day: <b class="text-on-surface">{{ performance.insights.bestDay }}</b>
+      <span *ngIf="performance.insights.bestMonth"> · Best month: <b class="text-on-surface">{{ performance.insights.bestMonth }}</b></span>
+    </p>
+  </section>
+
 </div>

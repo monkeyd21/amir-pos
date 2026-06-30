@@ -66,12 +66,27 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   recentSales: SaleItem[] = [];
   lowStockItems: InventoryItem[] = [];
 
+  // §10 — business performance (profit summary, day-of-week, insights).
+  performance: {
+    overall: { totalSales: number; totalCost: number; totalProfit: number; avgProfitPercent: number };
+    dayOfWeek: { day: string; totalSales: number; avgSales: number; rating: string }[];
+    monthly: { month: string; sales: number; profit: number; marginPercent: number }[];
+    insights: { bestMonth: string | null; worstMonth: string | null; bestDay: string | null };
+  } | null = null;
+
   loading = true;
 
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
     this.loadData();
+    this.api
+      .get<ApiResponse<any>>('/reports/performance')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.performance = res?.data ?? null),
+        error: () => (this.performance = null),
+      });
   }
 
   ngAfterViewInit(): void {
