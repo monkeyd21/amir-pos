@@ -22,7 +22,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [ ] 2.2 "Set as Default" account per mode, auto-populate at billing — **GAP** (depends on 2.1).
 - [x] 2.3 Capture payment identifier per txn — **DONE + E2E TESTED** (`Payment.identifier`). `built-section1-7 §2.3` ✓ (card identifier entered in UI persists on the sale).
 - [ ] 2.4 Cashier override default & pick another account per bill — **PARTIAL** (can enter free-text identifier per tender; no account dropdown to override — blocked by 2.1).
-- [ ] 2.5 **[ADDED]** Lock payment interface until all discounts applied — **GAP** (`canCheckout` only checks cart/amount; no discount-applied gate).
+- [x] 2.5 **[ADDED]** Lock payment interface until all discounts applied — **DONE + E2E TESTED** (`paymentUnlocked` gate; tender panel hidden behind a "Proceed to Payment" step, reset per bill). `section2-payment-lock` ✓.
 
 ## 3. Seamless Bill Editing (POS Integration) — **HIGH**
 - [ ] 3.1 Bill editing **inside POS** (no Sales-tab redirect) — **GAP** (BillEditComponent only routed under `sales/:id/edit`; not reachable from POS).

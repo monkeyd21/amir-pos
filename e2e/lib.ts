@@ -37,7 +37,15 @@ export async function addItem(page: Page, barcode = BARCODE) {
 }
 
 export async function payCashExact(page: Page) {
+  // §2.5 — unlock the payment panel first (enforced discounts→payment gate).
+  await proceedToPayment(page);
   await page.getByRole('button', { name: 'Exact' }).click();
   await page.locator('button:has-text("Add cash")').click();
   await expect(page.locator('text=Fully Paid')).toBeVisible();
+}
+
+/** §2.5 — click "Proceed to Payment" to unlock the tender panel (if present). */
+export async function proceedToPayment(page: Page) {
+  const gate = page.locator('[data-testid="proceed-to-payment"]');
+  if (await gate.count()) await gate.click();
 }

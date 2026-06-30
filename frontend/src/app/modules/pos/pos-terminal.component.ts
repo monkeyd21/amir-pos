@@ -217,6 +217,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   channel: 'walkin' | 'online' = 'walkin';
 
   checkoutLoading = false;
+  /** §2.5 — payment tender panel stays locked until the cashier confirms
+   *  discounts are applied (enforces mobile → discounts → payment). */
+  paymentUnlocked = false;
   customerId: number | null = null;
   customerName = '';
 
@@ -1419,6 +1422,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loyaltyPointsRedeem = null;
     this.roundMode = 'none';
     this.tenders = [];
+    this.paymentUnlocked = false;
     this.pendingMethod = 'cash';
     this.pendingAmount = null;
     this.pendingIdentifier = '';

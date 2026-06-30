@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
-import { API, apiLogin, authHeaders, gotoPos, addItem, payCashExact, BARCODE } from './lib';
+import { API, apiLogin, authHeaders, gotoPos, addItem, payCashExact, proceedToPayment, BARCODE } from './lib';
 
 /**
  * UI verification for already-built spec items in sections 1, 2, 4, 7.
@@ -96,7 +96,8 @@ test.describe('§2.3 — payment identifier captured', () => {
     await gotoPos(page);
     await addItem(page);
 
-    // Switch to Card, enter a bank identifier, pay the full remaining amount.
+    // §2.5 — unlock payment, then switch to Card, enter a bank identifier.
+    await proceedToPayment(page);
     await page.locator('button:has-text("Card")').first().click();
     const amountInput = page.locator('input[type="number"]').last();
     const remaining = await amountInput.getAttribute('placeholder');

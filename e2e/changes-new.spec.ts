@@ -93,6 +93,7 @@ test.describe('Changes NEW — quick wins (E2E)', () => {
     await expect(page.locator('button[title^="Sold as-is"]').first()).toBeVisible();
 
     // Pay full amount in cash and complete the sale.
+    await page.locator('[data-testid="proceed-to-payment"]').click(); // §2.5 gate
     await page.getByRole('button', { name: 'Exact' }).click();
     await page.locator('button:has-text("Add cash")').click();
     await expect(page.locator('text=Fully Paid')).toBeVisible();
@@ -155,6 +156,7 @@ test.describe('Changes NEW — quick wins (E2E)', () => {
     await expect(page.locator('text=' + voucher.code)).toBeVisible({ timeout: 8000 });
 
     // ... but completing the sale must be rejected for the wrong customer.
+    await page.locator('[data-testid="proceed-to-payment"]').click(); // §2.5 gate
     await page.getByRole('button', { name: 'Exact' }).click();
     await page.locator('button:has-text("Add cash")').click();
     await page.locator('button:has-text("Complete Sale")').click();
