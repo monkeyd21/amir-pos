@@ -1,4 +1,21 @@
-import { generateEAN13, generateSKU, slugify, getPagination, buildPaginationMeta } from '../helpers';
+import { generateEAN13, generateSKU, slugify, getPagination, buildPaginationMeta, isWithinPolicyWindow } from '../helpers';
+
+describe('§1.5 isWithinPolicyWindow (return/exchange policy windows)', () => {
+  const now = new Date('2026-06-30T12:00:00Z');
+  it('allows a same-day refund within a 1-day window', () => {
+    expect(isWithinPolicyWindow(new Date('2026-06-30T09:00:00Z'), 1, now)).toBe(true);
+  });
+  it('allows a refund exactly at the 1-day edge', () => {
+    expect(isWithinPolicyWindow(new Date('2026-06-29T09:00:00Z'), 1, now)).toBe(true);
+  });
+  it('blocks a refund past the 1-day window', () => {
+    expect(isWithinPolicyWindow(new Date('2026-06-28T09:00:00Z'), 1, now)).toBe(false);
+  });
+  it('allows an exchange within 15 days but not beyond', () => {
+    expect(isWithinPolicyWindow(new Date('2026-06-16T09:00:00Z'), 15, now)).toBe(true);
+    expect(isWithinPolicyWindow(new Date('2026-06-14T09:00:00Z'), 15, now)).toBe(false);
+  });
+});
 
 describe('Utils / Helpers', () => {
   // ─── generateEAN13 ──────────────────────────────────────────────

@@ -1,7 +1,12 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
-import { generateNumber, getPagination, buildPaginationMeta, fullName } from '../../utils/helpers';
+import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
+
+// §1.5 — return/exchange policy windows (configurable later via Settings).
+// Refund-returns within 1 day; exchanges within 15 days of the original sale.
+const REFUND_WINDOW_DAYS = 1;
+export const EXCHANGE_WINDOW_DAYS = 15;
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { creditBackVouchers, redeemVouchers } from '../vouchers/service';
 import { evaluateCart as evaluateCartEngine } from '../offers/engine';
@@ -337,6 +342,14 @@ export class SalesService {
 
       if (sale.status === 'void') {
         throw new AppError('Cannot return a voided sale', 400);
+      }
+
+      // §1.5 — refund-returns must fall inside the refund policy window.
+      if (!isWithinPolicyWindow(sale.createdAt, REFUND_WINDOW_DAYS)) {
+        throw new AppError(
+          `Refund window of ${REFUND_WINDOW_DAYS} day(s) has passed — this sale can no longer be refunded`,
+          400
+        );
       }
 
       const refundMode = data.refundMode ?? 'proportional';

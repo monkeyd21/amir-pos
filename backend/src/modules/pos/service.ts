@@ -1,6 +1,7 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
-import { generateNumber } from '../../utils/helpers';
+import { generateNumber, isWithinPolicyWindow } from '../../utils/helpers';
+import { EXCHANGE_WINDOW_DAYS } from '../sales/service';
 import { MovementType, PaymentMethod, Prisma, SaleChannel } from '@prisma/client';
 import { getPaymentGateway } from '../../services/payment-gateway';
 import { evaluateCart as evaluateCartEngine, CartLine } from '../offers/engine';
@@ -507,6 +508,13 @@ export class PosService {
         });
         if (!orig) throw new AppError('Original sale for the exchange was not found', 404);
         if (orig.status === 'void') throw new AppError('Cannot exchange against a voided sale', 400);
+        // §1.5 — exchanges must fall inside the exchange policy window.
+        if (!isWithinPolicyWindow(orig.createdAt, EXCHANGE_WINDOW_DAYS)) {
+          throw new AppError(
+            `Exchange window of ${EXCHANGE_WINDOW_DAYS} days has passed for ${orig.saleNumber}`,
+            400
+          );
+        }
         exchangeOriginalNumber = orig.saleNumber;
 
         const origItems = new Map(orig.items.map((i) => [i.id, i]));

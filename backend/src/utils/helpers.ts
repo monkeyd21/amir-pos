@@ -77,3 +77,17 @@ export const buildPaginationMeta = (page: number, limit: number, total: number) 
   total,
   totalPages: Math.ceil(total / limit),
 });
+
+/** Whole days elapsed between two dates (floored). */
+export const daysBetween = (from: Date, to: Date): number =>
+  Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+
+/**
+ * §1.5 — is a sale still inside its return/exchange policy window?
+ * `windowDays` is inclusive (a sale `windowDays` old still qualifies).
+ */
+export const isWithinPolicyWindow = (
+  saleDate: Date,
+  windowDays: number,
+  now: Date = new Date()
+): boolean => daysBetween(saleDate, now) <= windowDays;

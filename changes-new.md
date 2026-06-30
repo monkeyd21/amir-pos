@@ -15,7 +15,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 1.2 Flags printed & highlighted on physical bill — **DONE + E2E TESTED** (per-line `** NON-RETURNABLE` / `** EXCHANGE ONLY` marker + legend on thermal receipt `receipt-print.service.ts` and WhatsApp PDF `receipt-pdf.ts`; flags via `getReceiptData`). E2E: `changes-new.spec.ts §1.2` ✓.
 - [x] 1.3 Block Non-Returnable / Exchange-Only from return/exchange — **DONE + E2E TESTED** (`sales/service.ts:369-372`). `built-section1-7 §1.3` ✓ (return of flagged line rejected via UI).
 - [ ] 1.4 **[ADDED] VOID workflow** (same-day, supervisor PIN, status=`voided`, immediate inventory restore, GST reversed, no return txn) — **GAP** (only `void` enum + payment guard exist; no action/PIN/restore).
-- [ ] 1.5 **[ADDED] RETURN workflow** — **PARTIAL** (returns + GSTR-1 credit-note trail + intact original bill done; **MISSING policy windows: refund 1 day / exchange 15 days**).
+- [x] 1.5 **[ADDED] RETURN workflow** — **DONE + UNIT TESTED**: policy windows enforced — refund-returns ≤1 day (`processReturn`), exchanges ≤15 days (POS exchange); `isWithinPolicyWindow` helper, jest `helpers.test.ts`. (Returns + GSTR-1 credit-note + intact original bill already done.) Windows = consts (Settings-wire follow-up).
 
 ## 2. Payment Identification (UPI / Card) — **HIGH**
 - [ ] 2.1 Settings: separate Card/UPI config sections + bank-account/gateway list — **GAP** (settings module only has commissionMode/billNumbering/messaging).
@@ -68,7 +68,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [ ] 8.4 **[ADDED]** Shortfall rules: ≤₹50 auto-approve+log; >₹50 block close + Manager PIN + reason — **GAP** (no validation at all).
 
 ## 9. Commission & Incentive Adjustments — **MEDIUM**
-- [~] 9.1 Auto-adjust salesman commission on return/exchange to net sale — **BUILT** (`commission-reconcile.ts`, triggered `sales/service.ts:605,889,1264`). Needs test.
+- [x] 9.1 Auto-adjust salesman commission on return/exchange to net sale — **DONE + UNIT TESTED** (`commission-reconcile.ts`; jest `commission-reconcile.test.ts`: full-return→0, partial→half, no-op when uncalculated). Wired on return/exchange/edit.
 - [ ] 9.2 Monthly statement: original → deductions → net — **PARTIAL** (commission list + report exist; **no original/deduction/net progression view**).
 
 ## 10. Business Performance Dashboard — **HIGH**
