@@ -14,7 +14,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 1.1 Disable arrow keys in Manual/Special Discount + Redeem Points — **DONE + E2E TESTED** (`NoSpinDirective`). `built-section1-7 §1.1` ✓ (ArrowUp leaves value unchanged).
 - [x] 1.2 Flags printed & highlighted on physical bill — **DONE + E2E TESTED** (per-line `** NON-RETURNABLE` / `** EXCHANGE ONLY` marker + legend on thermal receipt `receipt-print.service.ts` and WhatsApp PDF `receipt-pdf.ts`; flags via `getReceiptData`). E2E: `changes-new.spec.ts §1.2` ✓.
 - [x] 1.3 Block Non-Returnable / Exchange-Only from return/exchange — **DONE + E2E TESTED** (`sales/service.ts:369-372`). `built-section1-7 §1.3` ✓ (return of flagged line rejected via UI).
-- [ ] 1.4 **[ADDED] VOID workflow** (same-day, supervisor PIN, status=`voided`, immediate inventory restore, GST reversed, no return txn) — **GAP** (only `void` enum + payment guard exist; no action/PIN/restore).
+- [x] 1.4 **[ADDED] VOID workflow** — **DONE + E2E TESTED**: `POST /sales/:id/void` (supervisor PIN via new `verifySupervisorPin` primitive); same-day only, status→`void`, inventory restored + movement, loyalty reversed, no return txn; sale-detail Void button + inline PIN prompt. `section1-void` ✓ (wrong PIN rejected, PIN 1234 voids).
 - [x] 1.5 **[ADDED] RETURN workflow** — **DONE + UNIT TESTED**: policy windows enforced — refund-returns ≤1 day (`processReturn`), exchanges ≤15 days (POS exchange); `isWithinPolicyWindow` helper, jest `helpers.test.ts`. (Returns + GSTR-1 credit-note + intact original bill already done.) Windows = consts (Settings-wire follow-up).
 
 ## 2. Payment Identification (UPI / Card) — **HIGH**
@@ -128,6 +128,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 Full E2E suite: **106 passing** (`npm run test:e2e`). Commits: `c7a622d`, `f709076`.
 **Remaining (gap/partial):** 1.4, 1.5, 2.1, 2.2, 2.4, 2.5, 3.1, 3.4, 4.3, 4.4, 4.5, 5.1-5.6, 8.1-8.4, 9.1(test), 9.2, 10.1-10.3, 11.3, 11.5, 11.6, 13.1, 13.2. (5.7/10.4 = AI/ML, deferred.)
 **Deploy:** DEFERRED to the end (owner decision 2026-06-30) — keep committing checkpoints; one production deploy when the whole list is done. Prod is a live store (manual SSH-tarball, root password not in repo).
+**Pre-existing (not mine):** `sales.test.ts` has 3 stale jest failures (partial/full return, exchange) — red since before this work (verified @177a286); mocked Prisma setup lags the evolved service. Real flows covered by e2e.
 **Decision logged:** 11.4 — Card/UPI stay enabled offline (no code change needed).
 Follow-up: voucher cap (2) + expiry (180d) should later read from Settings (currently enforced constants).
 

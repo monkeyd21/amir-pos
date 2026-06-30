@@ -9,6 +9,7 @@ const REFUND_WINDOW_DAYS = 1;
 export const EXCHANGE_WINDOW_DAYS = 15;
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { creditBackVouchers, redeemVouchers } from '../vouchers/service';
+import { verifySupervisorPin } from '../../services/supervisor';
 import { evaluateCart as evaluateCartEngine } from '../offers/engine';
 import { MovementType, PaymentMethod, Prisma, SaleStatus } from '@prisma/client';
 
@@ -309,6 +310,73 @@ export class SalesService {
       exchangeRefund,
       exchangeOriginalSaleNumber,
     };
+  }
+
+  /**
+   * §1.4 VOID — same-day cancellation (distinct from RETURN). Requires a
+   * supervisor PIN. Marks the bill `void`, restores inventory immediately,
+   * reverses loyalty, and creates NO return transaction. Voided sales drop out
+   * of sales/GST aggregations (status filter), so GST is effectively reversed.
+   */
+  async voidSale(
+    id: number,
+    data: { pin: string; reason?: string },
+    userId: number,
+    branchId: number
+  ) {
+    await verifySupervisorPin(data.pin);
+    return prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findUnique({ where: { id }, include: { items: true } });
+      if (!sale) throw new AppError('Sale not found', 404);
+      if (sale.status === 'void') throw new AppError('Sale is already voided', 400);
+      if (sale.status !== 'completed') {
+        throw new AppError('Only a completed sale can be voided — process a return instead', 400);
+      }
+      if (!isWithinPolicyWindow(sale.createdAt, 0)) {
+        throw new AppError('Void is same-day only — use a return for older bills', 400);
+      }
+
+      for (const item of sale.items) {
+        await tx.inventory.upsert({
+          where: { variantId_branchId: { variantId: item.variantId, branchId: sale.branchId } },
+          update: { quantity: { increment: item.quantity } },
+          create: { variantId: item.variantId, branchId: sale.branchId, quantity: item.quantity },
+        });
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: item.variantId,
+            branchId: sale.branchId,
+            type: MovementType.adjustment,
+            quantity: item.quantity,
+            referenceId: sale.id,
+            referenceType: 'void',
+            createdBy: userId,
+          },
+        });
+      }
+
+      // Reverse loyalty: undo points earned, restore points redeemed.
+      if (sale.customerId && (sale.loyaltyPointsEarned || sale.loyaltyPointsRedeemed)) {
+        const delta = (sale.loyaltyPointsRedeemed || 0) - (sale.loyaltyPointsEarned || 0);
+        if (delta !== 0) {
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: { loyaltyPoints: { increment: delta } },
+          });
+        }
+      }
+
+      const updated = await tx.sale.update({ where: { id }, data: { status: 'void' } });
+      await recordAudit(tx, {
+        action: 'sale.voided',
+        entityType: 'sale',
+        entityId: id,
+        userId,
+        branchId,
+        data: { saleNumber: sale.saleNumber, total: Number(sale.total), reason: data.reason ?? null },
+      });
+      return updated;
+    });
   }
 
   async processReturn(

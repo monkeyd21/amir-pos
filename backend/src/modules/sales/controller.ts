@@ -105,6 +105,20 @@ export class SalesController {
     }
   }
 
+  async voidSale(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await salesService.voidSale(
+        parseInt(req.params.saleId),
+        req.body,
+        req.user!.userId,
+        req.user!.branchId
+      );
+      res.json({ success: true, data: result, message: 'Sale voided' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async processExchange(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await salesService.processExchange(

@@ -9,6 +9,7 @@ import {
   processExchangeSchema,
   returnableByBarcodeSchema,
   editSaleSchema,
+  voidSaleSchema,
 } from './validators';
 
 const router = Router();
@@ -38,6 +39,14 @@ router.post(
   authorize('owner', 'manager', 'cashier'),
   validate(processExchangeSchema),
   salesController.processExchange
+);
+
+// §1.4 — same-day VOID (supervisor PIN; restores inventory, no return txn).
+router.post(
+  '/:saleId/void',
+  authorize('owner', 'manager', 'cashier'),
+  validate(voidSaleSchema),
+  salesController.voidSale
 );
 
 // Edit a completed bill (manager/owner) — recomputes pricing, reconciles
