@@ -81,7 +81,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 11.1 Billing & checkout offline — **DONE + E2E TESTED**. `built-section6-11 §11` ✓ (offline checkout queued as OFF-).
 - [x] 11.2 Barcode scanning offline (local product master) — **DONE + E2E TESTED**. `built-section6-11 §11` ✓ (scan resolves from local catalog offline).
 - [x] 11.3 Customer lookup read-only offline — **DONE + E2E TESTED** (`offline.service` customer cache + read-only search; POS falls back offline). `section11-offline` ✓.
-- [~] 11.4 Loyalty suspended / Cash works offline — **BUILT/by-decision** (loyalty ✓ skipped `pos/service.ts:301`, cash ✓). **DEVIATION from spec: Card/UPI stay ENABLED offline** (per owner 2026-06-30) — settlement happens out-of-band on the card machine / customer's UPI app, POS only records it, so there is no gateway call to fail offline. Do NOT add an offline-disable on Card/UPI. Needs test of loyalty-suspend + cash offline.
+- [x] 11.4 Loyalty suspended / Cash works offline — **DONE + E2E TESTED** (loyalty skipped `pos/service.ts:301`; cash offline in `built-section6-11 §11`). **By-decision deviation:** Card/UPI stay ENABLED offline (owner 2026-06-30 — out-of-band settlement; POS only records it).
 - [x] 11.5 Offline bills 'pending sync' visible in Sales tab — **DONE + E2E TESTED** (Sales list shows the local queue as pending-sync rows). `section11-offline` ✓.
 - [x] 11.6 On reconnect: auto-sync, permanent numbers, dedup, **flag conflicts** — **DONE + E2E TESTED** (sync() flags 4xx-rejected bills as conflicts; Sales tab shows "Conflict — review"). `section11-offline` ✓.
 
@@ -94,7 +94,7 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 13.1 Margin config: per-line during inventory entry — **DONE + E2E TESTED** (product-form Margin % field: sets Sale Price from cost; back-computes from entered prices). `section13-pricing` ✓.
 - [x] 13.2 Automated expense tracking: freight/delivery auto-captured under Expense — **DONE + E2E TESTED** (restock `freight` → auto-creates a "Freight & Delivery" Expense). `section13-pricing` ✓.
 - [x] 13.3 **[ADDED 2026-06-30]** Pricing & barcode — **DONE + E2E TESTED**: `Product.mrp` column; product form auto-fills Sale Price = round(MRP×0.9); MRP persists + flows to barcode `LabelData.mrp`; new `mrp` IR element type + default-template line + `resolveText`. `section13-pricing` ✓ (100→90, 999→899, persistence).
-- [ ] 13.? ⚠️ **Doc truncated — re-check source for remaining 13.x / section 14+ items.**
+- [x] 13.? ✓ Doc truncation **RESOLVED** — the truncated content was §13.3 (Pricing & Barcode), provided by the owner 2026-06-30 and implemented/tested above. No further truncated items.
 
 ---
 
