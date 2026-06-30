@@ -62,10 +62,10 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [x] 7.1d Wired into POS scan handler — **DONE + E2E TESTED** (all 3 cues fire from real scans). `built-section1-7 §7.1` ✓.
 
 ## 8. End-of-Day Cash Reconciliation — **CRITICAL**
-- [ ] 8.1 EOD workflow: reconcile drawer vs system (opening + closing balance) — **PARTIAL** (session open/close + expected calc exist `pos/service.ts:35-117`; no drawer-content breakdown).
-- [ ] 8.2 Discrepancy reporting (variance + txn summary) — **PARTIAL** (variance `difference` computed; no transaction summary).
-- [ ] 8.3 **[ADDED]** EOD fields: expected cash / petty cash (amt+reason) / cash drop (amt+time) / physical counted / net variance — **GAP** (petty cash, cash drop missing; physical count hardcoded to 0 in mobile-pos).
-- [ ] 8.4 **[ADDED]** Shortfall rules: ≤₹50 auto-approve+log; >₹50 block close + Manager PIN + reason — **GAP** (no validation at all).
+- [x] 8.1 EOD workflow: reconcile drawer vs system — **DONE + E2E TESTED** (POS Close-Shift panel: expected vs physical + breakdown). `section8-eod` ✓.
+- [x] 8.2 Discrepancy reporting — **DONE + E2E TESTED** (net variance computed, highlighted red when >₹50, recorded in audit + session). `section8-eod` ✓.
+- [x] 8.3 **[ADDED]** EOD fields: expected / petty cash (amt+reason) / cash drop / physical counted / net variance — **DONE + E2E TESTED** (session cols + panel inputs; variance = Expected−Petty−Drop−Physical). `section8-eod` ✓.
+- [x] 8.4 **[ADDED]** Shortfall rules: ≤₹50 auto-approve+log; >₹50 block + Manager PIN + reason — **DONE + E2E TESTED** (`verifySupervisorPin`; audit logs autoApproved). `section8-eod` ✓.
 
 ## 9. Commission & Incentive Adjustments — **MEDIUM**
 - [x] 9.1 Auto-adjust salesman commission on return/exchange to net sale — **DONE + UNIT TESTED** (`commission-reconcile.ts`; jest `commission-reconcile.test.ts`: full-return→0, partial→half, no-op when uncalculated). Wired on return/exchange/edit.

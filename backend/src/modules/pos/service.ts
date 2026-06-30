@@ -8,6 +8,8 @@ import { evaluateCart as evaluateCartEngine, CartLine } from '../offers/engine';
 import { getSetting } from '../settings/service';
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { redeemVouchers } from '../vouchers/service';
+import { recordAudit } from '../../services/audit';
+import { verifySupervisorPin } from '../../services/supervisor';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -97,24 +99,71 @@ export class PosService {
     return { session, expectedAmount };
   }
 
-  async finalizeCloseSession(userId: number, closingAmount: number, notes?: string) {
+  async finalizeCloseSession(
+    userId: number,
+    data: {
+      closingAmount: number;
+      pettyCash?: number;
+      pettyCashReason?: string;
+      cashDrop?: number;
+      managerPin?: string;
+      varianceReason?: string;
+      notes?: string;
+    },
+    branchId: number
+  ) {
     const { session, expectedAmount } = await this.closeSession(userId);
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const pettyCash = round2(data.pettyCash || 0);
+    const cashDrop = round2(data.cashDrop || 0);
+    const physical = round2(data.closingAmount);
+
+    // §8.3 — net variance = Expected − Petty cash − Cash drop − Physical counted.
+    const variance = round2(expectedAmount - pettyCash - cashDrop - physical);
+
+    // §8.4 — small variances auto-approve (logged); large ones block the close
+    // until a manager PIN + reason are supplied.
+    const SHORTFALL_THRESHOLD = 50;
+    if (Math.abs(variance) > SHORTFALL_THRESHOLD) {
+      if (!data.managerPin) {
+        throw new AppError(
+          `Variance ₹${variance} exceeds ₹${SHORTFALL_THRESHOLD} — a manager PIN and reason are required to close the shift`,
+          400
+        );
+      }
+      await verifySupervisorPin(data.managerPin);
+      if (!data.varianceReason || !data.varianceReason.trim()) {
+        throw new AppError('A reason is required to close with a large variance', 400);
+      }
+    }
 
     const updated = await prisma.posSession.update({
       where: { id: session.id },
       data: {
-        closingAmount,
+        closingAmount: physical,
         expectedAmount,
+        pettyCash,
+        pettyCashReason: data.pettyCashReason || null,
+        cashDrop,
+        variance,
+        varianceReason: data.varianceReason || null,
         status: 'closed',
         closedAt: new Date(),
-        notes: notes || session.notes,
+        notes: data.notes || session.notes,
       },
     });
 
-    return {
-      ...updated,
-      difference: closingAmount - expectedAmount,
-    };
+    await recordAudit(prisma, {
+      action: 'pos.session.closed',
+      entityType: 'pos_session',
+      entityId: session.id,
+      userId,
+      branchId,
+      data: { expectedAmount, physical, pettyCash, cashDrop, variance, autoApproved: Math.abs(variance) <= SHORTFALL_THRESHOLD },
+    });
+
+    return { ...updated, difference: round2(physical - expectedAmount), variance };
   }
 
   async getCurrentSession(userId: number) {

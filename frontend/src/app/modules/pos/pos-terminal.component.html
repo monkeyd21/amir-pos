@@ -31,6 +31,16 @@
             <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
             <span class="text-[11px] text-on-surface-variant font-medium">Session #{{ session.id }}</span>
           </div>
+          <!-- §8 — End-of-Day cash reconciliation -->
+          <button
+            (click)="openEodPanel()"
+            data-testid="eod-button"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-high/60 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+            title="Close shift / EOD reconciliation"
+          >
+            <span class="material-symbols-outlined text-base">point_of_sale</span>
+            <span>Close Shift</span>
+          </button>
         }
 
         <!-- Held bills -->
@@ -1076,6 +1086,58 @@
                 </button>
               </div>
             }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ═══ §8 EOD reconciliation slide-over ═══ -->
+    @if (showEodPanel) {
+      <div class="fixed inset-0 z-[9000] flex justify-end" (click)="showEodPanel = false">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-md h-full bg-surface-container shadow-2xl flex flex-col overflow-y-auto" (click)="$event.stopPropagation()" data-testid="eod-panel">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10 shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">point_of_sale</span>
+              <h2 class="text-on-surface font-headline font-bold">Close Shift — EOD</h2>
+            </div>
+            <button (click)="showEodPanel = false" class="text-on-surface-variant hover:text-on-surface">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="flex justify-between text-sm">
+              <span class="text-on-surface-variant">System expected cash</span>
+              <span class="font-mono text-on-surface" data-testid="eod-expected">{{ formatCurrency(eodExpected) }}</span>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Petty cash spent</label>
+              <input type="number" [(ngModel)]="eodPettyCash" data-testid="eod-petty" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+              <input type="text" [(ngModel)]="eodPettyReason" placeholder="Reason (chai, courier…)" class="mt-1.5 w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Cash drop to safe</label>
+              <input type="number" [(ngModel)]="eodCashDrop" data-testid="eod-drop" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Physical cash counted</label>
+              <input type="number" [(ngModel)]="eodPhysical" data-testid="eod-physical" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+            <div class="flex justify-between text-sm border-t border-outline-variant/15 pt-3">
+              <span class="text-on-surface-variant">Net variance</span>
+              <span class="font-mono font-bold" [class]="eodVariance > 50 || eodVariance < -50 ? 'text-error' : 'text-green-400'" data-testid="eod-variance">{{ formatCurrency(eodVariance) }}</span>
+            </div>
+            <!-- §8.4 — large variance requires manager PIN + reason -->
+            @if (eodVariance > 50 || eodVariance < -50) {
+              <div class="p-3 rounded-lg bg-error/5 border border-error/20 space-y-2" data-testid="eod-shortfall">
+                <p class="text-[11px] text-error">Variance over ₹50 — manager approval required.</p>
+                <input type="password" [(ngModel)]="eodManagerPin" placeholder="Manager PIN" data-testid="eod-pin" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+                <input type="text" [(ngModel)]="eodVarianceReason" placeholder="Reason for variance" data-testid="eod-reason" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+              </div>
+            }
+            <button (click)="submitEod()" [disabled]="eodSubmitting" data-testid="eod-submit" class="w-full py-2.5 rounded-lg bg-primary-container text-on-primary-container text-xs font-bold uppercase tracking-wider disabled:opacity-50">
+              {{ eodSubmitting ? 'Closing…' : 'Close Shift' }}
+            </button>
           </div>
         </div>
       </div>

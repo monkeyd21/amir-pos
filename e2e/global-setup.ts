@@ -14,6 +14,12 @@ export default async function globalSetup() {
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       data: { variantId: 1, branchId: 1, quantity: 1000, reason: 'e2e stock top-up' },
     });
+    // Ensure a POS session is open (checkout + EOD tests need one). The §8 EOD
+    // tests close it; they re-open in afterAll. Ignore "already open".
+    await ctx.post(`${API}/pos/sessions/open`, {
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+      data: { openingAmount: 1000 },
+    });
   } finally {
     await ctx.dispose();
   }

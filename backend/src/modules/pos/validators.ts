@@ -9,7 +9,15 @@ export const openSessionSchema = z.object({
 
 export const closeSessionSchema = z.object({
   body: z.object({
+    // Physical cash counted in the drawer at close.
     closingAmount: z.number().min(0, 'Closing amount must be non-negative'),
+    // §8.3 — petty cash spent (amount + reason) and cash dropped to the safe.
+    pettyCash: z.number().min(0).optional(),
+    pettyCashReason: z.string().optional(),
+    cashDrop: z.number().min(0).optional(),
+    // §8.4 — required when the net variance exceeds the auto-approve threshold.
+    managerPin: z.string().optional(),
+    varianceReason: z.string().optional(),
     notes: z.string().optional(),
   }),
 });

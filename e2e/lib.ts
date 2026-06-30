@@ -20,6 +20,14 @@ export function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}`, 'X-Branch-Id': '1' };
 }
 
+/** Ensure a POS session is open for the admin (idempotent; ignores "already open"). */
+export async function ensureSession(request: APIRequestContext, token: string) {
+  await request.post(`${API}/pos/sessions/open`, {
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    data: { openingAmount: 1000 },
+  });
+}
+
 // --- POS UI helpers (real Tailwind selectors) ---
 
 export async function gotoPos(page: Page) {

@@ -220,6 +220,72 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   /** §2.5 — payment tender panel stays locked until the cashier confirms
    *  discounts are applied (enforces mobile → discounts → payment). */
   paymentUnlocked = false;
+
+  // §8 — End-of-Day reconciliation panel state.
+  showEodPanel = false;
+  eodExpected = 0;
+  eodPettyCash: number | null = null;
+  eodPettyReason = '';
+  eodCashDrop: number | null = null;
+  eodPhysical: number | null = null;
+  eodManagerPin = '';
+  eodVarianceReason = '';
+  eodSubmitting = false;
+
+  /** §8.3 — net variance = Expected − Petty − Cash drop − Physical counted. */
+  get eodVariance(): number {
+    const v =
+      this.eodExpected -
+      (this.eodPettyCash || 0) -
+      (this.eodCashDrop || 0) -
+      (this.eodPhysical || 0);
+    return Math.round(v * 100) / 100;
+  }
+
+  openEodPanel(): void {
+    this.showEodPanel = true;
+    this.eodPettyCash = null;
+    this.eodPettyReason = '';
+    this.eodCashDrop = null;
+    this.eodPhysical = null;
+    this.eodManagerPin = '';
+    this.eodVarianceReason = '';
+    this.api
+      .get<ApiResponse<{ expectedAmount: number }>>('/pos/sessions/expected')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.eodExpected = Number(res?.data?.expectedAmount) || 0),
+        error: () => (this.eodExpected = 0),
+      });
+  }
+
+  submitEod(): void {
+    this.eodSubmitting = true;
+    const body: any = {
+      closingAmount: this.eodPhysical || 0,
+      pettyCash: this.eodPettyCash || 0,
+      pettyCashReason: this.eodPettyReason || undefined,
+      cashDrop: this.eodCashDrop || 0,
+    };
+    if (Math.abs(this.eodVariance) > 50) {
+      body.managerPin = this.eodManagerPin || undefined;
+      body.varianceReason = this.eodVarianceReason || undefined;
+    }
+    this.api
+      .post<ApiResponse<any>>('/pos/sessions/close', body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.eodSubmitting = false;
+          this.showEodPanel = false;
+          this.notify.success('Shift closed — drawer reconciled');
+        },
+        error: (err) => {
+          this.eodSubmitting = false;
+          this.notify.error(err.error?.error || 'Failed to close shift');
+        },
+      });
+  }
   customerId: number | null = null;
   customerName = '';
 

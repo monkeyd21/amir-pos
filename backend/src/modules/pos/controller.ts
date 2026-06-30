@@ -25,14 +25,23 @@ export class PosController {
     try {
       const result = await posService.finalizeCloseSession(
         req.user!.userId,
-        req.body.closingAmount,
-        req.body.notes
+        req.body,
+        req.user!.branchId
       );
       res.json({
         success: true,
         data: result,
         message: 'POS session closed',
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async sessionExpected(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { session, expectedAmount } = await posService.closeSession(req.user!.userId);
+      res.json({ success: true, data: { sessionId: session.id, openingAmount: Number(session.openingAmount), expectedAmount } });
     } catch (error) {
       next(error);
     }

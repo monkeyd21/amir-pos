@@ -725,8 +725,14 @@ model PosSession {
   branchId       Int
   userId         Int
   openingAmount  Decimal       @db.Decimal(10, 2)
-  closingAmount  Decimal?      @db.Decimal(10, 2)
+  closingAmount  Decimal?      @db.Decimal(10, 2)  // physical cash counted at close
   expectedAmount Decimal?      @db.Decimal(10, 2)
+  // §8 EOD reconciliation breakdown.
+  pettyCash       Decimal? @default(0) @db.Decimal(10, 2)
+  pettyCashReason String?
+  cashDrop        Decimal? @default(0) @db.Decimal(10, 2)
+  variance        Decimal? @db.Decimal(10, 2)
+  varianceReason  String?
   status         SessionStatus @default(open)
   openedAt       DateTime      @default(now())
   closedAt       DateTime?
