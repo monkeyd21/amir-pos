@@ -1213,6 +1213,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       this.notify.warning('That voucher is already applied');
       return;
     }
+    // §6.2b — at most 2 vouchers per bill (backend enforces the same cap).
+    if (this.voucherTenders.length >= 2) {
+      this.notify.warning('A bill can use at most 2 vouchers');
+      return;
+    }
     if (this.remaining <= 0) {
       this.notify.warning('Nothing left to pay — voucher not needed');
       return;
@@ -1307,6 +1312,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // Sent even when negative — round-up surcharges encode as a negative
     // "discount" so the backend total rises to the nearest ₹10.
     if (this.manualDiscount !== 0) body.discountAmount = this.manualDiscount;
+    // §12 — send the special-discount portion separately so the Sales detail
+    // bill-breakup can itemize it (does not change totals).
+    if (this.specialDiscount) body.specialDiscount = this.specialDiscount;
     if (this.customerId) body.customerId = this.customerId;
     // Loyalty points redeemed — separate from manual discount
     const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.loyaltyRedeemable);

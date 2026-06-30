@@ -6,68 +6,36 @@ test.describe('Inventory', () => {
     await login(page);
   });
 
-  test('should navigate to products page and display the product list', async ({ page }) => {
+  test('products list renders with heading, search and columns', async ({ page }) => {
     await page.goto('/inventory/products');
-
-    await expect(page.locator('h1:has-text("Products")')).toBeVisible();
-    await expect(page.locator('text=Manage your product catalog')).toBeVisible();
+    await expect(page.locator('h1').filter({ hasText: 'Products' })).toBeVisible();
+    await expect(page.locator('input[placeholder="Search products..."]')).toBeVisible();
+    for (const col of ['SKU', 'Brand', 'Category', 'Price']) {
+      await expect(page.locator(`th:has-text("${col}")`).first()).toBeVisible();
+    }
   });
 
-  test('should load product list with table data', async ({ page }) => {
+  test('Add Product navigates to the create page', async ({ page }) => {
     await page.goto('/inventory/products');
-
-    // Wait for the table to load (spinner disappears and table rows appear)
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    // Table should be visible with header columns
-    await expect(page.locator('th:has-text("Name")')).toBeVisible();
-    await expect(page.locator('th:has-text("SKU")')).toBeVisible();
-    await expect(page.locator('th:has-text("Brand")')).toBeVisible();
-    await expect(page.locator('th:has-text("Category")')).toBeVisible();
-    await expect(page.locator('th:has-text("Price")')).toBeVisible();
-
-    // Paginator should be visible
-    await expect(page.locator('mat-paginator')).toBeVisible();
+    await page
+      .locator('a:has-text("Add Product"), button:has-text("Add Product")')
+      .first()
+      .click();
+    await expect(page).toHaveURL(/\/inventory\/products\/new/);
   });
 
-  test('should open add product dialog', async ({ page }) => {
-    await page.goto('/inventory/products');
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    await page.locator('button:has-text("Add Product")').click();
-
-    // Dialog should appear
-    await expect(page.locator('mat-dialog-container')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('should navigate to stock levels page', async ({ page }) => {
+  test('stock levels page loads', async ({ page }) => {
     await page.goto('/inventory/stock');
-
-    await expect(page.locator('h1').filter({ hasText: 'Stock' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1').filter({ hasText: 'Inventory Levels' })).toBeVisible({ timeout: 10000 });
   });
 
-  test('should navigate to transfers page', async ({ page }) => {
+  test('transfers page loads', async ({ page }) => {
     await page.goto('/inventory/transfers');
-
-    // The transfers page or placeholder should be visible
-    await expect(page.locator('body')).toBeVisible();
-    await expect(page).toHaveURL(/\/inventory\/transfers/);
+    await expect(page.locator('h1').filter({ hasText: 'Stock Transfers' })).toBeVisible({ timeout: 10000 });
   });
 
-  test('should have search and filter controls on products page', async ({ page }) => {
-    await page.goto('/inventory/products');
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    // Search field
-    await expect(page.locator('input[placeholder="Name, SKU..."]')).toBeVisible();
-
-    // Brand filter
-    await expect(page.locator('mat-label:has-text("Brand")')).toBeVisible();
-
-    // Category filter
-    await expect(page.locator('mat-label:has-text("Category")')).toBeVisible();
-
-    // Clear button
-    await expect(page.locator('button:has-text("Clear")')).toBeVisible();
+  test('import page loads', async ({ page }) => {
+    await page.goto('/inventory/import');
+    await expect(page.locator('h1').filter({ hasText: 'Import Inventory' })).toBeVisible({ timeout: 10000 });
   });
 });

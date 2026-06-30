@@ -60,7 +60,13 @@ interface Sale {
   returns: SaleReturn[];
   total: number;
   subtotal?: number;
-  payments?: { method: string; amount: string | number }[];
+  taxAmount?: number | string;
+  discountAmount?: number | string;
+  manualDiscountAmount?: number | string;
+  specialDiscountAmount?: number | string;
+  loyaltyDiscountAmount?: number | string;
+  loyaltyPointsRedeemed?: number;
+  payments?: { id?: number; method: string; amount: string | number; referenceNumber?: string; identifier?: string }[];
   paymentMethod?: string;
   status: string;
   createdAt: string;
@@ -259,6 +265,11 @@ export class SaleDetailComponent implements OnInit {
 
   num(v: unknown): number {
     return Number(v) || 0;
+  }
+
+  /** §12 — voucher tenders, for the itemized bill breakup. */
+  get voucherPayments(): { id?: number; method: string; amount: string | number; referenceNumber?: string }[] {
+    return (this.sale?.payments || []).filter((p) => p.method === 'voucher');
   }
 
   get canReturn(): boolean {

@@ -5,7 +5,7 @@ import { Injectable } from '@angular/core';
  * looking at the screen:
  *   - valid     → a single bright high beep   (item added)
  *   - duplicate → two quick mid beeps          (item already in cart, re-scanned)
- *   - invalid   → a low buzz                    (not found / out of stock)
+ *   - invalid   → three long beeps             (not found / out of stock)
  *
  * Tones are synthesised with the Web Audio API, so there are no asset files to
  * ship and no network fetch. The AudioContext is created lazily and resumed on
@@ -64,8 +64,12 @@ export class ScanSoundService {
     this.beep(880, 70, 'square', 0.11);
   }
 
-  /** Barcode not found / out of stock — a low buzz. */
+  /** Barcode not found / out of stock — three long beeps so the cashier
+   *  can't miss it over store noise (spec §7.1c). Sharp high-tone, not a
+   *  dull buzz, and clearly distinct from the single valid / double duplicate. */
   invalid(): void {
-    this.beep(200, 240, 'sawtooth');
+    this.beep(620, 200, 'square', 0);
+    this.beep(620, 200, 'square', 0.26);
+    this.beep(620, 200, 'square', 0.52);
   }
 }

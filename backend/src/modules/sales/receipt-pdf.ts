@@ -12,6 +12,7 @@ export interface ReceiptSale {
     discount?: number | string;
     taxAmount?: number | string;
     total: number | string;
+    nonReturnable?: boolean; // SaleItem-level flag (line marked at checkout)
     variant: {
       size: string;
       color: string;
@@ -22,6 +23,8 @@ export interface ReceiptSale {
         cgstRate?: number | string;
         sgstRate?: number | string;
         priceIncludesTax?: boolean;
+        nonReturnable?: boolean;
+        exchangeOnly?: boolean;
       };
     };
   }>;
@@ -142,11 +145,20 @@ export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
 
     // Items — render each row with an explicit row-height so qty/total on the
     // right and product-name + meta on the left can't overlap the divider below.
+    let anyNonReturnable = false;
+    let anyExchangeOnly = false;
     for (const item of sale.items) {
       const rowTop = doc.y;
       const name = `${item.variant.product.name}`;
       const meta = [item.variant.size, item.variant.color].filter(Boolean).join(' / ');
       const hsn = item.variant.product.hsnCode || '';
+
+      // §1.2 — per-line sale-policy marker.
+      const nonReturnable = Boolean(item.nonReturnable) || Boolean(item.variant.product.nonReturnable);
+      const exchangeOnly = !nonReturnable && Boolean(item.variant.product.exchangeOnly);
+      if (nonReturnable) anyNonReturnable = true;
+      if (exchangeOnly) anyExchangeOnly = true;
+      const flagText = nonReturnable ? '** NON-RETURNABLE' : exchangeOnly ? '** EXCHANGE ONLY' : '';
 
       // Anchor Qty + Total + HSN to the top of the row
       doc.font('Helvetica').fontSize(8);
@@ -166,12 +178,36 @@ export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
           .fontSize(8);
       }
 
+      if (flagText) {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(7)
+          .text(flagText, 12, doc.y, { width: W * 0.7 })
+          .font('Helvetica')
+          .fontSize(8);
+      }
+
       doc.moveDown(0.3);
     }
 
     doc.moveDown(0.1);
     doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
     doc.moveDown(0.3);
+
+    // §1.2 — legend for the sale-policy markers above.
+    if (anyNonReturnable || anyExchangeOnly) {
+      doc.font('Helvetica-Bold').fontSize(7);
+      if (anyNonReturnable) {
+        doc.text('** NON-RETURNABLE items cannot be returned or exchanged.', 12, doc.y, { width: W });
+      }
+      if (anyExchangeOnly) {
+        doc.text('** EXCHANGE ONLY items can be exchanged but not refunded.', 12, doc.y, { width: W });
+      }
+      doc.font('Helvetica').fontSize(8);
+      doc.moveDown(0.2);
+      doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
+      doc.moveDown(0.3);
+    }
 
     // Totals
     const row = (label: string, value: string, bold = false) => {

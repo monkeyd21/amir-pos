@@ -11,6 +11,8 @@ interface ReceiptItem {
   discount: number;
   taxAmount: number;
   total: number;
+  nonReturnable?: boolean;
+  exchangeOnly?: boolean;
 }
 
 interface ReceiptPayment {
@@ -83,9 +85,27 @@ export class ReceiptPrintService {
           const discLabel = '    Disc:';
           discountLine = `\n<span class="discount">${discLabel}${this.pad(discLabel, discStr)}${discStr}</span>`;
         }
-        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}</div>`;
+        // §1.2 — flag non-returnable / exchange-only goods on the printed bill.
+        let flagLine = '';
+        if (item.nonReturnable) {
+          flagLine = `\n<span class="flag">  ** NON-RETURNABLE **</span>`;
+        } else if (item.exchangeOnly) {
+          flagLine = `\n<span class="flag">  ** EXCHANGE ONLY **</span>`;
+        }
+        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}${flagLine}</div>`;
       })
       .join('');
+
+    // §1.2 — legend below the items if any line carries a sale-policy flag.
+    const hasNonReturnable = r.items.some((i) => i.nonReturnable);
+    const hasExchangeOnly = r.items.some((i) => !i.nonReturnable && i.exchangeOnly);
+    let policyNote = '';
+    if (hasNonReturnable || hasExchangeOnly) {
+      const notes: string[] = [];
+      if (hasNonReturnable) notes.push('** NON-RETURNABLE items cannot be returned or exchanged.');
+      if (hasExchangeOnly) notes.push('** EXCHANGE ONLY items can be exchanged but not refunded.');
+      policyNote = `\n${thinDivider}\n<span class="flag">${notes.map((t) => this.esc(t)).join('\n')}</span>`;
+    }
 
     const subtotalLabel = 'Subtotal:';
     const subtotalVal = this.formatCurrency(r.subtotal);
@@ -205,6 +225,7 @@ export class ReceiptPrintService {
     .store-name { font-size: 16px; font-weight: bold; }
     .item { margin: 4px 0; }
     .discount { color: #888; }
+    .flag { font-weight: bold; }
     strong { font-weight: bold; }
 
     .actions {
@@ -280,7 +301,7 @@ ${thinDivider}
 
 PAYMENT:
 ${paymentsHtml}${changeLine}
-${loyaltySection}
+${loyaltySection}${policyNote}
 ${thinDivider}
 ${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
 <div class="center">Thank you for shopping!

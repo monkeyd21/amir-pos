@@ -60,6 +60,8 @@ export const checkoutSchema = z.object({
     // (the cashier bumps the total to the next ₹10). Capped at ₹10 on
     // the negative side so a stray sign can't turn into a huge surcharge.
     discountAmount: z.number().gte(-10).optional(),
+    // §12 — flat special-discount portion, persisted separately for the breakup.
+    specialDiscount: z.number().min(0).optional(),
     loyaltyPointsRedeem: z.number().int().min(0).optional(),
     notes: z.string().optional(),
     // Optional exchange: goods returned from a previous sale, credited against

@@ -142,6 +142,9 @@ export class PosService {
       // balance is debited and a 'voucher' Payment row is recorded per voucher.
       vouchers?: { code: string; amount: number }[];
       discountAmount?: number;
+      // §12 — special (flat) discount portion of discountAmount, kept separate
+      // for the itemized bill breakup. Does not change totals.
+      specialDiscount?: number;
       loyaltyPointsRedeem?: number;
       notes?: string;
       exchange?: {
@@ -199,6 +202,9 @@ export class PosService {
       payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
       vouchers?: { code: string; amount: number }[];
       discountAmount?: number;
+      // §12 — special (flat) discount portion of discountAmount, kept separate
+      // for the itemized bill breakup. Does not change totals.
+      specialDiscount?: number;
       loyaltyPointsRedeem?: number;
       notes?: string;
       exchange?: {
@@ -664,6 +670,12 @@ export class PosService {
           subtotal,
           taxAmount: totalTax,
           discountAmount: totalDiscount,
+          // §12 breakup — split the consolidated discount for the Sales detail view.
+          // `data.discountAmount` already includes the special discount; subtract it
+          // out to recover the manual (+ round-off) portion.
+          specialDiscountAmount: data.specialDiscount || 0,
+          manualDiscountAmount: Math.max(0, (data.discountAmount || 0) - (data.specialDiscount || 0)),
+          loyaltyDiscountAmount: loyaltyDiscount,
           total: saleTotal,
           loyaltyPointsRedeemed: data.loyaltyPointsRedeem || 0,
           exchangeCreditAmount: exchangeCredit,
@@ -700,7 +712,7 @@ export class PosService {
       // and record matching 'voucher' Payment rows so sale.payments sum to the
       // bill total (keeps reporting and the proportional-refund split consistent).
       if (voucherRequests.length > 0) {
-        const { applied } = await redeemVouchers(tx, voucherRequests, sale.id, userId, branchId);
+        const { applied } = await redeemVouchers(tx, voucherRequests, sale.id, userId, branchId, sale.customerId);
         for (const v of applied) {
           await tx.payment.create({
             data: {

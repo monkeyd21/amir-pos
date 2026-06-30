@@ -171,6 +171,63 @@
         </table>
       </div>
     </div>
+
+    <!-- §12 — Bill Breakup: itemized price reductions + GST trail -->
+    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+      <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Bill Breakup</h2>
+      <div class="space-y-2 text-sm font-body max-w-md ml-auto">
+        <div class="flex justify-between">
+          <span class="text-on-surface-variant">MRP / Subtotal</span>
+          <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.subtotal)) }}</span>
+        </div>
+        @if (num(sale.manualDiscountAmount) > 0) {
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Manual Discount</span>
+            <span class="text-error font-mono">&minus;{{ formatCurrency(num(sale.manualDiscountAmount)) }}</span>
+          </div>
+        }
+        @if (num(sale.specialDiscountAmount) > 0) {
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Special Discount</span>
+            <span class="text-error font-mono">&minus;{{ formatCurrency(num(sale.specialDiscountAmount)) }}</span>
+          </div>
+        }
+        @if (num(sale.loyaltyDiscountAmount) > 0) {
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Loyalty Points ({{ sale.loyaltyPointsRedeemed }} pts)</span>
+            <span class="text-error font-mono">&minus;{{ formatCurrency(num(sale.loyaltyDiscountAmount)) }}</span>
+          </div>
+        }
+        @for (v of voucherPayments; track v.id) {
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Gift Voucher{{ v.referenceNumber ? ' (' + v.referenceNumber + ')' : '' }}</span>
+            <span class="text-error font-mono">&minus;{{ formatCurrency(num(v.amount)) }}</span>
+          </div>
+        }
+        <div class="flex justify-between border-t border-outline-variant/15 pt-2">
+          <span class="text-on-surface-variant">CGST</span>
+          <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-on-surface-variant">SGST</span>
+          <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
+        </div>
+        <div class="flex justify-between border-t border-outline-variant/20 pt-2">
+          <span class="font-bold text-on-surface">Total Paid</span>
+          <span class="font-bold font-mono text-on-surface">{{ formatCurrency(num(sale.total)) }}</span>
+        </div>
+      </div>
+      @if (sale.payments && sale.payments.length) {
+        <div class="mt-4 pt-3 border-t border-outline-variant/10 max-w-md ml-auto space-y-1">
+          @for (p of sale.payments; track p.id) {
+            <div class="flex justify-between text-xs">
+              <span class="text-on-surface-variant uppercase tracking-wide">{{ p.method }}{{ p.identifier ? ' · ' + p.identifier : '' }}</span>
+              <span class="text-on-surface font-mono">{{ formatCurrency(num(p.amount)) }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
   </div>
 
   <!-- Exchange Section -->

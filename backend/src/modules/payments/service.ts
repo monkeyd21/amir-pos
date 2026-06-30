@@ -97,6 +97,12 @@ export class PaymentsService {
       const amount = Number(payment.amount);
       const method = payment.method;
 
+      // Methods beyond cash/card/upi (e.g. voucher, loyalty) also produce Payment
+      // rows — initialise a bucket on demand so the summary never crashes on them.
+      if (!summary[method]) {
+        summary[method] = { completed: 0, refunded: 0, net: 0, count: 0 };
+      }
+
       if (payment.status === 'completed') {
         summary[method].completed += amount;
         summary[method].count += 1;

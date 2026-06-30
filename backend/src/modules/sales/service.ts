@@ -284,6 +284,10 @@ export class SalesService {
         discount: Number(item.discount),
         taxAmount: Number(item.taxAmount),
         total: Number(item.total),
+        // §1.2 — surface sale-policy flags so the printed bill can mark and
+        // highlight non-returnable / exchange-only goods for the customer.
+        nonReturnable: Boolean((item as any).nonReturnable) || item.variant.product.nonReturnable,
+        exchangeOnly: item.variant.product.exchangeOnly,
       })),
       subtotal: Number(sale.subtotal),
       taxAmount: Number(sale.taxAmount),
@@ -1181,7 +1185,7 @@ export class SalesService {
           });
         }
         if (voucherReqs.length) {
-          const { applied } = await redeemVouchers(tx, voucherReqs, saleId, userId, branchId);
+          const { applied } = await redeemVouchers(tx, voucherReqs, saleId, userId, branchId, sale.customerId);
           for (const v of applied) {
             await tx.payment.create({
               data: { saleId, method: 'voucher' as PaymentMethod, amount: v.amount, referenceNumber: v.code },

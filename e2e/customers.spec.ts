@@ -4,68 +4,27 @@ import { login } from './helpers';
 test.describe('Customers', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
+    await page.goto('/customers');
   });
 
-  test('should navigate to customers page', async ({ page }) => {
-    await page.goto('/customers');
-
-    await expect(page.locator('h1:has-text("Customers")')).toBeVisible();
-    await expect(page.locator('text=Manage customer profiles and loyalty')).toBeVisible();
+  test('list page renders with heading, search and columns', async ({ page }) => {
+    await expect(page.locator('h1').filter({ hasText: 'Customer Management' })).toBeVisible();
+    await expect(
+      page.locator('input[placeholder="Search customers by name, email or phone..."]')
+    ).toBeVisible();
+    for (const col of ['Customer Name', 'Total Spent', 'Loyalty Tier', 'Loyalty Points', 'Visits']) {
+      await expect(page.locator(`th:has-text("${col}")`).first()).toBeVisible();
+    }
+    await expect(page.getByRole('button', { name: 'Add Customer' })).toBeVisible();
   });
 
-  test('should load the customer list with table columns', async ({ page }) => {
-    await page.goto('/customers');
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    // Table header columns
-    await expect(page.locator('th:has-text("Name")')).toBeVisible();
-    await expect(page.locator('th:has-text("Phone")')).toBeVisible();
-    await expect(page.locator('th:has-text("Email")')).toBeVisible();
-    await expect(page.locator('th:has-text("Tier")')).toBeVisible();
-    await expect(page.locator('th:has-text("Points")')).toBeVisible();
-    await expect(page.locator('th:has-text("Total Spent")')).toBeVisible();
-
-    // Paginator
-    await expect(page.locator('mat-paginator')).toBeVisible();
-  });
-
-  test('should have a search field', async ({ page }) => {
-    await page.goto('/customers');
-
-    await expect(page.locator('input[placeholder="Search..."]')).toBeVisible();
-  });
-
-  test('should open add customer dialog', async ({ page }) => {
-    await page.goto('/customers');
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    await page.locator('button:has-text("Add Customer")').click();
-
-    // Dialog should appear
-    await expect(page.locator('mat-dialog-container')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('should navigate to customer detail page when clicking a row', async ({ page }) => {
-    await page.goto('/customers');
-    await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 15000 });
-
-    // Click the first data row in the table
-    const firstRow = page.locator('table tbody tr, mat-table mat-row').first();
-    if (await firstRow.isVisible()) {
+  test('opening a customer shows the detail page (if any exist)', async ({ page }) => {
+    const firstRow = page.locator('table tbody tr').first();
+    if (await firstRow.count()) {
       await firstRow.click();
       await expect(page).toHaveURL(/\/customers\/\d+/);
-
-      // Wait for loading spinner to disappear
-      await expect(page.locator('mat-spinner')).not.toBeVisible({ timeout: 10000 });
-
-      // If customer loaded successfully, profile and loyalty info should be visible
-      const profileText = page.locator('p:has-text("Customer Profile")');
-      try {
-        await expect(profileText).toBeVisible({ timeout: 5000 });
-        await expect(page.locator('text=Loyalty Card')).toBeVisible();
-      } catch {
-        // Customer API may fail in test environment — navigation to detail route is sufficient
-      }
+      // Loyalty + KPI labels render on the detail page.
+      await expect(page.getByText('Loyalty Points').first()).toBeVisible({ timeout: 10000 });
     }
   });
 });

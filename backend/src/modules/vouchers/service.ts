@@ -7,6 +7,12 @@ import { recordAudit } from '../../services/audit';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// Spec §6.2b / §6.2c — sensible defaults. These are "configurable in Settings"
+// per the requirements; until that Settings wiring lands, they're the enforced
+// defaults so the rules are live rather than absent.
+const DEFAULT_EXPIRY_DAYS = 180;
+const MAX_VOUCHERS_PER_BILL = 2;
+
 function generateVoucherCode(): string {
   // GV- + 8 hex chars. Collisions are astronomically unlikely; the unique
   // constraint is the real guard and create() retries on the rare clash.
@@ -30,7 +36,11 @@ export class VoucherService {
             code,
             initialValue: data.value,
             balance: data.value,
-            expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+            // §6.2c — default to a 180-day expiry when the issuer doesn't set one,
+            // rather than an open-ended voucher that never lapses.
+            expiresAt: data.expiresAt
+              ? new Date(data.expiresAt)
+              : new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
             customerId: data.customerId ?? null,
             branchId,
             issuedBy: userId,
@@ -119,11 +129,17 @@ export async function redeemVouchers(
   vouchers: { code: string; amount: number }[],
   saleId: number,
   userId: number,
-  branchId: number
+  branchId: number,
+  customerId: number | null = null
 ): Promise<{ total: number; applied: { code: string; amount: number }[] }> {
   let total = 0;
   const applied: { code: string; amount: number }[] = [];
   const seen = new Set<string>();
+
+  // §6.2b — cap the number of vouchers on a single bill.
+  if (vouchers.length > MAX_VOUCHERS_PER_BILL) {
+    throw new AppError(`At most ${MAX_VOUCHERS_PER_BILL} vouchers can be used on one bill`, 400);
+  }
 
   for (const v of vouchers) {
     const code = v.code.toUpperCase();
@@ -135,6 +151,15 @@ export async function redeemVouchers(
     const voucher = await tx.giftVoucher.findUnique({ where: { code } });
     if (!voucher) throw new AppError(`Voucher ${code} not found`, 404);
     if (voucher.status !== 'active') throw new AppError(`Voucher ${code} is ${voucher.status}`, 400);
+    // §6.1c — a voucher tied to a customer is non-transferable: it can only be
+    // redeemed on a bill for that same customer. Generic (unassigned) vouchers
+    // stay usable by anyone.
+    if (voucher.customerId != null && voucher.customerId !== customerId) {
+      throw new AppError(
+        `Voucher ${code} is registered to another customer and cannot be transferred`,
+        400
+      );
+    }
     if (voucher.expiresAt && voucher.expiresAt.getTime() < Date.now()) {
       await tx.giftVoucher.update({ where: { id: voucher.id }, data: { status: 'expired' } });
       throw new AppError(`Voucher ${code} has expired`, 400);
