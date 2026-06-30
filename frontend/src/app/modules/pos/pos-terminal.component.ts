@@ -398,9 +398,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     });
     this.offline.pending$.pipe(takeUntil(this.destroy$)).subscribe((n) => (this.pendingSync = n));
     this.offlineReady = this.offline.getCatalog().items.length > 0;
-    // Pull a fresh catalog so scanning works if the network drops later.
+    // Pull a fresh catalog + customers so scanning and customer lookup still
+    // work if the network drops later (§11.2 / §11.3).
     if (this.offline.isOnline) {
       this.offline.refreshCatalog().then((n) => (this.offlineReady = n > 0)).catch(() => {});
+      this.offline.refreshCustomers().catch(() => {});
       this.runSync();
     }
   }
@@ -733,6 +735,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           }
           this.customerSearchLoading = true;
           this.lastCustomerQuery = query;
+          // §11.3 — offline: read-only lookup against the last synced customers.
+          if (this.isOffline) {
+            return of({ data: this.offline.searchCustomers(query) } as ApiResponse<any[]>);
+          }
           return this.api.get<ApiResponse<any[]>>('/customers/search', { query });
         }),
         takeUntil(this.destroy$)

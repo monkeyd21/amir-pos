@@ -29,6 +29,8 @@ test('§10.1/10.2/10.3 — performance endpoint computes profit, day-of-week, mo
     expect(data.monthly[0]).toHaveProperty('marginPercent');
     expect(data.insights.bestMonth).toBeTruthy();
   }
+  // §10.4 — rule-based proactive recommendations are returned.
+  expect(Array.isArray(data.recommendations)).toBeTruthy();
 });
 
 test('§10 — dashboard renders the Business Performance section', async ({ page }) => {

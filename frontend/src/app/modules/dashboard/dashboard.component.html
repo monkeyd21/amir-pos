@@ -250,6 +250,14 @@
       Best day: <b class="text-on-surface">{{ performance.insights.bestDay }}</b>
       <span *ngIf="performance.insights.bestMonth"> · Best month: <b class="text-on-surface">{{ performance.insights.bestMonth }}</b></span>
     </p>
+    <!-- §10.4 — proactive recommendations -->
+    <div class="mt-4 space-y-1.5" *ngIf="performance.recommendations?.length" data-testid="recommendations">
+      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recommendations</h3>
+      <div *ngFor="let rec of performance.recommendations" class="flex items-start gap-2 text-xs text-on-surface">
+        <span class="material-symbols-outlined text-[14px] text-primary mt-0.5">lightbulb</span>
+        <span>{{ rec }}</span>
+      </div>
+    </div>
   </section>
 
 </div>

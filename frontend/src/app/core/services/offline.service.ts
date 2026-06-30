@@ -20,6 +20,10 @@ export interface QueuedSale {
   createdAt: string;
   total: number;
   payload: any; // the /pos/checkout body (minus offline/clientRef, added at sync)
+  // §11.6 — set when a replay was rejected by the server (e.g. validation /
+  // stock conflict). Flagged for manager review rather than silently dropped.
+  conflict?: boolean;
+  conflictError?: string;
 }
 
 /**
@@ -36,6 +40,7 @@ export interface QueuedSale {
 export class OfflineService {
   private readonly CATALOG_KEY = 'pos_catalog_v1';
   private readonly QUEUE_KEY = 'pos_offline_queue_v1';
+  private readonly CUSTOMERS_KEY = 'pos_customers_v1';
 
   /** Best-effort connectivity signal (navigator + online/offline events). */
   online$ = new BehaviorSubject<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -89,6 +94,39 @@ export class OfflineService {
     return this.getCatalog().items.find((i) => i.barcode === code) || null;
   }
 
+  // ── Customers (§11.3 — read-only lookup offline) ──────────────────
+  async refreshCustomers(): Promise<number> {
+    const res: any = await firstValueFrom(this.api.get<any>('/customers', { limit: 2000 }));
+    const items = res?.data ?? [];
+    localStorage.setItem(
+      this.CUSTOMERS_KEY,
+      JSON.stringify({ items, syncedAt: new Date().toISOString() })
+    );
+    return items.length;
+  }
+
+  getCustomers(): any[] {
+    try {
+      return JSON.parse(localStorage.getItem(this.CUSTOMERS_KEY) || '{"items":[]}').items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** §11.3 — read-only customer search against the last synced data. */
+  searchCustomers(query: string): any[] {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return this.getCustomers()
+      .filter(
+        (c) =>
+          (c.firstName || '').toLowerCase().includes(q) ||
+          (c.lastName || '').toLowerCase().includes(q) ||
+          String(c.phone || '').includes(q)
+      )
+      .slice(0, 10);
+  }
+
   // ── Offline sale queue ───────────────────────────────────────────
   loadQueue(): QueuedSale[] {
     try {
@@ -130,12 +168,30 @@ export class OfflineService {
         this.saveQueue(this.loadQueue().filter((s) => s.clientRef !== sale.clientRef));
         synced++;
       } catch (err: any) {
-        // 4xx (e.g. no open session) — stop and keep the rest queued for later.
-        if (err?.status && err.status >= 400 && err.status < 500) break;
+        const status = err?.status ?? 0;
+        // "No open session" is operational, not a data conflict — stop and retry
+        // the whole queue once a session is open.
+        const msg = err?.error?.error || err?.error?.message || err?.message || '';
+        if (status === 404 || /session/i.test(msg)) break;
+        // §11.6 — a genuine 4xx conflict (validation/stock): flag this bill for
+        // manager review, keep it queued, and carry on with the rest.
+        if (status >= 400 && status < 500) {
+          this.saveQueue(
+            this.loadQueue().map((s) =>
+              s.clientRef === sale.clientRef ? { ...s, conflict: true, conflictError: msg } : s
+            )
+          );
+          continue;
+        }
         // transient/network — stop; we're probably offline again.
         break;
       }
     }
     return { synced, remaining: this.pendingCount };
+  }
+
+  /** §11.6 — bills that failed to sync and need manager review. */
+  conflicts(): QueuedSale[] {
+    return this.loadQueue().filter((s) => s.conflict);
   }
 }

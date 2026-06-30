@@ -72,6 +72,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     dayOfWeek: { day: string; totalSales: number; avgSales: number; rating: string }[];
     monthly: { month: string; sales: number; profit: number; marginPercent: number }[];
     insights: { bestMonth: string | null; worstMonth: string | null; bestDay: string | null };
+    recommendations?: string[];
   } | null = null;
 
   loading = true;

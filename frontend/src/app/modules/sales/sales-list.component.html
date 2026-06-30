@@ -28,6 +28,31 @@
   </div>
 </div>
 
+<!-- §11.5 — offline bills awaiting sync -->
+@if (pendingSync.length > 0) {
+  <div class="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4" data-testid="pending-sync">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-amber-400 text-lg">cloud_off</span>
+      <h3 class="text-sm font-bold text-on-surface">{{ pendingSync.length }} bill(s) pending sync</h3>
+    </div>
+    <div class="space-y-1">
+      @for (b of pendingSync; track b.tempNumber) {
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-mono text-on-surface">{{ b.tempNumber }}</span>
+          <span class="flex items-center gap-2">
+            <span class="text-on-surface-variant">{{ formatCurrency(b.total) }}</span>
+            @if (b.conflict) {
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-error/20 text-error" title="{{ b.conflictError }}">Conflict — review</span>
+            } @else {
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400">Pending</span>
+            }
+          </span>
+        </div>
+      }
+    </div>
+  </div>
+}
+
 <!-- Filter Bar -->
 @if (showFilters) {
   <div class="mb-6 p-5 bg-surface-container/60 border border-outline-variant/10 rounded-2xl animate-in slide-in-from-top-2">

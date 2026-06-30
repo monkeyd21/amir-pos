@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { OfflineService } from '../../core/services/offline.service';
 import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
 import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
@@ -61,13 +62,18 @@ export class SalesListComponent implements OnInit {
   // Dropdown state
   openMenuId: number | null = null;
 
+  // §11.5 — offline bills awaiting sync (held in the local queue).
+  pendingSync: { tempNumber: string; total: number; createdAt: string; conflict?: boolean; conflictError?: string }[] = [];
+
   constructor(
     private api: ApiService,
     private router: Router,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private offline: OfflineService
   ) {}
 
   ngOnInit(): void {
+    this.pendingSync = this.offline.loadQueue();
     this.loadSales();
   }
 

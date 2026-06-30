@@ -490,6 +490,20 @@ export class ReportService {
     const worstMonth = pick(monthlyArr, (a, b) => a.sales < b.sales);
     const bestDay = pick(dayOfWeek, (a, b) => a.avgSales > b.avgSales);
 
+    // §10.4 — proactive, rule-based recommendations from the same data (Phase-1;
+    // no ML). Surfaced on the dashboard.
+    const recommendations: string[] = [];
+    if (bestDay && bestDay.avgSales > 0) {
+      recommendations.push(`Stock up before ${bestDay.day} — historically your strongest day.`);
+    }
+    const zeroDays = dayOfWeek.filter((d) => d.transactions === 0).map((d) => d.day);
+    if (zeroDays.length && zeroDays.length < 7) {
+      recommendations.push(`No sales recorded on ${zeroDays.join(', ')} — consider a promotion or shorter hours.`);
+    }
+    if (avgProfitPercent > 0 && avgProfitPercent < 25) {
+      recommendations.push(`Average margin is ${avgProfitPercent}% — review pricing or supplier costs.`);
+    }
+
     return {
       overall: { totalSales: round2(totalSales), totalCost: round2(totalCost), totalProfit, avgProfitPercent },
       dayOfWeek,
@@ -499,6 +513,7 @@ export class ReportService {
         worstMonth: worstMonth?.month ?? null,
         bestDay: bestDay?.day ?? null,
       },
+      recommendations,
     };
   }
 }
