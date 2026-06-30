@@ -20,7 +20,11 @@ interface CustomerDialogData {
     email: string;
     phone: string;
     address?: string;
+    dateOfBirth?: string | null;
+    gender?: string | null;
   } | null;
+  // §5.2 — pre-fill the phone the cashier just searched, so it's never re-typed.
+  phone?: string;
 }
 
 @Component({
@@ -57,10 +61,17 @@ export class CustomerDialogComponent implements OnInit {
         [Validators.email],
       ],
       phone: [
-        this.data?.customer?.phone || '',
+        this.data?.customer?.phone || this.data?.phone || '',
         [Validators.required, Validators.minLength(10)],
       ],
       address: [this.data?.customer?.address || ''],
+      // §5.3 — DOB + Gender mandatory for new customers (clothing-retail
+      // category/size suggestions + segmentation). dateOfBirth as yyyy-MM-dd.
+      dateOfBirth: [
+        this.data?.customer?.dateOfBirth ? this.data.customer.dateOfBirth.substring(0, 10) : '',
+        [Validators.required],
+      ],
+      gender: [this.data?.customer?.gender || '', [Validators.required]],
     });
   }
 
@@ -85,6 +96,8 @@ export class CustomerDialogComponent implements OnInit {
       email: raw.email?.trim() || undefined,
       phone: raw.phone?.trim() || undefined,
       address: raw.address?.trim() || undefined,
+      dateOfBirth: raw.dateOfBirth || undefined,
+      gender: raw.gender || undefined,
     };
 
     const request$ = this.isEdit
@@ -99,9 +112,9 @@ export class CustomerDialogComponent implements OnInit {
             : 'Customer created successfully'
         );
         this.saving = false;
-        // On create, return the new customer so callers (e.g. the POS terminal)
-        // can auto-select it. On edit, keep the legacy truthy `true`.
-        this.dialogRef.close(this.isEdit ? true : (res?.data ?? true));
+        // Return the saved customer object so callers (POS terminal) can
+        // auto-select / refresh it — on both create and edit.
+        this.dialogRef.close(res?.data ?? true);
       },
       error: (err) => {
         this.notification.error(

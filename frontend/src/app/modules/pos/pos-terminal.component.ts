@@ -226,6 +226,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   customerSearchLoading = false;
   showCustomerResults = false;
   private customerSearchSubject = new Subject<string>();
+  /** §5.1 — last query searched + last phone we auto-prompted to create. */
+  private lastCustomerQuery = '';
+  private lastPromptedPhone = '';
+  /** §5.6 — rule-based purchase suggestion for the selected customer. */
+  customerSuggestion: { preferredSize: string | null; likelyCategory: string | null } | null = null;
   selectedCustomer: any = null;
 
   // ─── Hold / parked bills ────────────────────────────────────────
@@ -646,6 +651,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             return of(null);
           }
           this.customerSearchLoading = true;
+          this.lastCustomerQuery = query;
           return this.api.get<ApiResponse<any[]>>('/customers/search', { query });
         }),
         takeUntil(this.destroy$)
@@ -655,6 +661,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           if (res) {
             this.customerSearchResults = res.data || [];
             this.showCustomerResults = true;
+            // §5.1/§5.2 — an unrecognized phone number (no match) immediately
+            // prompts new-customer creation with that number pre-filled, so the
+            // cashier never re-types it.
+            const q = this.lastCustomerQuery.trim();
+            const isPhone = /^\d{10,}$/.test(q);
+            if (
+              this.customerSearchResults.length === 0 &&
+              isPhone &&
+              this.lastPromptedPhone !== q
+            ) {
+              this.lastPromptedPhone = q;
+              this.addCustomer(q);
+            }
           }
           this.customerSearchLoading = false;
         },
@@ -675,12 +694,40 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.customerSearchQuery = '';
     this.customerSearchResults = [];
     this.showCustomerResults = false;
+    this.customerSuggestion = null;
+    this.loadCustomerSuggestion(customer.id);
   }
 
-  addCustomer(): void {
+  /** §5.6 — fetch the rule-based size/category suggestion for this customer. */
+  private loadCustomerSuggestion(customerId: number): void {
+    this.api
+      .get<ApiResponse<{ preferredSize: string | null; likelyCategory: string | null }>>(
+        `/customers/${customerId}/suggestion`
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.customerSuggestion = res?.data ?? null),
+        error: () => (this.customerSuggestion = null),
+      });
+  }
+
+  /** §5.4 — open the customer dialog to fill DOB/gender (or edit details). */
+  editCustomer(): void {
+    if (!this.selectedCustomer) return;
     const ref = this.dialog.open<CustomerDialogComponent, any, boolean | any>(
       CustomerDialogComponent,
-      { data: { customer: null }, width: '32rem' }
+      { data: { customer: this.selectedCustomer }, width: '32rem' }
+    );
+    ref.afterClosed().subscribe((result) => {
+      if (result && typeof result === 'object') this.selectCustomer(result);
+    });
+  }
+
+  addCustomer(prefillPhone?: string): void {
+    const phone = prefillPhone ?? (/^\d{10,}$/.test(this.customerSearchQuery.trim()) ? this.customerSearchQuery.trim() : undefined);
+    const ref = this.dialog.open<CustomerDialogComponent, any, boolean | any>(
+      CustomerDialogComponent,
+      { data: { customer: null, phone }, width: '32rem' }
     );
     ref.afterClosed().subscribe((result) => {
       // On create the dialog returns the new customer object — auto-select it

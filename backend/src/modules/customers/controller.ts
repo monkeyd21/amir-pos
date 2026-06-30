@@ -71,6 +71,15 @@ export class CustomerController {
       next(error);
     }
   }
+
+  async getSuggestion(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await customerService.getPurchaseSuggestion(parseInt(req.params.id));
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const customerController = new CustomerController();

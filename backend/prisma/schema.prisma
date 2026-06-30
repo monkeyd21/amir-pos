@@ -781,6 +781,11 @@ model Customer {
   phone        String     @unique
   email        String?
   address      String?
+  // §5.3 — DOB drives birthday insights/marketing; gender ('M'/'F') drives
+  // clothing-category suggestions + size prediction. Nullable so legacy rows
+  // (and the quick walk-in add) survive; the POS prompts to fill them (§5.4).
+  dateOfBirth  DateTime?
+  gender       String?
   loyaltyPoints Int       @default(0)
   loyaltyTier  LoyaltyTier @default(bronze)
   totalSpent   Decimal    @default(0) @db.Decimal(12, 2)

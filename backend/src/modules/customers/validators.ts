@@ -7,6 +7,9 @@ export const createCustomerSchema = z.object({
     phone: z.string().min(10, 'Phone must be at least 10 characters'),
     email: z.string().email().optional().nullable(),
     address: z.string().optional().nullable(),
+    // §5.3 — DOB (ISO date string) + gender ('M'/'F').
+    dateOfBirth: z.string().optional().nullable(),
+    gender: z.enum(['M', 'F']).optional().nullable(),
   }),
 });
 
@@ -20,6 +23,8 @@ export const updateCustomerSchema = z.object({
     phone: z.string().min(10).optional(),
     email: z.string().email().optional().nullable(),
     address: z.string().optional().nullable(),
+    dateOfBirth: z.string().optional().nullable(),
+    gender: z.enum(['M', 'F']).optional().nullable(),
   }),
 });
 

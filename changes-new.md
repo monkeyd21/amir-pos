@@ -38,12 +38,12 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 - [ ] 4.5 **[ADDED]** EOD report of active holds (cashier, remarks, age) — **GAP** (daily summary excludes holds).
 
 ## 5. Streamlined Customer Creation — **HIGH**
-- [ ] 5.1 Auto New-Customer prompt on unrecognized phone (no separate tab) — **GAP** (search shows empty list; add requires explicit button).
-- [ ] 5.2 No mobile re-entry — auto-map searched number to new profile — **GAP** (create form needs manual phone entry).
-- [ ] 5.3 Mandatory fields Mobile/First Name/**DOB**/**Gender (M/F)** — **PARTIAL** (Mobile + First Name only; **DOB & Gender absent from schema & validators**).
-- [ ] 5.4 **[ADDED]** Legacy customers: prompt to update DOB + Gender on next visit — **GAP** (no fields, no prompt).
-- [ ] 5.5 Existing-customer insights: Name, Points, Prev Purchase, Birthday, Last Visit — **PARTIAL** (Name/Points/PrevPurchase/LastVisit present; **Birthday GAP**).
-- [ ] 5.6 AI Phase 1 rule-based: preferred size + likely category = MODE(last 3), hide if <3 — **GAP** (no preferredSize, no MODE logic, no panel).
+- [x] 5.1 Auto New-Customer prompt on unrecognized phone — **DONE + E2E TESTED** (POS auto-opens add-customer dialog on a no-match 10-digit phone). `section5-customers` ✓.
+- [x] 5.2 No mobile re-entry — auto-map searched number — **DONE + E2E TESTED** (dialog phone pre-filled from search). `section5-customers` ✓.
+- [x] 5.3 Mandatory Mobile/First Name/**DOB**/**Gender (M/F)** — **DONE + E2E TESTED** (`Customer.dateOfBirth`+`gender` cols; dialog requires DOB+gender). `section5-customers` ✓.
+- [x] 5.4 **[ADDED]** Legacy customers: prompt to update DOB + Gender — **DONE + E2E TESTED** (POS shows "Add date of birth & gender" when missing). `section5-customers` ✓.
+- [x] 5.5 Existing-customer insights incl. **Birthday** — **DONE + E2E TESTED** (birthday line in POS customer card). `section5-customers` ✓.
+- [x] 5.6 AI Phase 1 rule-based: preferred size + likely category = MODE(last 3), hide if <3 — **DONE + E2E TESTED** (`GET /customers/:id/suggestion`; POS suggestion panel). `section5-customers` ✓.
 - [ ] 5.7 AI Phase 2 ML (post 500 txns) — **GAP** (deferred by design; do not block launch).
 
 ## 6. Gift Voucher — Issuance & Redemption — **ADDED / NEW**
@@ -124,8 +124,10 @@ Each item tagged **BUILT** / **PARTIAL** / **GAP** with file evidence from the c
 **Cross-cutting prerequisite:** a **supervisor/manager PIN** approval mechanism recurs in 1.4, 3.4, 8.4 — worth building once, reused everywhere.
 
 ### Progress
-4 items E2E-tested + passing (`[x]`): 1.2, 6.1c, 6.2b, 6.2c.
-**Still `[~]` (built, not auto-testable):** 7.1c — 3 long invalid-scan beeps. Web-Audio output can't be asserted in Playwright; verify by ear (or a unit test mocking `AudioContext`). Logic is in `scan-sound.service.ts`.
+**22 items E2E-tested + passing (`[x]`):** 1.1, 1.2, 1.3, 2.3, 4.1, 4.2, 6.1a, 6.1b, 6.1c, 6.2a, 6.2b, 6.2c, 6.2d, 7.1a-d, 11.1, 11.2, 12.1, 12.2, 12.3, 13.3 (+ 11.4 by decision).
+Full E2E suite: **106 passing** (`npm run test:e2e`). Commits: `c7a622d`, `f709076`.
+**Remaining (gap/partial):** 1.4, 1.5, 2.1, 2.2, 2.4, 2.5, 3.1, 3.4, 4.3, 4.4, 4.5, 5.1-5.6, 8.1-8.4, 9.1(test), 9.2, 10.1-10.3, 11.3, 11.5, 11.6, 13.1, 13.2. (5.7/10.4 = AI/ML, deferred.)
+**Deploy:** DEFERRED to the end (owner decision 2026-06-30) — keep committing checkpoints; one production deploy when the whole list is done. Prod is a live store (manual SSH-tarball, root password not in repo).
 **Decision logged:** 11.4 — Card/UPI stay enabled offline (no code change needed).
 Follow-up: voucher cap (2) + expiry (180d) should later read from Settings (currently enforced constants).
 

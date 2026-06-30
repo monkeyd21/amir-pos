@@ -45,4 +45,9 @@ router.get('/:id/loyalty', validate(getCustomerSchema), (req, res, next) =>
   customerController.getLoyaltyHistory(req, res, next)
 );
 
+// §5.6 — rule-based purchase suggestion (preferred size / likely category).
+router.get('/:id/suggestion', validate(getCustomerSchema), (req, res, next) =>
+  customerController.getSuggestion(req, res, next)
+);
+
 export default router;

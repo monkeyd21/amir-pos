@@ -481,6 +481,37 @@
                     }
                   </div>
                 }
+                <!-- §5.5 — birthday insight -->
+                @if (selectedCustomer.dateOfBirth) {
+                  <div class="flex items-center gap-1.5 mt-2 pl-11">
+                    <span class="material-symbols-outlined text-[14px] text-pink-400">cake</span>
+                    <span class="text-[10px] text-on-surface-variant">Birthday {{ selectedCustomer.dateOfBirth | date:'d MMM' }}</span>
+                  </div>
+                }
+                <!-- §5.4 — legacy customers: prompt to fill DOB + gender -->
+                @if (!selectedCustomer.dateOfBirth || !selectedCustomer.gender) {
+                  <button
+                    (click)="editCustomer()"
+                    data-testid="legacy-update-prompt"
+                    class="mt-2 ml-11 inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[14px]">edit_note</span>
+                    Add date of birth &amp; gender
+                  </button>
+                }
+                <!-- §5.6 — AI Phase-1 suggestion (size + category from last 3 purchases) -->
+                @if (customerSuggestion && (customerSuggestion.preferredSize || customerSuggestion.likelyCategory)) {
+                  <div class="mt-2 ml-11 flex items-center gap-2 flex-wrap" data-testid="customer-suggestion">
+                    <span class="material-symbols-outlined text-[14px] text-primary">auto_awesome</span>
+                    @if (customerSuggestion.preferredSize) {
+                      <span class="text-[10px] text-on-surface-variant">Usually buys size <b class="text-on-surface">{{ customerSuggestion.preferredSize }}</b></span>
+                    }
+                    @if (customerSuggestion.likelyCategory) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ customerSuggestion.likelyCategory }}</span>
+                    }
+                  </div>
+                }
               </div>
             } @else {
               <div class="flex items-center gap-2">

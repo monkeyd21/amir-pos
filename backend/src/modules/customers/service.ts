@@ -133,6 +133,8 @@ export class CustomerService {
     phone: string;
     email?: string | null;
     address?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
   }) {
     const existing = await prisma.customer.findUnique({
       where: { phone: data.phone },
@@ -142,7 +144,10 @@ export class CustomerService {
       throw new AppError('A customer with this phone number already exists', 409);
     }
 
-    return prisma.customer.create({ data });
+    const { dateOfBirth, ...rest } = data;
+    return prisma.customer.create({
+      data: { ...rest, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null },
+    });
   }
 
   async update(id: number, data: {
@@ -151,6 +156,8 @@ export class CustomerService {
     phone?: string;
     email?: string | null;
     address?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
   }) {
     const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer) {
@@ -166,7 +173,62 @@ export class CustomerService {
       }
     }
 
-    return prisma.customer.update({ where: { id }, data });
+    const { dateOfBirth, ...rest } = data;
+    const updateData: any = { ...rest };
+    if (dateOfBirth !== undefined) {
+      updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    }
+    return prisma.customer.update({ where: { id }, data: updateData });
+  }
+
+  /**
+   * §5.6 AI Phase-1 (rule-based) — preferred size + likely category from the
+   * MODE of the customer's last 3 purchased items. Returns nulls when there are
+   * fewer than 3 purchases (cold start → POS shows nothing).
+   */
+  async getPurchaseSuggestion(id: number): Promise<{
+    preferredSize: string | null;
+    likelyCategory: string | null;
+  }> {
+    const sales = await prisma.sale.findMany({
+      where: { customerId: id, status: { in: ['completed', 'partially_returned'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        items: {
+          include: {
+            variant: { include: { product: { include: { category: true } } } },
+          },
+        },
+      },
+    });
+
+    const recentItems = sales.flatMap((s) => s.items).slice(0, 3);
+    if (recentItems.length < 3) {
+      return { preferredSize: null, likelyCategory: null };
+    }
+
+    const mode = (values: (string | null | undefined)[]): string | null => {
+      const counts = new Map<string, number>();
+      for (const v of values) {
+        if (!v) continue;
+        counts.set(v, (counts.get(v) ?? 0) + 1);
+      }
+      let best: string | null = null;
+      let bestN = 0;
+      for (const [v, n] of counts) {
+        if (n > bestN) {
+          best = v;
+          bestN = n;
+        }
+      }
+      return best;
+    };
+
+    return {
+      preferredSize: mode(recentItems.map((i) => i.variant?.size)),
+      likelyCategory: mode(recentItems.map((i) => i.variant?.product?.category?.name)),
+    };
   }
 
   async getPurchaseHistory(id: number, query: { page?: string; limit?: string }) {
