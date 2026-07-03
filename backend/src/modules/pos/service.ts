@@ -352,9 +352,13 @@ export class PosService {
       const discountAmount = data.discountAmount || 0;
       let loyaltyDiscount = 0;
 
-      // Handle loyalty points redemption (not available offline — the live
-      // balance can't be trusted without the server).
-      if (!data.offline && data.loyaltyPointsRedeem && data.loyaltyPointsRedeem > 0) {
+      // §9 — loyalty redemption works offline too. Single store, one customer
+      // at a time (spec §10: "no conflict possible"), so the last-synced
+      // balance is authoritative. Offline bills replay through here on
+      // reconnect with offline=true; the balance/min-retained checks run
+      // against the DB at sync time, and any shortfall surfaces as a sync
+      // conflict rather than silently dropping the redemption.
+      if (data.loyaltyPointsRedeem && data.loyaltyPointsRedeem > 0) {
         if (!data.customerId) {
           throw new AppError('Customer is required to redeem loyalty points', 400);
         }

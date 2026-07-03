@@ -1429,14 +1429,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     // Offline: queue the bill with a temporary number; it syncs when the
-    // network returns. Vouchers/loyalty/exchange aren't available offline.
+    // network returns. §9 — loyalty earn+redeem work offline; vouchers/exchange
+    // still don't. The redeemed points are carried on the payload so the total
+    // recorded on sync matches what the customer actually paid at the counter.
     if (this.isOffline) {
+      const offlineRedeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.loyaltyRedeemable);
       const offlineBody = {
         items: body.items,
         payments: body.payments,
         channel: body.channel,
         ...(this.manualDiscount !== 0 ? { discountAmount: this.manualDiscount } : {}),
         ...(this.customerId ? { customerId: this.customerId } : {}),
+        ...(this.customerId && offlineRedeemPts > 0 ? { loyaltyPointsRedeem: offlineRedeemPts } : {}),
       };
       const tempNumber = `OFF-${Date.now().toString().slice(-6)}`;
       this.offline.queueSale({
