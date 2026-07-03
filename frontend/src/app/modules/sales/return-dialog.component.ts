@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ReceiptPrintService } from '../../shared/receipt-print.service';
 
 interface ReturnItem {
   saleItemId: number;
@@ -68,6 +69,7 @@ export class ReturnDialogComponent implements OnInit {
   constructor(
     private api: ApiService,
     private notify: NotificationService,
+    private receiptPrint: ReceiptPrintService,
     private auth: AuthService
   ) {}
 
@@ -151,6 +153,10 @@ export class ReturnDialogComponent implements OnInit {
           .map((b) => `${this.formatCurrency(b.amount)} to ${b.method}`)
           .join(' + ');
         this.notify.success(summary ? `Refund: ${summary}` : 'Return processed');
+        // §1.3a — hand the customer a printed refund breakup receipt.
+        if (res?.data?.id) {
+          this.receiptPrint.printRefundReceipt(res.data.id).catch(() => {});
+        }
         this.returnComplete.emit();
       },
       error: (err) => {

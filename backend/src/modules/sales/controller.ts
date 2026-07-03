@@ -48,6 +48,16 @@ export class SalesController {
     }
   }
 
+  // §1.3a — customer-facing refund/exchange breakup receipt.
+  async returnReceipt(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const data = await salesService.getReturnReceiptData(parseInt(req.params.returnId));
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * Returns a PDF of the receipt. Used by the mobile POS share intent to
    * attach the bill to a WhatsApp message (or any share target).

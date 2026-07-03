@@ -22,6 +22,8 @@ router.get(
   validate(returnableByBarcodeSchema),
   salesController.returnableByBarcode
 );
+// §1.3a — refund/exchange receipt (static, before '/:id').
+router.get('/returns/:returnId/receipt', salesController.returnReceipt);
 router.get('/:id', validate(saleIdParamSchema), salesController.getById);
 router.get('/:id/receipt', validate(saleIdParamSchema), salesController.receipt);
 router.get('/:id/receipt.pdf', validate(saleIdParamSchema), salesController.receiptPdf);

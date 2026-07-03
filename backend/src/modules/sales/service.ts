@@ -311,6 +311,72 @@ export class SalesService {
   }
 
   /**
+   * §1.3a — customer-facing refund/exchange breakup receipt data. For each
+   * returned line it shows the original tag/MRP price, the net price actually
+   * paid after all adjustments (the stored effective per-unit price, so the
+   * figure is derived from net paid — never the tag price), and the resulting
+   * refund value. Plus the refund method breakup and any loyalty points
+   * returned to the wallet.
+   */
+  async getReturnReceiptData(returnId: number) {
+    const ret = await prisma.return.findUnique({
+      where: { id: returnId },
+      include: {
+        branch: true,
+        user: { select: { firstName: true, lastName: true } },
+        originalSale: { include: { customer: true } },
+        items: {
+          include: {
+            saleItem: { include: { variant: { include: { product: true } } } },
+          },
+        },
+      },
+    });
+    if (!ret) throw new AppError('Return not found', 404);
+
+    const items = ret.items.map((ri) => {
+      const si = ri.saleItem;
+      const mrpUnit = Number(si.unitPrice);
+      // Effective per-unit price actually paid = stored line total ÷ quantity
+      // (already net of every adjustment — offers, manual/special, loyalty,
+      // Owner Discretion Discount). This is what the refund is derived from.
+      const netUnit = si.quantity > 0 ? Number(si.total) / si.quantity : Number(si.total);
+      const refund = Math.round(netUnit * ri.quantity * 100) / 100;
+      return {
+        name: si.variant.product.name,
+        variant: `${si.variant.size} / ${si.variant.color}`,
+        sku: si.variant.sku,
+        quantity: ri.quantity,
+        mrpUnit: Math.round(mrpUnit * 100) / 100,
+        netUnit: Math.round(netUnit * 100) / 100,
+        perUnitAdjustment: Math.round((mrpUnit - netUnit) * 100) / 100,
+        refund,
+      };
+    });
+
+    return {
+      receiptHeader: ret.branch.receiptHeader,
+      receiptFooter: ret.branch.receiptFooter,
+      branchName: ret.branch.name,
+      branchAddress: ret.branch.address,
+      branchPhone: ret.branch.phone,
+      returnNumber: ret.returnNumber,
+      originalSaleNumber: ret.originalSale.saleNumber,
+      type: ret.type,
+      date: ret.createdAt,
+      cashier: `${ret.user.firstName} ${ret.user.lastName}`,
+      customer: ret.originalSale.customer
+        ? { name: fullName(ret.originalSale.customer), phone: ret.originalSale.customer.phone }
+        : null,
+      items,
+      refundTotal: Number(ret.total),
+      refundMode: ret.refundMode,
+      refundBreakup: (ret.refundBreakup as { method: string; amount: number }[] | null) || [],
+      loyaltyPointsRestored: ret.loyaltyPointsRestored,
+    };
+  }
+
+  /**
    * §1.2a — record a failed-inspection rejection. Inspection happens BEFORE
    * acceptance: if an item fails, no return/exchange transaction occurs and no
    * inventory moves — but the attempt is logged (item/SKU, customer mobile,

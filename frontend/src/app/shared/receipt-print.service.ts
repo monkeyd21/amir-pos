@@ -69,6 +69,100 @@ export class ReceiptPrintService {
     printWindow.document.close();
   }
 
+  /**
+   * §1.3a — print/show the customer-facing refund/exchange breakup receipt for
+   * a completed return. Opens the same print window as a sale receipt.
+   */
+  async printRefundReceipt(returnId: number): Promise<void> {
+    const res = await firstValueFrom(
+      this.api.get<{ success: boolean; data: any }>(`/sales/returns/${returnId}/receipt`)
+    );
+    const r = res.data;
+    const printWindow = window.open('', '_blank', 'width=420,height=700');
+    if (!printWindow) {
+      throw new Error('Pop-up blocked. Please allow pop-ups for receipt printing.');
+    }
+    printWindow.document.write(this.buildRefundReceiptHtml(r));
+    printWindow.document.close();
+  }
+
+  private buildRefundReceiptHtml(r: any): string {
+    const divider = '========================================';
+    const thin = '----------------------------------------';
+    const line = (l: string, v: string) => l + this.pad(l, v) + v;
+
+    const itemsHtml = (r.items || [])
+      .map((it: any) => {
+        const head = `${this.esc(it.name)}\n  ${this.esc(it.variant)}  x${it.quantity}`;
+        const mrp = line('  Tag/MRP:', this.formatCurrency(it.mrpUnit));
+        const adj =
+          it.perUnitAdjustment > 0
+            ? `\n<span class="discount">${line('  Less adj:', '-' + this.formatCurrency(it.perUnitAdjustment))}</span>`
+            : '';
+        const net = line('  Net paid:', this.formatCurrency(it.netUnit));
+        const ref = `<strong>${line('  Refund:', this.formatCurrency(it.refund))}</strong>`;
+        return `<div class="item">${head}\n${mrp}${adj}\n${net}\n${ref}</div>`;
+      })
+      .join('');
+
+    const breakupHtml = (r.refundBreakup || [])
+      .map((b: any) => line(this.formatPaymentMethod(b.method) + ':', this.formatCurrency(b.amount)))
+      .join('\n');
+
+    const loyaltyLine =
+      r.loyaltyPointsRestored > 0
+        ? `\n${line('Points returned:', String(r.loyaltyPointsRestored))}`
+        : '';
+    const customerLine = r.customer
+      ? `Customer: ${this.esc(r.customer.name)}${r.customer.phone ? ' (' + this.esc(r.customer.phone) + ')' : ''}\n`
+      : '';
+    const title = String(r.type || 'return').toUpperCase() === 'EXCHANGE' ? 'EXCHANGE' : 'REFUND';
+
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>${title} - ${this.esc(r.returnNumber)}</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Courier New',monospace; font-size:12px; line-height:1.4; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
+.receipt { width:302px; background:#fff; padding:12px 16px; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+.center { text-align:center; } .store-name { font-size:16px; font-weight:bold; }
+.item { margin:6px 0; } .discount { color:#888; } strong { font-weight:bold; }
+.actions { margin-top:16px; display:flex; gap:8px; }
+.actions button { padding:8px 20px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-family:'Inter',Arial,sans-serif; }
+.btn-print { background:#1a1a2e; color:#fff; } .btn-close { background:#e0e0e0; color:#333; }
+@media print { body { background:none; padding:0; display:block; } .receipt { box-shadow:none; width:100%; max-width:80mm; padding:2mm; } .actions { display:none !important; } @page { size:80mm auto; margin:0; } }
+</style></head><body>
+<div class="receipt"><div class="center">${divider}
+<span class="store-name">${this.esc(r.branchName)}</span>
+${this.esc(r.branchAddress || '')}
+${r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : ''}
+${divider}
+<strong>${title} RECEIPT</strong></div>
+${title} #: ${this.esc(r.returnNumber)}
+Against Bill: ${this.esc(r.originalSaleNumber)}
+Date: ${this.formatDate(r.date)}
+Cashier: ${this.esc(r.cashier)}
+${customerLine}${thin}
+
+ITEMS RETURNED:
+${itemsHtml}
+${thin}
+<strong>${line('TOTAL ' + title + ':', this.formatCurrency(r.refundTotal))}</strong>
+${thin}
+REFUNDED VIA:
+${breakupHtml}${loyaltyLine}
+${thin}
+${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
+<div class="center">Refund value is derived from the net price paid,
+not the tag price.
+${divider}</div></div>
+<div class="actions">
+  <button class="btn-print" onclick="window.print()">Print</button>
+  <button class="btn-close" onclick="window.close()">Close</button>
+</div>
+<script>setTimeout(function(){ window.print(); }, 500);<\/script>
+</body></html>`;
+  }
+
   private buildReceiptHtml(r: ReceiptData): string {
     const divider = '========================================';
     const thinDivider = '----------------------------------------';
