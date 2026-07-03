@@ -31,7 +31,10 @@ export class ReturnDialogComponent implements OnInit {
 
   items: ReturnItem[] = [];
   submitting = false;
-  reason = 'changed_mind';
+  // §1.2 — fixed Return Reason dropdown (final for V1). 'other' reveals a
+  // mandatory free-text box.
+  reason = 'size_issue';
+  otherReason = '';
 
   // Refund method. 'proportional' (default) mirrors the original payment split;
   // forcing a single method is a manager/owner action and is audited server-side.
@@ -46,11 +49,14 @@ export class ReturnDialogComponent implements OnInit {
     return this.auth.hasRole(['owner', 'manager']);
   }
 
+  // §1.2 — fixed dropdown, final for V1. Do not add/remove options ad hoc.
   reasons = [
-    { value: 'defective', label: 'Defective' },
-    { value: 'wrong_size', label: 'Wrong Size' },
-    { value: 'not_as_described', label: 'Not as Described' },
-    { value: 'changed_mind', label: 'Changed Mind' },
+    { value: 'size_issue', label: 'Size Issue' },
+    { value: 'defective_damaged', label: 'Defective / Damaged Item' },
+    { value: 'wrong_item', label: 'Wrong Item Delivered / Scanned' },
+    { value: 'changed_mind', label: 'Customer Changed Mind' },
+    { value: 'quality_not_expected', label: 'Quality Not as Expected' },
+    { value: 'duplicate_purchase', label: 'Duplicate Purchase' },
     { value: 'other', label: 'Other' },
   ];
 
@@ -97,6 +103,8 @@ export class ReturnDialogComponent implements OnInit {
   }
 
   get canSubmit(): boolean {
+    // §1.2 — 'Other' requires the free-text reason to be filled in.
+    if (this.reason === 'other' && !this.otherReason.trim()) return false;
     return this.selectedItems.length > 0 && !this.submitting;
   }
 
@@ -123,7 +131,8 @@ export class ReturnDialogComponent implements OnInit {
     this.submitting = true;
 
     const body: any = {
-      reason: this.reason,
+      // 'Other' sends the free-text; fixed options send their code.
+      reason: this.reason === 'other' ? this.otherReason.trim() : this.reason,
       items: this.selectedItems.map((item) => ({
         saleItemId: item.saleItemId,
         quantity: item.quantity,

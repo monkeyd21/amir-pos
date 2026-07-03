@@ -39,6 +39,15 @@
             <option [value]="r.value">{{ r.label }}</option>
           }
         </select>
+        @if (reason === 'other') {
+          <input
+            type="text"
+            [(ngModel)]="otherReason"
+            placeholder="Describe the reason"
+            data-testid="return-other-reason"
+            class="mt-2 w-full sm:w-64 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+          />
+        }
       </div>
 
       <!-- Refund method (manager/owner only). Default mirrors the original
