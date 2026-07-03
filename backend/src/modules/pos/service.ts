@@ -9,7 +9,7 @@ import { getSetting } from '../settings/service';
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { redeemVouchers } from '../vouchers/service';
 import { recordAudit } from '../../services/audit';
-import { verifySupervisorPin } from '../../services/supervisor';
+import { verifyOwnerPin } from '../../services/owner-pin';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -123,18 +123,16 @@ export class PosService {
     const variance = round2(expectedAmount - pettyCash - cashDrop - physical);
 
     // §8.2 — variance under ₹100 auto-approves (logged); ₹100 or more blocks the
-    // close until a PIN + reason are supplied. (Spec §8.2 calls for the Owner PIN
-    // specifically — swap verifySupervisorPin for the Owner-PIN check once the
-    // §6.4 Owner PIN system exists.)
+    // close until the Owner PIN (§6.4) + a reason are supplied.
     const SHORTFALL_THRESHOLD = 100;
     if (Math.abs(variance) >= SHORTFALL_THRESHOLD) {
       if (!data.managerPin) {
         throw new AppError(
-          `Variance ₹${variance} is ₹${SHORTFALL_THRESHOLD} or more — a PIN and reason are required to close the shift`,
+          `Variance ₹${variance} is ₹${SHORTFALL_THRESHOLD} or more — the Owner PIN and a reason are required to close the shift`,
           400
         );
       }
-      await verifySupervisorPin(data.managerPin);
+      await verifyOwnerPin(data.managerPin);
       if (!data.varianceReason || !data.varianceReason.trim()) {
         throw new AppError('A reason is required to close with a large variance', 400);
       }

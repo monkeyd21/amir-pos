@@ -2,10 +2,50 @@ import { Router, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../../middleware/auth';
 import { AuthRequest } from '../../middleware/auth';
 import { getSetting, setSetting } from './service';
+import { isOwnerPinSet, setOwnerPin } from '../../services/owner-pin';
+import { recordAudit } from '../../services/audit';
+import prisma from '../../config/database';
 
 const router = Router();
 
 router.use(authenticate);
+
+// §6.4 — Owner PIN. Status tells the UI whether a PIN is configured (PIN-gated
+// actions shouldn't be reachable before one is set); the setter creates or
+// changes it (owner only, audited; changing requires the current PIN).
+router.get(
+  '/owner-pin/status',
+  authorize('owner'),
+  async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: { configured: await isOwnerPinSet() } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.put(
+  '/owner-pin',
+  authorize('owner'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const changing = await isOwnerPinSet();
+      await setOwnerPin(req.body.newPin, req.body.currentPin);
+      await recordAudit(prisma, {
+        action: changing ? 'settings.ownerPin.changed' : 'settings.ownerPin.set',
+        entityType: 'setting',
+        entityId: 0,
+        userId: req.user!.userId,
+        branchId: req.user!.branchId,
+        data: {},
+      });
+      res.json({ success: true, data: { configured: true }, message: 'Owner PIN saved' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // Commission mode: 'item_level' (per-agent per line item) or 'bill_level' (per-cashier per sale)
 router.get('/commission-mode', async (_req: AuthRequest, res: Response, next: NextFunction) => {
