@@ -122,13 +122,15 @@ export class PosService {
     // §8.3 — net variance = Expected − Petty cash − Cash drop − Physical counted.
     const variance = round2(expectedAmount - pettyCash - cashDrop - physical);
 
-    // §8.4 — small variances auto-approve (logged); large ones block the close
-    // until a manager PIN + reason are supplied.
-    const SHORTFALL_THRESHOLD = 50;
-    if (Math.abs(variance) > SHORTFALL_THRESHOLD) {
+    // §8.2 — variance under ₹100 auto-approves (logged); ₹100 or more blocks the
+    // close until a PIN + reason are supplied. (Spec §8.2 calls for the Owner PIN
+    // specifically — swap verifySupervisorPin for the Owner-PIN check once the
+    // §6.4 Owner PIN system exists.)
+    const SHORTFALL_THRESHOLD = 100;
+    if (Math.abs(variance) >= SHORTFALL_THRESHOLD) {
       if (!data.managerPin) {
         throw new AppError(
-          `Variance ₹${variance} exceeds ₹${SHORTFALL_THRESHOLD} — a manager PIN and reason are required to close the shift`,
+          `Variance ₹${variance} is ₹${SHORTFALL_THRESHOLD} or more — a PIN and reason are required to close the shift`,
           400
         );
       }
@@ -160,7 +162,7 @@ export class PosService {
       entityId: session.id,
       userId,
       branchId,
-      data: { expectedAmount, physical, pettyCash, cashDrop, variance, autoApproved: Math.abs(variance) <= SHORTFALL_THRESHOLD },
+      data: { expectedAmount, physical, pettyCash, cashDrop, variance, autoApproved: Math.abs(variance) < SHORTFALL_THRESHOLD },
     });
 
     return { ...updated, difference: round2(physical - expectedAmount), variance };

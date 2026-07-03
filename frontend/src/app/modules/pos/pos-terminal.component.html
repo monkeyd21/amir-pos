@@ -1138,12 +1138,12 @@
             </div>
             <div class="flex justify-between text-sm border-t border-outline-variant/15 pt-3">
               <span class="text-on-surface-variant">Net variance</span>
-              <span class="font-mono font-bold" [class]="eodVariance > 50 || eodVariance < -50 ? 'text-error' : 'text-green-400'" data-testid="eod-variance">{{ formatCurrency(eodVariance) }}</span>
+              <span class="font-mono font-bold" [class]="eodVariance >= 100 || eodVariance <= -100 ? 'text-error' : 'text-green-400'" data-testid="eod-variance">{{ formatCurrency(eodVariance) }}</span>
             </div>
-            <!-- §8.4 — large variance requires manager PIN + reason -->
-            @if (eodVariance > 50 || eodVariance < -50) {
+            <!-- §8.2 — variance of ₹100 or more requires PIN + reason -->
+            @if (eodVariance >= 100 || eodVariance <= -100) {
               <div class="p-3 rounded-lg bg-error/5 border border-error/20 space-y-2" data-testid="eod-shortfall">
-                <p class="text-[11px] text-error">Variance over ₹50 — manager approval required.</p>
+                <p class="text-[11px] text-error">Variance ₹100 or more — approval required.</p>
                 <input type="password" [(ngModel)]="eodManagerPin" placeholder="Manager PIN" data-testid="eod-pin" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
                 <input type="text" [(ngModel)]="eodVarianceReason" placeholder="Reason for variance" data-testid="eod-reason" class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
               </div>

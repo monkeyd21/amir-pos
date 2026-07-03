@@ -269,7 +269,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       pettyCashReason: this.eodPettyReason || undefined,
       cashDrop: this.eodCashDrop || 0,
     };
-    if (Math.abs(this.eodVariance) > 50) {
+    // §8.2 — ₹100 or more requires a PIN + reason to close.
+    if (Math.abs(this.eodVariance) >= 100) {
       body.managerPin = this.eodManagerPin || undefined;
       body.varianceReason = this.eodVarianceReason || undefined;
     }
