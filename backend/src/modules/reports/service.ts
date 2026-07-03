@@ -516,6 +516,61 @@ export class ReportService {
       recommendations,
     };
   }
+
+  /**
+   * §2.3 — monthly Owner Discretion Discount review. Lists every discretionary
+   * discount granted (from the `sale.discretionaryDiscount` audit trail) in the
+   * given month, with the total ₹ granted and a per-cashier breakdown.
+   */
+  async getDiscretionaryDiscountReport(query: { month?: string; branchId?: string }) {
+    // month = 'YYYY-MM'; default to the current month if absent.
+    const now = new Date();
+    const m = /^\d{4}-\d{2}$/.test(query.month || '')
+      ? query.month!
+      : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const [y, mo] = m.split('-').map(Number);
+    const start = new Date(Date.UTC(y, mo - 1, 1));
+    const end = new Date(Date.UTC(y, mo, 1));
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        action: 'sale.discretionaryDiscount',
+        createdAt: { gte: start, lt: end },
+        ...(query.branchId ? { branchId: Number(query.branchId) } : {}),
+      },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const entries = logs.map((l) => {
+      const d = (l.data as any) || {};
+      return {
+        createdAt: l.createdAt,
+        saleNumber: d.saleNumber ?? null,
+        customerId: d.customerId ?? null,
+        variantId: d.variantId ?? null,
+        pct: Number(d.pct ?? 0),
+        amount: Number(d.amount ?? 0),
+        userId: l.userId,
+        userName: l.user ? `${l.user.firstName} ${l.user.lastName}`.trim() : null,
+      };
+    });
+
+    const totalAmount = Math.round(entries.reduce((s, e) => s + e.amount, 0) * 100) / 100;
+    const byUser = Array.from(
+      entries.reduce((map, e) => {
+        const k = e.userId ?? 0;
+        const cur = map.get(k) || { userId: e.userId, userName: e.userName, count: 0, amount: 0 };
+        cur.count += 1;
+        cur.amount = Math.round((cur.amount + e.amount) * 100) / 100;
+        map.set(k, cur);
+        return map;
+      }, new Map<number, { userId: number | null; userName: string | null; count: number; amount: number }>())
+        .values()
+    );
+
+    return { month: m, count: entries.length, totalAmount, byUser, entries };
+  }
 }
 
 export const reportService = new ReportService();

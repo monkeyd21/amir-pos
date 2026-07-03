@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, authorize } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { reportController } from './controller';
 import {
@@ -42,6 +42,11 @@ router.get('/daily-summary', validate(dailySummarySchema), (req, res, next) =>
 // §10 — business performance (profit summary, day-of-week, monthly + insights).
 router.get('/performance', (req, res, next) =>
   reportController.performance(req, res, next)
+);
+
+// §2.3 — monthly Owner Discretion Discount review (owner/manager).
+router.get('/discretionary-discounts', authorize('owner', 'manager'), (req, res, next) =>
+  reportController.discretionaryDiscounts(req, res, next)
 );
 
 export default router;

@@ -190,6 +190,15 @@ export class ReportController {
       next(error);
     }
   }
+
+  async discretionaryDiscounts(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await reportService.getDiscretionaryDiscountReport(req.query as any);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const reportController = new ReportController();
