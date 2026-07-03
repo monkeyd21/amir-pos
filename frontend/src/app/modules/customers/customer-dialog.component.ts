@@ -65,13 +65,13 @@ export class CustomerDialogComponent implements OnInit {
         [Validators.required, Validators.minLength(10)],
       ],
       address: [this.data?.customer?.address || ''],
-      // §5.3 — DOB + Gender mandatory for new customers (clothing-retail
-      // category/size suggestions + segmentation). dateOfBirth as yyyy-MM-dd.
+      // §1.6 — DOB + Gender are OPTIONAL when adding a customer (deliberate,
+      // final decision; supersedes the earlier §5.3 "mandatory" rule). Still
+      // captured when provided for category/size suggestions. yyyy-MM-dd.
       dateOfBirth: [
         this.data?.customer?.dateOfBirth ? this.data.customer.dateOfBirth.substring(0, 10) : '',
-        [Validators.required],
       ],
-      gender: [this.data?.customer?.gender || '', [Validators.required]],
+      gender: [this.data?.customer?.gender || ''],
     });
   }
 
