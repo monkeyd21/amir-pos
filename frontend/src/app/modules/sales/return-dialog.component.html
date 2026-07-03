@@ -154,6 +154,16 @@
         >
           Cancel
         </button>
+        <!-- §1.2a — item failed inspection: log the refusal, no return processed -->
+        <button
+          (click)="reject()"
+          [disabled]="submitting || selectedItems.length === 0"
+          data-testid="reject-inspection"
+          title="Item failed inspection — record the refusal without a return"
+          class="px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/70 text-on-surface rounded-xl hover:bg-surface-container-highest transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Failed Inspection
+        </button>
         <button
           (click)="submit()"
           [disabled]="!canSubmit"

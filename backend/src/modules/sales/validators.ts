@@ -6,6 +6,18 @@ export const returnableByBarcodeSchema = z.object({
   }),
 });
 
+// §1.2a — record a failed-inspection rejection (no transaction results).
+export const rejectInspectionSchema = z.object({
+  params: z.object({
+    saleId: z.string().regex(/^\d+$/),
+  }),
+  body: z.object({
+    saleItemIds: z.array(z.number().int().positive()).optional(),
+    reason: z.string().min(1, 'A rejection reason is required'),
+    customerMobile: z.string().optional(),
+  }),
+});
+
 export const listSalesSchema = z.object({
   query: z.object({
     branchId: z.string().optional(),

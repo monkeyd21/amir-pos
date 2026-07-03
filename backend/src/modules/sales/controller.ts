@@ -105,6 +105,20 @@ export class SalesController {
     }
   }
 
+  async rejectInspection(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await salesService.logInspectionRejection(
+        parseInt(req.params.saleId),
+        req.body,
+        req.user!.userId,
+        req.user!.branchId
+      );
+      res.status(201).json({ success: true, data: result, message: 'Rejection recorded' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async processExchange(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await salesService.processExchange(

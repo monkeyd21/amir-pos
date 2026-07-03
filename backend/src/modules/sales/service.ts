@@ -310,6 +310,52 @@ export class SalesService {
     };
   }
 
+  /**
+   * §1.2a — record a failed-inspection rejection. Inspection happens BEFORE
+   * acceptance: if an item fails, no return/exchange transaction occurs and no
+   * inventory moves — but the attempt is logged (item/SKU, customer mobile,
+   * cashier, timestamp, reason) so refusals leave a trail for dispute handling
+   * and SKU quality/fraud review.
+   */
+  async logInspectionRejection(
+    saleId: number,
+    data: { saleItemIds?: number[]; reason: string; customerMobile?: string },
+    userId: number,
+    branchId: number
+  ) {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        customer: true,
+        items: { include: { variant: true } },
+      },
+    });
+    if (!sale) throw new AppError('Sale not found', 404);
+
+    const picked = data.saleItemIds?.length
+      ? sale.items.filter((i) => data.saleItemIds!.includes(i.id))
+      : sale.items;
+    const skus = picked.map((i) => i.variant.sku);
+    const mobile = data.customerMobile || sale.customer?.phone || null;
+
+    await recordAudit(prisma, {
+      action: 'return.rejected',
+      entityType: 'sale',
+      entityId: saleId,
+      userId,
+      branchId,
+      reason: data.reason,
+      data: {
+        saleNumber: sale.saleNumber,
+        saleItemIds: picked.map((i) => i.id),
+        skus,
+        customerMobile: mobile,
+      },
+    });
+
+    return { saleId, saleNumber: sale.saleNumber, rejectedSkus: skus, reason: data.reason };
+  }
+
   async processReturn(
     saleId: number,
     data: {

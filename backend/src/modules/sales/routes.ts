@@ -8,6 +8,7 @@ import {
   processReturnSchema,
   processExchangeSchema,
   returnableByBarcodeSchema,
+  rejectInspectionSchema,
 } from './validators';
 
 const router = Router();
@@ -37,6 +38,15 @@ router.post(
   authorize('owner', 'manager', 'cashier'),
   validate(processExchangeSchema),
   salesController.processExchange
+);
+
+// §1.2a — log a failed-inspection rejection. No return/exchange txn, no
+// inventory movement — just an audit record of the refused attempt.
+router.post(
+  '/:saleId/reject',
+  authorize('owner', 'manager', 'cashier'),
+  validate(rejectInspectionSchema),
+  salesController.rejectInspection
 );
 
 // Agent assignment (retroactive and current)

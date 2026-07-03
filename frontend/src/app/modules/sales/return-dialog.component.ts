@@ -159,4 +159,33 @@ export class ReturnDialogComponent implements OnInit {
       },
     });
   }
+
+  /**
+   * §1.2a — the item failed inspection: record the refused attempt (no return,
+   * no refund, no stock movement) and close. Requires the same reason field.
+   */
+  reject(): void {
+    if (this.submitting) return;
+    const reason = this.reason === 'other' ? this.otherReason.trim() : this.reason;
+    if (!reason) {
+      this.notify.error('Select a reason before recording a rejection');
+      return;
+    }
+    this.submitting = true;
+    const body = {
+      reason,
+      saleItemIds: this.selectedItems.map((i) => i.saleItemId),
+    };
+    this.api.post(`/sales/${this.sale.id}/reject`, body).subscribe({
+      next: () => {
+        this.submitting = false;
+        this.notify.success('Rejection recorded — no return processed');
+        this.returnComplete.emit();
+      },
+      error: (err) => {
+        this.notify.error(err.error?.error || 'Failed to record rejection');
+        this.submitting = false;
+      },
+    });
+  }
 }
