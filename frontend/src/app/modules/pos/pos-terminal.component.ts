@@ -531,6 +531,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.destroy$.complete();
   }
 
+  // §8.0 — Day-Start: the opening drawer balance must be entered and confirmed
+  // before billing can begin; there's no silent auto-open with ₹0.
+  needsDayStart = false;
+  dayStartAmount: number | null = null;
+  dayStartOpening = false;
+
   private initSession(): void {
     this.sessionLoading = true;
     this.api
@@ -543,31 +549,50 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             this.sessionLoading = false;
             this.focusSearchInput();
           } else {
-            this.openSession();
+            this.promptDayStart();
           }
         },
         error: () => {
-          this.openSession();
+          this.promptDayStart();
         },
       });
   }
 
-  private openSession(): void {
+  /** Show the mandatory Day-Start screen, pre-filled with the last shift's
+   *  closing float (owner still confirms/edits it). */
+  private promptDayStart(): void {
+    this.sessionLoading = false;
+    this.needsDayStart = true;
     this.api
-      .post<ApiResponse<PosSession>>('/pos/sessions/open', { openingAmount: 0 })
+      .get<ApiResponse<{ suggested: number }>>('/pos/sessions/suggested-opening')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          if (this.dayStartAmount == null) this.dayStartAmount = res.data?.suggested ?? 0;
+        },
+        error: () => {
+          if (this.dayStartAmount == null) this.dayStartAmount = 0;
+        },
+      });
+  }
+
+  confirmDayStart(): void {
+    if (this.dayStartOpening || this.dayStartAmount == null || this.dayStartAmount < 0) return;
+    this.dayStartOpening = true;
+    this.api
+      .post<ApiResponse<PosSession>>('/pos/sessions/open', { openingAmount: this.dayStartAmount })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.session = res.data;
-          this.sessionLoading = false;
-          this.notify.success('POS session opened');
+          this.needsDayStart = false;
+          this.dayStartOpening = false;
+          this.notify.success('Day started — POS session opened');
           this.focusSearchInput();
         },
         error: (err) => {
-          this.sessionLoading = false;
-          this.notify.error(
-            err.error?.error || 'Failed to open POS session'
-          );
+          this.dayStartOpening = false;
+          this.notify.error(err.error?.error || 'Failed to open POS session');
         },
       });
   }

@@ -57,6 +57,19 @@ export class PosService {
     return session;
   }
 
+  /**
+   * §8.0 — suggested opening balance for the Day-Start screen: the closing
+   * drawer balance of this user's most recently closed session (the float
+   * typically carries forward). Falls back to 0 on the very first day.
+   */
+  async suggestedOpeningBalance(userId: number): Promise<number> {
+    const last = await prisma.posSession.findFirst({
+      where: { userId, status: 'closed' },
+      orderBy: { closedAt: 'desc' },
+    });
+    return last?.closingAmount != null ? Number(last.closingAmount) : 0;
+  }
+
   async closeSession(userId: number) {
     const session = await prisma.posSession.findFirst({
       where: { userId, status: 'open' },

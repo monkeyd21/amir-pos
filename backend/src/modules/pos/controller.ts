@@ -56,6 +56,16 @@ export class PosController {
     }
   }
 
+  // §8.0 — suggested opening balance for the Day-Start screen.
+  async suggestedOpening(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const suggested = await posService.suggestedOpeningBalance(req.user!.userId);
+      res.json({ success: true, data: { suggested } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async checkout(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await posService.checkout(

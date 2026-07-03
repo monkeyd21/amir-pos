@@ -21,6 +21,8 @@ router.use(authenticate);
 router.post('/sessions/open', validate(openSessionSchema), posController.openSession);
 router.post('/sessions/close', validate(closeSessionSchema), posController.closeSession);
 router.get('/sessions/current', posController.currentSession);
+// §8.0 — Day-Start: suggested opening balance (last shift's closing float).
+router.get('/sessions/suggested-opening', posController.suggestedOpening);
 // §8 — EOD preview: expected cash for the open session (no mutation).
 router.get('/sessions/expected', posController.sessionExpected);
 
