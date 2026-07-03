@@ -49,53 +49,8 @@
           Process Return / Refund
         </button>
       }
-      <!-- §1.4 — same-day VOID (supervisor PIN) -->
-      @if (canVoid) {
-        <button
-          (click)="showVoidPrompt = true"
-          data-testid="void-button"
-          class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-error/15 text-error border border-error/30 rounded-xl hover:bg-error/25 transition-colors cursor-pointer"
-        >
-          <span class="material-symbols-outlined text-lg">block</span>
-          Void (same-day)
-        </button>
-      }
     </div>
   </div>
-
-  <!-- §1.4 — inline supervisor-PIN prompt for void -->
-  @if (showVoidPrompt) {
-    <div class="mt-4 p-4 rounded-xl bg-error/5 border border-error/20 flex flex-wrap items-end gap-3" data-testid="void-prompt">
-      <div>
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Supervisor PIN</label>
-        <input
-          type="password"
-          [(ngModel)]="voidPin"
-          data-testid="void-pin"
-          class="px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary"
-        />
-      </div>
-      <div class="flex-1 min-w-[10rem]">
-        <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Reason (optional)</label>
-        <input
-          type="text"
-          [(ngModel)]="voidReason"
-          class="w-full px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary"
-        />
-      </div>
-      <button
-        (click)="confirmVoid()"
-        [disabled]="voiding || !voidPin"
-        data-testid="void-confirm"
-        class="px-4 py-2 text-sm font-semibold bg-error text-on-error rounded-lg disabled:opacity-50"
-      >
-        {{ voiding ? 'Voiding…' : 'Confirm Void' }}
-      </button>
-      <button (click)="showVoidPrompt = false" class="px-4 py-2 text-sm text-on-surface-variant rounded-lg hover:bg-surface-container-high/60">
-        Cancel
-      </button>
-    </div>
-  }
 
   <!-- Info Cards Row -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

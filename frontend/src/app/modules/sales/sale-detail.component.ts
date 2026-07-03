@@ -118,37 +118,6 @@ export class SaleDetailComponent implements OnInit {
     );
   }
 
-  // §1.4 — VOID is for same-day completed bills only.
-  get canVoid(): boolean {
-    if (this.sale?.status !== 'completed' || !this.sale?.createdAt) return false;
-    return new Date(this.sale.createdAt).toDateString() === new Date().toDateString();
-  }
-
-  showVoidPrompt = false;
-  voidPin = '';
-  voidReason = '';
-  voiding = false;
-
-  confirmVoid(): void {
-    if (!this.sale || !this.voidPin) return;
-    this.voiding = true;
-    this.api
-      .post<any>(`/sales/${this.sale.id}/void`, { pin: this.voidPin, reason: this.voidReason || undefined })
-      .subscribe({
-        next: () => {
-          this.voiding = false;
-          this.showVoidPrompt = false;
-          this.voidPin = '';
-          this.notify.success('Sale voided — inventory restored');
-          this.loadSale(String(this.sale!.id));
-        },
-        error: (err) => {
-          this.voiding = false;
-          this.notify.error(err.error?.error || 'Failed to void sale');
-        },
-      });
-  }
-
   goEdit(): void {
     if (this.sale) this.router.navigate(['/sales', this.sale.id, 'edit']);
   }

@@ -51,17 +51,6 @@ export const processReturnSchema = z.object({
   }),
 });
 
-// §1.4 — same-day void requires a supervisor PIN + optional reason.
-export const voidSaleSchema = z.object({
-  params: z.object({
-    saleId: z.string().regex(/^\d+$/),
-  }),
-  body: z.object({
-    pin: z.string().min(1, 'Supervisor PIN is required'),
-    reason: z.string().optional(),
-  }),
-});
-
 // Edit a completed bill. Send the DESIRED final item set: existing lines carry
 // their saleItemId, new lines carry a barcode. Lines omitted are removed.
 export const editSaleSchema = z.object({
