@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { SettingsComponent } from './settings.component';
 import { ProfileComponent } from './profile/profile.component';
+import { OwnerPinComponent } from './owner-pin.component';
 import { LabelDesignerComponent } from './label-designer/label-designer.component';
 import { PrintersListComponent } from './printing/printers-list.component';
 import { PrinterFormComponent } from './printing/printer-form.component';
@@ -9,6 +10,7 @@ import { PrinterDiscoveryComponent } from './printing/printer-discovery.componen
 export const SETTINGS_ROUTES: Routes = [
   { path: '', component: SettingsComponent },
   { path: 'profile', component: ProfileComponent },
+  { path: 'owner-pin', component: OwnerPinComponent },
   { path: 'label-designer', redirectTo: 'printers', pathMatch: 'full' },
   { path: 'printers', component: PrintersListComponent },
   { path: 'printers/new', component: PrinterFormComponent },
