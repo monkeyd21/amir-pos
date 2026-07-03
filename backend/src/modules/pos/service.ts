@@ -92,22 +92,24 @@ export class PosService {
       _sum: { amount: true },
     });
 
-    // Also subtract cash refunds
-    const cashRefunds = await prisma.payment.aggregate({
-      where: {
-        method: 'cash',
-        status: 'refunded',
-        sale: {
-          userId,
-          createdAt: { gte: session.openedAt },
-        },
-      },
-      _sum: { amount: true },
+    // §8.1 — subtract refunds actually PAID OUT in cash this session, keyed off
+    // the refund method chosen (Return.refundBreakup), NOT the original sale's
+    // payment method. Per §2.2b a cash sale can be refunded via UPI and vice
+    // versa, so a cash-drawer movement must follow where the money really went.
+    const returns = await prisma.return.findMany({
+      where: { userId, createdAt: { gte: session.openedAt } },
+      select: { refundBreakup: true },
     });
+    let cashOut = 0;
+    for (const r of returns) {
+      const breakup = (r.refundBreakup as { method: string; amount: number }[] | null) || [];
+      for (const e of breakup) {
+        if (e.method === 'cash') cashOut += Number(e.amount) || 0;
+      }
+    }
 
     const cashIn = Number(cashPayments._sum.amount || 0);
-    const cashOut = Number(cashRefunds._sum.amount || 0);
-    const expectedAmount = Number(session.openingAmount) + cashIn - cashOut;
+    const expectedAmount = Number(session.openingAmount) + cashIn - Math.round(cashOut * 100) / 100;
 
     return { session, expectedAmount };
   }
