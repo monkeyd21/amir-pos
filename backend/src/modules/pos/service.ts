@@ -190,7 +190,7 @@ export class PosService {
 
   async checkout(
     data: {
-      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean }[];
+      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean; discretionaryPct?: number }[];
       customerId?: number;
       channel?: 'walkin' | 'online';
       // Idempotency key (UUID). A repeat checkout with the same key returns the
@@ -209,6 +209,7 @@ export class PosService {
       // for the itemized bill breakup. Does not change totals.
       specialDiscount?: number;
       loyaltyPointsRedeem?: number;
+      ownerPin?: string;
       notes?: string;
       exchange?: {
         originalSaleId: number;
@@ -257,7 +258,7 @@ export class PosService {
 
   private async _checkoutTxn(
     data: {
-      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean }[];
+      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean; discretionaryPct?: number }[];
       customerId?: number;
       channel?: 'walkin' | 'online';
       clientRef?: string;
@@ -269,6 +270,7 @@ export class PosService {
       // for the itemized bill breakup. Does not change totals.
       specialDiscount?: number;
       loyaltyPointsRedeem?: number;
+      ownerPin?: string;
       notes?: string;
       exchange?: {
         originalSaleId: number;
@@ -316,7 +318,15 @@ export class PosService {
         taxRate: number;
         agentId: number | null;
         nonReturnable: boolean;
+        discretionaryPct: number;
       }> = [];
+
+      // §2.3 — any line carrying an Owner Discretion Discount requires the Owner
+      // PIN (online only; an offline bill replays the already-authorised pct).
+      const hasDiscretionary = data.items.some((i) => (i.discretionaryPct ?? 0) > 0);
+      if (!data.offline && hasDiscretionary) {
+        await verifyOwnerPin(data.ownerPin);
+      }
 
       for (const item of data.items) {
         const variant = variantByBarcode.get(item.barcode)!;
@@ -358,6 +368,8 @@ export class PosService {
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
           nonReturnable: item.nonReturnable === true,
+          // Clamp defensively to the 15% ceiling even though the validator caps it.
+          discretionaryPct: Math.min(15, Math.max(0, item.discretionaryPct ?? 0)),
         });
       }
 
@@ -460,6 +472,8 @@ export class PosService {
         taxRate: number;
         lineGross: number;
         offerDiscount: number;
+        discretionaryDiscount: number;
+        discretionaryPct: number;
         offerId: number | null;
         effectiveUnitPrice: number | null;
         agentId: number | null;
@@ -468,11 +482,16 @@ export class PosService {
       const lines: LineAccumulator[] = [];
       let subtotal = 0;
       let totalOfferDiscount = 0;
+      let totalDiscretionaryDiscount = 0;
 
       for (const item of saleItemsData) {
         const lineGross = item.unitPrice * item.quantity;
         const offerInfo = offerByVariantId.get(item.variantId);
         const offerDiscount = offerInfo?.discount ?? 0;
+        // §2.3 — discretionary discount is a % of the line's gross (own top-up,
+        // separate from item/special/offer discounts per the owner decision).
+        const discretionaryDiscount =
+          Math.round(lineGross * (item.discretionaryPct / 100) * 100) / 100;
         lines.push({
           variantId: item.variantId,
           quantity: item.quantity,
@@ -480,6 +499,8 @@ export class PosService {
           taxRate: item.taxRate,
           lineGross,
           offerDiscount,
+          discretionaryDiscount,
+          discretionaryPct: item.discretionaryPct,
           offerId: offerInfo?.offerId ?? null,
           effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
           agentId: item.agentId,
@@ -487,10 +508,12 @@ export class PosService {
         });
         subtotal += lineGross;
         totalOfferDiscount += offerDiscount;
+        totalDiscretionaryDiscount += discretionaryDiscount;
       }
 
       subtotal = Math.round(subtotal * 100) / 100;
       totalOfferDiscount = Math.round(totalOfferDiscount * 100) / 100;
+      totalDiscretionaryDiscount = Math.round(totalDiscretionaryDiscount * 100) / 100;
 
       // Apportion manual + loyalty discounts proportionally across lines,
       // weighted by each line's post-offer taxable value. This way the
@@ -499,7 +522,9 @@ export class PosService {
       // tax is inclusive. If the non-offer discount exceeds the post-offer
       // taxable base, we clamp per-line adjustments to zero.
       const nonOfferDiscount = discountAmount + loyaltyDiscount;
-      const postOfferTaxableTotal = subtotal - totalOfferDiscount;
+      // Apportion over what's left after BOTH offer and discretionary discounts,
+      // so manual/loyalty spread over the true remaining taxable base.
+      const postOfferTaxableTotal = subtotal - totalOfferDiscount - totalDiscretionaryDiscount;
       const apportionRatio =
         postOfferTaxableTotal > 0
           ? Math.min(1, nonOfferDiscount / postOfferTaxableTotal)
@@ -518,17 +543,20 @@ export class PosService {
         effectiveUnitPrice?: number | null;
         agentId?: number | null;
         nonReturnable?: boolean;
+        ownerDiscretionDiscount?: number;
       }> = [];
 
       for (const line of lines) {
-        const postOffer = line.lineGross - line.offerDiscount;
+        const postOffer = line.lineGross - line.offerDiscount - line.discretionaryDiscount;
         const apportioned = Math.round(postOffer * apportionRatio * 100) / 100;
         const lineTaxable = postOffer - apportioned;
         // Extract GST from within the inclusive post-discount amount.
         const lineTax = lineTaxable * (line.taxRate / (100 + line.taxRate));
         // Customer pays the inclusive taxable — no tax added on top.
         const lineTotal = lineTaxable;
-        const lineDiscountTotal = line.offerDiscount + apportioned;
+        // `discount` is the total per-line reduction; the discretionary slice is
+        // ALSO stored separately (ownerDiscretionDiscount) for the breakup/report.
+        const lineDiscountTotal = line.offerDiscount + line.discretionaryDiscount + apportioned;
 
         totalTax += lineTax;
 
@@ -543,6 +571,7 @@ export class PosService {
           effectiveUnitPrice: line.effectiveUnitPrice,
           agentId: line.agentId,
           nonReturnable: line.nonReturnable,
+          ownerDiscretionDiscount: line.discretionaryDiscount,
         });
       }
 
@@ -551,7 +580,8 @@ export class PosService {
       // receipt can show "MRP total / less discount / you pay".
       // Sale.total is what the customer actually pays — tax is already inside
       // subtotal, so we just subtract all discounts.
-      const totalDiscount = discountAmount + loyaltyDiscount + totalOfferDiscount;
+      const totalDiscount =
+        discountAmount + loyaltyDiscount + totalOfferDiscount + totalDiscretionaryDiscount;
       const saleTotal = Math.round((subtotal - totalDiscount) * 100) / 100;
 
       if (saleTotal < 0) {
@@ -781,6 +811,29 @@ export class PosService {
           customer: true,
         },
       });
+
+      // §2.3 — log every Owner Discretion Discount for the monthly review
+      // report: bill, customer, terminal user, % granted, and ₹ amount.
+      if (hasDiscretionary) {
+        for (const line of lines) {
+          if (line.discretionaryDiscount > 0) {
+            await recordAudit(tx, {
+              action: 'sale.discretionaryDiscount',
+              entityType: 'sale',
+              entityId: sale.id,
+              userId,
+              branchId,
+              data: {
+                saleNumber: sale.saleNumber,
+                customerId: data.customerId ?? null,
+                variantId: line.variantId,
+                pct: line.discretionaryPct,
+                amount: line.discretionaryDiscount,
+              },
+            });
+          }
+        }
+      }
 
       // 7b. Redeem gift vouchers as a tender: debit balances, log redemptions,
       // and record matching 'voucher' Payment rows so sale.payments sum to the

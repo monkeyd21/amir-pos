@@ -501,6 +501,10 @@ model SaleItem {
   returnedQuantity   Int     @default(0)
   offerId            Int?
   effectiveUnitPrice Decimal? @db.Decimal(10, 2)
+  // §2.3 — Owner Discretion Discount (₹) applied to this line, authorised by
+  // the Owner PIN at checkout. Stored distinctly (not merged into `discount`)
+  // so the bill breakup / reports can show it as its own line.
+  ownerDiscretionDiscount Decimal @default(0) @db.Decimal(10, 2)
   agentId            Int?
   // Per-bill "sold as-is" flag the cashier can set at checkout (clearance,
   // defective, final-sale goods) even when the product itself is returnable.

@@ -32,6 +32,9 @@ export const checkoutSchema = z.object({
           agentId: z.number().int().positive().optional(),
           // Cashier flags this line as sold as-is (clearance/defective) — blocks returns.
           nonReturnable: z.boolean().optional(),
+          // §2.3 — Owner Discretion Discount for this line, as a percent of the
+          // line's gross (0–15). Requires `ownerPin` at the bill level.
+          discretionaryPct: z.number().min(0).max(15).optional(),
         })
       )
       .min(1, 'At least one item is required'),
@@ -71,6 +74,8 @@ export const checkoutSchema = z.object({
     // §12 — flat special-discount portion, persisted separately for the breakup.
     specialDiscount: z.number().min(0).optional(),
     loyaltyPointsRedeem: z.number().int().min(0).optional(),
+    // §2.3 — Owner PIN, required when any line carries a discretionaryPct.
+    ownerPin: z.string().optional(),
     notes: z.string().optional(),
     // Optional exchange: goods returned from a previous sale, credited against
     // this purchase. The new items are `items` above (scanned as normal). The
