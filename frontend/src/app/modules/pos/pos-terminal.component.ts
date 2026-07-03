@@ -101,6 +101,9 @@ interface CartItem {
   agentId: number;
   /** Cashier-set "sold as-is" flag — this line can't be returned (clearance/defective). */
   nonReturnable?: boolean;
+  /** §2.3 — Owner Discretion Discount for this line, as a % of gross (0–15).
+   *  Requires the Owner PIN at checkout. */
+  discretionaryPct?: number;
 }
 
 interface EvaluatedLine {
@@ -964,6 +967,16 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     );
   }
 
+  /** §2.3 — total Owner Discretion Discount across lines (₹). Matches the
+   *  backend's per-line round(gross × pct/100) so the bill total is exact. */
+  get discretionaryDiscountTotal(): number {
+    return this.cart.reduce((sum, item) => {
+      const pct = Math.min(15, Math.max(0, item.discretionaryPct ?? 0));
+      if (!pct) return sum;
+      return sum + Math.round(item.unitPrice * item.quantity * (pct / 100) * 100) / 100;
+    }, 0);
+  }
+
   // ─── Per-line effective discount (display-only) ──────────────────
   //
   // The customer needs to see what their actual saving is on each
@@ -1213,7 +1226,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    * already inside `subtotal`.
    */
   get total(): number {
-    return this.subtotal - this.offerDiscountTotal - this.discount;
+    return this.subtotal - this.offerDiscountTotal - this.discretionaryDiscountTotal - this.discount;
   }
 
   // ─── Derived split-tender state ──────────────────────────────────
@@ -1432,8 +1445,23 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.pendingAmount = this.remaining;
   }
 
+  // §2.3 — Owner Discretion Discount PIN gate.
+  hasDiscretionary(): boolean {
+    return this.cart.some((i) => (i.discretionaryPct ?? 0) > 0);
+  }
+  showDiscretionaryPin = false;
+  discretionaryOwnerPin = '';
+
   completeSale(): void {
     if (!this.canCheckout) return;
+
+    // §2.3 — if any line carries a discretionary discount, collect the Owner
+    // PIN first (skip when offline — the pct is replayed and re-authorised on
+    // sync). The inline prompt calls completeSale() again once the PIN is set.
+    if (!this.isOffline && this.hasDiscretionary() && !this.discretionaryOwnerPin) {
+      this.showDiscretionaryPin = true;
+      return;
+    }
 
     this.checkoutLoading = true;
 
@@ -1443,6 +1471,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         quantity: item.quantity,
         agentId: item.agentId || undefined,
         nonReturnable: item.nonReturnable || undefined,
+        discretionaryPct: item.discretionaryPct && item.discretionaryPct > 0 ? item.discretionaryPct : undefined,
       })),
       payments: this.tenders.map((t) => ({
         method: t.method,
@@ -1496,6 +1525,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // Loyalty points redeemed — separate from manual discount
     const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.loyaltyRedeemable);
     if (redeemPts > 0) body.loyaltyPointsRedeem = redeemPts;
+    // §2.3 — Owner PIN authorising the discretionary discount(s) on this bill.
+    if (this.hasDiscretionary()) body.ownerPin = this.discretionaryOwnerPin;
 
     // Exchange — returned goods credited against this purchase.
     const returnSelections = this.exchangeSale
@@ -1541,8 +1572,17 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       });
   }
 
+  /** §2.3 — confirm the Owner PIN, then resume checkout. */
+  confirmDiscretionaryPin(): void {
+    if (!this.discretionaryOwnerPin) return;
+    this.showDiscretionaryPin = false;
+    this.completeSale();
+  }
+
   private resetCart(): void {
     this.cart = [];
+    this.showDiscretionaryPin = false;
+    this.discretionaryOwnerPin = '';
     this.discountMode = 'percent';
     this.discountValue = null;
     this.specialDiscount = null;
