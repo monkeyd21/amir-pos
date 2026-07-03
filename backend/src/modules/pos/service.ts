@@ -319,6 +319,7 @@ export class PosService {
         agentId: number | null;
         nonReturnable: boolean;
         discretionaryPct: number;
+        isClearance: boolean;
       }> = [];
 
       // §2.3 — any line carrying an Owner Discretion Discount requires the Owner
@@ -349,14 +350,21 @@ export class PosService {
           );
         }
 
-        const rawPrice = Number(variant.priceOverride ?? variant.product.basePrice);
         const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
         const taxRate =
           Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+        // §2.4 — a clearance-flagged variant sells at its fixed clearancePrice
+        // (final, tax-inclusive per §5) with ALL counter discounts locked and
+        // the line auto-marked non-returnable. Otherwise use the normal price.
+        const isClearance = variant.clearanceFlag && variant.clearancePrice != null;
+        const rawPrice = isClearance
+          ? Number(variant.clearancePrice)
+          : Number(variant.priceOverride ?? variant.product.basePrice);
         // Internally we always carry the tax-inclusive amount so the
         // existing extract-from-inclusive math (lineTax = price × rate /
-        // (100 + rate)) keeps working for both flags.
-        const unitPrice = variant.product.priceIncludesTax
+        // (100 + rate)) keeps working for both flags. Clearance prices are
+        // already the final tax-inclusive amount, so no uplift is applied.
+        const unitPrice = isClearance || variant.product.priceIncludesTax
           ? rawPrice
           : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
 
@@ -367,9 +375,11 @@ export class PosService {
           costPrice,
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
-          nonReturnable: item.nonReturnable === true,
-          // Clamp defensively to the 15% ceiling even though the validator caps it.
-          discretionaryPct: Math.min(15, Math.max(0, item.discretionaryPct ?? 0)),
+          // §2.4 — clearance lines are always non-returnable, regardless of input.
+          nonReturnable: isClearance ? true : item.nonReturnable === true,
+          // Clamp defensively to the 15% ceiling; clearance locks it to 0.
+          discretionaryPct: isClearance ? 0 : Math.min(15, Math.max(0, item.discretionaryPct ?? 0)),
+          isClearance,
         });
       }
 
@@ -434,8 +444,12 @@ export class PosService {
         number,
         { offerId: number; discount: number; effectiveUnitPrice: number }
       >();
+      // §2.4 — clearance variants never take an offer (price is locked).
+      const clearanceVariantIds = new Set(
+        saleItemsData.filter((i) => i.isClearance).map((i) => i.variantId)
+      );
       for (const e of evaluated) {
-        if (e.offer && e.result?.qualified) {
+        if (e.offer && e.result?.qualified && !clearanceVariantIds.has(e.line.variantId)) {
           offerByVariantId.set(e.line.variantId, {
             offerId: e.offer.id,
             discount: e.result.discountAmount,
@@ -478,6 +492,7 @@ export class PosService {
         effectiveUnitPrice: number | null;
         agentId: number | null;
         nonReturnable: boolean;
+        isClearance: boolean;
       }
       const lines: LineAccumulator[] = [];
       let subtotal = 0;
@@ -505,6 +520,7 @@ export class PosService {
           effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
           agentId: item.agentId,
           nonReturnable: item.nonReturnable,
+          isClearance: item.isClearance,
         });
         subtotal += lineGross;
         totalOfferDiscount += offerDiscount;
@@ -522,9 +538,14 @@ export class PosService {
       // tax is inclusive. If the non-offer discount exceeds the post-offer
       // taxable base, we clamp per-line adjustments to zero.
       const nonOfferDiscount = discountAmount + loyaltyDiscount;
-      // Apportion over what's left after BOTH offer and discretionary discounts,
-      // so manual/loyalty spread over the true remaining taxable base.
-      const postOfferTaxableTotal = subtotal - totalOfferDiscount - totalDiscretionaryDiscount;
+      // Apportion over what's left after BOTH offer and discretionary discounts.
+      // §2.4a/§2.4b — clearance lines are EXCLUDED from the base: their price is
+      // fixed, so bill-level manual/loyalty discounts attach only to non-clearance
+      // lines (and clearance lines get zero apportioned share in Pass 2).
+      const postOfferTaxableTotal = lines.reduce(
+        (s, l) => (l.isClearance ? s : s + (l.lineGross - l.offerDiscount - l.discretionaryDiscount)),
+        0
+      );
       const apportionRatio =
         postOfferTaxableTotal > 0
           ? Math.min(1, nonOfferDiscount / postOfferTaxableTotal)
@@ -548,7 +569,10 @@ export class PosService {
 
       for (const line of lines) {
         const postOffer = line.lineGross - line.offerDiscount - line.discretionaryDiscount;
-        const apportioned = Math.round(postOffer * apportionRatio * 100) / 100;
+        // §2.4a — clearance lines take no share of bill-level manual/loyalty.
+        const apportioned = line.isClearance
+          ? 0
+          : Math.round(postOffer * apportionRatio * 100) / 100;
         const lineTaxable = postOffer - apportioned;
         // Extract GST from within the inclusive post-discount amount.
         const lineTax = lineTaxable * (line.taxRate / (100 + line.taxRate));

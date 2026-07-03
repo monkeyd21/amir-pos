@@ -268,6 +268,11 @@ model ProductVariant {
   priceOverride Decimal? @db.Decimal(10, 2)
   costOverride  Decimal? @db.Decimal(10, 2)
   isActive      Boolean  @default(true)
+  // §2.4 — Clearance (dead-stock liquidation). When flagged, clearancePrice is
+  // the fixed selling price and ALL counter discounts lock to zero; managed
+  // backend-only, never at POS.
+  clearanceFlag  Boolean  @default(false)
+  clearancePrice Decimal? @db.Decimal(10, 2)
   createdAt     DateTime @default(now())
 
   product            Product             @relation(fields: [productId], references: [id])
