@@ -8,7 +8,6 @@ import {
   processReturnSchema,
   processExchangeSchema,
   returnableByBarcodeSchema,
-  editSaleSchema,
 } from './validators';
 
 const router = Router();
@@ -38,15 +37,6 @@ router.post(
   authorize('owner', 'manager', 'cashier'),
   validate(processExchangeSchema),
   salesController.processExchange
-);
-
-// Edit a completed bill (manager/owner) — recomputes pricing, reconciles
-// inventory/loyalty/commission, and settles the payment difference.
-router.put(
-  '/:saleId/edit',
-  authorize('owner', 'manager'),
-  validate(editSaleSchema),
-  salesController.editSale
 );
 
 // Agent assignment (retroactive and current)

@@ -111,17 +111,6 @@ export class SaleDetailComponent implements OnInit {
     private auth: AuthService
   ) {}
 
-  get canEdit(): boolean {
-    return (
-      this.auth.hasRole(['owner', 'manager']) &&
-      (this.sale?.status === 'completed' || this.sale?.status === 'partially_returned')
-    );
-  }
-
-  goEdit(): void {
-    if (this.sale) this.router.navigate(['/sales', this.sale.id, 'edit']);
-  }
-
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {

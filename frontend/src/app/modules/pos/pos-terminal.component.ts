@@ -1664,12 +1664,6 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.router.navigate(['/sales', sale.saleNumber || sale.id]);
   }
 
-  /** §3.1 — open the bill editor straight from the POS bills panel. */
-  editBill(sale: any, event: Event): void {
-    event.stopPropagation();
-    this.router.navigate(['/sales', sale.id, 'edit']);
-  }
-
   // ─── Exchange ─────────────────────────────────────────────────────
 
   /** Open the exchange panel. If no bill is loaded yet it shows a

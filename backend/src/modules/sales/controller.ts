@@ -123,21 +123,6 @@ export class SalesController {
     }
   }
 
-  async editSale(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const result = await salesService.editSale(
-        parseInt(req.params.saleId),
-        req.body,
-        req.user!.userId,
-        req.user!.branchId,
-        req.user!.role
-      );
-      res.json({ success: true, data: result, message: 'Bill updated' });
-    } catch (error) {
-      next(error);
-    }
-  }
-
   async assignAgents(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const saleId = parseInt(req.params.saleId, 10);
