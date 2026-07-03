@@ -47,6 +47,8 @@ interface ProductVariant {
   brand?: string;
   category?: string;
   barcode?: string;
+  /** §2.4 — set by /pos/lookup when the variant is clearance-flagged. */
+  clearance?: boolean;
   // nested fields (from other endpoints)
   product?: {
     id: number;
@@ -104,6 +106,8 @@ interface CartItem {
   /** §2.3 — Owner Discretion Discount for this line, as a % of gross (0–15).
    *  Requires the Owner PIN at checkout. */
   discretionaryPct?: number;
+  /** §2.4 — clearance line: fixed price, all discounts locked, non-returnable. */
+  isClearance?: boolean;
 }
 
 interface EvaluatedLine {
@@ -916,6 +920,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         unitPrice: variant.price,
         maxStock: stock,
         agentId: this.defaultAgentId ?? 0,
+        // §2.4 — clearance: price is fixed; lock from bill-level discount and
+        // auto-mark non-returnable (mirrors the backend enforcement).
+        isClearance: !!variant.clearance,
+        excludeFromDiscount: variant.clearance ? true : undefined,
+        discountLockTouched: variant.clearance ? true : undefined,
+        nonReturnable: variant.clearance ? true : undefined,
       });
     }
 

@@ -1101,6 +1101,9 @@ export class PosService {
       },
     });
 
+    // §2.4 — clearance-flagged variants price at the fixed clearancePrice and
+    // the POS must lock all discounts on the line.
+    const isClearance = variant.clearanceFlag && variant.clearancePrice != null;
     return {
       variantId: variant.id,
       barcode: variant.barcode,
@@ -1110,11 +1113,12 @@ export class PosService {
       productName: variant.product.name,
       brand: variant.product.brand?.name,
       category: variant.product.category?.name,
-      price: this.computeInclusivePrice(variant),
+      price: isClearance ? Number(variant.clearancePrice) : this.computeInclusivePrice(variant),
       costPrice: Number(variant.costOverride ?? variant.product.costPrice),
       taxRate:
         Number(variant.product.cgstRate) + Number(variant.product.sgstRate),
       stock: inventory?.quantity ?? 0,
+      clearance: isClearance,
     };
   }
 

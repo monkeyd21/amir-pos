@@ -270,6 +270,12 @@
                       <td class="px-4 py-3">
                         <div class="flex items-start gap-2">
                           <p class="text-sm font-medium text-on-surface leading-tight flex-1">{{ item.productName }}</p>
+                          @if (item.isClearance) {
+                            <span class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-error/15 border border-error/30 text-[9px] font-extrabold uppercase tracking-wider text-error" data-testid="clearance-tag">
+                              <span class="material-symbols-outlined text-[11px]">local_offer</span>
+                              Clearance
+                            </span>
+                          }
                           @if (item.qualified) {
                             <span class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[9px] font-extrabold uppercase tracking-wider text-amber-400">
                               <span class="material-symbols-outlined text-[11px]">sell</span>
@@ -411,14 +417,15 @@
                           >
                             <span class="material-symbols-outlined text-sm">do_not_disturb_on</span>
                           </button>
-                          <!-- §2.3 — Owner Discretion Discount % (0–15), Owner-PIN gated at checkout -->
-                          <div class="flex items-center gap-0.5" title="Owner Discretion Discount % (requires Owner PIN)">
+                          <!-- §2.3 — Owner Discretion Discount % (0–15), Owner-PIN gated. §2.4 locked on clearance lines. -->
+                          <div class="flex items-center gap-0.5" [title]="item.isClearance ? 'Clearance price is locked — no discounts' : 'Owner Discretion Discount % (requires Owner PIN)'">
                             <input
                               type="number" min="0" max="15" step="1"
                               [(ngModel)]="item.discretionaryPct"
+                              [disabled]="!!item.isClearance"
                               data-testid="discretionary-pct"
                               placeholder="OD"
-                              class="w-9 px-1 py-0.5 text-[11px] text-center bg-surface-container-high/60 border border-outline-variant/20 rounded outline-none focus:border-primary"
+                              class="w-9 px-1 py-0.5 text-[11px] text-center bg-surface-container-high/60 border border-outline-variant/20 rounded outline-none focus:border-primary disabled:opacity-40 disabled:cursor-not-allowed"
                             />
                             <span class="text-[10px] text-on-surface-variant/60">%</span>
                           </div>
