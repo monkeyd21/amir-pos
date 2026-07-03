@@ -881,7 +881,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // with an "Insufficient stock" error, so there's no point letting them
     // land in the cart and surprising the cashier at the end of the sale.
     if (stock <= 0 && !existing) {
-      this.scanSound.invalid();
+      this.scanSound.outOfStock();
       this.notify.warning(
         `${variant.productName || variant.product?.name || 'Item'} is out of stock`
       );
@@ -891,7 +891,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (existing) {
       if (existing.quantity >= existing.maxStock) {
-        this.scanSound.invalid();
+        this.scanSound.outOfStock();
         this.notify.warning('Maximum stock reached');
         this.focusSearchInput();
         return;
