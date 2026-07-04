@@ -811,6 +811,20 @@
                       <span class="material-symbols-outlined text-base">close</span>
                     </button>
                   </div>
+                  <!-- Bug#3 / §1.2 — full line card of the article(s) being returned,
+                       tagged distinctly so the cashier can summarise the swap. -->
+                  @for (it of exchangeItems; track it.saleItemId) {
+                    @if (it.selected && it.quantity > 0) {
+                      <div class="flex items-start gap-2 rounded-lg bg-amber-500/5 px-2 py-1.5" data-testid="exchange-return-card">
+                        <span class="shrink-0 mt-0.5 px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 font-extrabold uppercase tracking-wider text-[9px]">Return</span>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-[12px] text-on-surface truncate">{{ it.productName }}</p>
+                          <p class="text-[10px] text-on-surface-variant">{{ it.size }} / {{ it.color }} · {{ formatCurrency(it.unitPrice) }} × {{ it.quantity }}</p>
+                        </div>
+                        <span class="text-[11px] text-amber-400 font-medium">&minus;{{ formatCurrency(it.unitPrice * it.quantity) }}</span>
+                      </div>
+                    }
+                  }
                   <div class="flex justify-between text-sm">
                     <span class="text-on-surface-variant">Return credit</span>
                     <span class="text-amber-400 font-medium">&minus;{{ formatCurrency(exchangeCredit) }}</span>
