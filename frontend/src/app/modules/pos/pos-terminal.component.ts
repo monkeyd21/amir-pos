@@ -1766,6 +1766,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           return;
         }
         const items = (sale.items || [])
+          // A line marked non-returnable at billing (or a product flagged
+          // non-returnable) can't come back — not even via an exchange, since a
+          // POS exchange can net a cash refund when the return exceeds the new
+          // purchase. Mirrors the Sales-tab refund filter. Genuine exchange-only
+          // products are still allowed here.
+          .filter((it: any) => !it.nonReturnable && !it.variant?.product?.nonReturnable)
           .map((it: any) => {
             const available = (it.quantity || 0) - (it.returnedQuantity || 0);
             const preselected = preselectSaleItemId === it.id;

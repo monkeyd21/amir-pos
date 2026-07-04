@@ -626,7 +626,7 @@ export class PosService {
       if (data.exchange && !data.offline) {
         const orig = await tx.sale.findUnique({
           where: { id: data.exchange.originalSaleId },
-          include: { items: true },
+          include: { items: { include: { variant: { include: { product: true } } } } },
         });
         if (!orig) throw new AppError('Original sale for the exchange was not found', 404);
         if (orig.status === 'void') throw new AppError('Cannot exchange against a voided sale', 400);
@@ -654,6 +654,13 @@ export class PosService {
           const si = origItems.get(ri.saleItemId);
           if (!si) {
             throw new AppError(`Return item ${ri.saleItemId} is not part of sale ${orig.saleNumber}`, 400);
+          }
+          // A line marked non-returnable at billing (or a non-returnable product)
+          // can't come back through an exchange either — an exchange can net a
+          // cash refund, which would bypass the block.
+          if ((si as any).nonReturnable || si.variant?.product?.nonReturnable) {
+            const nm = si.variant?.product?.name ?? `item ${si.id}`;
+            throw new AppError(`${nm} is marked non-returnable and cannot be exchanged`, 400);
           }
           const available = si.quantity - si.returnedQuantity;
           if (ri.quantity > available) {
