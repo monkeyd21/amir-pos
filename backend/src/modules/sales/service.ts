@@ -428,10 +428,13 @@ export class SalesService {
     data: {
       items: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
       reason: string;
-      // Optional override of how the refund is settled. Default 'proportional'
-      // mirrors the original payment split. Forcing a single method requires
-      // manager/owner role (checked below) and is recorded in the audit log.
+      // How the refund is settled. Default 'proportional' mirrors the original
+      // payment split. Bug#1 / §2.2b — the refund is NOT tied to the original
+      // method: the cashier may force a single method OR provide `refundSplit`
+      // (an explicit cash/card/UPI breakup that must sum to the refund total).
+      // No role gate — the choice is free and every refund is audit-logged.
       refundMode?: 'proportional' | 'cash' | 'card' | 'upi';
+      refundSplit?: { method: 'cash' | 'card' | 'upi'; amount: number }[];
     },
     userId: number,
     branchId: number,
@@ -466,10 +469,10 @@ export class SalesService {
         );
       }
 
-      const refundMode = data.refundMode ?? 'proportional';
-      if (refundMode !== 'proportional' && !(role === 'owner' || role === 'manager')) {
-        throw new AppError('Only a manager or owner can override the refund method', 403);
-      }
+      // Bug#1 / §2.2b — refund method is freely chosen (no role gate). An
+      // explicit split takes precedence over a single-method / proportional mode.
+      const hasSplit = Array.isArray(data.refundSplit) && data.refundSplit.length > 0;
+      const refundMode = hasSplit ? 'split' : data.refundMode ?? 'proportional';
 
       const saleItemsMap = new Map(sale.items.map((i) => [i.id, i]));
 
@@ -560,7 +563,26 @@ export class SalesService {
       const cashTenders = sale.payments.filter((p) => p.status !== 'refunded');
       const tenderTotal = cashTenders.reduce((s, p) => s + Number(p.amount), 0);
       let refundBreakup: { method: string; amount: number }[] = [];
-      if (refundMode === 'proportional') {
+      if (hasSplit) {
+        // Bug#1 — explicit cash/card/UPI split. Validate methods, positive
+        // amounts, and that the split sums to the refund total (paisa drift ok).
+        const allowed = new Set(['cash', 'card', 'upi']);
+        for (const s of data.refundSplit!) {
+          if (!allowed.has(s.method)) throw new AppError(`Invalid refund method: ${s.method}`, 400);
+          if (!(Number(s.amount) > 0)) throw new AppError('Each refund split amount must be greater than 0', 400);
+        }
+        const splitSum = Math.round(data.refundSplit!.reduce((t, s) => t + Number(s.amount), 0) * 100) / 100;
+        if (Math.abs(splitSum - returnTotal) > 0.5) {
+          throw new AppError(
+            `Refund split (₹${splitSum}) must equal the refund total (₹${returnTotal})`,
+            400
+          );
+        }
+        refundBreakup = data.refundSplit!.map((s) => ({
+          method: s.method,
+          amount: Math.round(Number(s.amount) * 100) / 100,
+        }));
+      } else if (refundMode === 'proportional') {
         if (tenderTotal > 0) {
           const byMethod = new Map<string, number>();
           for (const p of cashTenders) {
@@ -576,7 +598,7 @@ export class SalesService {
           refundBreakup = [{ method: 'cash', amount: returnTotal }];
         }
       } else {
-        // Manager override — single forced method (already role-gated above).
+        // Single chosen method (cash/card/upi), regardless of original payment.
         refundBreakup = [{ method: refundMode, amount: returnTotal }];
       }
       // Fix any rounding drift so the breakup sums exactly to returnTotal.

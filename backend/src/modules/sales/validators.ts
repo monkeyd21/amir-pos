@@ -57,9 +57,18 @@ export const processReturnSchema = z.object({
       )
       .min(1, 'At least one item is required'),
     reason: z.string().min(1, 'Reason is required'),
-    // Manager/owner only — forces the whole refund to one method instead of
-    // mirroring the original payment split. Validated server-side by role.
+    // Refund settlement (Bug#1 / §2.2b) — freely chosen, not tied to the
+    // original payment. Either a single method, or an explicit cash/card/UPI
+    // split that must sum to the refund total (validated in the service).
     refundMode: z.enum(['proportional', 'cash', 'card', 'upi']).optional(),
+    refundSplit: z
+      .array(
+        z.object({
+          method: z.enum(['cash', 'card', 'upi']),
+          amount: z.number().positive(),
+        })
+      )
+      .optional(),
   }),
 });
 

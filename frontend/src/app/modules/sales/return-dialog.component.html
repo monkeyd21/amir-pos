@@ -50,21 +50,39 @@
         }
       </div>
 
-      <!-- Refund method (manager/owner only). Default mirrors the original
-           payment split; an override is recorded in the audit log. -->
-      @if (canOverrideRefund) {
-        <div class="mb-5">
-          <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Refund To</label>
-          <select
-            [(ngModel)]="refundMode"
-            class="w-full sm:w-64 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
-          >
-            @for (m of refundModes; track m.value) {
-              <option [value]="m.value">{{ m.label }}</option>
-            }
-          </select>
-          @if (refundMode !== 'proportional') {
-            <p class="mt-1 text-[11px] font-body text-amber-500">Overriding the original payment method — this will be logged.</p>
+      <!-- Bug#1 / §2.2b — refund settlement, freely chosen. Leave blank to
+           mirror the original payment, or split across cash/UPI/card (e.g.
+           refund a cash sale by UPI when the drawer is short). -->
+      @if (selectedItems.length > 0) {
+        <div class="mb-5 p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10" data-testid="refund-split">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Refund To (optional split)</label>
+            <button (click)="fillCash()" type="button" class="text-[11px] font-semibold text-primary hover:underline">All cash</button>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <span class="block text-[10px] text-on-surface-variant mb-0.5">Cash</span>
+              <input type="number" min="0" [(ngModel)]="splitCash" data-testid="split-cash" placeholder="0"
+                class="w-full px-2 py-1.5 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+            <div>
+              <span class="block text-[10px] text-on-surface-variant mb-0.5">UPI</span>
+              <input type="number" min="0" [(ngModel)]="splitUpi" data-testid="split-upi" placeholder="0"
+                class="w-full px-2 py-1.5 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+            <div>
+              <span class="block text-[10px] text-on-surface-variant mb-0.5">Card</span>
+              <input type="number" min="0" [(ngModel)]="splitCard" data-testid="split-card" placeholder="0"
+                class="w-full px-2 py-1.5 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+            </div>
+          </div>
+          @if (usingSplit) {
+            <p class="mt-2 text-[11px] font-body" [class]="splitRemaining === 0 ? 'text-green-500' : 'text-amber-500'">
+              Allocated {{ formatCurrency(splitTotal) }} of {{ formatCurrency(refundAmount) }}
+              @if (splitRemaining !== 0) { · {{ formatCurrency(splitRemaining) }} left to allocate }
+            </p>
+          } @else {
+            <p class="mt-2 text-[11px] font-body text-on-surface-variant/70">Leave blank to refund the same way it was paid.</p>
           }
         </div>
       }

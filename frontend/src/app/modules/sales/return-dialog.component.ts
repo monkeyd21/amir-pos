@@ -37,17 +37,31 @@ export class ReturnDialogComponent implements OnInit {
   reason = 'size_issue';
   otherReason = '';
 
-  // Refund method. 'proportional' (default) mirrors the original payment split;
-  // forcing a single method is a manager/owner action and is audited server-side.
-  refundMode: 'proportional' | 'cash' | 'card' | 'upi' = 'proportional';
-  refundModes = [
-    { value: 'proportional', label: 'Same as original payment' },
-    { value: 'cash', label: 'Cash' },
-    { value: 'card', label: 'Card' },
-    { value: 'upi', label: 'UPI' },
-  ];
-  get canOverrideRefund(): boolean {
-    return this.auth.hasRole(['owner', 'manager']);
+  // Bug#1 / §2.2b — refund settlement is freely chosen and NOT tied to the
+  // original payment. Leave the split blank to mirror the original payment
+  // ('proportional'); or enter any cash/UPI/card amounts that sum to the refund
+  // total (e.g. refund a cash sale via UPI when the drawer is short).
+  splitCash: number | null = null;
+  splitUpi: number | null = null;
+  splitCard: number | null = null;
+
+  round2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
+  get splitTotal(): number {
+    return this.round2((this.splitCash || 0) + (this.splitUpi || 0) + (this.splitCard || 0));
+  }
+  get usingSplit(): boolean {
+    return this.splitTotal > 0;
+  }
+  get splitRemaining(): number {
+    return this.round2(this.refundAmount - this.splitTotal);
+  }
+  /** Put the whole refund on cash — the common "just give cash" shortcut. */
+  fillCash(): void {
+    this.splitCash = this.round2(this.refundAmount);
+    this.splitUpi = null;
+    this.splitCard = null;
   }
 
   // §1.2 — fixed dropdown, final for V1. Do not add/remove options ad hoc.
@@ -107,6 +121,8 @@ export class ReturnDialogComponent implements OnInit {
   get canSubmit(): boolean {
     // §1.2 — 'Other' requires the free-text reason to be filled in.
     if (this.reason === 'other' && !this.otherReason.trim()) return false;
+    // Bug#1 — if a split is entered, it must sum to the refund total.
+    if (this.usingSplit && Math.abs(this.splitRemaining) > 0.5) return false;
     return this.selectedItems.length > 0 && !this.submitting;
   }
 
@@ -141,8 +157,14 @@ export class ReturnDialogComponent implements OnInit {
         condition: item.condition,
       })),
     };
-    if (this.canOverrideRefund && this.refundMode !== 'proportional') {
-      body.refundMode = this.refundMode;
+    // Bug#1 — send the explicit split when entered; otherwise the refund
+    // mirrors the original payment (proportional).
+    if (this.usingSplit) {
+      body.refundSplit = [
+        ...(this.splitCash ? [{ method: 'cash', amount: this.round2(this.splitCash) }] : []),
+        ...(this.splitUpi ? [{ method: 'upi', amount: this.round2(this.splitUpi) }] : []),
+        ...(this.splitCard ? [{ method: 'card', amount: this.round2(this.splitCard) }] : []),
+      ];
     }
 
     this.api.post(`/sales/${this.sale.id}/return`, body).subscribe({
