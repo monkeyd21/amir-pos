@@ -14,7 +14,7 @@ import { AuthService } from '../../core/services/auth.service';
 interface SaleItem {
   id: number;
   variant?: {
-    product?: { name: string };
+    product?: { name: string; nonReturnable?: boolean; exchangeOnly?: boolean };
     size?: string;
     color?: string;
     sku?: string;
@@ -27,6 +27,9 @@ interface SaleItem {
   returnedQuantity?: number;
   agentId?: number | null;
   agent?: { id: number; firstName: string; lastName: string } | null;
+  // §1.2 / Bug#4 — per-line "sold as-is" flag set at billing. Blocks refund/
+  // return (exchange is still allowed at the POS counter).
+  nonReturnable?: boolean;
 }
 
 interface SaleReturn {
@@ -262,13 +265,24 @@ export class SaleDetailComponent implements OnInit {
   }
 
   get canReturn(): boolean {
-    return this.sale?.status === 'completed' || this.sale?.status === 'partially_returned';
+    return (
+      (this.sale?.status === 'completed' || this.sale?.status === 'partially_returned') &&
+      this.returnableItems.length > 0
+    );
   }
 
   get returnableItems(): SaleItem[] {
     if (!this.sale) return [];
+    // Bug#4 — a line marked non-returnable at billing (or a product flagged
+    // non-returnable / exchange-only) can't be refund-returned from the Sales
+    // tab. It doesn't appear as a refundable option here; exchange is still
+    // available at the POS counter.
     return this.sale.items.filter(
-      (item) => (item.returnedQuantity || 0) < item.quantity
+      (item) =>
+        (item.returnedQuantity || 0) < item.quantity &&
+        !item.nonReturnable &&
+        !item.variant?.product?.nonReturnable &&
+        !item.variant?.product?.exchangeOnly
     );
   }
 
