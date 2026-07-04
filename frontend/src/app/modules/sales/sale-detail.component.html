@@ -108,6 +108,18 @@
                   @if (item.variant?.sku) {
                     <span class="block text-xs font-body text-on-surface-variant mt-0.5">{{ item.variant?.sku }}</span>
                   }
+                  <!-- Show which lines can't be refund-returned. -->
+                  @if (item.nonReturnable || item.variant?.product?.nonReturnable) {
+                    <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-error/15 border border-error/30 text-[9px] font-extrabold uppercase tracking-wider text-error" data-testid="item-non-returnable">
+                      <span class="material-symbols-outlined text-[11px]">block</span>
+                      Non-Returnable
+                    </span>
+                  } @else if (item.variant?.product?.exchangeOnly) {
+                    <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[9px] font-extrabold uppercase tracking-wider text-amber-500">
+                      <span class="material-symbols-outlined text-[11px]">swap_horiz</span>
+                      Exchange Only
+                    </span>
+                  }
                 </td>
                 <td class="px-6 py-4">
                   <span class="text-sm font-body text-on-surface-variant">{{ item.variant?.size || '-' }}</span>
