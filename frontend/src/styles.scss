@@ -140,3 +140,17 @@
     scrollbar-width: none;
   }
 }
+
+/* §1.1 — remove the increment/decrement spinner arrows from ALL number inputs
+   app-wide. They caused accidental value changes at the counter (discount /
+   loyalty / qty fields). This hides the visual spinners in every browser;
+   the NoSpinDirective additionally blocks the up/down arrow KEYS where applied. */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
