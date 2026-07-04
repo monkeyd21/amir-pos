@@ -169,6 +169,31 @@
       </div>
     </div>
 
+    <!-- Bug#2 — Returns Policy: refund/return window -->
+    <div class="bg-surface-container rounded-xl p-6 mt-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">event_repeat</span>
+        <h3 class="text-base font-headline font-bold text-on-surface">Returns Policy</h3>
+      </div>
+      <label class="block text-xs font-semibold font-body text-on-surface-variant mb-2">Refund / Return window (days)</label>
+      <div class="flex items-center gap-3">
+        <input
+          type="number" min="0" max="365"
+          [(ngModel)]="returnWindowDays"
+          data-testid="return-window-days"
+          class="w-28 px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary"
+        />
+        <button
+          (click)="saveReturnWindow()"
+          [disabled]="savingReturnWindow"
+          class="px-4 py-2 text-sm font-semibold font-body bg-primary text-on-primary rounded-lg disabled:opacity-50 hover:bg-primary/90 transition-colors"
+        >
+          {{ savingReturnWindow ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+      <p class="mt-2 text-[11px] text-on-surface-variant/70">A refund/return is allowed within this many days of the sale. Exchanges use a fixed 15-day window.</p>
+    </div>
+
     <!-- Commission Settings -->
     <div class="bg-surface-container rounded-xl p-6 mt-4">
       <div class="flex items-center gap-3 mb-6">

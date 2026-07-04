@@ -89,6 +89,10 @@ export class SettingsComponent implements OnInit {
   billNumbering = { walkin: 'W', online: 'O', pad: 4 };
   savingBillNumbering = false;
 
+  // Bug#2 — refund/return window in days (default 15).
+  returnWindowDays = 15;
+  savingReturnWindow = false;
+
   // Loyalty config
   loyalty = {
     amountPerPoint: 100,    // Rs. spent per 1 point earned
@@ -130,6 +134,31 @@ export class SettingsComponent implements OnInit {
     this.loadMessagingConfig();
     this.loadBillNumbering();
     this.loadPaymentAccounts();
+    this.loadReturnWindow();
+  }
+
+  loadReturnWindow(): void {
+    this.api.get<any>('/settings/return-window').subscribe({
+      next: (res) => {
+        if (res.data?.returnWindowDays != null) this.returnWindowDays = res.data.returnWindowDays;
+      },
+      error: () => {},
+    });
+  }
+
+  saveReturnWindow(): void {
+    if (this.savingReturnWindow) return;
+    this.savingReturnWindow = true;
+    this.api.put<any>('/settings/return-window', { returnWindowDays: Number(this.returnWindowDays) }).subscribe({
+      next: () => {
+        this.savingReturnWindow = false;
+        this.notification.success('Return window updated');
+      },
+      error: (err) => {
+        this.savingReturnWindow = false;
+        this.notification.error(err.error?.error || 'Failed to update return window');
+      },
+    });
   }
 
   loadBillNumbering(): void {

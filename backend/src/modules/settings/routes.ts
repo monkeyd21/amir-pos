@@ -47,6 +47,31 @@ router.put(
   }
 );
 
+// Bug#2 — refund/return window in days (default 15). Exchanges stay at 15.
+router.get('/return-window', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: { returnWindowDays: await getSetting<number>('returnWindowDays', 15) } });
+  } catch (error) {
+    next(error);
+  }
+});
+router.put(
+  '/return-window',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const days = Number(req.body.returnWindowDays);
+      if (!Number.isInteger(days) || days < 0 || days > 365) {
+        return res.status(400).json({ success: false, error: 'returnWindowDays must be an integer 0–365' });
+      }
+      await setSetting('returnWindowDays', days);
+      res.json({ success: true, data: { returnWindowDays: days }, message: 'Return window updated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Commission mode: 'item_level' (per-agent per line item) or 'bill_level' (per-cashier per sale)
 router.get('/commission-mode', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {

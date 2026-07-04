@@ -2,10 +2,11 @@ import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
+import { getSetting } from '../settings/service';
 
-// §1.5 — return/exchange policy windows (configurable later via Settings).
-// Refund-returns within 1 day; exchanges within 15 days of the original sale.
-const REFUND_WINDOW_DAYS = 1;
+// §1.5 / Bug#2 — return/exchange policy windows. The refund/return window is
+// Settings-configurable (`returnWindowDays`, default 15); exchanges stay at 15.
+const DEFAULT_REFUND_WINDOW_DAYS = 15;
 export const EXCHANGE_WINDOW_DAYS = 15;
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { creditBackVouchers } from '../vouchers/service';
@@ -455,10 +456,12 @@ export class SalesService {
         throw new AppError('Cannot return a voided sale', 400);
       }
 
-      // §1.5 — refund-returns must fall inside the refund policy window.
-      if (!isWithinPolicyWindow(sale.createdAt, REFUND_WINDOW_DAYS)) {
+      // §1.5 / Bug#2 — refund-returns must fall inside the refund policy window,
+      // now Settings-configurable (default 15 days).
+      const refundWindowDays = await getSetting<number>('returnWindowDays', DEFAULT_REFUND_WINDOW_DAYS);
+      if (!isWithinPolicyWindow(sale.createdAt, refundWindowDays)) {
         throw new AppError(
-          `Refund window of ${REFUND_WINDOW_DAYS} day(s) has passed — this sale can no longer be refunded`,
+          `Refund window of ${refundWindowDays} day(s) has passed — this sale can no longer be refunded`,
           400
         );
       }
