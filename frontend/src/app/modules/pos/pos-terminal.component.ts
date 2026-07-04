@@ -346,6 +346,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   showExchangePanel = false;
   exchangeLookupQuery = '';
   exchangeLoading = false;
+
+  /** Return lines selected for the current exchange — shown in the main item
+   *  list alongside new purchases (yellow-coded). */
+  get selectedReturnItems() {
+    return this.exchangeSale ? this.exchangeItems.filter((i) => i.selected && i.quantity > 0) : [];
+  }
   // Lookup mode inside the exchange panel: bill number, customer, or scan item.
   exchangeMode: 'bill' | 'customer' | 'scan' = 'scan';
   exchangeCustomerQuery = '';
