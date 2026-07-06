@@ -11,6 +11,9 @@ interface ReceiptItem {
   discount: number;
   taxAmount: number;
   total: number;
+  /** Loyalty points redeemed against this line (this line's proportional
+   *  share of the bill's total redemption). Undefined/0 when none redeemed. */
+  loyaltyPointsRedeemed?: number;
   nonReturnable?: boolean;
   exchangeOnly?: boolean;
 }
@@ -179,6 +182,14 @@ ${divider}</div></div>
           const discLabel = '    Disc:';
           discountLine = `\n<span class="discount">${discLabel}${this.pad(discLabel, discStr)}${discStr}</span>`;
         }
+        // Per-item loyalty points redeemed — this line's share of the bill's
+        // redemption, so the customer sees which items the points came off.
+        let loyaltyLine = '';
+        if (item.loyaltyPointsRedeemed && item.loyaltyPointsRedeemed > 0) {
+          const lpStr = `-${item.loyaltyPointsRedeemed} pts`;
+          const lpLabel = '    Loyalty:';
+          loyaltyLine = `\n<span class="discount">${lpLabel}${this.pad(lpLabel, lpStr)}${lpStr}</span>`;
+        }
         // §1.2 — flag non-returnable / exchange-only goods on the printed bill.
         let flagLine = '';
         if (item.nonReturnable) {
@@ -186,7 +197,7 @@ ${divider}</div></div>
         } else if (item.exchangeOnly) {
           flagLine = `\n<span class="flag">  ** EXCHANGE ONLY **</span>`;
         }
-        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}${flagLine}</div>`;
+        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}${loyaltyLine}${flagLine}</div>`;
       })
       .join('');
 

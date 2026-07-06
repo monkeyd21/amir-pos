@@ -1110,16 +1110,20 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   /**
-   * Whole-bill payable after offers and manual discount, *before* round-off.
-   * This is what round-up/round-down snaps to the nearest ₹10 — it needs to
-   * be the full bill (including any locked lines), not just the discountable
-   * base, otherwise the rounding target would exclude locked items and the
-   * final total wouldn't land on a multiple of 10.
+   * Whole-bill payable after offers, per-line owner (discretionary) discount,
+   * and manual discount, *before* round-off. This is what round-up/round-down
+   * snaps to the nearest ₹10, so it MUST match every reduction that `total`
+   * applies — in particular `discretionaryDiscountTotal`, which `total`
+   * subtracts. If a reduction is left out here, the round suggestion is
+   * computed against a base higher than the real payable: the suggested
+   * round-off stops tracking that discount and clicking it lands the total on
+   * a non-multiple of 10. It also needs the full bill (including locked lines),
+   * not just the discountable base, or the target would exclude locked items.
    */
   get payableBeforeRound(): number {
     return Math.max(
       0,
-      this.subtotal - this.offerDiscountTotal - this.resolvedDiscount - (this.specialDiscount ?? 0) - this.loyaltyDiscount
+      this.subtotal - this.offerDiscountTotal - this.discretionaryDiscountTotal - this.resolvedDiscount - (this.specialDiscount ?? 0) - this.loyaltyDiscount
     );
   }
 

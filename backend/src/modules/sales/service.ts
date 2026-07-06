@@ -289,6 +289,18 @@ export class SalesService {
         discount: Number(item.discount),
         taxAmount: Number(item.taxAmount),
         total: Number(item.total),
+        // Per-item share of the loyalty points redeemed on this bill. The
+        // redemption was apportioned across lines by paid value, so each line
+        // carries `redeemed × (lineTotal / saleTotal)`. This is the SAME ratio
+        // the return path uses to restore points (returnValue / settledValue),
+        // so what the bill shows per item is exactly what a return of that item
+        // gives back. Zero when nothing was redeemed.
+        loyaltyPointsRedeemed:
+          sale.loyaltyPointsRedeemed > 0 && Number(sale.total) > 0
+            ? Math.round(
+                (sale.loyaltyPointsRedeemed * Number(item.total)) / Number(sale.total)
+              )
+            : 0,
         // §1.2 — surface sale-policy flags so the printed bill can mark and
         // highlight non-returnable / exchange-only goods for the customer.
         nonReturnable: Boolean((item as any).nonReturnable) || item.variant.product.nonReturnable,
