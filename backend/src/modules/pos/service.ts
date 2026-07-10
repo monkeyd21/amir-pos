@@ -1097,35 +1097,67 @@ export class PosService {
     });
     const variantMap = new Map(variants.map((v) => [v.id, v]));
 
-    const lines: CartLine[] = items.map((i) => {
+    // §2.4 — a clearance line prices at its fixed clearancePrice and takes NO
+    // offer. Resolve each line's price + clearance flag up front.
+    const meta = items.map((i) => {
       const v = variantMap.get(i.variantId);
       if (!v) {
         throw new AppError(`Variant ${i.variantId} not found`, 404);
       }
-      const unitPrice = Number(v.priceOverride ?? v.product.basePrice);
-      return { variantId: i.variantId, quantity: i.quantity, unitPrice };
+      const isClearance = v.clearanceFlag && v.clearancePrice != null;
+      const unitPrice = isClearance
+        ? Number(v.clearancePrice)
+        : Number(v.priceOverride ?? v.product.basePrice);
+      return { variantId: i.variantId, quantity: i.quantity, unitPrice, isClearance };
     });
 
-    const evaluated = await evaluateCartEngine(lines);
+    // Only NON-clearance lines are evaluated by the offer engine — clearance
+    // lines must never qualify for (or influence, e.g. BOGO) any offer.
+    const dutiable: CartLine[] = meta
+      .filter((m) => !m.isClearance)
+      .map(({ variantId, quantity, unitPrice }) => ({ variantId, quantity, unitPrice }));
+    const evaluated = await evaluateCartEngine(dutiable);
+    const evalMap = new Map(evaluated.map((e) => [e.line.variantId, e]));
 
-    return evaluated.map(({ line, offer, result }) => ({
-      variantId: line.variantId,
-      quantity: line.quantity,
-      unitPrice: line.unitPrice,
-      offer: offer
-        ? {
-            id: offer.id,
-            name: offer.name,
-            type: offer.type,
-            displayText: result?.displayText ?? '',
-          }
-        : null,
-      qualified: result?.qualified ?? false,
-      discountAmount: result?.discountAmount ?? 0,
-      effectiveUnitPrice: result?.effectiveUnitPrice ?? 0,
-      lineTotal: result?.lineTotal ?? line.unitPrice * line.quantity,
-      hint: result?.hint,
-    }));
+    return meta.map((m) => {
+      // Clearance line: locked price, no offer.
+      if (m.isClearance) {
+        return {
+          variantId: m.variantId,
+          quantity: m.quantity,
+          unitPrice: m.unitPrice,
+          offer: null,
+          qualified: false,
+          discountAmount: 0,
+          effectiveUnitPrice: m.unitPrice,
+          lineTotal: m.unitPrice * m.quantity,
+          hint: undefined,
+          clearance: true,
+        };
+      }
+      const e = evalMap.get(m.variantId);
+      const offer = e?.offer;
+      const result = e?.result;
+      return {
+        variantId: m.variantId,
+        quantity: m.quantity,
+        unitPrice: m.unitPrice,
+        offer: offer
+          ? {
+              id: offer.id,
+              name: offer.name,
+              type: offer.type,
+              displayText: result?.displayText ?? '',
+            }
+          : null,
+        qualified: result?.qualified ?? false,
+        discountAmount: result?.discountAmount ?? 0,
+        effectiveUnitPrice: result?.effectiveUnitPrice ?? 0,
+        lineTotal: result?.lineTotal ?? m.unitPrice * m.quantity,
+        hint: result?.hint,
+        clearance: false,
+      };
+    });
   }
 
   /**
@@ -1160,9 +1192,12 @@ export class PosService {
     const items = variants.map((v) => {
       const taxRate = Number(v.product.cgstRate) + Number(v.product.sgstRate);
       const raw = Number(v.priceOverride ?? v.product.basePrice);
-      const price = v.product.priceIncludesTax
+      const normalPrice = v.product.priceIncludesTax
         ? raw
         : Math.round(raw * (1 + taxRate / 100) * 100) / 100;
+      // §2.4 — clearance variants price at the fixed clearancePrice (also offline).
+      const isClearance = v.clearanceFlag && v.clearancePrice != null;
+      const price = isClearance ? Number(v.clearancePrice) : normalPrice;
       return {
         variantId: v.id,
         barcode: v.barcode,
@@ -1171,6 +1206,7 @@ export class PosService {
         size: v.size,
         color: v.color,
         price,
+        clearance: isClearance,
         taxRate,
         stock: v.inventory[0]?.quantity ?? 0,
         // §4.3 — soft reservation: held quantity + what's freely sellable.
@@ -1278,28 +1314,36 @@ export class PosService {
     });
     const stockMap = new Map(inventories.map((i) => [i.variantId, i.quantity]));
 
-    return variants.map((v) => ({
-      variantId: v.id,
-      barcode: v.barcode,
-      sku: v.sku,
-      size: v.size,
-      color: v.color,
-      productName: v.product.name,
-      brand: v.product.brand?.name,
-      category: v.product.category?.name,
-      // Always return the inclusive price the customer pays — handles both
-      // tax-incl products (passthrough) and tax-excl ones (grossed up).
-      price: this.computeInclusivePrice(v),
-      // §13.3 — printed MRP: per-variant override wins, else the product MRP.
-      mrp:
-        v.mrpOverride != null
-          ? Number(v.mrpOverride)
-          : v.product.mrp != null
-          ? Number(v.product.mrp)
-          : null,
-      taxRate: Number(v.product.cgstRate) + Number(v.product.sgstRate),
-      stock: stockMap.get(v.id) ?? 0,
-    }));
+    return variants.map((v) => {
+      // §2.4 — clearance variants price at the fixed clearancePrice and the POS
+      // must lock all discounts/offers on the line. The search dropdown is the
+      // common add-to-cart path, so it MUST carry the clearance flag + price too
+      // (not just /pos/lookup/:barcode).
+      const isClearance = v.clearanceFlag && v.clearancePrice != null;
+      return {
+        variantId: v.id,
+        barcode: v.barcode,
+        sku: v.sku,
+        size: v.size,
+        color: v.color,
+        productName: v.product.name,
+        brand: v.product.brand?.name,
+        category: v.product.category?.name,
+        // Always return the inclusive price the customer pays — handles both
+        // tax-incl products (passthrough) and tax-excl ones (grossed up).
+        price: isClearance ? Number(v.clearancePrice) : this.computeInclusivePrice(v),
+        clearance: isClearance,
+        // §13.3 — printed MRP: per-variant override wins, else the product MRP.
+        mrp:
+          v.mrpOverride != null
+            ? Number(v.mrpOverride)
+            : v.product.mrp != null
+            ? Number(v.product.mrp)
+            : null,
+        taxRate: Number(v.product.cgstRate) + Number(v.product.sgstRate),
+        stock: stockMap.get(v.id) ?? 0,
+      };
+    });
   }
 
   async holdCart(
