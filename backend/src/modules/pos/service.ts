@@ -457,16 +457,13 @@ export class PosService {
         // (final, tax-inclusive per §5) with ALL counter discounts locked and
         // the line auto-marked non-returnable. Otherwise use the normal price.
         const isClearance = variant.clearanceFlag && variant.clearancePrice != null;
-        const rawPrice = isClearance
+        // §5/§13.3 — the customer is charged the MRP (final tax-inclusive) on a
+        // normal line, or the fixed clearancePrice on a clearance line. The Sale
+        // Price is display-only (barcode). Both branches return the final
+        // tax-inclusive amount, so no further uplift is applied.
+        const unitPrice = isClearance
           ? Number(variant.clearancePrice)
-          : Number(variant.priceOverride ?? variant.product.basePrice);
-        // Internally we always carry the tax-inclusive amount so the
-        // existing extract-from-inclusive math (lineTax = price × rate /
-        // (100 + rate)) keeps working for both flags. Clearance prices are
-        // already the final tax-inclusive amount, so no uplift is applied.
-        const unitPrice = isClearance || variant.product.priceIncludesTax
-          ? rawPrice
-          : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
+          : this.nonClearanceChargePrice(variant);
 
         saleItemsData.push({
           variantId: variant.id,
@@ -1093,12 +1090,13 @@ export class PosService {
     const variantIds = items.map((i) => i.variantId);
     const variants = await prisma.productVariant.findMany({
       where: { id: { in: variantIds } },
-      include: { product: { select: { basePrice: true } } },
+      include: { product: true },
     });
     const variantMap = new Map(variants.map((v) => [v.id, v]));
 
     // §2.4 — a clearance line prices at its fixed clearancePrice and takes NO
-    // offer. Resolve each line's price + clearance flag up front.
+    // offer. §5/§13.3 — a normal line is charged the MRP. Resolve each line's
+    // price + clearance flag up front.
     const meta = items.map((i) => {
       const v = variantMap.get(i.variantId);
       if (!v) {
@@ -1107,7 +1105,7 @@ export class PosService {
       const isClearance = v.clearanceFlag && v.clearancePrice != null;
       const unitPrice = isClearance
         ? Number(v.clearancePrice)
-        : Number(v.priceOverride ?? v.product.basePrice);
+        : this.nonClearanceChargePrice(v);
       return { variantId: i.variantId, quantity: i.quantity, unitPrice, isClearance };
     });
 
@@ -1191,13 +1189,9 @@ export class PosService {
     });
     const items = variants.map((v) => {
       const taxRate = Number(v.product.cgstRate) + Number(v.product.sgstRate);
-      const raw = Number(v.priceOverride ?? v.product.basePrice);
-      const normalPrice = v.product.priceIncludesTax
-        ? raw
-        : Math.round(raw * (1 + taxRate / 100) * 100) / 100;
-      // §2.4 — clearance variants price at the fixed clearancePrice (also offline).
+      // §5/§13.3 — offline POS charges the MRP too (clearance overrides).
       const isClearance = v.clearanceFlag && v.clearancePrice != null;
-      const price = isClearance ? Number(v.clearancePrice) : normalPrice;
+      const price = isClearance ? Number(v.clearancePrice) : this.nonClearanceChargePrice(v);
       return {
         variantId: v.id,
         barcode: v.barcode,
@@ -1256,7 +1250,17 @@ export class PosService {
       productName: variant.product.name,
       brand: variant.product.brand?.name,
       category: variant.product.category?.name,
-      price: isClearance ? Number(variant.clearancePrice) : this.computeInclusivePrice(variant),
+      // §5/§13.3 — `price` is what the POS charges: MRP on a normal line, the
+      // fixed clearancePrice on a clearance line. `salePrice` is the display-only
+      // Sale Price printed on the barcode (never charged).
+      price: isClearance ? Number(variant.clearancePrice) : this.nonClearanceChargePrice(variant),
+      salePrice: this.computeInclusivePrice(variant),
+      mrp:
+        variant.mrpOverride != null
+          ? Number(variant.mrpOverride)
+          : variant.product.mrp != null
+          ? Number(variant.product.mrp)
+          : null,
       costPrice: Number(variant.costOverride ?? variant.product.costPrice),
       taxRate:
         Number(variant.product.cgstRate) + Number(variant.product.sgstRate),
@@ -1270,6 +1274,11 @@ export class PosService {
    * for products configured as tax-exclusive — the cashier sees the same
    * number as the customer pays. Tax is extracted from this on checkout.
    */
+  /**
+   * §13.3 — the tax-inclusive **Sale Price** (basePrice, or a variant override).
+   * This is a DISPLAY value only — printed on the barcode label. It is NOT what
+   * the customer is charged at the counter (that is the MRP, see below).
+   */
   private computeInclusivePrice(variant: {
     priceOverride: { toString(): string } | null;
     product: {
@@ -1279,6 +1288,34 @@ export class PosService {
       priceIncludesTax: boolean;
     };
   }): number {
+    const raw = Number(variant.priceOverride ?? variant.product.basePrice);
+    if (variant.product.priceIncludesTax) return raw;
+    const rate =
+      Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+    return Math.round(raw * (1 + rate / 100) * 100) / 100;
+  }
+
+  /**
+   * §5/§13.3 — the price a customer is actually CHARGED at the POS for a
+   * non-clearance line: the **MRP** (per-variant `mrpOverride`, else the
+   * product MRP), which by Indian retail convention is already the final
+   * tax-inclusive price — so no tax uplift is applied. Falls back to the Sale
+   * Price only for legacy products that have no MRP set (with a tax uplift if
+   * that product is priced tax-exclusive). Clearance is handled by callers.
+   */
+  private nonClearanceChargePrice(variant: {
+    mrpOverride?: { toString(): string } | null;
+    priceOverride: { toString(): string } | null;
+    product: {
+      mrp?: { toString(): string } | null;
+      basePrice: { toString(): string };
+      cgstRate: { toString(): string };
+      sgstRate: { toString(): string };
+      priceIncludesTax: boolean;
+    };
+  }): number {
+    const mrp = variant.mrpOverride ?? variant.product.mrp;
+    if (mrp != null) return Number(mrp); // MRP is final tax-inclusive.
     const raw = Number(variant.priceOverride ?? variant.product.basePrice);
     if (variant.product.priceIncludesTax) return raw;
     const rate =
@@ -1329,9 +1366,11 @@ export class PosService {
         productName: v.product.name,
         brand: v.product.brand?.name,
         category: v.product.category?.name,
-        // Always return the inclusive price the customer pays — handles both
-        // tax-incl products (passthrough) and tax-excl ones (grossed up).
-        price: isClearance ? Number(v.clearancePrice) : this.computeInclusivePrice(v),
+        // §5/§13.3 — `price` is what the POS charges: the MRP on a normal line,
+        // the fixed clearancePrice on a clearance line. `salePrice` is the
+        // display-only Sale Price for the barcode (never charged).
+        price: isClearance ? Number(v.clearancePrice) : this.nonClearanceChargePrice(v),
+        salePrice: this.computeInclusivePrice(v),
         clearance: isClearance,
         // §13.3 — printed MRP: per-variant override wins, else the product MRP.
         mrp:
@@ -1476,10 +1515,11 @@ export class PosService {
 
       const taxRate =
         Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
-      const rawPrice = Number(variant.priceOverride ?? variant.product.basePrice);
-      const unitPrice = variant.product.priceIncludesTax
-        ? rawPrice
-        : Math.round(rawPrice * (1 + taxRate / 100) * 100) / 100;
+      // §5/§13.3 — charge the MRP (or the fixed clearancePrice), matching checkout.
+      const isClearance = variant.clearanceFlag && variant.clearancePrice != null;
+      const unitPrice = isClearance
+        ? Number(variant.clearancePrice)
+        : this.nonClearanceChargePrice(variant);
       const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
 
       cartItems.push({

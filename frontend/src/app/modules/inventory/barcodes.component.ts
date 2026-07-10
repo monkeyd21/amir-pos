@@ -25,7 +25,9 @@ interface VariantSearchResult {
   sku: string;
   size?: string;
   color?: string;
-  price?: number;
+  price?: number;      // POS charge price (MRP, or clearance price) — not the label price
+  salePrice?: number;  // §13.3 display Sale Price for the barcode label
+  clearance?: boolean;
   mrp?: number;
   mrpOverride?: number | string | null;
   productName?: string;
@@ -164,7 +166,13 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       sku: variant.barcode || variant.sku,
       productName: variant.productName || variant.product?.name || 'Unknown',
       variantLabel: parts.join(' / ') || '',
-      price: variant.price || variant.product?.basePrice || 0,
+      // §13.3/§2.4 — the label prints the display Sale Price on a normal line
+      // (NOT the MRP the POS charges), and the fixed clearance price on a
+      // clearance line (where `variant.price` is the clearance price).
+      price: variant.clearance ? Number(variant.price)
+        : variant.salePrice != null ? Number(variant.salePrice)
+        : variant.product?.basePrice != null ? Number(variant.product.basePrice)
+        : variant.price || 0,
       mrp: variant.mrpOverride != null ? Number(variant.mrpOverride)
         : variant.mrp != null ? Number(variant.mrp)
         : variant.product?.mrp != null ? Number(variant.product.mrp) : undefined,
