@@ -299,7 +299,12 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       sku: v?.barcode || v?.sku || '',
       productName: v?.product?.name || 'Unknown',
       variantLabel: parts.join(' / ') || '',
-      price: Number(v?.priceOverride || v?.product?.basePrice || 0),
+      // §2.4 — a clearance-flagged variant prints its fixed clearancePrice.
+      price: Number(
+        v?.clearanceFlag && v?.clearancePrice != null
+          ? v.clearancePrice
+          : v?.priceOverride || v?.product?.basePrice || 0
+      ),
       mrp: v?.mrpOverride != null ? Number(v.mrpOverride)
         : v?.product?.mrp != null ? Number(v.product.mrp) : undefined,
       copies: Math.abs(m.quantity || 1),
