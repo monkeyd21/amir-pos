@@ -11,6 +11,7 @@ import { ImportComponent } from './import.component';
 import { RestockComponent } from './restock.component';
 import { StockHistoryComponent } from './stock-history.component';
 import { TaxonomyComponent } from './taxonomy.component';
+import { ClearanceComponent } from './clearance.component';
 
 export const INVENTORY_ROUTES: Routes = [
   {
@@ -28,6 +29,7 @@ export const INVENTORY_ROUTES: Routes = [
       { path: 'transfers/create', component: TransferCreateComponent },
       { path: 'barcodes', component: BarcodesComponent },
       { path: 'taxonomy', component: TaxonomyComponent },
+      { path: 'clearance', component: ClearanceComponent },
       { path: 'history', component: StockHistoryComponent },
       { path: 'import', component: ImportComponent },
     ],

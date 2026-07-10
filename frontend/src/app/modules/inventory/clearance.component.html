@@ -1,0 +1,147 @@
+<div class="space-y-6">
+  <!-- Intro / policy note -->
+  <div class="rounded-xl border border-error/20 bg-error/5 p-4">
+    <div class="flex items-center gap-2 mb-1.5">
+      <span class="material-symbols-outlined text-error text-lg">sell</span>
+      <h2 class="text-sm font-bold text-on-surface">Clearance — dead-stock liquidation</h2>
+    </div>
+    <p class="text-[12px] text-on-surface-variant/80 leading-relaxed">
+      Put stale SKUs on clearance at a fixed low price. Clearance items sell at that price only —
+      <span class="font-semibold text-on-surface">all discounts and offers are locked</span>, and the
+      line is <span class="font-semibold text-error">non-returnable, non-exchangeable and non-refundable</span>.
+      Prices can only be set here (never at the POS counter). Owner only.
+    </p>
+  </div>
+
+  <!-- ── Add SKUs to clearance ─────────────────────────────── -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Add to clearance</h3>
+
+    <div class="relative">
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onSearchInput()"
+        placeholder="Search stale SKUs by name, brand, SKU or barcode…"
+        class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+      />
+      @if (showResults) {
+        <div class="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-outline-variant/20 bg-surface-container-high shadow-xl">
+          @for (r of searchResults; track r.variantId) {
+            <button
+              (click)="addToPending(r)"
+              class="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-container-highest transition-colors"
+            >
+              <div class="min-w-0">
+                <p class="text-sm text-on-surface truncate">{{ r.productName }}</p>
+                <p class="text-[11px] text-on-surface-variant/70 font-mono">{{ r.sku }} · {{ r.size }} / {{ r.color }}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="text-xs font-mono text-on-surface-variant">₹{{ r.price }}</p>
+                <p class="text-[10px] text-on-surface-variant/50">stock {{ r.stock ?? 0 }}</p>
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Pending rows -->
+    @if (pending.length > 0) {
+      <div class="mt-4 space-y-2">
+        <div class="grid grid-cols-[1fr_7rem_7rem_auto] gap-2 px-1 text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">
+          <span>Article</span>
+          <span class="text-right">Current</span>
+          <span class="text-right">Clearance ₹ *</span>
+          <span class="w-8"></span>
+        </div>
+        @for (p of pending; let i = $index; track p.variantId) {
+          <div class="grid grid-cols-[1fr_7rem_7rem_auto] gap-2 items-center">
+            <div class="min-w-0">
+              <p class="text-sm text-on-surface truncate">{{ p.label }}</p>
+              <p class="text-[11px] text-on-surface-variant/60 font-mono">{{ p.sku }}</p>
+            </div>
+            <div class="text-right text-xs text-on-surface-variant">
+              <span class="font-mono">₹{{ p.currentPrice ?? p.mrp ?? 0 }}</span>
+              @if (p.mrp) { <span class="block text-[10px] text-on-surface-variant/50">MRP ₹{{ p.mrp }}</span> }
+            </div>
+            <input
+              type="number" min="1"
+              [(ngModel)]="p.clearancePrice"
+              placeholder="₹"
+              class="w-full px-2 py-2 text-sm text-right font-mono bg-surface-container-lowest text-on-surface border rounded-lg focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              [class.border-outline-variant/15]="(p.clearancePrice ?? 0) > 0"
+              [class.border-error]="!((p.clearancePrice ?? 0) > 0)"
+            />
+            <button (click)="removePending(i)" class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors">
+              <span class="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+        }
+        <div class="flex justify-end pt-2">
+          <button
+            (click)="applyClearance()"
+            [disabled]="!canApply || applying"
+            class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span class="material-symbols-outlined text-base">sell</span>
+            {{ applying ? 'Applying…' : 'Put ' + pending.length + ' on clearance' }}
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ── Current clearance list ────────────────────────────── -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">On clearance ({{ items.length }})</h3>
+    </div>
+
+    @if (loading) {
+      <div class="flex items-center justify-center py-10">
+        <div class="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      </div>
+    } @else if (items.length === 0) {
+      <div class="text-center py-8 bg-surface-container-lowest/50 rounded-lg border border-dashed border-outline-variant/20">
+        <p class="text-sm text-on-surface-variant/60">No SKUs on clearance yet.</p>
+        <p class="text-[11px] text-on-surface-variant/40 mt-1">Search above to add stale stock.</p>
+      </div>
+    } @else {
+      <div class="overflow-hidden rounded-lg border border-outline-variant/15">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-container-high/40 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant text-left">
+            <tr>
+              <th class="px-3 py-2">SKU</th>
+              <th class="px-3 py-2">Article</th>
+              <th class="px-3 py-2 text-right">MRP</th>
+              <th class="px-3 py-2 text-right">Clearance</th>
+              <th class="px-3 py-2 text-right">Off</th>
+              <th class="px-3 py-2 text-right"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/5">
+            @for (item of items; track item.variantId) {
+              <tr>
+                <td class="px-3 py-2 font-mono text-on-surface-variant">{{ item.sku }}</td>
+                <td class="px-3 py-2 text-on-surface">{{ item.productName }} <span class="text-on-surface-variant/60 text-xs">{{ item.size }} / {{ item.color }}</span></td>
+                <td class="px-3 py-2 text-right font-mono text-on-surface-variant line-through">₹{{ num(item.mrp) }}</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-error">₹{{ num(item.clearancePrice) }}</td>
+                <td class="px-3 py-2 text-right text-xs text-green-500 font-semibold">
+                  @if (num(item.mrp) > 0) { {{ (100 - (num(item.clearancePrice) / num(item.mrp)) * 100) | number:'1.0-0' }}% }
+                </td>
+                <td class="px-3 py-2 text-right">
+                  <button (click)="removeFromClearance(item)" title="Remove from clearance"
+                    class="inline-flex items-center gap-1 text-xs font-semibold text-on-surface-variant/60 hover:text-error transition-colors">
+                    <span class="material-symbols-outlined text-base">undo</span>
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
