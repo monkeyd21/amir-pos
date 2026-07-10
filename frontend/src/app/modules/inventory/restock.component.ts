@@ -78,6 +78,8 @@ export class RestockComponent implements OnInit, OnDestroy {
 
   rows: RestockRow[] = [];
   sortBy: 'size' | 'color' = 'size';
+  /** Free-form "set all rows to" quantity — quick-fills the whole lot. */
+  bulkQty: number | null = null;
 
   constructor(
     private api: ApiService,
@@ -173,8 +175,10 @@ export class RestockComponent implements OnInit, OnDestroy {
   }
 
   setAllQty(qty: number): void {
+    const q = Math.max(0, Math.floor(Number(qty) || 0));
+    this.bulkQty = q > 0 ? q : null;
     for (const row of this.rows) {
-      row.addQty = qty;
+      row.addQty = q;
     }
   }
 
