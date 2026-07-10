@@ -199,6 +199,31 @@ export class ReportController {
       next(error);
     }
   }
+
+  // §8.4 — Daily Variance Report (per-mode rows, from the variance log).
+  async dailyVariance(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await reportService.getDailyVarianceReport(req.query as any);
+      if (req.query.format === 'csv') {
+        return sendCsvResponse(res, result.rows, 'daily-variance-report.csv', [
+          'date', 'mode', 'expected', 'actual', 'variance', 'direction', 'approval', 'reason', 'pinApprovedAt',
+        ]);
+      }
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // §8.4 — Monthly Variance Report (per-mode rollup, from the variance log).
+  async monthlyVariance(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await reportService.getMonthlyVarianceReport(req.query as any);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const reportController = new ReportController();

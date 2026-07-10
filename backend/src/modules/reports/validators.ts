@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+// §8.4 — Daily Variance Report (date range) + Monthly Variance Report (YYYY-MM).
+export const dailyVarianceSchema = z.object({
+  query: z.object({
+    startDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
+    endDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),
+    branchId: z.string().optional(),
+    format: z.enum(['json', 'csv']).optional(),
+  }),
+});
+
+export const monthlyVarianceSchema = z.object({
+  query: z.object({
+    month: z.string().regex(/^\d{4}-\d{2}$/, 'month must be YYYY-MM'),
+    branchId: z.string().optional(),
+  }),
+});
+
 export const salesReportSchema = z.object({
   query: z.object({
     startDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date'),

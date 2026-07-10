@@ -230,26 +230,53 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    *  discounts are applied (enforces mobile → discounts → payment). */
   paymentUnlocked = false;
 
-  // §8 — End-of-Day reconciliation panel state.
+  // §8 — End-of-Day reconciliation panel state. Three independent modes
+  // (Cash/UPI/Card) each reconcile against their own source of truth (§8.2);
+  // no combined total is ever computed or shown.
   showEodPanel = false;
-  eodExpected = 0;
+  // Expected figures (from /pos/sessions/expected).
+  eodExpected = 0;        // cash sales − cash refunds + opening
+  eodExpectedUpi = 0;     // UPI sales − UPI refunds
+  eodExpectedCard = 0;    // card sales only (§8.1c)
+  // §8.3 — configurable variance threshold (₹), one value for all three modes.
+  eodThreshold = 50;
+  // Cash inputs.
   eodPettyCash: number | null = null;
   eodPettyReason = '';
   eodCashDrop: number | null = null;
-  eodPhysical: number | null = null;
-  eodManagerPin = '';
-  eodVarianceReason = '';
+  eodPhysical: number | null = null;      // §8.1a-6 physical count
+  eodClosingFloat: number | null = null;  // §8.1a-8 float left for tomorrow
+  // UPI / Card settlement inputs.
+  eodUpiReceived: number | null = null;
+  eodCardReceived: number | null = null;
+  // Owner PIN + per-mode reasons (only needed when a mode breaches the threshold).
+  eodOwnerPin = '';
+  eodCashReason = '';
+  eodUpiReason = '';
+  eodCardReason = '';
   eodSubmitting = false;
 
-  /** §8.3 — net variance = Expected − Petty − Cash drop − Physical counted. */
-  get eodVariance(): number {
-    const v =
-      this.eodExpected -
-      (this.eodPettyCash || 0) -
-      (this.eodCashDrop || 0) -
-      (this.eodPhysical || 0);
-    return Math.round(v * 100) / 100;
+  /** §8.1a — System Expected Cash net of petty + drop (what physical is checked against). */
+  get eodExpectedCashNet(): number {
+    return Math.round((this.eodExpected - (this.eodPettyCash || 0) - (this.eodCashDrop || 0)) * 100) / 100;
   }
+  /** §8.1a-7 — Cash variance (signed: + short, − over). */
+  get eodCashVariance(): number {
+    return Math.round((this.eodExpectedCashNet - (this.eodPhysical || 0)) * 100) / 100;
+  }
+  /** §8.1b-3 — UPI variance. */
+  get eodUpiVariance(): number {
+    return Math.round((this.eodExpectedUpi - (this.eodUpiReceived || 0)) * 100) / 100;
+  }
+  /** §8.1c-2 — Card variance. */
+  get eodCardVariance(): number {
+    return Math.round((this.eodExpectedCard - (this.eodCardReceived || 0)) * 100) / 100;
+  }
+  // §8.3 — per-mode PIN gating, checked independently against the same threshold.
+  get eodCashGated(): boolean { return Math.abs(this.eodCashVariance) >= this.eodThreshold; }
+  get eodUpiGated(): boolean { return Math.abs(this.eodUpiVariance) >= this.eodThreshold; }
+  get eodCardGated(): boolean { return Math.abs(this.eodCardVariance) >= this.eodThreshold; }
+  get eodAnyGated(): boolean { return this.eodCashGated || this.eodUpiGated || this.eodCardGated; }
 
   openEodPanel(): void {
     this.showEodPanel = true;
@@ -257,29 +284,55 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.eodPettyReason = '';
     this.eodCashDrop = null;
     this.eodPhysical = null;
-    this.eodManagerPin = '';
-    this.eodVarianceReason = '';
+    this.eodClosingFloat = null;
+    this.eodUpiReceived = null;
+    this.eodCardReceived = null;
+    this.eodOwnerPin = '';
+    this.eodCashReason = '';
+    this.eodUpiReason = '';
+    this.eodCardReason = '';
     this.api
-      .get<ApiResponse<{ expectedAmount: number }>>('/pos/sessions/expected')
+      .get<ApiResponse<{ expectedAmount: number; expectedUpi: number; expectedCard: number }>>('/pos/sessions/expected')
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (res) => (this.eodExpected = Number(res?.data?.expectedAmount) || 0),
-        error: () => (this.eodExpected = 0),
+        next: (res) => {
+          this.eodExpected = Number(res?.data?.expectedAmount) || 0;
+          this.eodExpectedUpi = Number(res?.data?.expectedUpi) || 0;
+          this.eodExpectedCard = Number(res?.data?.expectedCard) || 0;
+        },
+        error: () => { this.eodExpected = 0; this.eodExpectedUpi = 0; this.eodExpectedCard = 0; },
+      });
+    this.api
+      .get<ApiResponse<{ varianceThreshold: number }>>('/settings/variance-threshold')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.eodThreshold = Number(res?.data?.varianceThreshold) || 50),
+        error: () => (this.eodThreshold = 50),
       });
   }
 
   submitEod(): void {
+    // §8.3 — block until a reason is present for each mode that breached.
+    if (this.eodCashGated && !this.eodCashReason.trim()) { this.notify.error('Enter a reason for the cash variance'); return; }
+    if (this.eodUpiGated && !this.eodUpiReason.trim()) { this.notify.error('Enter a reason for the UPI variance'); return; }
+    if (this.eodCardGated && !this.eodCardReason.trim()) { this.notify.error('Enter a reason for the card variance'); return; }
+    if (this.eodAnyGated && !this.eodOwnerPin.trim()) { this.notify.error('Owner PIN required to close with a variance'); return; }
+
     this.eodSubmitting = true;
     const body: any = {
       closingAmount: this.eodPhysical || 0,
       pettyCash: this.eodPettyCash || 0,
       pettyCashReason: this.eodPettyReason || undefined,
       cashDrop: this.eodCashDrop || 0,
+      closingFloat: this.eodClosingFloat != null ? this.eodClosingFloat : undefined,
+      upiReceived: this.eodUpiReceived || 0,
+      cardReceived: this.eodCardReceived || 0,
     };
-    // §8.2 — ₹100 or more requires a PIN + reason to close.
-    if (Math.abs(this.eodVariance) >= 100) {
-      body.managerPin = this.eodManagerPin || undefined;
-      body.varianceReason = this.eodVarianceReason || undefined;
+    if (this.eodAnyGated) {
+      body.ownerPin = this.eodOwnerPin || undefined;
+      if (this.eodCashGated) body.cashVarianceReason = this.eodCashReason || undefined;
+      if (this.eodUpiGated) body.upiVarianceReason = this.eodUpiReason || undefined;
+      if (this.eodCardGated) body.cardVarianceReason = this.eodCardReason || undefined;
     }
     this.api
       .post<ApiResponse<any>>('/pos/sessions/close', body)
@@ -288,7 +341,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         next: () => {
           this.eodSubmitting = false;
           this.showEodPanel = false;
-          this.notify.success('Shift closed — drawer reconciled');
+          this.notify.success('Shift closed — Cash / UPI / Card reconciled separately');
         },
         error: (err) => {
           this.eodSubmitting = false;

@@ -93,6 +93,10 @@ export class SettingsComponent implements OnInit {
   returnWindowDays = 15;
   savingReturnWindow = false;
 
+  // §8.3 — EOD variance threshold (₹). One value applied to Cash/UPI/Card alike.
+  varianceThreshold = 50;
+  savingVarianceThreshold = false;
+
   // Loyalty config
   loyalty = {
     amountPerPoint: 100,    // Rs. spent per 1 point earned
@@ -135,6 +139,7 @@ export class SettingsComponent implements OnInit {
     this.loadBillNumbering();
     this.loadPaymentAccounts();
     this.loadReturnWindow();
+    this.loadVarianceThreshold();
   }
 
   loadReturnWindow(): void {
@@ -157,6 +162,30 @@ export class SettingsComponent implements OnInit {
       error: (err) => {
         this.savingReturnWindow = false;
         this.notification.error(err.error?.error || 'Failed to update return window');
+      },
+    });
+  }
+
+  loadVarianceThreshold(): void {
+    this.api.get<any>('/settings/variance-threshold').subscribe({
+      next: (res) => {
+        if (res.data?.varianceThreshold != null) this.varianceThreshold = res.data.varianceThreshold;
+      },
+      error: () => {},
+    });
+  }
+
+  saveVarianceThreshold(): void {
+    if (this.savingVarianceThreshold) return;
+    this.savingVarianceThreshold = true;
+    this.api.put<any>('/settings/variance-threshold', { varianceThreshold: Number(this.varianceThreshold) }).subscribe({
+      next: () => {
+        this.savingVarianceThreshold = false;
+        this.notification.success('Variance threshold updated');
+      },
+      error: (err) => {
+        this.savingVarianceThreshold = false;
+        this.notification.error(err.error?.error || 'Failed to update variance threshold');
       },
     });
   }

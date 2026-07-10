@@ -9,6 +9,8 @@ import {
   commissionReportSchema,
   pnlReportSchema,
   dailySummarySchema,
+  dailyVarianceSchema,
+  monthlyVarianceSchema,
 } from './validators';
 
 const router = Router();
@@ -47,6 +49,14 @@ router.get('/performance', (req, res, next) =>
 // §2.3 — monthly Owner Discretion Discount review (owner/manager).
 router.get('/discretionary-discounts', authorize('owner', 'manager'), (req, res, next) =>
   reportController.discretionaryDiscounts(req, res, next)
+);
+
+// §8.4 — Daily + Monthly Variance Reports (per-mode; owner/manager only).
+router.get('/variance/daily', authorize('owner', 'manager'), validate(dailyVarianceSchema), (req, res, next) =>
+  reportController.dailyVariance(req, res, next)
+);
+router.get('/variance/monthly', authorize('owner', 'manager'), validate(monthlyVarianceSchema), (req, res, next) =>
+  reportController.monthlyVariance(req, res, next)
 );
 
 export default router;

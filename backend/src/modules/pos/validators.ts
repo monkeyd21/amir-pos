@@ -9,13 +9,23 @@ export const openSessionSchema = z.object({
 
 export const closeSessionSchema = z.object({
   body: z.object({
-    // Physical cash counted in the drawer at close.
+    // §8.1a-6 — physical cash counted in the drawer at close.
     closingAmount: z.number().min(0, 'Closing amount must be non-negative'),
-    // §8.3 — petty cash spent (amount + reason) and cash dropped to the safe.
+    // §8.1a — petty cash spent (amount + reason) and cash dropped to the safe.
     pettyCash: z.number().min(0).optional(),
     pettyCashReason: z.string().optional(),
     cashDrop: z.number().min(0).optional(),
-    // §8.4 — required when the net variance exceeds the auto-approve threshold.
+    // §8.1a-8 — deliberate float left in the drawer for tomorrow.
+    closingFloat: z.number().min(0).optional(),
+    // §8.1b/§8.1c — UPI + Card settlement amounts (each mode reconciles alone).
+    upiReceived: z.number().min(0).optional(),
+    cardReceived: z.number().min(0).optional(),
+    // §8.3 — Owner PIN + per-mode reason, required when a mode's variance ≥ threshold.
+    ownerPin: z.string().optional(),
+    cashVarianceReason: z.string().optional(),
+    upiVarianceReason: z.string().optional(),
+    cardVarianceReason: z.string().optional(),
+    // legacy aliases (older clients)
     managerPin: z.string().optional(),
     varianceReason: z.string().optional(),
     notes: z.string().optional(),

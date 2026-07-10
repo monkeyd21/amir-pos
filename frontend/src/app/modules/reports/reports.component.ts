@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { NotificationService } from '../../core/services/notification.service';
 
@@ -10,16 +11,27 @@ interface ReportCard {
   gradient: string;
   iconBg: string;
   iconColor: string;
+  /** When set, the card links to a real report route instead of "coming soon". */
+  route?: string;
 }
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [CommonModule, PageHeaderComponent],
+  imports: [CommonModule, RouterLink, PageHeaderComponent],
   templateUrl: './reports.component.html',
 })
 export class ReportsComponent {
   reports: ReportCard[] = [
+    {
+      icon: 'balance',
+      title: 'Variance Report',
+      description: 'Daily & monthly EOD reconciliation variance — Cash, UPI and Card tracked separately, with PIN-override history and largest-variance days (§8.4).',
+      gradient: 'from-rose-500/20 to-red-500/20',
+      iconBg: 'bg-gradient-to-br from-rose-500 to-red-500',
+      iconColor: 'text-white',
+      route: '/reports/variance',
+    },
     {
       icon: 'point_of_sale',
       title: 'Sales Report',

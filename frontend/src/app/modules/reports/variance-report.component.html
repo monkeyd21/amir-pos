@@ -1,0 +1,131 @@
+<app-page-header
+  title="Variance Report"
+  subtitle="§8.4 — Cash / UPI / Card reconciliation variance, shown separately per mode (never combined)"
+>
+  <a routerLink="/reports"
+     class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer">
+    <span class="material-symbols-outlined text-base">arrow_back</span>
+    Reports
+  </a>
+</app-page-header>
+
+<!-- View toggle + filters -->
+<div class="flex flex-wrap items-end gap-4 mb-6">
+  <div class="inline-flex rounded-lg border border-outline-variant/20 overflow-hidden">
+    <button (click)="setView('daily')"
+      [class]="view === 'daily' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high/60'"
+      class="px-4 py-2 text-sm font-semibold transition-colors">Daily</button>
+    <button (click)="setView('monthly')"
+      [class]="view === 'monthly' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high/60'"
+      class="px-4 py-2 text-sm font-semibold transition-colors">Monthly</button>
+  </div>
+
+  @if (view === 'daily') {
+    <div>
+      <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">From</label>
+      <input type="date" [(ngModel)]="startDate" class="px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">To</label>
+      <input type="date" [(ngModel)]="endDate" class="px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+    </div>
+    <button (click)="loadDaily()" [disabled]="loading" class="px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-lg disabled:opacity-50">Run</button>
+  } @else {
+    <div>
+      <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Month</label>
+      <input type="month" [(ngModel)]="month" class="px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
+    </div>
+    <button (click)="loadMonthly()" [disabled]="loading" class="px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-lg disabled:opacity-50">Run</button>
+  }
+</div>
+
+<!-- ── Daily: three separable per-mode tables ─────────────────────── -->
+@if (view === 'daily') {
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+    @for (mode of modes; track mode) {
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-4">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-on-surface mb-3">{{ modeLabel(mode) }}</h3>
+        @if (rowsForMode(mode).length === 0) {
+          <p class="text-xs text-on-surface-variant/60 py-4 text-center">No entries in this range.</p>
+        } @else {
+          <table class="w-full text-xs">
+            <thead class="text-[9px] uppercase tracking-wider text-on-surface-variant/60 text-left">
+              <tr>
+                <th class="py-1.5">Date</th>
+                <th class="py-1.5 text-right">Expected</th>
+                <th class="py-1.5 text-right">Actual</th>
+                <th class="py-1.5 text-right">Variance</th>
+                <th class="py-1.5 text-right">Approval</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/5">
+              @for (r of rowsForMode(mode); track r.date) {
+                <tr>
+                  <td class="py-1.5 text-on-surface">{{ r.date }}</td>
+                  <td class="py-1.5 text-right font-mono text-on-surface-variant">{{ fmt(r.expected) }}</td>
+                  <td class="py-1.5 text-right font-mono text-on-surface-variant">{{ fmt(r.actual) }}</td>
+                  <td class="py-1.5 text-right font-mono font-semibold" [class]="varianceClass(r.variance)">
+                    {{ fmt(r.variance) }}
+                    <span class="block text-[9px] uppercase">{{ r.direction }}</span>
+                  </td>
+                  <td class="py-1.5 text-right">
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
+                      [class]="r.approval === 'pin' ? 'bg-error/15 text-error' : 'bg-green-500/15 text-green-500'"
+                      [title]="r.reason || ''">{{ r.approval === 'pin' ? 'PIN' : 'Auto' }}</span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+  </div>
+}
+
+<!-- ── Monthly: per-mode rollup cards (net + absolute) ────────────── -->
+@if (view === 'monthly') {
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+    @for (mode of modes; track mode) {
+      <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-on-surface mb-4">{{ modeLabel(mode) }}</h3>
+        @if (monthlyFor(mode); as m) {
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between">
+              <span class="text-on-surface-variant">Net variance</span>
+              <span class="font-mono font-bold" [class]="varianceClass(m.netVariance)">{{ fmt(m.netVariance) }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-on-surface-variant">Sum of absolute variances</span>
+              <span class="font-mono font-bold text-on-surface">{{ fmt(m.absVariance) }}</span>
+            </div>
+            <div class="flex justify-between text-xs pt-2 border-t border-outline-variant/10">
+              <span class="text-on-surface-variant">Days PIN-approved</span>
+              <span class="font-mono text-error font-semibold">{{ m.daysPinApproved }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+              <span class="text-on-surface-variant">Days auto-approved</span>
+              <span class="font-mono text-green-500 font-semibold">{{ m.daysAutoApproved }}</span>
+            </div>
+            @if (m.largest && m.largest.variance !== 0) {
+              <div class="pt-2 border-t border-outline-variant/10">
+                <p class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 mb-1">Largest variance day</p>
+                <p class="text-xs text-on-surface">{{ m.largest.date }} · <span class="font-mono font-bold" [class]="varianceClass(m.largest.variance)">{{ fmt(m.largest.variance) }}</span></p>
+                @if (m.largest.reason) {
+                  <p class="text-[11px] text-on-surface-variant/70 mt-0.5">{{ m.largest.reason }}</p>
+                }
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-xs text-on-surface-variant/60 py-4 text-center">No data.</p>
+        }
+      </div>
+    }
+  </div>
+  <p class="mt-4 text-[11px] text-on-surface-variant/60 leading-relaxed">
+    Net and absolute totals are shown separately on purpose: a month of ₹50 short on 10 days
+    and ₹50 over on 10 days nets to ₹0 but is not a clean month. Figures are never combined
+    across Cash / UPI / Card (§8.2).
+  </p>
+}

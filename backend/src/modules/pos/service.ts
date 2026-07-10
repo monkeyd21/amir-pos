@@ -67,9 +67,17 @@ export class PosService {
       where: { userId, status: 'closed' },
       orderBy: { closedAt: 'desc' },
     });
+    // §8.1a-8 — the deliberate closing float carries forward; fall back to the
+    // physical count for sessions closed before the float field existed.
+    if (last?.closingFloat != null) return Number(last.closingFloat);
     return last?.closingAmount != null ? Number(last.closingAmount) : 0;
   }
 
+  /**
+   * §8.1 — compute the three independent "System Expected" figures for the open
+   * session: Cash (drawer), UPI (gateway), Card (machine). Each mode reconciles
+   * against its own source of truth (§8.2) — never combined.
+   */
   async closeSession(userId: number) {
     const session = await prisma.posSession.findFirst({
       where: { userId, status: 'open' },
@@ -79,94 +87,171 @@ export class PosService {
       throw new AppError('No open session found', 404);
     }
 
-    // Calculate expected amount: opening + cash payments during session
-    const cashPayments = await prisma.payment.aggregate({
+    // Sales this session grouped by tender method (incl. split-tender portions).
+    const payAgg = await prisma.payment.groupBy({
+      by: ['method'],
       where: {
-        method: 'cash',
         status: 'completed',
-        sale: {
-          userId,
-          createdAt: { gte: session.openedAt },
-        },
+        sale: { userId, createdAt: { gte: session.openedAt } },
       },
       _sum: { amount: true },
     });
+    const salesByMethod: Record<string, number> = { cash: 0, upi: 0, card: 0 };
+    for (const row of payAgg) {
+      if (row.method in salesByMethod) salesByMethod[row.method] = Number(row._sum.amount || 0);
+    }
 
-    // §8.1 — subtract refunds actually PAID OUT in cash this session, keyed off
-    // the refund method chosen (Return.refundBreakup), NOT the original sale's
-    // payment method. Per §2.2b a cash sale can be refunded via UPI and vice
-    // versa, so a cash-drawer movement must follow where the money really went.
+    // §8.1 — refunds actually PAID OUT this session, keyed off the refund method
+    // chosen (Return.refundBreakup), NOT the original sale's payment method. Per
+    // §2.2b a cash sale can be refunded via UPI and vice versa, so each mode's
+    // outflow must follow where the money really went.
     const returns = await prisma.return.findMany({
       where: { userId, createdAt: { gte: session.openedAt } },
       select: { refundBreakup: true },
     });
-    let cashOut = 0;
+    const refundsByMethod: Record<string, number> = { cash: 0, upi: 0, card: 0 };
     for (const r of returns) {
       const breakup = (r.refundBreakup as { method: string; amount: number }[] | null) || [];
       for (const e of breakup) {
-        if (e.method === 'cash') cashOut += Number(e.amount) || 0;
+        if (e.method in refundsByMethod) refundsByMethod[e.method] += Number(e.amount) || 0;
       }
     }
 
-    const cashIn = Number(cashPayments._sum.amount || 0);
-    const expectedAmount = Number(session.openingAmount) + cashIn - Math.round(cashOut * 100) / 100;
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    // §8.1a-2 — cash: opening + cash sales − cash refunds (petty/drop are entered
+    // at close and folded in there, not in this live preview).
+    const expectedAmount = round2(Number(session.openingAmount) + salesByMethod.cash - refundsByMethod.cash);
+    // §8.1b — UPI: UPI sales − UPI refunds.
+    const expectedUpi = round2(salesByMethod.upi - refundsByMethod.upi);
+    // §8.1c — Card: card sales only. Card is never a refund method (§2.2b), so no
+    // refund subtraction and no card-refund field exists anywhere.
+    const expectedCard = round2(salesByMethod.card);
 
-    return { session, expectedAmount };
+    return { session, expectedAmount, expectedUpi, expectedCard };
   }
 
   async finalizeCloseSession(
     userId: number,
     data: {
-      closingAmount: number;
+      closingAmount: number;       // §8.1a-6 physical cash counted
       pettyCash?: number;
       pettyCashReason?: string;
       cashDrop?: number;
+      closingFloat?: number;       // §8.1a-8 float left for tomorrow
+      upiReceived?: number;        // §8.1b UPI settlement amount
+      cardReceived?: number;       // §8.1c card settlement amount
+      ownerPin?: string;
+      cashVarianceReason?: string;
+      upiVarianceReason?: string;
+      cardVarianceReason?: string;
+      // legacy aliases (older clients)
       managerPin?: string;
       varianceReason?: string;
       notes?: string;
     },
     branchId: number
   ) {
-    const { session, expectedAmount } = await this.closeSession(userId);
+    const { session, expectedAmount, expectedUpi, expectedCard } = await this.closeSession(userId);
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const pettyCash = round2(data.pettyCash || 0);
     const cashDrop = round2(data.cashDrop || 0);
     const physical = round2(data.closingAmount);
+    const closingFloat = data.closingFloat != null ? round2(data.closingFloat) : null;
+    const upiReceived = round2(data.upiReceived || 0);
+    const cardReceived = round2(data.cardReceived || 0);
 
-    // §8.3 — net variance = Expected − Petty cash − Cash drop − Physical counted.
-    const variance = round2(expectedAmount - pettyCash - cashDrop - physical);
+    // §8.1a — System Expected Cash folds in petty + drop outflows; physical is
+    // reconciled against that. Variance is signed: + short (missing), − over.
+    const expectedCashNet = round2(expectedAmount - pettyCash - cashDrop);
+    const cashVariance = round2(expectedCashNet - physical);
+    const upiVariance = round2(expectedUpi - upiReceived);
+    const cardVariance = round2(expectedCard - cardReceived);
 
-    // §8.2 — variance under ₹100 auto-approves (logged); ₹100 or more blocks the
-    // close until the Owner PIN (§6.4) + a reason are supplied.
-    const SHORTFALL_THRESHOLD = 100;
-    if (Math.abs(variance) >= SHORTFALL_THRESHOLD) {
-      if (!data.managerPin) {
+    // §8.3 — single configurable threshold (default ₹50) applied uniformly and
+    // INDEPENDENTLY to all three modes. |variance| ≥ threshold (inclusive) blocks
+    // the close for THAT mode until Owner PIN + a reason for that mode.
+    const threshold = Number(await getSetting<number>('varianceThreshold', 50));
+    const ownerPin = data.ownerPin || data.managerPin;
+    const cashReason = (data.cashVarianceReason || data.varianceReason || '').trim() || null;
+    const upiReason = (data.upiVarianceReason || '').trim() || null;
+    const cardReason = (data.cardVarianceReason || '').trim() || null;
+
+    const modes = [
+      { mode: 'cash', expected: expectedCashNet, actual: physical, variance: cashVariance, reason: cashReason },
+      { mode: 'upi', expected: expectedUpi, actual: upiReceived, variance: upiVariance, reason: upiReason },
+      { mode: 'card', expected: expectedCard, actual: cardReceived, variance: cardVariance, reason: cardReason },
+    ];
+    const breaches = modes.filter((m) => Math.abs(m.variance) >= threshold);
+
+    if (breaches.length > 0) {
+      const labels = breaches.map((b) => b.mode.toUpperCase()).join(', ');
+      if (!ownerPin) {
         throw new AppError(
-          `Variance ₹${variance} is ₹${SHORTFALL_THRESHOLD} or more — the Owner PIN and a reason are required to close the shift`,
+          `Variance ₹${threshold} or more in ${labels} — the Owner PIN and a reason for each affected mode are required to close`,
           400
         );
       }
-      await verifyOwnerPin(data.managerPin);
-      if (!data.varianceReason || !data.varianceReason.trim()) {
-        throw new AppError('A reason is required to close with a large variance', 400);
+      await verifyOwnerPin(ownerPin);
+      const missing = breaches.filter((b) => !b.reason);
+      if (missing.length > 0) {
+        throw new AppError(
+          `A reason is required for the ${missing.map((b) => b.mode.toUpperCase()).join(', ')} variance`,
+          400
+        );
       }
     }
 
-    const updated = await prisma.posSession.update({
-      where: { id: session.id },
-      data: {
-        closingAmount: physical,
-        expectedAmount,
-        pettyCash,
-        pettyCashReason: data.pettyCashReason || null,
-        cashDrop,
-        variance,
-        varianceReason: data.varianceReason || null,
-        status: 'closed',
-        closedAt: new Date(),
-        notes: data.notes || session.notes,
-      },
+    const pinAt = breaches.length > 0 ? new Date() : null;
+    // §8.4 — the variance-log date is the calendar day the session opened (8.0).
+    const day = new Date(session.openedAt);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const s = await tx.posSession.update({
+        where: { id: session.id },
+        data: {
+          closingAmount: physical,
+          expectedAmount,
+          pettyCash,
+          pettyCashReason: data.pettyCashReason || null,
+          cashDrop,
+          variance: cashVariance,
+          varianceReason: cashReason,
+          closingFloat,
+          expectedUpi,
+          upiReceived,
+          upiVariance,
+          upiVarianceReason: upiReason,
+          expectedCard,
+          cardReceived,
+          cardVariance,
+          cardVarianceReason: cardReason,
+          status: 'closed',
+          closedAt: new Date(),
+          notes: data.notes || session.notes,
+        },
+      });
+
+      // §8.4 — one row per mode per day. The report reads from this, never recalcs.
+      await tx.varianceLog.createMany({
+        data: modes.map((m) => {
+          const gated = Math.abs(m.variance) >= threshold;
+          return {
+            branchId,
+            sessionId: session.id,
+            date: day,
+            mode: m.mode,
+            expected: m.expected,
+            actual: m.actual,
+            variance: m.variance,
+            pinApproved: gated,
+            reason: gated ? m.reason : null,
+            pinApprovedAt: gated ? pinAt : null,
+          };
+        }),
+      });
+
+      return s;
     });
 
     await recordAudit(prisma, {
@@ -175,10 +260,23 @@ export class PosService {
       entityId: session.id,
       userId,
       branchId,
-      data: { expectedAmount, physical, pettyCash, cashDrop, variance, autoApproved: Math.abs(variance) < SHORTFALL_THRESHOLD },
+      data: {
+        threshold,
+        // §8.2 — stored separately per mode; never a combined total.
+        cash: { expected: expectedCashNet, physical, variance: cashVariance },
+        upi: { expected: expectedUpi, received: upiReceived, variance: upiVariance },
+        card: { expected: expectedCard, received: cardReceived, variance: cardVariance },
+        pinGated: breaches.map((b) => b.mode),
+      },
     });
 
-    return { ...updated, difference: round2(physical - expectedAmount), variance };
+    return {
+      ...updated,
+      cashVariance,
+      upiVariance,
+      cardVariance,
+      difference: round2(physical - expectedCashNet),
+    };
   }
 
   async getCurrentSession(userId: number) {

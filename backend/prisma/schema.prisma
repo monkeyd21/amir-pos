@@ -49,6 +49,7 @@ model Branch {
   printerProfiles    PrinterProfile[]
   auditLogs          AuditLog[]
   giftVouchers       GiftVoucher[]
+  varianceLogs       VarianceLog[]
 
   @@map("branches")
 }
@@ -739,21 +740,59 @@ model PosSession {
   openingAmount  Decimal       @db.Decimal(10, 2)
   closingAmount  Decimal?      @db.Decimal(10, 2)  // physical cash counted at close
   expectedAmount Decimal?      @db.Decimal(10, 2)
-  // §8 EOD reconciliation breakdown.
+  // §8.1a EOD cash reconciliation breakdown.
   pettyCash       Decimal? @default(0) @db.Decimal(10, 2)
   pettyCashReason String?
   cashDrop        Decimal? @default(0) @db.Decimal(10, 2)
-  variance        Decimal? @db.Decimal(10, 2)
+  variance        Decimal? @db.Decimal(10, 2)          // cash variance (expected − physical)
   varianceReason  String?
+  // §8.1a-8 — deliberate float left in the drawer for tomorrow. Separate from the
+  // physical count (closingAmount) and from cashDrop. Feeds next day's Day Start.
+  closingFloat    Decimal? @db.Decimal(10, 2)
+  // §8.1b — UPI reconciliation against the gateway settlement report.
+  expectedUpi        Decimal? @db.Decimal(10, 2)
+  upiReceived        Decimal? @db.Decimal(10, 2)
+  upiVariance        Decimal? @db.Decimal(10, 2)
+  upiVarianceReason  String?
+  // §8.1c — Card reconciliation against the card-machine settlement (sales-only).
+  expectedCard       Decimal? @db.Decimal(10, 2)
+  cardReceived       Decimal? @db.Decimal(10, 2)
+  cardVariance       Decimal? @db.Decimal(10, 2)
+  cardVarianceReason String?
   status         SessionStatus @default(open)
   openedAt       DateTime      @default(now())
   closedAt       DateTime?
   notes          String?
 
-  branch Branch @relation(fields: [branchId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  varianceLogs VarianceLog[]
 
   @@map("pos_sessions")
+}
+
+// §8.4 — one row per mode (cash/upi/card) per EOD close. The Daily/Monthly
+// Variance Reports read from this log; they never recalculate independently.
+model VarianceLog {
+  id            Int      @id @default(autoincrement())
+  branchId      Int
+  sessionId     Int
+  date          DateTime @db.Date       // the calendar day reconciled (8.0 day)
+  mode          String                  // 'cash' | 'upi' | 'card'
+  expected      Decimal  @db.Decimal(10, 2)
+  actual        Decimal  @db.Decimal(10, 2)  // physical count / settlement amount
+  variance      Decimal  @db.Decimal(10, 2)  // signed: expected − actual (+short / −over)
+  pinApproved   Boolean  @default(false)      // true = PIN-gated (≥ threshold), false = auto
+  reason        String?                        // required when PIN-gated
+  pinApprovedAt DateTime?
+  createdAt     DateTime @default(now())
+
+  branch  Branch     @relation(fields: [branchId], references: [id])
+  session PosSession @relation(fields: [sessionId], references: [id])
+
+  @@index([branchId, date])
+  @@index([mode, date])
+  @@map("variance_logs")
 }
 
 model HeldTransaction {

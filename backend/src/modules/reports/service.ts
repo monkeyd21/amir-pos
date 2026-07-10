@@ -571,6 +571,92 @@ export class ReportService {
 
     return { month: m, count: entries.length, totalAmount, byUser, entries };
   }
+
+  // ─── §8.4 Variance reports (read straight from the variance log) ──────────
+
+  /**
+   * §8.4 Daily Variance Report — one row per mode (Cash/UPI/Card) per day in the
+   * range. Reads the pre-computed variance_logs; never recalculates. Per-mode
+   * first (never combined, §8.2). Variance is signed: + short, − over/mismatch.
+   */
+  async getDailyVarianceReport(query: { startDate: string; endDate: string; branchId?: string }) {
+    const start = new Date(query.startDate);
+    const end = new Date(query.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const where: any = { date: { gte: start, lte: end } };
+    if (query.branchId) where.branchId = parseInt(query.branchId, 10);
+
+    const logs = await prisma.varianceLog.findMany({
+      where,
+      orderBy: [{ date: 'desc' }, { mode: 'asc' }],
+    });
+
+    const rows = logs.map((l) => {
+      const variance = Number(l.variance);
+      return {
+        date: l.date.toISOString().slice(0, 10),
+        mode: l.mode,
+        expected: Number(l.expected),
+        actual: Number(l.actual),
+        variance,
+        // Cash: Short/Over; UPI/Card: Mismatch (any non-zero) — per 8.1a-7/8.1b-3/8.1c-2.
+        direction: variance === 0 ? 'balanced' : l.mode === 'cash' ? (variance > 0 ? 'short' : 'over') : 'mismatch',
+        approval: l.pinApproved ? 'pin' : 'auto',
+        reason: l.reason ?? null,
+        pinApprovedAt: l.pinApprovedAt ? l.pinApprovedAt.toISOString() : null,
+      };
+    });
+
+    return { startDate: query.startDate, endDate: query.endDate, rows };
+  }
+
+  /**
+   * §8.4 Monthly Variance Report — per-mode rollup for a month. Net (signed) AND
+   * absolute totals are both reported: a month of ₹50 short on 10 days and ₹50
+   * over on 10 days nets to ₹0 but is not a clean month, so the two figures must
+   * never collapse into one. Per-mode first (never combined, §8.2).
+   */
+  async getMonthlyVarianceReport(query: { month: string; branchId?: string }) {
+    // month is "YYYY-MM".
+    const [y, m] = query.month.split('-').map((n) => parseInt(n, 10));
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999);
+
+    const where: any = { date: { gte: start, lte: end } };
+    if (query.branchId) where.branchId = parseInt(query.branchId, 10);
+
+    const logs = await prisma.varianceLog.findMany({ where, orderBy: [{ date: 'asc' }] });
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const byMode: Record<string, {
+      mode: string;
+      netVariance: number;
+      absVariance: number;
+      daysPinApproved: number;
+      daysAutoApproved: number;
+      largest: { date: string; variance: number; reason: string | null } | null;
+    }> = {};
+    for (const mode of ['cash', 'upi', 'card']) {
+      byMode[mode] = { mode, netVariance: 0, absVariance: 0, daysPinApproved: 0, daysAutoApproved: 0, largest: null };
+    }
+
+    for (const l of logs) {
+      const bucket = byMode[l.mode];
+      if (!bucket) continue;
+      const variance = Number(l.variance);
+      bucket.netVariance = round2(bucket.netVariance + variance);
+      bucket.absVariance = round2(bucket.absVariance + Math.abs(variance));
+      if (l.pinApproved) bucket.daysPinApproved += 1;
+      else bucket.daysAutoApproved += 1;
+      if (!bucket.largest || Math.abs(variance) > Math.abs(bucket.largest.variance)) {
+        bucket.largest = { date: l.date.toISOString().slice(0, 10), variance, reason: l.reason ?? null };
+      }
+    }
+
+    // Per-mode first; each mode's figures remain fully separable (§8.2).
+    return { month: query.month, modes: ['cash', 'upi', 'card'].map((mode) => byMode[mode]) };
+  }
 }
 
 export const reportService = new ReportService();

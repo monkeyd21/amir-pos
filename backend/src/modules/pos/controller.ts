@@ -40,8 +40,18 @@ export class PosController {
 
   async sessionExpected(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { session, expectedAmount } = await posService.closeSession(req.user!.userId);
-      res.json({ success: true, data: { sessionId: session.id, openingAmount: Number(session.openingAmount), expectedAmount } });
+      const { session, expectedAmount, expectedUpi, expectedCard } = await posService.closeSession(req.user!.userId);
+      res.json({
+        success: true,
+        data: {
+          sessionId: session.id,
+          openingAmount: Number(session.openingAmount),
+          // §8.1 — three independent expected figures, never combined.
+          expectedAmount,
+          expectedUpi,
+          expectedCard,
+        },
+      });
     } catch (error) {
       next(error);
     }

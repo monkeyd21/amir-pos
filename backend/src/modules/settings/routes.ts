@@ -72,6 +72,33 @@ router.put(
   }
 );
 
+// §8.3 — EOD variance threshold (₹). A single value applied uniformly to all
+// three reconciliation modes (Cash/UPI/Card). Variance ≥ this blocks close until
+// Owner PIN + reason for that mode; under it auto-approves. Default ₹50.
+router.get('/variance-threshold', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: { varianceThreshold: await getSetting<number>('varianceThreshold', 50) } });
+  } catch (error) {
+    next(error);
+  }
+});
+router.put(
+  '/variance-threshold',
+  authorize('owner'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const amount = Number(req.body.varianceThreshold);
+      if (!Number.isFinite(amount) || amount < 0 || amount > 100000) {
+        return res.status(400).json({ success: false, error: 'varianceThreshold must be a number between 0 and 100000' });
+      }
+      await setSetting('varianceThreshold', amount);
+      res.json({ success: true, data: { varianceThreshold: amount }, message: 'Variance threshold updated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Commission mode: 'item_level' (per-agent per line item) or 'bill_level' (per-cashier per sale)
 router.get('/commission-mode', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
