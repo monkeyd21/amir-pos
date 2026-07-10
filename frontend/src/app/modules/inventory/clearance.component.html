@@ -70,8 +70,7 @@
               [(ngModel)]="p.clearancePrice"
               placeholder="₹"
               class="w-full px-2 py-2 text-sm text-right font-mono bg-surface-container-lowest text-on-surface border rounded-lg focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              [class.border-outline-variant/15]="(p.clearancePrice ?? 0) > 0"
-              [class.border-error]="!((p.clearancePrice ?? 0) > 0)"
+              [class]="(p.clearancePrice ?? 0) > 0 ? 'border-outline-variant/15' : 'border-error'"
             />
             <button (click)="removePending(i)" class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors">
               <span class="material-symbols-outlined text-base">close</span>
