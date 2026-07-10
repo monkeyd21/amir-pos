@@ -366,7 +366,8 @@
                   <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">SKU</th>
                   <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Size</th>
                   <th class="px-2 py-1.5 font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Color</th>
-                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Price</th>
+                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">MRP</th>
+                  <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">Sale</th>
                   <th class="px-2 py-1.5 text-right font-label uppercase text-[9px] tracking-wider text-on-surface-variant">
                     Margin %
                   </th>
@@ -392,7 +393,30 @@
                     <td class="px-2 py-1.5 font-mono text-on-surface">{{ row.sku }}</td>
                     <td class="px-2 py-1.5 text-on-surface">{{ row.size }}</td>
                     <td class="px-2 py-1.5 text-on-surface">{{ row.color || '—' }}</td>
-                    <td class="px-2 py-1.5 text-right text-on-surface">₹{{ row.price }}</td>
+                    <td class="px-2 py-1 text-right" (click)="$event.stopPropagation()">
+                      <input
+                        type="number"
+                        [ngModel]="row.mrp"
+                        (ngModelChange)="onMrpChange(row, $event)"
+                        min="0"
+                        step="1"
+                        class="w-16 px-1.5 py-0.5 text-xs text-right bg-surface-container-lowest border border-outline-variant/15 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        [class.bg-amber-50]="mrpOverrides.has(row.key)"
+                        [class.border-amber-300]="mrpOverrides.has(row.key)"
+                      />
+                    </td>
+                    <td class="px-2 py-1 text-right" (click)="$event.stopPropagation()">
+                      <input
+                        type="number"
+                        [ngModel]="row.price"
+                        (ngModelChange)="onSaleChange(row, $event)"
+                        min="0"
+                        step="1"
+                        class="w-16 px-1.5 py-0.5 text-xs text-right bg-surface-container-lowest border border-outline-variant/15 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        [class.bg-amber-50]="priceOverrides.has(row.key)"
+                        [class.border-amber-300]="priceOverrides.has(row.key)"
+                      />
+                    </td>
                     <td class="px-2 py-1.5 text-right font-mono"
                         [class.text-green-600]="computeMargin(row.price) !== null && computeMargin(row.price)! > 0"
                         [class.text-error]="computeMargin(row.price) !== null && computeMargin(row.price)! < 0"

@@ -15,6 +15,7 @@ interface BarcodeItem {
   productName: string;
   variantLabel: string;
   price: number;
+  mrp?: number;
   copies: number;
 }
 
@@ -25,11 +26,13 @@ interface VariantSearchResult {
   size?: string;
   color?: string;
   price?: number;
+  mrp?: number;
+  mrpOverride?: number | string | null;
   productName?: string;
   brand?: string;
   barcode?: string;
   stock?: number;
-  product?: { name: string; basePrice: number };
+  product?: { name: string; basePrice: number; mrp?: number | string | null };
 }
 
 interface ApiResponse<T> {
@@ -162,6 +165,9 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       productName: variant.productName || variant.product?.name || 'Unknown',
       variantLabel: parts.join(' / ') || '',
       price: variant.price || variant.product?.basePrice || 0,
+      mrp: variant.mrpOverride != null ? Number(variant.mrpOverride)
+        : variant.mrp != null ? Number(variant.mrp)
+        : variant.product?.mrp != null ? Number(variant.product.mrp) : undefined,
       copies: 1,
     });
 
@@ -206,6 +212,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       productName: item.productName,
       variantLabel: item.variantLabel || undefined,
       price: item.price,
+      mrp: item.mrp,
       copies: item.copies,
     }));
 
@@ -293,6 +300,8 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       productName: v?.product?.name || 'Unknown',
       variantLabel: parts.join(' / ') || '',
       price: Number(v?.priceOverride || v?.product?.basePrice || 0),
+      mrp: v?.mrpOverride != null ? Number(v.mrpOverride)
+        : v?.product?.mrp != null ? Number(v.product.mrp) : undefined,
       copies: Math.abs(m.quantity || 1),
     });
   }

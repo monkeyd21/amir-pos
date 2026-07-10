@@ -25,6 +25,7 @@ export interface LabelItem {
   productName?: string;
   variantLabel?: string;
   price?: number;
+  mrp?: number;
   lotCode?: string;
   copies?: number;
 }

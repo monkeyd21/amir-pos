@@ -21,6 +21,7 @@ export const createProductSchema = z.object({
     variants: z.array(z.object({
       size: z.string().min(1, 'Size is required'),
       color: z.string().min(1, 'Color is required'),
+      mrpOverride: z.number().positive().optional(),
       priceOverride: z.number().positive().optional(),
       costOverride: z.number().positive().optional(),
       initialStock: z.number().int().min(0).optional(),
@@ -76,6 +77,7 @@ export const createVariantSchema = z.object({
   body: z.object({
     size: z.string().min(1, 'Size is required'),
     color: z.string().min(1, 'Color is required'),
+    mrpOverride: z.number().positive().optional(),
     priceOverride: z.number().positive().optional(),
     costOverride: z.number().positive().optional(),
   }),
@@ -89,6 +91,7 @@ export const updateVariantSchema = z.object({
   body: z.object({
     size: z.string().min(1).optional(),
     color: z.string().min(1).optional(),
+    mrpOverride: z.number().positive().optional().nullable(),
     priceOverride: z.number().positive().optional().nullable(),
     costOverride: z.number().positive().optional().nullable(),
     isActive: z.boolean().optional(),
@@ -113,6 +116,7 @@ export const bulkCreateVariantsSchema = z.object({
           size: z.string().min(1, 'Size is required'),
           color: z.string().min(1, 'Color is required'),
           sku: z.string().optional(),
+          mrpOverride: z.number().positive().optional(),
           priceOverride: z.number().positive().optional(),
           costOverride: z.number().positive().optional(),
           initialStock: z.number().int().nonnegative().optional(),

@@ -1192,6 +1192,13 @@ export class PosService {
       // Always return the inclusive price the customer pays — handles both
       // tax-incl products (passthrough) and tax-excl ones (grossed up).
       price: this.computeInclusivePrice(v),
+      // §13.3 — printed MRP: per-variant override wins, else the product MRP.
+      mrp:
+        v.mrpOverride != null
+          ? Number(v.mrpOverride)
+          : v.product.mrp != null
+          ? Number(v.product.mrp)
+          : null,
       taxRate: Number(v.product.cgstRate) + Number(v.product.sgstRate),
       stock: stockMap.get(v.id) ?? 0,
     }));

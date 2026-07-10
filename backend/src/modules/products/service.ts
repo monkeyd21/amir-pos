@@ -103,6 +103,7 @@ export const createProduct = async (data: {
   variants?: Array<{
     size: string;
     color: string;
+    mrpOverride?: number;
     priceOverride?: number;
     costOverride?: number;
     initialStock?: number;
@@ -129,6 +130,7 @@ export const createProduct = async (data: {
     barcode: generateEAN13(),
     size: v.size,
     color: v.color,
+    mrpOverride: v.mrpOverride ?? null,
     priceOverride: v.priceOverride ?? null,
     costOverride: v.costOverride ?? null,
   }));
@@ -285,6 +287,7 @@ export const deleteProduct = async (id: number) => {
 export const addVariant = async (productId: number, data: {
   size: string;
   color: string;
+  mrpOverride?: number;
   priceOverride?: number;
   costOverride?: number;
 }) => {
@@ -307,6 +310,7 @@ export const addVariant = async (productId: number, data: {
       barcode,
       size: data.size,
       color: data.color,
+      mrpOverride: data.mrpOverride ?? null,
       priceOverride: data.priceOverride ?? null,
       costOverride: data.costOverride ?? null,
     },
@@ -332,6 +336,7 @@ export const addVariant = async (productId: number, data: {
 export const updateVariant = async (productId: number, variantId: number, data: {
   size?: string;
   color?: string;
+  mrpOverride?: number | null;
   priceOverride?: number | null;
   costOverride?: number | null;
   isActive?: boolean;
@@ -359,6 +364,7 @@ export const bulkCreateVariants = async (
       size: string;
       color: string;
       sku?: string;
+      mrpOverride?: number;
       priceOverride?: number;
       costOverride?: number;
       initialStock?: number;
@@ -539,6 +545,7 @@ export const bulkCreateVariants = async (
           barcode,
           size: v.size,
           color: v.color,
+          mrpOverride: v.mrpOverride ?? null,
           priceOverride: v.priceOverride ?? null,
           costOverride: v.costOverride ?? null,
         },

@@ -137,6 +137,7 @@ const labelDataSchema = z.object({
   productName: z.string().min(1),
   variantLabel: z.string().optional(),
   price: z.number().nonnegative(),
+  mrp: z.number().nonnegative().optional(),
   lotCode: z.string().optional(),
   copies: z.number().int().positive().max(99).optional(),
 });

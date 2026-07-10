@@ -18,7 +18,8 @@ interface PreviewRow {
   size: string;
   color: string;
   sku: string;
-  price: number;
+  price: number; // sale price
+  mrp: number;   // list price (MRP)
   initialStock: number;
   include: boolean;
   key: string; // size|color for tracking
@@ -55,7 +56,7 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
   @Output() variantsGenerated = new EventEmitter<void>();
   /** Emitted when running in inline/create mode (no productId) — gives the
    *  caller the list of variants to attach to the product-create payload. */
-  @Output() previewChange = new EventEmitter<Array<{ size: string; color: string; priceOverride?: number; sku?: string; initialStock?: number }>>();
+  @Output() previewChange = new EventEmitter<Array<{ size: string; color: string; mrpOverride?: number; priceOverride?: number; sku?: string; initialStock?: number }>>();
   /**
    * Fired when the cashier taps "+ New Color". The parent owns the
    * inline-add form and the API call, then mutates `availableColors`
@@ -97,6 +98,10 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
   excluded = new Set<string>();
   /** Per-variant stock overrides (key → quantity). Overrides the global initialStock. */
   stockOverrides = new Map<string, number>();
+  /** Per-variant Sale Price overrides (key → price). Overrides the computed flat/step price. */
+  priceOverrides = new Map<string, number>();
+  /** Per-variant MRP overrides (key → mrp). When absent, MRP defaults to sale ÷ 0.9. */
+  mrpOverrides = new Map<string, number>();
   generating = false;
 
   readonly alphaSizes = ALPHA_SIZES;
@@ -257,9 +262,17 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
         const size = this.sortBy === 'color' && colors.length > 1 ? iv : outer[oi];
         const color = this.sortBy === 'color' && colors.length > 1 ? outer[oi] : iv;
         const sizeIndex = sizes.indexOf(size);
-        const price = this.computePrice(sizeIndex);
         const sku = this.computeSku(size, color);
         const key = `${size.toLowerCase()}|${color.toLowerCase()}`;
+        // Sale Price: per-row override wins, else the flat/step computed price.
+        const price = this.priceOverrides.has(key)
+          ? this.priceOverrides.get(key)!
+          : this.computePrice(sizeIndex);
+        // MRP: per-row override wins, else derived from the sale price (÷ 0.9)
+        // so the default satisfies the "Sale = MRP − 10%" convention.
+        const mrp = this.mrpOverrides.has(key)
+          ? this.mrpOverrides.get(key)!
+          : price > 0 ? Math.round(price / 0.9) : 0;
         const stock = this.stockOverrides.has(key)
           ? this.stockOverrides.get(key)!
           : (this.initialStock ?? 0);
@@ -268,6 +281,7 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
           color,
           sku,
           price,
+          mrp,
           initialStock: stock,
           include: !this.excluded.has(key),
           key,
@@ -337,6 +351,21 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     this.emitPreviewIfInlineMode();
   }
 
+  /** Editing MRP auto-fills the Sale Price to MRP − 10% (rounded), still overridable. */
+  onMrpChange(row: PreviewRow, value: number): void {
+    const mrp = Math.max(0, Number(value) || 0);
+    this.mrpOverrides.set(row.key, mrp);
+    this.priceOverrides.set(row.key, Math.round(mrp * 0.9));
+    this.emitPreviewIfInlineMode();
+  }
+
+  /** Editing Sale Price sets only the sale price; the MRP is left as-is. */
+  onSaleChange(row: PreviewRow, value: number): void {
+    const price = Math.max(0, Number(value) || 0);
+    this.priceOverrides.set(row.key, price);
+    this.emitPreviewIfInlineMode();
+  }
+
   toggleRow(row: PreviewRow): void {
     if (this.excluded.has(row.key)) {
       this.excluded.delete(row.key);
@@ -362,7 +391,7 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     return true;
   }
 
-  buildVariantPayloads(): Array<{ size: string; color: string; priceOverride?: number; sku?: string; initialStock?: number }> {
+  buildVariantPayloads(): Array<{ size: string; color: string; mrpOverride?: number; priceOverride?: number; sku?: string; initialStock?: number }> {
     return this.previewRows
       .filter((r) => r.include)
       .map((r) => {
@@ -370,6 +399,7 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
           size: r.size,
           color: r.color || 'Default',
         };
+        if (r.mrp > 0) payload.mrpOverride = r.mrp;
         if (r.price > 0) payload.priceOverride = r.price;
         if (this.skuBase.trim()) payload.sku = r.sku;
         if (r.initialStock > 0) payload.initialStock = r.initialStock;
@@ -423,6 +453,8 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     this.colors = [];
     this.excluded.clear();
     this.stockOverrides.clear();
+    this.priceOverrides.clear();
+    this.mrpOverrides.clear();
     this.expanded = false;
     this.customSizes = '';
   }

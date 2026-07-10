@@ -562,13 +562,15 @@
 
           @if (variants.length > 0) {
             <div class="space-y-2">
-              <div class="grid grid-cols-[1fr_1fr_auto] gap-2 px-1">
+              <div class="grid grid-cols-[1fr_1fr_5rem_5rem_auto] gap-2 px-1">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Size *</span>
                 <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Color *</span>
+                <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">MRP</span>
+                <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Sale</span>
                 <span class="w-8"></span>
               </div>
               @for (v of variants; let i = $index; track i) {
-                <div class="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                <div class="grid grid-cols-[1fr_1fr_5rem_5rem_auto] gap-2 items-center">
                   <input
                     type="text"
                     [(ngModel)]="v.size"
@@ -594,6 +596,25 @@
                       <span class="material-symbols-outlined text-base">add</span>
                     </button>
                   </div>
+                  <input
+                    type="number"
+                    [ngModel]="v.mrp"
+                    (ngModelChange)="onVariantMrpChange(v, $event)"
+                    min="0"
+                    step="1"
+                    placeholder="MRP"
+                    title="MRP — leave blank to use the product MRP. Sale auto-fills to MRP − 10%."
+                    class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <input
+                    type="number"
+                    [(ngModel)]="v.priceOverride"
+                    min="0"
+                    step="1"
+                    placeholder="Sale"
+                    title="Sale Price — leave blank to use the product Sale Price."
+                    class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   <button
                     (click)="removeVariantRow(i)"
                     class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors cursor-pointer"

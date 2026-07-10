@@ -137,6 +137,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   variants: {
     size: string;
     color: string;
+    mrp: number | null;
     priceOverride: number | null;
     costOverride: number | null;
   }[] = [];
@@ -145,6 +146,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   bulkGeneratedVariants: Array<{
     size: string;
     color: string;
+    mrpOverride?: number;
     priceOverride?: number;
     sku?: string;
     initialStock?: number;
@@ -444,6 +446,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.variants.push({
       size: '',
       color: '',
+      mrp: null,
       priceOverride: null,
       costOverride: null,
     });
@@ -451,6 +454,13 @@ export class ProductFormComponent implements OnInit, OnDestroy {
 
   removeVariantRow(index: number): void {
     this.variants.splice(index, 1);
+  }
+
+  /** Editing a manual row's MRP auto-fills its Sale Price to MRP − 10% (rounded). */
+  onVariantMrpChange(row: { mrp: number | null; priceOverride: number | null }, value: number): void {
+    const mrp = value != null && value > 0 ? Number(value) : null;
+    row.mrp = mrp;
+    if (mrp != null) row.priceOverride = Math.round(mrp * 0.9);
   }
 
   onColorCreated(color: Color): void {
@@ -468,6 +478,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     variants: Array<{
       size: string;
       color: string;
+      mrpOverride?: number;
       priceOverride?: number;
       sku?: string;
       initialStock?: number;
@@ -489,6 +500,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       .map((v) => ({
         size: v.size.trim(),
         color: v.color.trim(),
+        ...(v.mrp ? { mrpOverride: Number(v.mrp) } : {}),
         ...(v.priceOverride ? { priceOverride: Number(v.priceOverride) } : {}),
         ...(v.costOverride ? { costOverride: Number(v.costOverride) } : {}),
         ...(v.costOverride

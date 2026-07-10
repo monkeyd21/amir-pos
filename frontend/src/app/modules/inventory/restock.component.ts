@@ -24,6 +24,7 @@ interface Product {
   id: number;
   name: string;
   basePrice: number;
+  mrp: number | string | null;
   costPrice: number;
   landingPrice: number | null;
   taxRate: number;
@@ -242,6 +243,7 @@ export class RestockComponent implements OnInit, OnDestroy {
         productName: this.product!.name,
         variantLabel: [r.size, r.color].filter(Boolean).join(' / '),
         price: Number(this.product!.basePrice),
+        mrp: this.product!.mrp != null ? Number(this.product!.mrp) : undefined,
         lotCode: this.lotCode.trim() || undefined,
         copies: this.printCopies.get(r.variantId) || 1,
       }));

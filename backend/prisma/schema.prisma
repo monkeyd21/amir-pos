@@ -265,6 +265,9 @@ model ProductVariant {
   size          String
   color         String
   barcode       String   @unique
+  // §13.3 — per-variant MRP override. Falls back to the product's MRP when null.
+  // Sale Price (priceOverride) auto-fills to mrpOverride − 10% at entry, editable.
+  mrpOverride   Decimal? @db.Decimal(10, 2)
   priceOverride Decimal? @db.Decimal(10, 2)
   costOverride  Decimal? @db.Decimal(10, 2)
   isActive      Boolean  @default(true)

@@ -25,6 +25,7 @@ type LabelElementType =
   | 'barcode'
   | 'sku'
   | 'price'
+  | 'mrp'
   | 'lotCode'
   | 'text';
 
@@ -102,7 +103,8 @@ const ELEMENT_TYPE_LABELS: Record<LabelElementType, string> = {
   variant: 'Size / Color',
   barcode: 'Barcode',
   sku: 'SKU Text',
-  price: 'Price',
+  price: 'Sale Price',
+  mrp: 'MRP',
   lotCode: 'Lot Code',
   text: 'Custom Text',
 };
@@ -113,6 +115,7 @@ const PREVIEW_DATA = {
   sku: '2009676797946',
   lotCode: 'LOT-2026-04-001',
   price: 4299,
+  mrp: 4799,
 };
 
 @Component({
@@ -148,7 +151,8 @@ export class LabelDesignerComponent implements OnInit {
     { type: 'variant', label: 'Size / Color', icon: 'palette' },
     { type: 'barcode', label: 'Barcode', icon: 'qr_code_2' },
     { type: 'sku', label: 'SKU Text', icon: 'tag' },
-    { type: 'price', label: 'Price', icon: 'payments' },
+    { type: 'price', label: 'Sale Price', icon: 'payments' },
+    { type: 'mrp', label: 'MRP', icon: 'sell' },
     { type: 'lotCode', label: 'Lot Code', icon: 'inventory_2' },
     { type: 'text', label: 'Custom Text', icon: 'text_fields' },
   ];
@@ -334,6 +338,11 @@ export class LabelDesignerComponent implements OnInit {
       base.content = 'Rs.';
       base.align = 'center';
       base.widthMm = innerWidthMm;
+    } else if (type === 'mrp') {
+      base.fontSizePt = 14;
+      base.content = 'MRP Rs.';
+      base.align = 'center';
+      base.widthMm = innerWidthMm;
     } else if (type === 'text') {
       base.fontSizePt = 10;
       base.content = 'Text';
@@ -457,6 +466,10 @@ export class LabelDesignerComponent implements OnInit {
         const prefix = (el.content ?? '').trim();
         return prefix ? `${prefix} ${PREVIEW_DATA.price}` : String(PREVIEW_DATA.price);
       }
+      case 'mrp': {
+        const prefix = (el.content ?? 'MRP').trim();
+        return prefix ? `${prefix} ${PREVIEW_DATA.mrp}` : String(PREVIEW_DATA.mrp);
+      }
       case 'text':
         return el.content ?? '';
       default:
@@ -496,11 +509,12 @@ export class LabelDesignerComponent implements OnInit {
   }
 
   supportsContent(el: LabelElement): boolean {
-    return el.type === 'brand' || el.type === 'price' || el.type === 'text';
+    return el.type === 'brand' || el.type === 'price' || el.type === 'mrp' || el.type === 'text';
   }
 
   contentFieldLabel(el: LabelElement): string {
-    if (el.type === 'price') return 'Price Prefix';
+    if (el.type === 'price') return 'Sale Price Prefix';
+    if (el.type === 'mrp') return 'MRP Prefix';
     if (el.type === 'brand') return 'Brand Name';
     return 'Text';
   }
