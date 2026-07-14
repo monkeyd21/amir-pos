@@ -135,6 +135,7 @@ export class CustomerService {
     address?: string | null;
     dateOfBirth?: string | null;
     gender?: string | null;
+    childBirthMonth?: number | null;
   }) {
     const existing = await prisma.customer.findUnique({
       where: { phone: data.phone },
@@ -158,6 +159,7 @@ export class CustomerService {
     address?: string | null;
     dateOfBirth?: string | null;
     gender?: string | null;
+    childBirthMonth?: number | null;
   }) {
     const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer) {

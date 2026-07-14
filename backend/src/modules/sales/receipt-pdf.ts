@@ -3,6 +3,10 @@ import PDFDocument from 'pdfkit';
 export interface ReceiptSale {
   saleNumber: string;
   createdAt: Date | string;
+  // §11.0/§bug1 — trading day the bill belongs to. During post-midnight peak-season
+  // trading this is the (earlier) day the shift opened, so the bill prints the
+  // previous day's date while the TIME below stays the real billing time.
+  businessDate?: Date | string | null;
   branch: { name: string; address?: string | null; phone?: string | null; receiptHeader?: string | null; receiptFooter?: string | null };
   user: { firstName: string; lastName: string };
   customer?: { firstName: string; lastName: string; phone: string } | null;
@@ -84,7 +88,7 @@ const fmtINR = (v: unknown) =>
  * Generate a thermal-receipt-style PDF on A5 paper (roughly bill-sized).
  * Returns a Buffer suitable for HTTP download or WhatsApp attachment.
  */
-export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
+export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: [226.77, 841.89], // ~80mm wide thermal roll (A5-ish narrow)
@@ -115,15 +119,18 @@ export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
 
     // Sale metadata
     doc.font('Helvetica').fontSize(8);
-    const saleDate = new Date(sale.createdAt).toLocaleString('en-IN', {
+    // §bug1 — DATE = business (trading) date; TIME = actual billing time.
+    const billDate = new Date(sale.businessDate ?? sale.createdAt).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+    });
+    const billTime = new Date(sale.createdAt).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
     });
     doc.text(`Bill: ${sale.saleNumber}`, { continued: false });
-    doc.text(`Date: ${saleDate}`);
+    doc.text(`Date: ${billDate}   Time: ${billTime}`);
     doc.text(`Cashier: ${sale.user.firstName} ${sale.user.lastName}`);
     if (sale.customer) {
       doc.text(`Customer: ${`${sale.customer.firstName} ${sale.customer.lastName ?? ''}`.trim()}`);
@@ -225,16 +232,21 @@ export function buildReceiptPdf(sale: ReceiptSale): Promise<Buffer> {
     // rules. We approximate the split by the *rate* ratio across the
     // basket — for an intra-state bill where every line is 9+9 this is
     // a clean 50/50, and for mixed lines it's still proportional.
-    const gst = computeGstSplit(sale);
-    if (gst.cgst > 0) {
-      row(`CGST${gst.allSameRate ? ` @ ${gst.cgstRate}%` : ''}`, fmtINR(gst.cgst));
-    }
-    if (gst.sgst > 0) {
-      row(`SGST${gst.allSameRate ? ` @ ${gst.sgstRate}%` : ''}`, fmtINR(gst.sgst));
-    }
-    if (gst.cgst === 0 && gst.sgst === 0 && n(sale.taxAmount) > 0) {
-      // Fallback if items don't carry rate metadata (legacy sales)
-      row('Tax (incl.)', fmtINR(sale.taxAmount));
+    // §bug2 — tax lines are hidden until GST compliance is switched on (tax is
+    // still computed/stored on the sale for future GSTR-1). `showGst` is resolved
+    // from the gstComplianceEnabled setting by the caller.
+    if (showGst) {
+      const gst = computeGstSplit(sale);
+      if (gst.cgst > 0) {
+        row(`CGST${gst.allSameRate ? ` @ ${gst.cgstRate}%` : ''}`, fmtINR(gst.cgst));
+      }
+      if (gst.sgst > 0) {
+        row(`SGST${gst.allSameRate ? ` @ ${gst.sgstRate}%` : ''}`, fmtINR(gst.sgst));
+      }
+      if (gst.cgst === 0 && gst.sgst === 0 && n(sale.taxAmount) > 0) {
+        // Fallback if items don't carry rate metadata (legacy sales)
+        row('Tax (incl.)', fmtINR(sale.taxAmount));
+      }
     }
     doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
     doc.moveDown(0.2);

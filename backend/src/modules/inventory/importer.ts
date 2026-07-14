@@ -132,7 +132,8 @@ export function parseExcelBuffer(buffer: Buffer): ParseResult {
         ? parseFloat(row.costOverride)
         : null;
     row.quantity = parseInt(row.quantity, 10) || 0;
-    row.minStockLevel = parseInt(row.minStockLevel, 10) || 5;
+    row.minStockLevel = parseInt(row.minStockLevel, 10);
+    if (isNaN(row.minStockLevel)) row.minStockLevel = 0; // §bug8 default 0
 
     // Trim strings
     for (const f of ['productName', 'brand', 'category', 'size', 'color', 'sku', 'barcode']) {

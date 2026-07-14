@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -54,7 +55,7 @@ type Step = 'upload' | 'preview' | 'done';
 @Component({
   selector: 'app-import',
   standalone: true,
-  imports: [CommonModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, PageHeaderComponent],
   templateUrl: './import.component.html',
 })
 export class ImportComponent {

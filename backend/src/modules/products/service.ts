@@ -173,7 +173,7 @@ export const createProduct = async (data: {
             variantId: v.id,
             branchId: b.id,
             quantity: 0,
-            minStockLevel: 5,
+            minStockLevel: 0,
           }))
         ),
         skipDuplicates: true,
@@ -324,7 +324,7 @@ export const addVariant = async (productId: number, data: {
         variantId: variant.id,
         branchId: b.id,
         quantity: 0,
-        minStockLevel: 5,
+        minStockLevel: 0,
       })),
       skipDuplicates: true,
     });
@@ -501,7 +501,7 @@ export const bulkCreateVariants = async (
           variantId: inc.variantId,
           branchId,
           quantity: inc.quantity,
-          minStockLevel: 5,
+          minStockLevel: 0,
         },
       });
 
@@ -557,7 +557,7 @@ export const bulkCreateVariants = async (
             variantId: variant.id,
             branchId: b.id,
             quantity: b.id === branchId ? (v.initialStock ?? 0) : 0,
-            minStockLevel: 5,
+            minStockLevel: 0,
           })),
           skipDuplicates: true,
         });

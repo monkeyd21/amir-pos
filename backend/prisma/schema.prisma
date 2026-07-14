@@ -62,11 +62,11 @@ model AuditLog {
   id         Int      @id @default(autoincrement())
   branchId   Int?
   userId     Int?
-  action     String   // e.g. 'return.created', 'refund.method_overridden', 'commission.reversed'
-  entityType String   // 'sale' | 'return' | 'commission' | 'loyalty' | 'payment' | …
-  entityId   String?  // id of the affected entity (string so it's type-agnostic)
+  action     String // e.g. 'return.created', 'refund.method_overridden', 'commission.reversed'
+  entityType String // 'sale' | 'return' | 'commission' | 'loyalty' | 'payment' | …
+  entityId   String? // id of the affected entity (string so it's type-agnostic)
   reason     String?
-  data       Json?    // { original?, updated?, … } or any structured detail
+  data       Json? // { original?, updated?, … } or any structured detail
   createdAt  DateTime @default(now())
 
   user   User?   @relation(fields: [userId], references: [id])
@@ -85,8 +85,8 @@ model PrinterProfile {
   name         String
   vendor       String   @default("generic")
   model        String?
-  driver       String   // 'tspl' | 'zpl' | 'epl2' | 'escpos-label' | 'pdf'
-  transport    String   // 'tcp' | 'usb-lp' | 'cups' | 'win-spool' | 'browser'
+  driver       String // 'tspl' | 'zpl' | 'epl2' | 'escpos-label' | 'pdf'
+  transport    String // 'tcp' | 'usb-lp' | 'cups' | 'win-spool' | 'browser'
   connection   Json     @default("{}")
   dpi          Int      @default(203)
   maxWidthMm   Float    @default(108)
@@ -185,12 +185,12 @@ model Brand {
 // ─── Category ────────────────────────────────────────
 
 model Category {
-  id        Int        @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   name      String
-  slug      String     @unique
+  slug      String   @unique
   parentId  Int?
-  isActive  Boolean    @default(true)
-  createdAt DateTime   @default(now())
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children Category[] @relation("CategoryTree")
@@ -219,37 +219,55 @@ model Color {
   @@map("colors")
 }
 
+// ─── Size ────────────────────────────────────────────
+//
+// Preset size list so users create sizes like "6-9M", "9-12M", "S", "32"
+// once and reuse them everywhere instead of free-typing (and mistyping)
+// them per variant. Mirrors Color: `product_variants.size` stays a string
+// storing the chosen size LABEL (printed on receipts/stickers), so existing
+// variants keep working with no data migration. `sortOrder` lets the picker
+// present sizes in a sensible order (e.g. age bands ascending).
+model Size {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("sizes")
+}
+
 // ─── Product ─────────────────────────────────────────
 
 model Product {
-  id          Int      @id @default(autoincrement())
-  brandId     Int
-  categoryId  Int
-  name        String
-  slug        String   @unique
-  description String?
+  id               Int      @id @default(autoincrement())
+  brandId          Int
+  categoryId       Int
+  name             String
+  slug             String   @unique
+  description      String?
   // §13.3 — MRP is the printed list price; basePrice is the effective Sale Price
   // (auto-calculated as MRP − 10% at entry). Both are printed on the barcode label.
-  mrp          Decimal? @db.Decimal(10, 2)
-  basePrice    Decimal  @db.Decimal(10, 2)
-  costPrice    Decimal  @db.Decimal(10, 2)
-  landingPrice Decimal? @db.Decimal(10, 2)
+  mrp              Decimal? @db.Decimal(10, 2)
+  basePrice        Decimal  @db.Decimal(10, 2)
+  costPrice        Decimal  @db.Decimal(10, 2)
+  landingPrice     Decimal? @db.Decimal(10, 2)
   // GST is split into CGST + SGST per Indian tax rules. For non-clothing
   // verticals these can both be 0. Effective rate the POS sees = cgst + sgst.
-  hsnCode      String?  @db.VarChar(10)
-  cgstRate     Decimal  @default(9) @db.Decimal(5, 2)
-  sgstRate     Decimal  @default(9) @db.Decimal(5, 2)
+  hsnCode          String?  @db.VarChar(10)
+  cgstRate         Decimal  @default(9) @db.Decimal(5, 2)
+  sgstRate         Decimal  @default(9) @db.Decimal(5, 2)
   // When true (the Indian retail convention), basePrice is the MRP — tax is
   // already extracted from inside it. When false, tax is added on top at POS.
-  priceIncludesTax Boolean @default(true)
+  priceIncludesTax Boolean  @default(true)
   // Sale-policy flags. `nonReturnable` blocks both refund-returns and exchanges
   // (e.g. clearance/sale/defective goods). `exchangeOnly` allows an exchange but
   // blocks a refund-return. The POS enforces these when goods come back.
-  nonReturnable Boolean @default(false)
-  exchangeOnly  Boolean @default(false)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  nonReturnable    Boolean  @default(false)
+  exchangeOnly     Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   brand    Brand            @relation(fields: [brandId], references: [id])
   category Category         @relation(fields: [categoryId], references: [id])
@@ -260,24 +278,24 @@ model Product {
 }
 
 model ProductVariant {
-  id            Int      @id @default(autoincrement())
-  productId     Int
-  sku           String   @unique
-  size          String
-  color         String
-  barcode       String   @unique
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  sku            String   @unique
+  size           String
+  color          String
+  barcode        String   @unique
   // §13.3 — per-variant MRP override. Falls back to the product's MRP when null.
   // Sale Price (priceOverride) auto-fills to mrpOverride − 10% at entry, editable.
-  mrpOverride   Decimal? @db.Decimal(10, 2)
-  priceOverride Decimal? @db.Decimal(10, 2)
-  costOverride  Decimal? @db.Decimal(10, 2)
-  isActive      Boolean  @default(true)
+  mrpOverride    Decimal? @db.Decimal(10, 2)
+  priceOverride  Decimal? @db.Decimal(10, 2)
+  costOverride   Decimal? @db.Decimal(10, 2)
+  isActive       Boolean  @default(true)
   // §2.4 — Clearance (dead-stock liquidation). When flagged, clearancePrice is
   // the fixed selling price and ALL counter discounts lock to zero; managed
   // backend-only, never at POS.
   clearanceFlag  Boolean  @default(false)
   clearancePrice Decimal? @db.Decimal(10, 2)
-  createdAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   product            Product             @relation(fields: [productId], references: [id])
   inventory          Inventory[]
@@ -297,7 +315,9 @@ model Inventory {
   variantId     Int
   branchId      Int
   quantity      Int      @default(0)
-  minStockLevel Int      @default(5)
+  // §bug8 — default 0: ~99% of articles are single-piece stock, so a non-zero
+  // reorder threshold would flag almost everything as "low stock" permanently.
+  minStockLevel Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -323,14 +343,14 @@ enum InventoryPaymentMode {
 }
 
 model InventoryMovement {
-  id            Int          @id @default(autoincrement())
+  id            Int                   @id @default(autoincrement())
   variantId     Int
   branchId      Int
   type          MovementType
   quantity      Int
   // Per-unit cost paid to vendor at time of purchase. Only meaningful for
   // type=purchase movements; null for sales / transfers / adjustments.
-  unitCost      Decimal?     @db.Decimal(10, 2)
+  unitCost      Decimal?              @db.Decimal(10, 2)
   // CASH = paid in full at receipt; CREDIT = recorded as accounts-payable
   // and settled later via VendorPayment rows. Null for non-purchase types.
   paymentMode   InventoryPaymentMode?
@@ -341,7 +361,7 @@ model InventoryMovement {
   lotCode       String?
   createdBy     Int
   vendorId      Int?
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime              @default(now())
 
   variant ProductVariant @relation(fields: [variantId], references: [id])
   branch  Branch         @relation(fields: [branchId], references: [id])
@@ -359,8 +379,8 @@ model VendorPayment {
   id          Int      @id @default(autoincrement())
   vendorId    Int
   amount      Decimal  @db.Decimal(10, 2)
-  method      String   // cash | bank_transfer | upi | cheque
-  reference   String?  // cheque number, UTR, txn id
+  method      String // cash | bank_transfer | upi | cheque
+  reference   String? // cheque number, UTR, txn id
   notes       String?
   paymentDate DateTime
   createdBy   Int
@@ -448,77 +468,84 @@ enum SaleChannel {
 }
 
 model Sale {
-  id                   Int        @id @default(autoincrement())
-  branchId             Int
-  customerId           Int?
-  userId               Int
-  saleNumber           String     @unique
+  id                    Int         @id @default(autoincrement())
+  branchId              Int
+  customerId            Int?
+  userId                Int
+  saleNumber            String      @unique
   // Client-generated idempotency key (UUID). Every checkout — online or an
   // offline bill replayed on sync — carries one. A second checkout with the
   // same key returns the existing sale instead of creating a duplicate, so a
   // retry, double-tap, or re-sync can never double-bill. NULL for legacy rows.
-  clientRef            String?    @unique
+  clientRef             String?     @unique
   // Sales channel drives the bill-number prefix (walk-in W-0001 vs online O-0001).
   // Prefixes themselves are configurable in Settings; the channel is the stable key.
-  channel              SaleChannel @default(walkin)
-  status               SaleStatus @default(completed)
-  subtotal             Decimal    @db.Decimal(10, 2)
-  taxAmount            Decimal    @db.Decimal(10, 2)
-  discountAmount       Decimal    @default(0) @db.Decimal(10, 2)
+  channel               SaleChannel @default(walkin)
+  status                SaleStatus  @default(completed)
+  subtotal              Decimal     @db.Decimal(10, 2)
+  taxAmount             Decimal     @db.Decimal(10, 2)
+  discountAmount        Decimal     @default(0) @db.Decimal(10, 2)
   // §12 — itemized discount breakup for the Sales bill-breakup view. These split
   // the consolidated `discountAmount` for transparency; totals math is unchanged.
-  manualDiscountAmount  Decimal   @default(0) @db.Decimal(10, 2)
-  specialDiscountAmount Decimal   @default(0) @db.Decimal(10, 2)
-  loyaltyDiscountAmount Decimal   @default(0) @db.Decimal(10, 2)
-  total                Decimal    @db.Decimal(10, 2)
-  loyaltyPointsEarned  Int        @default(0)
-  loyaltyPointsRedeemed Int       @default(0)
+  manualDiscountAmount  Decimal     @default(0) @db.Decimal(10, 2)
+  specialDiscountAmount Decimal     @default(0) @db.Decimal(10, 2)
+  loyaltyDiscountAmount Decimal     @default(0) @db.Decimal(10, 2)
+  total                 Decimal     @db.Decimal(10, 2)
+  loyaltyPointsEarned   Int         @default(0)
+  loyaltyPointsRedeemed Int         @default(0)
   // When this sale settled part of its value with an exchange credit (goods
   // returned at the counter against the new purchase), the credited amount is
   // stored here and `exchangeReturnId` points at the originating Return.
   // sale.total stays the full new-items value (correct GST); the customer's
   // recorded payments cover only (total − exchangeCreditAmount).
-  exchangeCreditAmount Decimal?   @default(0) @db.Decimal(10, 2)
-  exchangeReturnId     Int?
-  notes                String?
-  createdAt            DateTime   @default(now())
+  exchangeCreditAmount  Decimal?    @default(0) @db.Decimal(10, 2)
+  exchangeReturnId      Int?
+  notes                 String?
+  // §11.0 — the trading day this sale rolls up into. Derived from the OPEN
+  // POS shift at checkout, NOT from the wall clock: a sale billed at 01:30 am
+  // during a shift that opened the previous evening keeps the previous day's
+  // businessDate. All reporting/rollups key off this; `createdAt` is the raw
+  // audit timestamp (actual time printed on the bill). Nullable for legacy rows.
+  businessDate          DateTime?   @db.Date
+  createdAt             DateTime    @default(now())
 
-  branch   Branch     @relation(fields: [branchId], references: [id])
-  customer Customer?  @relation(fields: [customerId], references: [id])
-  user     User       @relation(fields: [userId], references: [id])
-  items    SaleItem[]
-  payments Payment[]
-  returns  Return[]
-  commissions Commission[]
+  branch              Branch               @relation(fields: [branchId], references: [id])
+  customer            Customer?            @relation(fields: [customerId], references: [id])
+  user                User                 @relation(fields: [userId], references: [id])
+  items               SaleItem[]
+  payments            Payment[]
+  returns             Return[]
+  commissions         Commission[]
   loyaltyTransactions LoyaltyTransaction[]
-  voucherRedemptions VoucherRedemption[]
-  upiPaymentIntent UpiPaymentIntent?
+  voucherRedemptions  VoucherRedemption[]
+  upiPaymentIntent    UpiPaymentIntent?
 
   @@index([branchId, createdAt])
+  @@index([branchId, businessDate])
   @@map("sales")
 }
 
 model SaleItem {
-  id                 Int     @id @default(autoincrement())
-  saleId             Int
-  variantId          Int
-  quantity           Int
-  unitPrice          Decimal @db.Decimal(10, 2)
-  discount           Decimal @default(0) @db.Decimal(10, 2)
-  taxAmount          Decimal @db.Decimal(10, 2)
-  total              Decimal @db.Decimal(10, 2)
-  returnedQuantity   Int     @default(0)
-  offerId            Int?
-  effectiveUnitPrice Decimal? @db.Decimal(10, 2)
+  id                      Int      @id @default(autoincrement())
+  saleId                  Int
+  variantId               Int
+  quantity                Int
+  unitPrice               Decimal  @db.Decimal(10, 2)
+  discount                Decimal  @default(0) @db.Decimal(10, 2)
+  taxAmount               Decimal  @db.Decimal(10, 2)
+  total                   Decimal  @db.Decimal(10, 2)
+  returnedQuantity        Int      @default(0)
+  offerId                 Int?
+  effectiveUnitPrice      Decimal? @db.Decimal(10, 2)
   // §2.3 — Owner Discretion Discount (₹) applied to this line, authorised by
   // the Owner PIN at checkout. Stored distinctly (not merged into `discount`)
   // so the bill breakup / reports can show it as its own line.
-  ownerDiscretionDiscount Decimal @default(0) @db.Decimal(10, 2)
-  agentId            Int?
+  ownerDiscretionDiscount Decimal  @default(0) @db.Decimal(10, 2)
+  agentId                 Int?
   // Per-bill "sold as-is" flag the cashier can set at checkout (clearance,
   // defective, final-sale goods) even when the product itself is returnable.
   // Returns are blocked if this OR the product's nonReturnable flag is set.
-  nonReturnable      Boolean @default(false)
+  nonReturnable           Boolean  @default(false)
 
   sale        Sale           @relation(fields: [saleId], references: [id])
   variant     ProductVariant @relation(fields: [variantId], references: [id])
@@ -532,23 +559,23 @@ model SaleItem {
 // ─── Offers / Promotions ─────────────────────────────
 
 enum OfferType {
-  percentage           // X% off every unit
-  flat                 // Rs. X off every unit
-  buy_x_get_y_free     // BOGO: buy X units, Y are free (cheapest free)
-  buy_x_get_y_percent  // Buy X units, get Y% off the whole line
-  bundle               // Fixed total price for X units
+  percentage // X% off every unit
+  flat // Rs. X off every unit
+  buy_x_get_y_free // BOGO: buy X units, Y are free (cheapest free)
+  buy_x_get_y_percent // Buy X units, get Y% off the whole line
+  bundle // Fixed total price for X units
 }
 
 model Offer {
   id           Int       @id @default(autoincrement())
-  name         String                        // "Summer Sale 20%"
+  name         String // "Summer Sale 20%"
   description  String?
   type         OfferType
-  percentValue Decimal?  @db.Decimal(5, 2)   // percentage / buy_x_get_y_percent
-  flatValue    Decimal?  @db.Decimal(10, 2)  // flat / bundle total
-  buyQty       Int?                          // BOGO / bundle threshold
-  getQty       Int?                          // BOGO free/discount count
-  priority     Int       @default(0)         // higher wins when multiple apply
+  percentValue Decimal?  @db.Decimal(5, 2) // percentage / buy_x_get_y_percent
+  flatValue    Decimal?  @db.Decimal(10, 2) // flat / bundle total
+  buyQty       Int? // BOGO / bundle threshold
+  getQty       Int? // BOGO free/discount count
+  priority     Int       @default(0) // higher wins when multiple apply
   isActive     Boolean   @default(true)
   startsAt     DateTime?
   endsAt       DateTime?
@@ -599,7 +626,7 @@ enum PaymentMethod {
 // refund (returning a voucher-paid sale) re-credits the balance.
 enum VoucherStatus {
   active
-  redeemed  // balance exhausted
+  redeemed // balance exhausted
   expired
   cancelled
 }
@@ -674,28 +701,28 @@ enum ReturnStatus {
 }
 
 model Return {
-  id             Int          @id @default(autoincrement())
-  originalSaleId Int
-  branchId       Int
-  userId         Int
-  returnNumber   String       @unique
-  type           ReturnType
-  reason         String?
-  subtotal       Decimal      @db.Decimal(10, 2)
-  taxAmount      Decimal      @db.Decimal(10, 2)
-  total          Decimal      @db.Decimal(10, 2)
-  status         ReturnStatus @default(pending)
+  id                    Int          @id @default(autoincrement())
+  originalSaleId        Int
+  branchId              Int
+  userId                Int
+  returnNumber          String       @unique
+  type                  ReturnType
+  reason                String?
+  subtotal              Decimal      @db.Decimal(10, 2)
+  taxAmount             Decimal      @db.Decimal(10, 2)
+  total                 Decimal      @db.Decimal(10, 2)
+  status                ReturnStatus @default(pending)
   // How the refund was settled. `proportional` (default) mirrors the original
   // payment split (card→card, points→wallet); an override forces a single
   // method and requires manager approval (recorded in `approvedBy` + audit log).
-  refundMode            String   @default("proportional")
+  refundMode            String       @default("proportional")
   // Per-method cash/card/upi refund breakup: [{ method, amount }]. Loyalty is
   // tracked separately in the points columns below (it's not a cash tender).
   refundBreakup         Json?
-  loyaltyPointsRestored Int      @default(0) // redeemed points returned to wallet
-  loyaltyPointsReversed Int      @default(0) // earned points clawed back
-  approvedBy            Int?     // manager/owner who authorised a method override
-  createdAt      DateTime     @default(now())
+  loyaltyPointsRestored Int          @default(0) // redeemed points returned to wallet
+  loyaltyPointsReversed Int          @default(0) // earned points clawed back
+  approvedBy            Int? // manager/owner who authorised a method override
+  createdAt             DateTime     @default(now())
 
   originalSale Sale         @relation(fields: [originalSaleId], references: [id])
   branch       Branch       @relation(fields: [branchId], references: [id])
@@ -734,58 +761,64 @@ enum SessionStatus {
 }
 
 model PosSession {
-  id             Int           @id @default(autoincrement())
-  branchId       Int
-  userId         Int
-  openingAmount  Decimal       @db.Decimal(10, 2)
-  closingAmount  Decimal?      @db.Decimal(10, 2)  // physical cash counted at close
-  expectedAmount Decimal?      @db.Decimal(10, 2)
+  id                 Int           @id @default(autoincrement())
+  branchId           Int
+  userId             Int
+  openingAmount      Decimal       @db.Decimal(10, 2)
+  closingAmount      Decimal?      @db.Decimal(10, 2) // physical cash counted at close
+  expectedAmount     Decimal?      @db.Decimal(10, 2)
   // §8.1a EOD cash reconciliation breakdown.
-  pettyCash       Decimal? @default(0) @db.Decimal(10, 2)
-  pettyCashReason String?
-  cashDrop        Decimal? @default(0) @db.Decimal(10, 2)
-  variance        Decimal? @db.Decimal(10, 2)          // cash variance (expected − physical)
-  varianceReason  String?
+  pettyCash          Decimal?      @default(0) @db.Decimal(10, 2)
+  pettyCashReason    String?
+  cashDrop           Decimal?      @default(0) @db.Decimal(10, 2)
+  variance           Decimal?      @db.Decimal(10, 2) // cash variance (expected − physical)
+  varianceReason     String?
   // §8.1a-8 — deliberate float left in the drawer for tomorrow. Separate from the
   // physical count (closingAmount) and from cashDrop. Feeds next day's Day Start.
-  closingFloat    Decimal? @db.Decimal(10, 2)
+  closingFloat       Decimal?      @db.Decimal(10, 2)
   // §8.1b — UPI reconciliation against the gateway settlement report.
-  expectedUpi        Decimal? @db.Decimal(10, 2)
-  upiReceived        Decimal? @db.Decimal(10, 2)
-  upiVariance        Decimal? @db.Decimal(10, 2)
+  expectedUpi        Decimal?      @db.Decimal(10, 2)
+  upiReceived        Decimal?      @db.Decimal(10, 2)
+  upiVariance        Decimal?      @db.Decimal(10, 2)
   upiVarianceReason  String?
   // §8.1c — Card reconciliation against the card-machine settlement (sales-only).
-  expectedCard       Decimal? @db.Decimal(10, 2)
-  cardReceived       Decimal? @db.Decimal(10, 2)
-  cardVariance       Decimal? @db.Decimal(10, 2)
+  expectedCard       Decimal?      @db.Decimal(10, 2)
+  cardReceived       Decimal?      @db.Decimal(10, 2)
+  cardVariance       Decimal?      @db.Decimal(10, 2)
   cardVarianceReason String?
-  status         SessionStatus @default(open)
-  openedAt       DateTime      @default(now())
-  closedAt       DateTime?
-  notes          String?
+  status             SessionStatus @default(open)
+  // §11.0 — the trading day this shift belongs to. Set at shift-open from the
+  // wall-clock calendar date and then FROZEN: every sale in the shift (incl.
+  // post-midnight ones) inherits this businessDate, so a late-night peak-season
+  // shift stays on the day it opened until it is explicitly closed.
+  businessDate       DateTime?     @db.Date
+  openedAt           DateTime      @default(now())
+  closedAt           DateTime?
+  notes              String?
 
   branch       Branch        @relation(fields: [branchId], references: [id])
   user         User          @relation(fields: [userId], references: [id])
   varianceLogs VarianceLog[]
 
+  @@index([branchId, status])
   @@map("pos_sessions")
 }
 
 // §8.4 — one row per mode (cash/upi/card) per EOD close. The Daily/Monthly
 // Variance Reports read from this log; they never recalculate independently.
 model VarianceLog {
-  id            Int      @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
   branchId      Int
   sessionId     Int
-  date          DateTime @db.Date       // the calendar day reconciled (8.0 day)
-  mode          String                  // 'cash' | 'upi' | 'card'
-  expected      Decimal  @db.Decimal(10, 2)
-  actual        Decimal  @db.Decimal(10, 2)  // physical count / settlement amount
-  variance      Decimal  @db.Decimal(10, 2)  // signed: expected − actual (+short / −over)
-  pinApproved   Boolean  @default(false)      // true = PIN-gated (≥ threshold), false = auto
-  reason        String?                        // required when PIN-gated
+  date          DateTime  @db.Date // the calendar day reconciled (8.0 day)
+  mode          String // 'cash' | 'upi' | 'card'
+  expected      Decimal   @db.Decimal(10, 2)
+  actual        Decimal   @db.Decimal(10, 2) // physical count / settlement amount
+  variance      Decimal   @db.Decimal(10, 2) // signed: expected − actual (+short / −over)
+  pinApproved   Boolean   @default(false) // true = PIN-gated (≥ threshold), false = auto
+  reason        String? // required when PIN-gated
   pinApprovedAt DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   branch  Branch     @relation(fields: [branchId], references: [id])
   session PosSession @relation(fields: [sessionId], references: [id])
@@ -796,13 +829,13 @@ model VarianceLog {
 }
 
 model HeldTransaction {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   branchId   Int
   userId     Int
   cartData   Json
   customerId Int?
   notes      String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   // §4.4 — holds auto-expire (default 24h). Expired holds drop off the active
   // list on the next read (released/archived).
   expiresAt  DateTime?
@@ -835,30 +868,34 @@ enum LoyaltyTier {
 }
 
 model Customer {
-  id           Int        @id @default(autoincrement())
-  firstName    String
-  lastName     String?
-  phone        String     @unique
-  email        String?
-  address      String?
+  id              Int         @id @default(autoincrement())
+  firstName       String
+  lastName        String?
+  phone           String      @unique
+  email           String?
+  address         String?
   // §5.3 — DOB drives birthday insights/marketing; gender ('M'/'F') drives
   // clothing-category suggestions + size prediction. Nullable so legacy rows
   // (and the quick walk-in add) survive; the POS prompts to fill them (§5.4).
-  dateOfBirth  DateTime?
-  gender       String?
-  loyaltyPoints Int       @default(0)
-  loyaltyTier  LoyaltyTier @default(bronze)
-  totalSpent   Decimal    @default(0) @db.Decimal(12, 2)
-  visitCount   Int        @default(0)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  dateOfBirth     DateTime?
+  gender          String?
+  // §bug6 — child's birth MONTH only (1-12), deliberately less intrusive than a
+  // full DOB to ask at the counter. Optional. Drives the monthly "child birthday"
+  // marketing report (SMS/WhatsApp outreach); not a dashboard element.
+  childBirthMonth Int?
+  loyaltyPoints   Int         @default(0)
+  loyaltyTier     LoyaltyTier @default(bronze)
+  totalSpent      Decimal     @default(0) @db.Decimal(12, 2)
+  visitCount      Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  sales              Sale[]
-  heldTransactions   HeldTransaction[]
+  sales               Sale[]
+  heldTransactions    HeldTransaction[]
   loyaltyTransactions LoyaltyTransaction[]
-  messageLogs        MessageLog[]
-  upiPaymentIntents  UpiPaymentIntent[]
-  giftVouchers       GiftVoucher[]
+  messageLogs         MessageLog[]
+  upiPaymentIntents   UpiPaymentIntent[]
+  giftVouchers        GiftVoucher[]
 
   @@map("customers")
 }
@@ -871,13 +908,13 @@ enum LoyaltyTxType {
 }
 
 model LoyaltyTransaction {
-  id          Int          @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   customerId  Int
   saleId      Int?
   points      Int
   type        LoyaltyTxType
   description String?
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime      @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id])
   sale     Sale?    @relation(fields: [saleId], references: [id])
@@ -886,13 +923,13 @@ model LoyaltyTransaction {
 }
 
 model LoyaltyConfig {
-  id                 Int  @id @default(autoincrement())
-  pointsPerAmount    Int  @default(1)
-  amountPerPoint     Int  @default(100)
+  id                 Int     @id @default(autoincrement())
+  pointsPerAmount    Int     @default(1)
+  amountPerPoint     Int     @default(100)
   redemptionValue    Decimal @default(1) @db.Decimal(10, 2)
-  minRedeemPoints    Int  @default(100)
-  tierThresholds     Json @default("{\"silver\": 1000, \"gold\": 5000, \"platinum\": 20000}")
-  earningMultipliers Json @default("{\"bronze\": 1, \"silver\": 1.5, \"gold\": 2, \"platinum\": 3}")
+  minRedeemPoints    Int     @default(100)
+  tierThresholds     Json    @default("{\"silver\": 1000, \"gold\": 5000, \"platinum\": 20000}")
+  earningMultipliers Json    @default("{\"bronze\": 1, \"silver\": 1.5, \"gold\": 2, \"platinum\": 3}")
 
   @@map("loyalty_config")
 }
@@ -917,9 +954,9 @@ model Account {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  parent       Account?      @relation("AccountTree", fields: [parentId], references: [id])
-  children     Account[]     @relation("AccountTree")
-  journalLines JournalLine[]
+  parent            Account?          @relation("AccountTree", fields: [parentId], references: [id])
+  children          Account[]         @relation("AccountTree")
+  journalLines      JournalLine[]
   expenseCategories ExpenseCategory[]
 
   @@map("accounts")
@@ -1074,29 +1111,29 @@ model MessageLog {
 // ─── UPI Payment Intents ────────────────────────────
 
 model UpiPaymentIntent {
-  id               Int      @id @default(autoincrement())
-  intentId         String   @unique
-  providerOrderId  String
-  provider         String   @default("cashfree")
-  branchId         Int
-  userId           Int
-  amount           Decimal  @db.Decimal(10, 2)
-  status           String   @default("pending")
-  qrCodeUrl        String   @db.Text
-  upiLink          String   @db.Text
-  utrNumber        String?
-  saleId           Int?     @unique
-  cartSnapshot     Json
-  customerId       Int?
-  discountAmount   Decimal  @default(0) @db.Decimal(10, 2)
-  expiresAt        DateTime
-  completedAt      DateTime?
-  createdAt        DateTime @default(now())
+  id              Int       @id @default(autoincrement())
+  intentId        String    @unique
+  providerOrderId String
+  provider        String    @default("cashfree")
+  branchId        Int
+  userId          Int
+  amount          Decimal   @db.Decimal(10, 2)
+  status          String    @default("pending")
+  qrCodeUrl       String    @db.Text
+  upiLink         String    @db.Text
+  utrNumber       String?
+  saleId          Int?      @unique
+  cartSnapshot    Json
+  customerId      Int?
+  discountAmount  Decimal   @default(0) @db.Decimal(10, 2)
+  expiresAt       DateTime
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
 
-  branch           Branch   @relation(fields: [branchId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
-  sale             Sale?    @relation(fields: [saleId], references: [id])
-  customer         Customer? @relation(fields: [customerId], references: [id])
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  sale     Sale?     @relation(fields: [saleId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
 
   @@index([status, expiresAt])
   @@map("upi_payment_intents")

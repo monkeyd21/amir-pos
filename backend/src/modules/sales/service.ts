@@ -17,6 +17,7 @@ export class SalesService {
     branchId?: string;
     status?: string;
     customerId?: string;
+    businessDate?: string;
     startDate?: string;
     endDate?: string;
     page?: string;
@@ -36,7 +37,15 @@ export class SalesService {
       where.customerId = parseInt(query.customerId);
     }
 
-    if (query.startDate || query.endDate) {
+    // §bug10 — filter the previous-bills list by trading day (business_date), so
+    // the POS defaults to "today's bills" instead of an endless list. A single
+    // YYYY-MM-DD selects that whole trading day (incl. its post-midnight bills).
+    if (query.businessDate) {
+      const [y, m, d] = query.businessDate.split('-').map(Number);
+      const start = new Date(y, (m || 1) - 1, d || 1);
+      const end = new Date(y, (m || 1) - 1, (d || 1) + 1);
+      where.businessDate = { gte: start, lt: end };
+    } else if (query.startDate || query.endDate) {
       where.createdAt = {};
       if (query.startDate) {
         where.createdAt.gte = new Date(query.startDate);
@@ -195,7 +204,9 @@ export class SalesService {
 
   async getSaleBySaleNumber(saleNumber: string) {
     const sale = await prisma.sale.findFirst({
-      where: { saleNumber },
+      // §bug11 — bill search is case-insensitive (and whitespace-trimmed): "w0001",
+      // "W0001", " W0001 " all resolve to the same bill.
+      where: { saleNumber: { equals: saleNumber.trim(), mode: 'insensitive' } },
       include: {
         branch: true,
         customer: true,
@@ -276,6 +287,8 @@ export class SalesService {
       branchPhone: sale.branch.phone,
       saleNumber: sale.saleNumber,
       date: sale.createdAt,
+      // §bug1 — trading day for the printed date (time still comes from `date`).
+      businessDate: sale.businessDate ?? sale.createdAt,
       cashier: `${sale.user.firstName} ${sale.user.lastName}`,
       customer: sale.customer
         ? { name: fullName(sale.customer), phone: sale.customer.phone }

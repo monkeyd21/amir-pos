@@ -31,25 +31,52 @@ async function nextBillNumber(
     update: { lastNumber: { increment: 1 } },
   });
   const prefix = channel === 'online' ? cfg.online : cfg.walkin;
-  return `${prefix}-${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
+  // §bug12 — no hyphen: W0001 / O0001 (was W-0001 / O-0001).
+  return `${prefix}${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
 }
+
+// §11.0 — business date (trading day) for a shift, frozen at open. Uses the
+// local calendar date at the moment the shift opens; every sale in the shift
+// (including post-midnight ones) inherits it until the shift is closed.
+function businessDateOf(session: { businessDate: Date | null; openedAt: Date }): Date {
+  const src = session.businessDate ?? session.openedAt;
+  // Normalise to a date-only value (midnight) so it maps cleanly to a DATE column.
+  return new Date(src.getFullYear(), src.getMonth(), src.getDate());
+}
+
+// §bug9 — hard cutoff (local hour) after which an unclosed prior-day shift blocks
+// all POS activity until it is closed. 4 am per the spec.
+const SHIFT_CUTOFF_HOUR = 4;
 
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
-    // Check if user already has an open session
+    // §bug9 — hard block: a new shift cannot open while a prior one is still open.
+    // Name the unclosed shift's business date so the cashier knows exactly which
+    // day to close first ("Aapne 13 July ki shift close nahi ki").
     const existing = await prisma.posSession.findFirst({
       where: { userId, status: 'open' },
     });
 
     if (existing) {
-      throw new AppError('You already have an open session. Close it before opening a new one.', 400);
+      const bd = businessDateOf(existing);
+      const label = bd.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+      throw new AppError(
+        `You haven't closed the ${label} shift. Close it (enter the closing balance) before opening a new one.`,
+        400
+      );
     }
+
+    // §11.0 — freeze the trading day at open. Today's local calendar date becomes
+    // this shift's businessDate and stays fixed even if the shift runs past midnight.
+    const now = new Date();
+    const businessDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const session = await prisma.posSession.create({
       data: {
         branchId,
         userId,
         openingAmount,
+        businessDate,
         notes,
       },
     });
@@ -391,6 +418,20 @@ export class PosService {
         throw new AppError('No open POS session. Open a session before checkout.', 400);
       }
 
+      // §bug9 — hard cutoff: if this shift belongs to an earlier trading day and
+      // it's now past the 4 am cutoff, block further billing until it's closed.
+      // (Before the cutoff, post-midnight peak-season billing continues normally.)
+      const shiftDate = businessDateOf(session);
+      const now = new Date();
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (shiftDate.getTime() < todayDate.getTime() && now.getHours() >= SHIFT_CUTOFF_HOUR) {
+        const label = shiftDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+        throw new AppError(
+          `The ${label} shift is still open past ${SHIFT_CUTOFF_HOUR}:00 am. Close it (enter the closing balance) before billing again.`,
+          400
+        );
+      }
+
       // 2. Resolve all barcodes to variants with product info
       const barcodes = data.items.map((i) => i.barcode);
       const variants = await tx.productVariant.findMany({
@@ -705,8 +746,30 @@ export class PosService {
         discountAmount + loyaltyDiscount + totalOfferDiscount + totalDiscretionaryDiscount;
       const saleTotal = Math.round((subtotal - totalDiscount) * 100) / 100;
 
+      // §bug7 — surface the EXACT reason a discount validation fails instead of a
+      // generic "Discount exceeds sale total". First reject an invalid special
+      // discount specifically (kept ≥ 0), then, if the combined discounts blow
+      // past the bill, spell out every component and by how much it overshot.
+      const specialDiscount = Math.round((data.specialDiscount || 0) * 100) / 100;
+      const manualDiscount = Math.round((discountAmount - specialDiscount) * 100) / 100;
+      if (specialDiscount < 0) {
+        throw new AppError(
+          `Special discount cannot be negative (got ₹${specialDiscount.toFixed(2)}). Enter 0 or a positive amount.`,
+          400
+        );
+      }
       if (saleTotal < 0) {
-        throw new AppError('Discount exceeds sale total', 400);
+        const parts = [
+          `manual ₹${manualDiscount.toFixed(2)}`,
+          `special ₹${specialDiscount.toFixed(2)}`,
+          `loyalty ₹${loyaltyDiscount.toFixed(2)}`,
+          `offers ₹${totalOfferDiscount.toFixed(2)}`,
+          `owner discretion ₹${totalDiscretionaryDiscount.toFixed(2)}`,
+        ].filter((p) => !p.endsWith('₹0.00'));
+        throw new AppError(
+          `Total discount ₹${totalDiscount.toFixed(2)} (${parts.join(' + ')}) exceeds the bill of ₹${subtotal.toFixed(2)} by ₹${Math.abs(saleTotal).toFixed(2)}. Reduce a discount so the payable stays at or above ₹0.`,
+          400
+        );
       }
 
       // 4b. Exchange — return goods from a prior sale and credit the value
@@ -899,6 +962,9 @@ export class PosService {
           saleNumber,
           channel,
           clientRef: data.clientRef || null,
+          // §11.0 — roll this sale up into the open shift's trading day, not the
+          // wall-clock date. createdAt still records the real time (printed on the bill).
+          businessDate: businessDateOf(session),
           subtotal,
           taxAmount: totalTax,
           discountAmount: totalDiscount,
@@ -1736,12 +1802,23 @@ export class PosService {
       // Create the sale (UPI gateway flow is an at-counter walk-in tender)
       const saleNumber = await nextBillNumber(tx, 'walkin');
 
+      // §11.0 — roll up into the cashier's open shift trading day if there is one;
+      // fall back to today's calendar date for an unattended gateway settlement.
+      const upiSession = await tx.posSession.findFirst({
+        where: { userId: intent.userId, status: 'open' },
+      });
+      const now = new Date();
+      const upiBusinessDate = upiSession
+        ? businessDateOf(upiSession)
+        : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
       const sale = await tx.sale.create({
         data: {
           branchId: intent.branchId,
           userId: intent.userId,
           customerId: intent.customerId,
           saleNumber,
+          businessDate: upiBusinessDate,
           subtotal,
           taxAmount: totalTax,
           discountAmount,

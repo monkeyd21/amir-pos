@@ -11,6 +11,7 @@ import {
   dailySummarySchema,
   dailyVarianceSchema,
   monthlyVarianceSchema,
+  childBirthdaySchema,
 } from './validators';
 
 const router = Router();
@@ -49,6 +50,11 @@ router.get('/performance', (req, res, next) =>
 // §2.3 — monthly Owner Discretion Discount review (owner/manager).
 router.get('/discretionary-discounts', authorize('owner', 'manager'), (req, res, next) =>
   reportController.discretionaryDiscounts(req, res, next)
+);
+
+// Child Birthday Marketing Report (bug #6) — month optional (defaults to current).
+router.get('/child-birthdays', validate(childBirthdaySchema), (req, res, next) =>
+  reportController.childBirthdays(req, res, next)
 );
 
 // §8.4 — Daily + Monthly Variance Reports (per-mode; owner/manager only).

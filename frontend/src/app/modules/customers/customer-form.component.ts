@@ -58,6 +58,26 @@ import { PageHeaderComponent } from '../../shared/page-header/page-header.compon
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
           </label>
           <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Child's Birth Month</span>
+            <select [(ngModel)]="form.childBirthMonth"
+              class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none">
+              <option [ngValue]="null">—</option>
+              <option [ngValue]="1">January</option>
+              <option [ngValue]="2">February</option>
+              <option [ngValue]="3">March</option>
+              <option [ngValue]="4">April</option>
+              <option [ngValue]="5">May</option>
+              <option [ngValue]="6">June</option>
+              <option [ngValue]="7">July</option>
+              <option [ngValue]="8">August</option>
+              <option [ngValue]="9">September</option>
+              <option [ngValue]="10">October</option>
+              <option [ngValue]="11">November</option>
+              <option [ngValue]="12">December</option>
+            </select>
+            <span class="text-[10px] font-body text-on-surface-variant/60">Optional — used for birthday marketing outreach.</span>
+          </label>
+          <label class="flex flex-col gap-1.5">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Address</span>
             <textarea [(ngModel)]="form.address" rows="2" placeholder="Full address"
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none resize-none"></textarea>
@@ -73,12 +93,20 @@ export class CustomerFormComponent implements OnInit {
   saving = false;
   customerId: number | null = null;
 
-  form = {
+  form: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    address: string;
+    childBirthMonth: number | null;
+  } = {
     firstName: '',
     lastName: '',
     phone: '',
     email: '',
     address: '',
+    childBirthMonth: null,
   };
 
   constructor(
@@ -106,6 +134,7 @@ export class CustomerFormComponent implements OnInit {
           phone: c.phone ?? '',
           email: c.email ?? '',
           address: c.address ?? '',
+          childBirthMonth: c.childBirthMonth ?? null,
         };
         this.loading = false;
       },
@@ -122,6 +151,11 @@ export class CustomerFormComponent implements OnInit {
     const body: any = { ...this.form };
     if (!body.email) body.email = null;
     if (!body.address) body.address = null;
+    // Backend expects a number 1-12 or null — normalize empty selection to null.
+    body.childBirthMonth =
+      body.childBirthMonth == null || body.childBirthMonth === ('' as any)
+        ? null
+        : Number(body.childBirthMonth);
 
     const req$ = this.isEdit
       ? this.api.put<any>(`/customers/${this.customerId}`, body)

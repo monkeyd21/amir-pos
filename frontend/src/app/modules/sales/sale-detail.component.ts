@@ -104,6 +104,7 @@ export class SaleDetailComponent implements OnInit {
   showReturnDialog = false;
   showExchangeDialog = false;
   agents: Array<{ id: number; name: string }> = [];
+  gstEnabled = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -120,6 +121,18 @@ export class SaleDetailComponent implements OnInit {
       this.loadSale(id);
     }
     this.loadAgents();
+    this.loadGstCompliance();
+  }
+
+  private loadGstCompliance(): void {
+    this.api.get<{ success: boolean; data: { enabled: boolean } }>('/settings/gst-compliance').subscribe({
+      next: (res) => {
+        this.gstEnabled = res.data.enabled;
+      },
+      error: () => {
+        this.gstEnabled = false;
+      },
+    });
   }
 
   private loadAgents(): void {

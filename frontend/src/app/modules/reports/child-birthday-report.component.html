@@ -1,0 +1,73 @@
+<app-page-header
+  title="Child Birthdays (Marketing)"
+  subtitle="§6 — Customers whose child has a birthday this month, for SMS / WhatsApp outreach"
+>
+  <a routerLink="/reports"
+     class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer">
+    <span class="material-symbols-outlined text-base">arrow_back</span>
+    Reports
+  </a>
+</app-page-header>
+
+<!-- Marketing note -->
+<div class="flex items-start gap-2 mb-6 px-4 py-3 rounded-xl bg-primary-container/10 border border-outline-variant/15">
+  <span class="material-symbols-outlined text-primary text-lg mt-0.5">campaign</span>
+  <p class="text-xs font-body text-on-surface-variant">
+    This list is intended for <span class="font-semibold text-on-surface">marketing outreach</span> —
+    reach out to these customers via SMS or WhatsApp to wish their child a happy birthday and share offers.
+  </p>
+</div>
+
+<!-- Filter -->
+<div class="flex flex-wrap items-end gap-4 mb-6">
+  <div>
+    <label class="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Month</label>
+    <select [(ngModel)]="month" (ngModelChange)="load()"
+      class="px-3 py-2 text-sm bg-surface-container-high/60 border border-outline-variant/20 rounded-lg outline-none focus:border-primary">
+      @for (m of months; track m.value) {
+        <option [ngValue]="m.value">{{ m.label }}</option>
+      }
+    </select>
+  </div>
+  <button (click)="load()" [disabled]="loading"
+    class="px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-lg disabled:opacity-50">Run</button>
+</div>
+
+<!-- Results -->
+<div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-4">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-on-surface">
+      {{ monthLabel(month) }} Birthdays
+    </h3>
+    <span class="text-xs font-body text-on-surface-variant/60">{{ count }} customer(s)</span>
+  </div>
+
+  @if (loading) {
+    <div class="flex items-center justify-center py-16">
+      <div class="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+    </div>
+  } @else if (customers.length === 0) {
+    <p class="text-xs text-on-surface-variant/60 py-8 text-center">
+      No customers with a child birthday in {{ monthLabel(month) }}.
+    </p>
+  } @else {
+    <table class="w-full text-sm">
+      <thead class="text-[10px] uppercase tracking-wider text-on-surface-variant/60 text-left border-b border-outline-variant/10">
+        <tr>
+          <th class="py-2">Name</th>
+          <th class="py-2">Phone</th>
+          <th class="py-2">Birth Month</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (c of customers; track c.id) {
+          <tr class="border-b border-outline-variant/5 last:border-0">
+            <td class="py-2.5 font-body text-on-surface">{{ customerName(c) }}</td>
+            <td class="py-2.5 font-body text-on-surface-variant">{{ c.phone || '—' }}</td>
+            <td class="py-2.5 font-body text-on-surface-variant">{{ monthLabel(c.childBirthMonth) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

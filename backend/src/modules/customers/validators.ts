@@ -10,6 +10,9 @@ export const createCustomerSchema = z.object({
     // §5.3 — DOB (ISO date string) + gender ('M'/'F').
     dateOfBirth: z.string().optional().nullable(),
     gender: z.enum(['M', 'F']).optional().nullable(),
+    // §bug6 — child's birth MONTH only (1-12), optional. Drives the monthly
+    // marketing report; deliberately less intrusive than a full DOB.
+    childBirthMonth: z.number().int().min(1).max(12).optional().nullable(),
   }),
 });
 
@@ -25,6 +28,9 @@ export const updateCustomerSchema = z.object({
     address: z.string().optional().nullable(),
     dateOfBirth: z.string().optional().nullable(),
     gender: z.enum(['M', 'F']).optional().nullable(),
+    // §bug6 — child's birth MONTH only (1-12), optional. Drives the monthly
+    // marketing report; deliberately less intrusive than a full DOB.
+    childBirthMonth: z.number().int().min(1).max(12).optional().nullable(),
   }),
 });
 

@@ -813,10 +813,12 @@
                 </div>
               }
 
-              <div class="flex justify-between text-xs">
-                <span class="text-on-surface-variant/70 italic">Incl. 18% GST</span>
-                <span class="text-on-surface-variant/70 italic">{{ formatCurrency(taxAmount) }}</span>
-              </div>
+              @if (gstEnabled) {
+                <div class="flex justify-between text-xs">
+                  <span class="text-on-surface-variant/70 italic">Incl. 18% GST</span>
+                  <span class="text-on-surface-variant/70 italic">{{ formatCurrency(taxAmount) }}</span>
+                </div>
+              }
 
               <div class="border-t border-outline-variant/10 pt-3 flex justify-between">
                 <span class="text-on-surface font-bold text-lg font-headline">Total</span>
@@ -1344,9 +1346,18 @@
               <span class="material-symbols-outlined text-primary">receipt_long</span>
               <h2 class="text-on-surface font-headline font-bold">Previous Bills</h2>
             </div>
-            <button (click)="showBillsPanel = false" class="text-on-surface-variant hover:text-on-surface">
-              <span class="material-symbols-outlined">close</span>
-            </button>
+            <div class="flex items-center gap-3">
+              <input
+                type="date"
+                [(ngModel)]="billsDate"
+                (change)="openBillsPanel()"
+                title="Filter bills by trading day"
+                class="px-2.5 py-1.5 text-xs font-body text-on-surface bg-surface-container-high/60 rounded-lg border border-outline-variant/20 focus:border-primary focus:outline-none"
+              />
+              <button (click)="showBillsPanel = false" class="text-on-surface-variant hover:text-on-surface">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
           </div>
           <div class="flex-1 overflow-y-auto p-4 space-y-2">
             @if (billsLoading) {

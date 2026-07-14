@@ -72,6 +72,31 @@ router.put(
   }
 );
 
+// §bug2/§bug3 — GST compliance switch. While OFF (the default), CGST/SGST/tax
+// lines are hidden on printed receipts and in the Sales bill-breakup, even though
+// tax is still computed and stored for future GSTR-1 filing. Flip ON once GST
+// compliance becomes mandatory to reveal the tax breakup everywhere.
+router.get('/gst-compliance', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: { enabled: await getSetting<boolean>('gstComplianceEnabled', false) } });
+  } catch (error) {
+    next(error);
+  }
+});
+router.put(
+  '/gst-compliance',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const enabled = Boolean(req.body.enabled);
+      await setSetting('gstComplianceEnabled', enabled);
+      res.json({ success: true, data: { enabled }, message: 'GST compliance setting updated' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // §8.3 — EOD variance threshold (₹). A single value applied uniformly to all
 // three reconciliation modes (Cash/UPI/Card). Variance ≥ this blocks close until
 // Owner PIN + reason for that mode; under it auto-approves. Default ₹50.
