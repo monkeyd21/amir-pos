@@ -1,5 +1,4 @@
 import prisma from '../../config/database';
-import { accountingService } from '../accounting/service';
 
 export class ReportService {
   // ─── Sales Report ───────────────────────────────────
@@ -303,7 +302,91 @@ export class ReportService {
     endDate: string;
     branchId?: string;
   }) {
-    return accountingService.getProfitAndLoss(query);
+    // Retail P&L computed from actual sales / returns / expenses (NOT the
+    // double-entry journals, which aren't auto-posted). §11.0 — sales roll up by
+    // businessDate (the shift's trading day); returns & expenses use their own
+    // calendar dates (no businessDate column on those tables).
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const s = new Date(query.startDate);
+    const e = new Date(query.endDate);
+    const bdStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const bdEnd = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+    const rangeStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const rangeEnd = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
+
+    const branchId = query.branchId ? parseInt(query.branchId) : undefined;
+    const branchFilter = branchId ? { branchId } : {};
+
+    // Sales in the period + line-level cost for COGS (net of returned units).
+    const sales = await prisma.sale.findMany({
+      where: {
+        businessDate: { gte: bdStart, lt: bdEnd },
+        status: { in: ['completed', 'partially_returned'] },
+        ...branchFilter,
+      },
+      select: {
+        total: true,
+        items: {
+          select: {
+            quantity: true,
+            returnedQuantity: true,
+            variant: { select: { costOverride: true, product: { select: { costPrice: true } } } },
+          },
+        },
+      },
+    });
+
+    let grossSales = 0;
+    let cogs = 0;
+    for (const sale of sales) {
+      grossSales += Number(sale.total);
+      for (const it of sale.items) {
+        const unitCost = Number(it.variant?.costOverride ?? it.variant?.product?.costPrice ?? 0);
+        const netQty = it.quantity - (it.returnedQuantity || 0);
+        cogs += unitCost * netQty;
+      }
+    }
+
+    const returnsAgg = await prisma.return.aggregate({
+      where: { createdAt: { gte: rangeStart, lte: rangeEnd }, status: 'completed', ...branchFilter },
+      _sum: { total: true },
+      _count: true,
+    });
+    const returns = Number(returnsAgg._sum.total || 0);
+
+    const netSales = round2(grossSales - returns);
+    cogs = round2(cogs);
+    const grossProfit = round2(netSales - cogs);
+
+    // Operating expenses (approved) grouped by category, by expense date.
+    const expenses = await prisma.expense.findMany({
+      where: { date: { gte: rangeStart, lte: rangeEnd }, status: 'approved', ...branchFilter },
+      select: { amount: true, category: { select: { name: true } } },
+    });
+    const expMap = new Map<string, number>();
+    for (const ex of expenses) {
+      const name = ex.category?.name || 'Uncategorized';
+      expMap.set(name, (expMap.get(name) || 0) + Number(ex.amount));
+    }
+    const expenseItems = Array.from(expMap.entries())
+      .map(([category, amount]) => ({ category, amount: round2(amount) }))
+      .sort((a, b) => b.amount - a.amount);
+    const totalExpenses = round2(expenseItems.reduce((sum, i) => sum + i.amount, 0));
+
+    const netProfit = round2(grossProfit - totalExpenses);
+
+    return {
+      period: { startDate: query.startDate, endDate: query.endDate },
+      salesCount: sales.length,
+      returnsCount: returnsAgg._count,
+      grossSales: round2(grossSales),
+      returns: round2(returns),
+      netSales,
+      cogs,
+      grossProfit,
+      expenses: { items: expenseItems, total: totalExpenses },
+      netProfit,
+    };
   }
 
   // ─── Daily Summary ──────────────────────────────────

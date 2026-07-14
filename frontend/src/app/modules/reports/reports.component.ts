@@ -67,11 +67,12 @@ export class ReportsComponent {
     },
     {
       icon: 'account_balance',
-      title: 'Financial Report',
-      description: 'Revenue summaries, expense tracking, profit margins, and cash flow statements.',
+      title: 'Profit & Loss',
+      description: 'Revenue, expenses and net income for the day (default), or by week / month / quarter / year and custom date range.',
       gradient: 'from-amber-500/20 to-orange-500/20',
       iconBg: 'bg-gradient-to-br from-amber-500 to-orange-500',
       iconColor: 'text-white',
+      route: '/reports/pnl',
     },
     {
       icon: 'badge',
