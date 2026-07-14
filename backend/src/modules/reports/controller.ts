@@ -200,6 +200,18 @@ export class ReportController {
     }
   }
 
+  // Child Birthday Marketing Report (bug #6) — month optional, defaults to current.
+  async childBirthdays(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const raw = (req.query as any).month;
+      const month = raw !== undefined && raw !== '' ? parseInt(String(raw), 10) : new Date().getMonth() + 1;
+      const result = await reportService.getChildBirthdayReport(month);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // §8.4 — Daily Variance Report (per-mode rows, from the variance log).
   async dailyVariance(req: AuthRequest, res: Response, next: NextFunction) {
     try {

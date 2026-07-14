@@ -13,12 +13,21 @@ export const validate = (schema: ZodSchema) => {
     } catch (error) {
       if (error instanceof ZodError) {
         const messages = error.errors.map((e) => ({
-          field: e.path.join('.'),
+          // Drop the leading source segment (body./query./params.) so the field
+          // name reads naturally to a cashier, e.g. "specialDiscount" not
+          // "body.specialDiscount".
+          field: e.path.slice(1).join('.') || e.path.join('.'),
           message: e.message,
         }));
+        // §bug7 — surface the EXACT reasons in the top-level `error` string (the
+        // one the frontend interceptor shows), not a generic "Validation failed".
+        // e.g. "specialDiscount: Number must be greater than or equal to 0".
+        const summary = messages
+          .map((m) => (m.field ? `${m.field}: ${m.message}` : m.message))
+          .join('; ');
         return res.status(400).json({
           success: false,
-          error: 'Validation failed',
+          error: summary || 'Validation failed',
           details: messages,
         });
       }

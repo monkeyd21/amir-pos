@@ -207,14 +207,16 @@
             <span class="text-error font-mono">&minus;{{ formatCurrency(num(v.amount)) }}</span>
           </div>
         }
-        <div class="flex justify-between border-t border-outline-variant/15 pt-2">
-          <span class="text-on-surface-variant">CGST</span>
-          <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-on-surface-variant">SGST</span>
-          <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
-        </div>
+        @if (gstEnabled) {
+          <div class="flex justify-between border-t border-outline-variant/15 pt-2">
+            <span class="text-on-surface-variant">CGST</span>
+            <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">SGST</span>
+            <span class="text-on-surface font-mono">{{ formatCurrency(num(sale.taxAmount) / 2) }}</span>
+          </div>
+        }
         <div class="flex justify-between border-t border-outline-variant/20 pt-2">
           <span class="font-bold text-on-surface">Total Paid</span>
           <span class="font-bold font-mono text-on-surface">{{ formatCurrency(num(sale.total)) }}</span>

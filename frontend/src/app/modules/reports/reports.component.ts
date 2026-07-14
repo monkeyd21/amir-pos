@@ -33,6 +33,15 @@ export class ReportsComponent {
       route: '/reports/variance',
     },
     {
+      icon: 'cake',
+      title: 'Child Birthdays (Marketing)',
+      description: 'Customers whose child has a birthday this month — for SMS / WhatsApp birthday outreach and offers (§6).',
+      gradient: 'from-fuchsia-500/20 to-pink-500/20',
+      iconBg: 'bg-gradient-to-br from-fuchsia-500 to-pink-500',
+      iconColor: 'text-white',
+      route: '/reports/child-birthdays',
+    },
+    {
       icon: 'point_of_sale',
       title: 'Sales Report',
       description: 'Analyze sales trends, top-selling products, revenue by period, and payment method breakdowns.',

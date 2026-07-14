@@ -69,3 +69,13 @@ export const dailySummarySchema = z.object({
     format: z.enum(['json', 'csv']).optional(),
   }),
 });
+
+// Child Birthday Marketing Report (bug #6) — month is an optional numeric string 1-12.
+export const childBirthdaySchema = z.object({
+  query: z.object({
+    month: z
+      .string()
+      .regex(/^([1-9]|1[0-2])$/, 'month must be 1-12')
+      .optional(),
+  }),
+});

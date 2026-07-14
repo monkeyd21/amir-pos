@@ -197,6 +197,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // after an item is removed and quietly throw the total off).
   roundMode: 'none' | 'down' | 'up' = 'none';
   taxRate = 0.18;
+  /** GST compliance gate — until enabled, the tax line stays hidden at POS. */
+  gstEnabled = false;
 
   // ─── Loyalty redemption ────────────────────────────────────────
   loyaltyPointsRedeem: number | null = null;
@@ -379,6 +381,16 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   recentBills: any[] = [];
   showBillsPanel = false;
   billsLoading = false;
+  /** Trading day filter for the previous-bills list — defaults to today (local). */
+  billsDate: string = this.todayLocal();
+
+  /** Today's date as YYYY-MM-DD in local time (not UTC — avoids off-by-one). */
+  private todayLocal(): string {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
 
   // ─── Exchange (goods returned, credited against this purchase) ───
   // The new items are the normal cart (scanned by barcode). The returned
@@ -447,6 +459,14 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           if (res?.data) this.paymentAccounts = { card: res.data.card || [], upi: res.data.upi || [] };
         },
         error: () => {},
+      });
+    // Hide the GST/tax line until GST compliance is switched on (bug #2).
+    this.api
+      .get<ApiResponse<{ enabled: boolean }>>('/settings/gst-compliance')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => (this.gstEnabled = !!res?.data?.enabled),
+        error: () => (this.gstEnabled = false),
       });
     this.loadLoyaltyConfig();
     this.loadHeld();
@@ -1786,7 +1806,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   openBillsPanel(): void {
     this.showBillsPanel = true;
     this.billsLoading = true;
-    this.api.get<ApiResponse<any[]>>('/sales', { limit: 25 }).subscribe({
+    this.api.get<ApiResponse<any[]>>('/sales', { businessDate: this.billsDate, limit: 100 }).subscribe({
       next: (res) => {
         this.recentBills = res.data || [];
         this.billsLoading = false;

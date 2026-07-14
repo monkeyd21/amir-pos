@@ -15,8 +15,14 @@ export class ReportService {
     const startDate = new Date(query.startDate);
     const endDate = new Date(query.endDate);
 
+    // §11.0 — trading-day rollups key off businessDate (the shift's day),
+    // not createdAt, so late-night sales count to the shift that opened.
+    // businessDate is a DATE column: use date-only [gte, lt-next-day) bounds.
+    const bdStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const bdEnd = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1);
+
     const where: any = {
-      createdAt: { gte: startDate, lte: endDate },
+      businessDate: { gte: bdStart, lt: bdEnd },
       status: { in: ['completed', 'partially_returned'] },
     };
     if (query.branchId) where.branchId = parseInt(query.branchId);
@@ -66,15 +72,17 @@ export class ReportService {
       };
     });
 
-    // Daily breakdown
+    // Daily breakdown — §11.0: bucket by businessDate (trading day), not createdAt.
     const sales = await prisma.sale.findMany({
       where,
-      select: { id: true, total: true, createdAt: true },
+      select: { id: true, total: true, businessDate: true, createdAt: true },
     });
 
     const dailyMap = new Map<string, { count: number; total: number }>();
     for (const sale of sales) {
-      const dateKey = sale.createdAt.toISOString().split('T')[0];
+      // §11.0 — key by the trading day; fall back to createdAt for any legacy
+      // row that somehow lacks a businessDate.
+      const dateKey = (sale.businessDate ?? sale.createdAt).toISOString().split('T')[0];
       const existing = dailyMap.get(dateKey) || { count: 0, total: 0 };
       existing.count++;
       existing.total += Number(sale.total);
@@ -307,10 +315,18 @@ export class ReportService {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // §11.0 — the EOD trading-day summary keys sales off businessDate (the shift's
+    // day), so a post-midnight sale counts to the shift that opened. businessDate
+    // is a DATE column → use date-only [gte, lt-next-day) bounds.
+    const bdStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const bdEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+
     const salesWhere: any = {
-      createdAt: { gte: startOfDay, lte: endOfDay },
+      businessDate: { gte: bdStart, lt: bdEnd },
       status: { in: ['completed', 'partially_returned'] },
     };
+    // Returns have no businessDate column (§11.0 scope is sales); keep the
+    // calendar-day createdAt window for the returns rollup.
     const returnsWhere: any = {
       createdAt: { gte: startOfDay, lte: endOfDay },
       status: 'completed',
@@ -423,16 +439,25 @@ export class ReportService {
   async getPerformance(query: { startDate?: string; endDate?: string; branchId?: string }) {
     const where: any = { status: { in: ['completed', 'partially_returned'] } };
     if (query.branchId) where.branchId = parseInt(query.branchId);
+    // §11.0 — day-of-week & monthly rollups key off businessDate (trading day).
+    // businessDate is a DATE column → date-only [gte, lt-next-day) bounds.
     if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
+      where.businessDate = {};
+      if (query.startDate) {
+        const s = new Date(query.startDate);
+        where.businessDate.gte = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+      }
+      if (query.endDate) {
+        const e = new Date(query.endDate);
+        where.businessDate.lt = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+      }
     }
 
     const sales = await prisma.sale.findMany({
       where,
       select: {
         total: true,
+        businessDate: true,
         createdAt: true,
         items: { select: { quantity: true, variant: { select: { product: { select: { costPrice: true } } } } } },
       },
@@ -452,7 +477,9 @@ export class ReportService {
       );
       totalSales += amt;
       totalCost += cogs;
-      const d = new Date(s.createdAt);
+      // §11.0 — bucket by the trading day (businessDate), not createdAt; fall
+      // back to createdAt for any legacy row lacking a businessDate.
+      const d = new Date(s.businessDate ?? s.createdAt);
       dow[d.getDay()].total += amt;
       dow[d.getDay()].count += 1;
       const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -534,6 +561,8 @@ export class ReportService {
 
     const logs = await prisma.auditLog.findMany({
       where: {
+        // §11.0 N/A — this is an audit report over raw AuditLog rows, which have
+        // no businessDate; it intentionally keys off the raw createdAt timestamp.
         action: 'sale.discretionaryDiscount',
         createdAt: { gte: start, lt: end },
         ...(query.branchId ? { branchId: Number(query.branchId) } : {}),
@@ -570,6 +599,28 @@ export class ReportService {
     );
 
     return { month: m, count: entries.length, totalAmount, byUser, entries };
+  }
+
+  // ─── Child Birthday Marketing Report (bug #6) ─────────────────────────────
+
+  /**
+   * Lists customers whose child's birthday falls in the given calendar month
+   * (1-12), for birthday marketing outreach.
+   */
+  async getChildBirthdayReport(month: number) {
+    const customers = await prisma.customer.findMany({
+      where: { childBirthMonth: month },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        childBirthMonth: true,
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    return { month, count: customers.length, customers };
   }
 
   // ─── §8.4 Variance reports (read straight from the variance log) ──────────

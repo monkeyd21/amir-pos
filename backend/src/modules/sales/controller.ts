@@ -4,6 +4,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { salesService } from './service';
 import { buildReceiptPdf } from './receipt-pdf';
+import { getSetting } from '../settings/service';
 
 export class SalesController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -81,7 +82,8 @@ export class SalesController {
       });
       if (!sale) throw new AppError('Sale not found', 404);
 
-      const pdf = await buildReceiptPdf(sale as any);
+      const showGst = await getSetting<boolean>('gstComplianceEnabled', false);
+      const pdf = await buildReceiptPdf(sale as any, showGst);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',

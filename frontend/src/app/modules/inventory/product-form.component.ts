@@ -35,6 +35,13 @@ interface Color {
   hex?: string | null;
 }
 
+interface Size {
+  id: number;
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -78,6 +85,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   brands: Brand[] = [];
   categories: Category[] = [];
   colors: Color[] = [];
+  sizes: Size[] = [];
 
   // Core form fields
   name = '';
@@ -178,6 +186,14 @@ export class ProductFormComponent implements OnInit, OnDestroy {
    *  it was triggered from the bulk generator. */
   colorTargetRowIndex: number | null = null;
 
+  // Inline add-size (for manual variant row pickers). Mirrors the color
+  // inline-add flow: a shared panel whose originating row is tracked so the
+  // newly created size auto-selects on that row.
+  addingSize = false;
+  newSizeName = '';
+  savingSize = false;
+  sizeTargetRowIndex: number | null = null;
+
   constructor(
     private api: ApiService,
     private notification: NotificationService,
@@ -197,6 +213,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       brands: this.api.get<ApiResponse<Brand[]>>('/brands'),
       categories: this.api.get<ApiResponse<Category[]>>('/categories'),
       colors: this.api.get<ApiResponse<Color[]>>('/colors'),
+      sizes: this.api.get<ApiResponse<Size[]>>('/sizes'),
     };
     if (this.isEdit) {
       requests['product'] = this.api.get<ApiResponse<any>>(
@@ -211,6 +228,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           this.brands = res.brands.data ?? [];
           this.categories = res.categories.data ?? [];
           this.colors = res.colors.data ?? [];
+          this.sizes = res.sizes.data ?? [];
           if (this.isEdit && res.product?.data) {
             this.prefillFromProduct(res.product.data);
           }
@@ -436,6 +454,69 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           this.savingColor = false;
           this.notification.error(
             err.error?.error || 'Failed to create color'
+          );
+        },
+      });
+  }
+
+  // ─── Inline size creation ───────────────────────────────────────
+  //
+  // Sizes are a reusable master (like colors). Triggered from a manual
+  // variant row (pass the row index) so the newly created size auto-selects
+  // on that row. On save we splice it into `sizes` by sortOrder/name so the
+  // picker stays ordered, and surface the API error (e.g. 409 duplicate).
+  showAddSize(targetRowIndex: number | null = null): void {
+    this.addingSize = true;
+    this.newSizeName = '';
+    this.sizeTargetRowIndex = targetRowIndex;
+  }
+
+  cancelAddSize(): void {
+    this.addingSize = false;
+    this.newSizeName = '';
+    this.sizeTargetRowIndex = null;
+  }
+
+  saveNewSize(): void {
+    const name = this.newSizeName.trim();
+    if (!name || this.savingSize) return;
+    this.savingSize = true;
+
+    this.api
+      .post<ApiResponse<Size>>('/sizes', { name })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          const size = res.data;
+          // Insert keeping the master ordered: primarily by sortOrder when
+          // present, otherwise alphabetically — so the picker stays sorted.
+          const idx = this.sizes.findIndex((s) => {
+            const so = s.sortOrder ?? Number.MAX_SAFE_INTEGER;
+            const nso = size.sortOrder ?? Number.MAX_SAFE_INTEGER;
+            if (so !== nso) return so > nso;
+            return s.name.toLowerCase() > size.name.toLowerCase();
+          });
+          if (idx === -1) this.sizes.push(size);
+          else this.sizes.splice(idx, 0, size);
+          this.sizes = [...this.sizes];
+
+          // If the request came from a manual-variant row, pre-select the
+          // new size on that row so the cashier doesn't re-open the dropdown.
+          if (
+            this.sizeTargetRowIndex !== null &&
+            this.variants[this.sizeTargetRowIndex]
+          ) {
+            this.variants[this.sizeTargetRowIndex].size = size.name;
+          }
+
+          this.notification.success(`Size "${size.name}" created`);
+          this.cancelAddSize();
+          this.savingSize = false;
+        },
+        error: (err) => {
+          this.savingSize = false;
+          this.notification.error(
+            err.error?.error || 'Failed to create size'
           );
         },
       });

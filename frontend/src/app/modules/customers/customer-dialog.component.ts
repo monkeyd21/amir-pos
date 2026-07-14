@@ -22,6 +22,7 @@ interface CustomerDialogData {
     address?: string;
     dateOfBirth?: string | null;
     gender?: string | null;
+    childBirthMonth?: number | null;
   } | null;
   // §5.2 — pre-fill the phone the cashier just searched, so it's never re-typed.
   phone?: string;
@@ -72,6 +73,9 @@ export class CustomerDialogComponent implements OnInit {
         this.data?.customer?.dateOfBirth ? this.data.customer.dateOfBirth.substring(0, 10) : '',
       ],
       gender: [this.data?.customer?.gender || ''],
+      // §6 — OPTIONAL child's birth month (month only, 1-12). Used for
+      // birthday marketing outreach; blank = null.
+      childBirthMonth: [this.data?.customer?.childBirthMonth ?? null],
     });
   }
 
@@ -98,6 +102,11 @@ export class CustomerDialogComponent implements OnInit {
       address: raw.address?.trim() || undefined,
       dateOfBirth: raw.dateOfBirth || undefined,
       gender: raw.gender || undefined,
+      // Backend expects a number 1-12 or null — convert empty selection to null.
+      childBirthMonth:
+        raw.childBirthMonth === '' || raw.childBirthMonth == null
+          ? null
+          : Number(raw.childBirthMonth),
     };
 
     const request$ = this.isEdit
