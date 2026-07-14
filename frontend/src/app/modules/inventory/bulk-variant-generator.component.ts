@@ -395,17 +395,24 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     this.emitPreviewIfInlineMode();
   }
 
-  /** Editing MRP auto-fills the Sale Price to MRP − 10% (rounded), still overridable. */
+  // MRP and Sale Price are STRICTLY independent per-line overrides — editing one
+  // must never move the other. We only seed the OTHER field's override with its
+  // CURRENT displayed value (so it stays visually identical and stops drifting
+  // via the default MRP = price ÷ 0.9 derivation). Margin is derived/displayed
+  // from these but never writes back into an editable field.
+
+  /** Editing MRP sets only the MRP; the Sale Price is frozen at its current value. */
   onMrpChange(row: PreviewRow, value: number): void {
     const mrp = Math.max(0, Number(value) || 0);
+    if (!this.priceOverrides.has(row.key)) this.priceOverrides.set(row.key, row.price);
     this.mrpOverrides.set(row.key, mrp);
-    this.priceOverrides.set(row.key, Math.round(mrp * 0.9));
     this.emitPreviewIfInlineMode();
   }
 
-  /** Editing Sale Price sets only the sale price; the MRP is left as-is. */
+  /** Editing Sale Price sets only the Sale Price; the MRP is frozen at its current value. */
   onSaleChange(row: PreviewRow, value: number): void {
     const price = Math.max(0, Number(value) || 0);
+    if (!this.mrpOverrides.has(row.key)) this.mrpOverrides.set(row.key, row.mrp);
     this.priceOverrides.set(row.key, price);
     this.emitPreviewIfInlineMode();
   }
