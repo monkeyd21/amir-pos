@@ -56,11 +56,27 @@ interface ReceiptResponse {
 export class ReceiptPrintService {
   constructor(private api: ApiService) {}
 
+  // §bug2 — the printed receipt hides the Tax line until GST compliance is turned
+  // on. Resolved per-print from the gstComplianceEnabled setting (default hidden).
+  private showGst = false;
+
+  private async fetchGstEnabled(): Promise<boolean> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ data: { enabled: boolean } }>('/settings/gst-compliance')
+      );
+      return !!res.data?.enabled;
+    } catch {
+      return false;
+    }
+  }
+
   async printReceipt(saleId: number): Promise<void> {
     const res = await firstValueFrom(
       this.api.get<ReceiptResponse>(`/sales/${saleId}/receipt`)
     );
     const receipt = res.data;
+    this.showGst = await this.fetchGstEnabled();
 
     const printWindow = window.open('', '_blank', 'width=420,height=700');
     if (!printWindow) {
@@ -223,9 +239,11 @@ ${divider}</div></div>
       discountLine = `\n${discLabel}${this.pad(discLabel, discVal)}${discVal}`;
     }
 
+    // Tax line only when GST compliance is on. Carries its own leading newline so
+    // that when hidden it leaves no blank line on the receipt.
     const taxLabel = 'Tax:';
     const taxVal = this.formatCurrency(r.taxAmount);
-    const taxLine = taxLabel + this.pad(taxLabel, taxVal) + taxVal;
+    const taxLine = this.showGst ? `\n${taxLabel}${this.pad(taxLabel, taxVal)}${taxVal}` : '';
 
     const totalLabel = 'TOTAL:';
     const totalVal = this.formatCurrency(r.total);
@@ -398,8 +416,7 @@ ${customerLine}${thinDivider}
 ITEMS:
 ${itemsHtml}
 ${thinDivider}
-${subtotalLine}${discountLine}
-${taxLine}
+${subtotalLine}${discountLine}${taxLine}
 ${thinDivider}
 ${totalLine}${exchangeLines}
 ${thinDivider}

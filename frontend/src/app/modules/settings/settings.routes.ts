@@ -6,11 +6,13 @@ import { LabelDesignerComponent } from './label-designer/label-designer.componen
 import { PrintersListComponent } from './printing/printers-list.component';
 import { PrinterFormComponent } from './printing/printer-form.component';
 import { PrinterDiscoveryComponent } from './printing/printer-discovery.component';
+import { SizesManagementComponent } from './sizes-management.component';
 
 export const SETTINGS_ROUTES: Routes = [
   { path: '', component: SettingsComponent },
   { path: 'profile', component: ProfileComponent },
   { path: 'owner-pin', component: OwnerPinComponent },
+  { path: 'sizes', component: SizesManagementComponent },
   { path: 'label-designer', redirectTo: 'printers', pathMatch: 'full' },
   { path: 'printers', component: PrintersListComponent },
   { path: 'printers/new', component: PrinterFormComponent },
