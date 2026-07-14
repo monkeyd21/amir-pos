@@ -96,7 +96,9 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
   stepBase: number | null = null;
   stepIncrement: number | null = 0;
 
-  initialStock: number | null = null;
+  // Default to 1 so variants aren't accidentally created with zero stock; the
+  // user can still lower it per line or globally when that's intended.
+  initialStock: number | null = 1;
   skuBase = '';
   vendorId: number | null = null;
 
