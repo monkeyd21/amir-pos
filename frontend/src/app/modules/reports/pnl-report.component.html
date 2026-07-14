@@ -1,6 +1,6 @@
 <app-page-header
   title="Profit &amp; Loss"
-  subtitle="Sales, cost of goods, expenses and net profit for the selected period"
+  subtitle="Item-wise profit register — sales and returns, grouped by bill"
 >
   <a routerLink="/reports"
      class="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium font-body text-on-surface-variant rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer">
@@ -36,68 +36,72 @@
 @if (loading) {
   <p class="text-sm text-on-surface-variant/70 py-8 text-center">Loading…</p>
 } @else if (data) {
-  <div class="max-w-2xl">
-    <p class="text-xs text-on-surface-variant/60 mb-4">
-      {{ data.period.startDate }} &rarr; {{ data.period.endDate }}
-      · {{ data.salesCount }} bill(s)@if (data.returnsCount > 0) {, {{ data.returnsCount }} return(s)}
-    </p>
+  <p class="text-xs text-on-surface-variant/60 mb-2">{{ data.period.startDate }} &rarr; {{ data.period.endDate }}</p>
 
-    <!-- Sales → Gross Profit -->
-    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5 mb-4">
-      <div class="flex justify-between py-1.5 text-sm">
-        <span class="text-on-surface-variant">Gross Sales</span>
-        <span class="text-on-surface font-mono">{{ fmt(data.grossSales) }}</span>
-      </div>
-      <div class="flex justify-between py-1.5 text-sm">
-        <span class="text-on-surface-variant">Less: Returns</span>
-        <span class="text-on-surface font-mono">−{{ fmt(data.returns) }}</span>
-      </div>
-      <div class="flex justify-between py-1.5 text-sm font-semibold border-t border-outline-variant/15 mt-1 pt-2">
-        <span class="text-on-surface">Net Sales</span>
-        <span class="text-on-surface font-mono">{{ fmt(data.netSales) }}</span>
-      </div>
-      <div class="flex justify-between py-1.5 text-sm">
-        <span class="text-on-surface-variant">Cost of Goods Sold</span>
-        <span class="text-on-surface font-mono">−{{ fmt(data.cogs) }}</span>
-      </div>
-      <div class="flex justify-between pt-2 text-sm font-semibold border-t border-outline-variant/15">
-        <span class="text-on-surface">Gross Profit</span>
-        <span class="font-mono" [class]="num(data.grossProfit) >= 0 ? 'text-green-500' : 'text-error'">{{ fmt(data.grossProfit) }}</span>
-      </div>
-    </div>
-
-    <!-- Expenses -->
-    <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5 mb-4">
-      <h3 class="text-xs font-bold uppercase tracking-wider text-on-surface mb-3">Operating Expenses</h3>
-      @if (data.expenses.items.length === 0) {
-        <p class="text-xs text-on-surface-variant/60 py-2">No approved expenses in this period.</p>
-      } @else {
-        @for (ex of data.expenses.items; track ex.category) {
-          <div class="flex justify-between py-1.5 text-sm border-b border-outline-variant/10">
-            <span class="text-on-surface-variant">{{ ex.category }}</span>
-            <span class="text-on-surface font-mono">−{{ fmt(ex.amount) }}</span>
-          </div>
+  <div class="overflow-x-auto border border-outline-variant/20 rounded-xl">
+    <table class="w-full text-xs whitespace-nowrap">
+      <thead class="bg-surface-container-high/60 text-[10px] uppercase tracking-wider text-on-surface-variant">
+        <tr>
+          <th class="px-3 py-2 text-left">SNo</th>
+          <th class="px-3 py-2 text-left">Bill No</th>
+          <th class="px-3 py-2 text-left">Item Name</th>
+          <th class="px-3 py-2 text-right">Qty</th>
+          <th class="px-3 py-2 text-right">Purchase Rate</th>
+          <th class="px-3 py-2 text-right">Sale Rate</th>
+          <th class="px-3 py-2 text-right">Gross Amount</th>
+          <th class="px-3 py-2 text-right">Net Amount</th>
+          <th class="px-3 py-2 text-right">Total Purchase Value</th>
+          <th class="px-3 py-2 text-right">Total Sale Value</th>
+          <th class="px-3 py-2 text-right">Profit / Loss</th>
+          <th class="px-3 py-2 text-right">P/L %</th>
+          <th class="px-3 py-2 text-right">Landing Cost</th>
+        </tr>
+      </thead>
+      <tbody class="font-mono">
+        @for (r of data.rows; track r.sno) {
+          <tr class="border-t border-outline-variant/10" [class]="r.isReturn ? 'text-error' : 'text-on-surface'">
+            <td class="px-3 py-1.5 text-left">{{ r.sno }}</td>
+            <td class="px-3 py-1.5 text-left font-semibold">{{ r.showBill ? r.billNo : '' }}</td>
+            <td class="px-3 py-1.5 text-left font-sans">{{ r.itemName }}</td>
+            <td class="px-3 py-1.5 text-right">{{ r.quantity }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.purchaseRate) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.saleRate, 4) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.grossAmount) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.netAmount) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.totalPurchaseValue) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.totalSaleValue) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.profitLoss) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.profitLossPct) }}</td>
+            <td class="px-3 py-1.5 text-right">{{ n(r.landingCost, 4) }}</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="13" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
         }
+      </tbody>
+      @if (data.rows.length > 0) {
+        <tfoot class="bg-primary text-on-primary font-mono font-bold border-t-2 border-primary">
+          <tr>
+            <td class="px-3 py-2 text-left font-sans uppercase tracking-wide" colspan="3">Grand Totals</td>
+            <td class="px-3 py-2 text-right">{{ data.totals.quantity }}</td>
+            <td class="px-3 py-2"></td>
+            <td class="px-3 py-2"></td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.grossAmount) }}</td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.netAmount) }}</td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.totalPurchaseValue) }}</td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.totalSaleValue) }}</td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.profitLoss) }}</td>
+            <td class="px-3 py-2 text-right">{{ n(data.totals.profitLossPct) }}</td>
+            <td class="px-3 py-2"></td>
+          </tr>
+        </tfoot>
       }
-      <div class="flex justify-between pt-3 text-sm font-semibold">
-        <span class="text-on-surface">Total Expenses</span>
-        <span class="text-error font-mono">−{{ fmt(data.expenses.total) }}</span>
-      </div>
-    </div>
-
-    <!-- Net profit -->
-    <div class="flex justify-between items-center bg-surface-container-high/60 border border-outline-variant/20 rounded-2xl px-5 py-4">
-      <span class="text-sm font-bold uppercase tracking-wider text-on-surface">Net Profit</span>
-      <span class="text-lg font-bold font-mono"
-        [class]="num(data.netProfit) >= 0 ? 'text-green-500' : 'text-error'">
-        {{ fmt(data.netProfit) }}
-      </span>
-    </div>
-
-    <p class="text-[11px] text-on-surface-variant/50 mt-3">
-      Computed from actual sales, returns and approved expenses. COGS uses each item's cost price.
-    </p>
+    </table>
   </div>
+
+  <p class="text-[11px] text-on-surface-variant/50 mt-3">
+    Sale Rate = MRP · Net Amount = charged after discount · Total Sale Value = net excl. GST ·
+    Profit/Loss = Net − Purchase Value. Returns show as negative rows.
+  </p>
 } @else {
   <p class="text-sm text-on-surface-variant/70 py-8 text-center">No data for this period.</p>
 }

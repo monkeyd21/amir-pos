@@ -5,22 +5,39 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 
-interface ExpenseLine {
-  category: string;
-  amount: number;
+interface PnlRow {
+  sno: number;
+  billNo: string;
+  itemName: string;
+  quantity: number;
+  purchaseRate: number;
+  saleRate: number;
+  grossAmount: number;
+  netAmount: number;
+  totalPurchaseValue: number;
+  totalSaleValue: number;
+  profitLoss: number;
+  profitLossPct: number;
+  landingCost: number;
+  isReturn: boolean;
+  /** Show the bill number only on the first row of each bill group. */
+  showBill?: boolean;
+}
+
+interface PnlTotals {
+  quantity: number;
+  grossAmount: number;
+  netAmount: number;
+  totalPurchaseValue: number;
+  totalSaleValue: number;
+  profitLoss: number;
+  profitLossPct: number;
 }
 
 interface PnlData {
   period: { startDate: string; endDate: string };
-  salesCount: number;
-  returnsCount: number;
-  grossSales: number;
-  returns: number;
-  netSales: number;
-  cogs: number;
-  grossProfit: number;
-  expenses: { items: ExpenseLine[]; total: number };
-  netProfit: number;
+  rows: PnlRow[];
+  totals: PnlTotals;
 }
 
 type Preset = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
@@ -119,7 +136,14 @@ export class PnlReportComponent implements OnInit {
       })
       .subscribe({
         next: (res) => {
-          this.data = res.data;
+          const data = res.data;
+          // Show the bill number only on the first row of each bill group.
+          let prev = '';
+          for (const r of data.rows) {
+            r.showBill = r.billNo !== prev;
+            prev = r.billNo;
+          }
+          this.data = data;
           this.loading = false;
         },
         error: () => {
@@ -132,7 +156,11 @@ export class PnlReportComponent implements OnInit {
     return Number(v || 0);
   }
 
-  fmt(v: number | null | undefined): string {
-    return `₹${this.num(v).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  /** Plain number with fixed decimals + thousands separators (no currency symbol). */
+  n(v: number | null | undefined, decimals = 2): string {
+    return this.num(v).toLocaleString('en-IN', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
   }
 }

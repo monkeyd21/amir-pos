@@ -128,19 +128,21 @@ export class ReportController {
       const result = await reportService.getPnlReport(req.query as any);
 
       if (req.query.format === 'csv') {
-        const csvData = [
-          { line: 'Gross Sales', amount: result.grossSales },
-          { line: 'Less: Returns', amount: -result.returns },
-          { line: 'Net Sales', amount: result.netSales },
-          { line: 'Cost of Goods Sold', amount: -result.cogs },
-          { line: 'Gross Profit', amount: result.grossProfit },
-          ...result.expenses.items.map((e) => ({
-            line: `Expense: ${e.category}`,
-            amount: -e.amount,
-          })),
-          { line: 'Total Expenses', amount: -result.expenses.total },
-          { line: 'Net Profit', amount: result.netProfit },
-        ];
+        const csvData = result.rows.map((r) => ({
+          sno: r.sno,
+          billNo: r.billNo,
+          itemName: r.itemName,
+          quantity: r.quantity,
+          purchaseRate: r.purchaseRate,
+          saleRate: r.saleRate,
+          grossAmount: r.grossAmount,
+          netAmount: r.netAmount,
+          totalPurchaseValue: r.totalPurchaseValue,
+          totalSaleValue: r.totalSaleValue,
+          profitLoss: r.profitLoss,
+          'profitLoss%': r.profitLossPct,
+          landingCost: r.landingCost,
+        }));
         return sendCsvResponse(res, csvData, 'pnl-report.csv');
       }
 
