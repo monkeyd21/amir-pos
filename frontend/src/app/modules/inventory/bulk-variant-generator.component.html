@@ -26,7 +26,17 @@
       <!-- Size mode -->
       <div>
         <label class="label-upper mb-1.5 block">Size Mode</label>
-        <div class="grid grid-cols-4 gap-1.5">
+        <div class="grid grid-cols-5 gap-1.5">
+          <button
+            type="button"
+            (click)="sizeMode = 'master'; onInputChange()"
+            class="px-2 py-1.5 text-[11px] font-semibold rounded-md border transition-colors cursor-pointer"
+            [class]="sizeMode === 'master'
+              ? 'border-primary bg-primary-container/15 text-primary'
+              : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+          >
+            Saved
+          </button>
           <button
             type="button"
             (click)="sizeMode = 'alpha'; onInputChange()"
@@ -70,6 +80,32 @@
         </div>
 
         <div class="mt-2">
+          @if (sizeMode === 'master') {
+            @if (masterSizes.length === 0) {
+              <p class="text-xs text-on-surface-variant">
+                No sizes saved yet. Add sizes (e.g. 3-6M, 3-9M, 1Y) in
+                <a routerLink="/settings/sizes" class="text-primary font-semibold">Settings → Sizes</a>.
+              </p>
+            } @else {
+              <div class="flex flex-wrap gap-1.5">
+                @for (s of masterSizes; track s.id) {
+                  <button
+                    type="button"
+                    (click)="toggleMasterSize(s.name)"
+                    class="px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-colors cursor-pointer"
+                    [class]="isMasterSizeSelected(s.name)
+                      ? 'border-primary bg-primary-container/15 text-primary'
+                      : 'border-outline-variant/15 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/30'"
+                  >
+                    {{ s.name }}
+                  </button>
+                }
+              </div>
+              <p class="text-[10px] text-on-surface-variant/60 mt-1.5">
+                Tap to include. Overlapping bands are fine. Manage the list in Settings → Sizes.
+              </p>
+            }
+          }
           @if (sizeMode === 'alpha') {
             <div class="grid grid-cols-2 gap-2">
               <select

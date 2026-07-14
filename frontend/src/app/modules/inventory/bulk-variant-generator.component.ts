@@ -1,12 +1,18 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 
-type SizeMode = 'alpha' | 'numeric_even' | 'numeric_odd' | 'custom';
+type SizeMode = 'master' | 'alpha' | 'numeric_even' | 'numeric_odd' | 'custom';
 type PricingMode = 'flat' | 'step';
+
+interface SizeOption {
+  id: number;
+  name: string;
+}
 
 export interface ColorOption {
   id: number;
@@ -30,7 +36,7 @@ const ALPHA_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'];
 @Component({
   selector: 'app-bulk-variant-generator',
   standalone: true,
-  imports: [CommonModule, FormsModule, VendorPickerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, VendorPickerComponent],
   templateUrl: './bulk-variant-generator.component.html',
 })
 export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
@@ -68,12 +74,19 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
 
   expanded = false;
 
-  sizeMode: SizeMode = 'alpha';
+  // Default to the user-managed master list — the primary way to pick sizes for
+  // kids/infant stock where bands (3-6M, 3-9M overlapping, 1Y…) live in Settings.
+  sizeMode: SizeMode = 'master';
   alphaStart = 'S';
   alphaEnd = 'XL';
   numericStart = 10;
   numericEnd = 44;
   customSizes = '';
+
+  /** Sizes from the master list (Settings → Sizes), in the user's chosen order. */
+  masterSizes: SizeOption[] = [];
+  /** Names the user ticked from the master list. */
+  selectedMasterSizes: string[] = [];
 
   /** Names of colors the cashier picked (subset of `availableColors` names). */
   colors: string[] = [];
@@ -116,6 +129,31 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
       this.flatPrice = this.defaultPrice;
       this.stepBase = this.defaultPrice;
     }
+    this.loadMasterSizes();
+  }
+
+  private loadMasterSizes(): void {
+    this.api.get<any>('/sizes').subscribe({
+      next: (res: any) => {
+        this.masterSizes = (res.data ?? []).map((s: any) => ({ id: s.id, name: s.name }));
+      },
+      error: () => {
+        this.masterSizes = [];
+      },
+    });
+  }
+
+  // ─── Master size selection ──────────────────────────
+
+  isMasterSizeSelected(name: string): boolean {
+    return this.selectedMasterSizes.some((s) => s.toLowerCase() === name.toLowerCase());
+  }
+
+  toggleMasterSize(name: string): void {
+    const idx = this.selectedMasterSizes.findIndex((s) => s.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) this.selectedMasterSizes.splice(idx, 1);
+    else this.selectedMasterSizes.push(name);
+    this.onInputChange();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -206,6 +244,12 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
 
   get resolvedSizes(): string[] {
     switch (this.sizeMode) {
+      case 'master': {
+        // Preserve the user's master ordering regardless of tick order.
+        return this.masterSizes
+          .map((s) => s.name)
+          .filter((name) => this.isMasterSizeSelected(name));
+      }
       case 'alpha': {
         const startIdx = ALPHA_SIZES.indexOf(this.alphaStart);
         const endIdx = ALPHA_SIZES.indexOf(this.alphaEnd);
@@ -457,5 +501,6 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     this.mrpOverrides.clear();
     this.expanded = false;
     this.customSizes = '';
+    this.selectedMasterSizes = [];
   }
 }

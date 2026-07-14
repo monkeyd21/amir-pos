@@ -242,7 +242,7 @@ interface SaleDetailEnvelope {
                     <span>−{{ formatCurrency(num(sale()?.discountAmount)) }}</span>
                   </div>
                 }
-                @if (num(sale()?.taxAmount) > 0) {
+                @if (gstEnabled() && num(sale()?.taxAmount) > 0) {
                   <div class="totals__row">
                     <span>Tax</span>
                     <span>{{ formatCurrency(num(sale()?.taxAmount)) }}</span>
@@ -772,6 +772,8 @@ export class MobileSaleDetailScreen implements OnInit {
   readonly loading = signal<boolean>(true);
   readonly sharing = signal<boolean>(false);
   readonly openingPdf = signal<boolean>(false);
+  // §bug2 — hide the Tax row until GST compliance is turned on.
+  readonly gstEnabled = signal<boolean>(false);
 
   readonly cashierName = computed(() => {
     const u = this.sale()?.user;
@@ -796,6 +798,10 @@ export class MobileSaleDetailScreen implements OnInit {
       return;
     }
     this.load(idParam);
+    this.api.get<{ data: { enabled: boolean } }>('/settings/gst-compliance').subscribe({
+      next: (res) => this.gstEnabled.set(!!res?.data?.enabled),
+      error: () => this.gstEnabled.set(false),
+    });
   }
 
   // ─── Data ──────────────────────────────────────────────────
