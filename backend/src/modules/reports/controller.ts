@@ -129,21 +129,17 @@ export class ReportController {
 
       if (req.query.format === 'csv') {
         const csvData = [
-          ...result.revenue.items.map((r) => ({
-            type: 'Revenue',
-            accountCode: r.accountCode,
-            accountName: r.accountName,
-            amount: r.amount,
-          })),
-          { type: 'Revenue Total', accountCode: '', accountName: '', amount: result.revenue.total },
+          { line: 'Gross Sales', amount: result.grossSales },
+          { line: 'Less: Returns', amount: -result.returns },
+          { line: 'Net Sales', amount: result.netSales },
+          { line: 'Cost of Goods Sold', amount: -result.cogs },
+          { line: 'Gross Profit', amount: result.grossProfit },
           ...result.expenses.items.map((e) => ({
-            type: 'Expense',
-            accountCode: e.accountCode,
-            accountName: e.accountName,
-            amount: e.amount,
+            line: `Expense: ${e.category}`,
+            amount: -e.amount,
           })),
-          { type: 'Expense Total', accountCode: '', accountName: '', amount: result.expenses.total },
-          { type: 'Net Income', accountCode: '', accountName: '', amount: result.netIncome },
+          { line: 'Total Expenses', amount: -result.expenses.total },
+          { line: 'Net Profit', amount: result.netProfit },
         ];
         return sendCsvResponse(res, csvData, 'pnl-report.csv');
       }

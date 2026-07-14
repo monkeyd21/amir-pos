@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { ReportsComponent } from './reports.component';
 import { VarianceReportComponent } from './variance-report.component';
 import { ChildBirthdayReportComponent } from './child-birthday-report.component';
+import { PnlReportComponent } from './pnl-report.component';
 
 export const REPORTS_ROUTES: Routes = [
   { path: '', component: ReportsComponent },
@@ -9,4 +10,6 @@ export const REPORTS_ROUTES: Routes = [
   { path: 'variance', component: VarianceReportComponent },
   // §6 — Child Birthdays (Marketing) outreach list.
   { path: 'child-birthdays', component: ChildBirthdayReportComponent },
+  // Profit & Loss — default today, date-range + week/month/quarter/year presets.
+  { path: 'pnl', component: PnlReportComponent },
 ];
