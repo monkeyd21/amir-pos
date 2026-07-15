@@ -82,6 +82,10 @@ export class SettingsComponent implements OnInit {
   taxRate = 18;
   currency = 'INR';
 
+  // §tax — account-level GST master switch. OFF = no tax charged or shown.
+  taxEnabled = false;
+  savingTaxEnabled = false;
+
   // Commission mode
   commissionMode: 'item_level' | 'bill_level' = 'item_level';
 
@@ -140,6 +144,32 @@ export class SettingsComponent implements OnInit {
     this.loadPaymentAccounts();
     this.loadReturnWindow();
     this.loadVarianceThreshold();
+    this.loadTaxEnabled();
+  }
+
+  loadTaxEnabled(): void {
+    this.api.get<any>('/settings/gst-compliance').subscribe({
+      next: (res) => {
+        if (res.data?.enabled != null) this.taxEnabled = res.data.enabled;
+      },
+      error: () => {},
+    });
+  }
+
+  saveTaxEnabled(): void {
+    if (this.savingTaxEnabled) return;
+    this.savingTaxEnabled = true;
+    this.api.put<any>('/settings/gst-compliance', { enabled: this.taxEnabled }).subscribe({
+      next: () => {
+        this.savingTaxEnabled = false;
+        this.notification.success(`Taxes ${this.taxEnabled ? 'enabled' : 'disabled'}`);
+      },
+      error: (err) => {
+        this.savingTaxEnabled = false;
+        this.taxEnabled = !this.taxEnabled; // revert optimistic toggle on failure
+        this.notification.error(err.error?.error || 'Failed to update tax setting');
+      },
+    });
   }
 
   loadReturnWindow(): void {

@@ -95,6 +95,27 @@
           />
         </div>
 
+        <!-- §tax — account-level GST master switch -->
+        <div class="sm:col-span-2">
+          <label class="flex items-start gap-3 p-3.5 bg-surface-container-high rounded-lg border border-outline-variant/20 cursor-pointer">
+            <input
+              type="checkbox"
+              [(ngModel)]="taxEnabled"
+              (ngModelChange)="saveTaxEnabled()"
+              [disabled]="savingTaxEnabled"
+              data-testid="tax-enabled-toggle"
+              class="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+            />
+            <span class="text-sm font-body">
+              <span class="block font-semibold text-on-surface">Charge GST / Taxes</span>
+              <span class="block text-xs text-on-surface-variant/70 mt-0.5">
+                When off, no GST is carved out of the price and receipts hide the tax breakup. Prices
+                (MRP) stay the same — the full amount is booked as sale value. Applies to new bills only.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <div>
           <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Currency</label>
           <select

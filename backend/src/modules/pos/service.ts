@@ -78,6 +78,21 @@ function businessDateOf(session: { businessDate: Date | null; openedAt: Date }):
 // all POS activity until it is closed. 4 am per the spec.
 const SHIFT_CUTOFF_HOUR = 4;
 
+// §tax — account-level master switch for GST. `gstComplianceEnabled` doubles as
+// the on/off: when OFF (the default) no tax is extracted from the inclusive price
+// (taxAmount 0) and receipts hide GST; when ON, GST is carved out as before. Only
+// affects sales made while the switch is off — historical sales keep their tax.
+async function isTaxEnabled(): Promise<boolean> {
+  return getSetting<boolean>('gstComplianceEnabled', false);
+}
+
+// Extract the GST already baked into an inclusive amount, honouring the master
+// switch. Returns 0 when tax is off or the rate is non-positive.
+function extractInclusiveTax(inclusiveAmount: number, rate: number, taxEnabled: boolean): number {
+  if (!taxEnabled || rate <= 0) return 0;
+  return inclusiveAmount * (rate / (100 + rate));
+}
+
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
     // §bug9 — hard block: a new shift cannot open while a prior one is still open.
@@ -719,6 +734,7 @@ export class PosService {
           : 0;
 
       // Pass 2: compute per-line taxable + tax with the apportioned discount.
+      const taxEnabled = await isTaxEnabled();
       let totalTax = 0;
       const itemsForCreation: Array<{
         variantId: number;
@@ -741,8 +757,8 @@ export class PosService {
           ? 0
           : Math.round(postOffer * apportionRatio * 100) / 100;
         const lineTaxable = postOffer - apportioned;
-        // Extract GST from within the inclusive post-discount amount.
-        const lineTax = lineTaxable * (line.taxRate / (100 + line.taxRate));
+        // Extract GST from within the inclusive post-discount amount (0 when tax off).
+        const lineTax = extractInclusiveTax(lineTaxable, line.taxRate, taxEnabled);
         // Customer pays the inclusive taxable — no tax added on top.
         const lineTotal = lineTaxable;
         // `discount` is the total per-line reduction; the discretionary slice is
@@ -1630,12 +1646,13 @@ export class PosService {
     //    rationale). Line prices are MRPs with GST already baked in; we
     //    extract the tax component for reporting and never add it on top.
     const discountAmount = data.discountAmount || 0;
+    const taxEnabled = await isTaxEnabled();
     let subtotal = 0;
     let totalTax = 0;
 
     for (const item of cartItems) {
       const lineSubtotal = item.unitPrice * item.quantity;
-      const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
+      const lineTax = extractInclusiveTax(lineSubtotal, item.taxRate, taxEnabled);
       subtotal += lineSubtotal;
       totalTax += lineTax;
     }
@@ -1796,6 +1813,7 @@ export class PosService {
     return prisma.$transaction(async (tx) => {
       // Calculate line items
       let subtotal = 0;
+      const taxEnabled = await isTaxEnabled();
       let totalTax = 0;
       const itemsForCreation: Array<{
         variantId: number;
@@ -1808,8 +1826,8 @@ export class PosService {
 
       for (const item of cartItems) {
         const lineSubtotal = item.unitPrice * item.quantity;
-        // Tax-inclusive: extract GST component from the MRP, don't add it.
-        const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
+        // Tax-inclusive: extract GST component from the MRP (0 when tax off).
+        const lineTax = extractInclusiveTax(lineSubtotal, item.taxRate, taxEnabled);
         const lineTotal = lineSubtotal;
 
         subtotal += lineSubtotal;
