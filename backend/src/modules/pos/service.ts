@@ -35,16 +35,46 @@ async function nextBillNumber(
   return `${prefix}${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
 }
 
-// §11.0 — business date (trading day) for a shift, frozen at open. Uses the
-// local calendar date at the moment the shift opens; every sale in the shift
-// (including post-midnight ones) inherits it until the shift is closed.
-function businessDateOf(session: { businessDate: Date | null; openedAt: Date }): Date {
-  const src = session.businessDate ?? session.openedAt;
-  // Normalise to a date-only value (midnight) so it maps cleanly to a DATE column.
-  return new Date(src.getFullYear(), src.getMonth(), src.getDate());
+// §tz — the store trades in India. The server clock is UTC, so every trading-day
+// calculation is done EXPLICITLY in IST (UTC+5:30, no DST) rather than relying on
+// the server's local timezone. IST has no daylight saving, so a fixed offset is
+// exact and future-proof.
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+
+// The India calendar day of `instant`, returned as a Date whose UTC Y/M/D equal
+// the India-local Y/M/D (i.e. UTC-midnight of the India day). A Prisma `@db.Date`
+// column stores only the UTC calendar date, so storing this value persists exactly
+// the India trading day regardless of the server timezone. Reading it back (also
+// UTC-midnight) and comparing to another value from this function is apples-to-apples.
+function istBusinessDate(instant: Date): Date {
+  const ist = new Date(instant.getTime() + IST_OFFSET_MS);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
 }
 
-// §bug9 — hard cutoff (local hour) after which an unclosed prior-day shift blocks
+// Current hour of day in IST (0–23) — used for the 4 am cutoff.
+function istHour(instant: Date): number {
+  return new Date(instant.getTime() + IST_OFFSET_MS).getUTCHours();
+}
+
+// Format a trading-day value (UTC-midnight of the India day) for display, e.g.
+// "14 July 2026". Formatted in UTC because the stored value is UTC-midnight.
+function formatBusinessDate(d: Date): string {
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+}
+
+// §11.0 — business date (trading day) for a shift, frozen at open. Every sale in
+// the shift (including post-midnight ones) inherits it until the shift is closed.
+function businessDateOf(session: { businessDate: Date | null; openedAt: Date }): Date {
+  if (session.businessDate) {
+    // Stored @db.Date reads back as UTC-midnight; take its UTC components verbatim.
+    const d = session.businessDate;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  }
+  // Legacy sessions without a stored businessDate: derive the India day from openedAt.
+  return istBusinessDate(session.openedAt);
+}
+
+// §bug9 — hard cutoff (IST hour) after which an unclosed prior-day shift blocks
 // all POS activity until it is closed. 4 am per the spec.
 const SHIFT_CUTOFF_HOUR = 4;
 
@@ -58,18 +88,16 @@ export class PosService {
     });
 
     if (existing) {
-      const bd = businessDateOf(existing);
-      const label = bd.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+      const label = formatBusinessDate(businessDateOf(existing));
       throw new AppError(
         `You haven't closed the ${label} shift. Close it (enter the closing balance) before opening a new one.`,
         400
       );
     }
 
-    // §11.0 — freeze the trading day at open. Today's local calendar date becomes
+    // §11.0 — freeze the trading day at open. Today's India calendar date becomes
     // this shift's businessDate and stays fixed even if the shift runs past midnight.
-    const now = new Date();
-    const businessDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const businessDate = istBusinessDate(new Date());
 
     const session = await prisma.posSession.create({
       data: {
@@ -230,8 +258,9 @@ export class PosService {
     }
 
     const pinAt = breaches.length > 0 ? new Date() : null;
-    // §8.4 — the variance-log date is the calendar day the session opened (8.0).
-    const day = new Date(session.openedAt);
+    // §8.4 — the variance-log date is the shift's India trading day (8.0), stored
+    // TZ-safe so a UTC server records it under the correct Indian date.
+    const day = businessDateOf(session);
 
     const updated = await prisma.$transaction(async (tx) => {
       const s = await tx.posSession.update({
@@ -423,9 +452,9 @@ export class PosService {
       // (Before the cutoff, post-midnight peak-season billing continues normally.)
       const shiftDate = businessDateOf(session);
       const now = new Date();
-      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      if (shiftDate.getTime() < todayDate.getTime() && now.getHours() >= SHIFT_CUTOFF_HOUR) {
-        const label = shiftDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+      const todayDate = istBusinessDate(now);
+      if (shiftDate.getTime() < todayDate.getTime() && istHour(now) >= SHIFT_CUTOFF_HOUR) {
+        const label = formatBusinessDate(shiftDate);
         throw new AppError(
           `The ${label} shift is still open past ${SHIFT_CUTOFF_HOUR}:00 am. Close it (enter the closing balance) before billing again.`,
           400
