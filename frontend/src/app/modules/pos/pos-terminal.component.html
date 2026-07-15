@@ -14,6 +14,7 @@
     <div class="w-full max-w-sm bg-surface-container rounded-2xl p-6 space-y-4">
       <div>
         <h2 class="text-lg font-headline font-bold text-on-surface">Start of Day</h2>
+        <p class="text-sm font-semibold font-body text-primary mt-1" data-testid="day-start-date">{{ todayLabel }}</p>
         <p class="text-sm font-body text-on-surface-variant mt-1">Enter the opening drawer balance to start today. Billing begins once confirmed.</p>
       </div>
       <div>
@@ -1216,7 +1217,10 @@
           <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10 shrink-0">
             <div class="flex items-center gap-2">
               <span class="material-symbols-outlined text-primary">point_of_sale</span>
-              <h2 class="text-on-surface font-headline font-bold">Close Shift — EOD</h2>
+              <div>
+                <h2 class="text-on-surface font-headline font-bold">Close Shift — EOD</h2>
+                <p class="text-[11px] font-semibold text-primary" data-testid="eod-date">{{ shiftDateLabel }}</p>
+              </div>
             </div>
             <button (click)="showEodPanel = false" class="text-on-surface-variant hover:text-on-surface">
               <span class="material-symbols-outlined">close</span>
