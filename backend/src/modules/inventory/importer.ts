@@ -13,11 +13,19 @@ export interface ImportRow {
   color: string;
   sku: string;
   barcode: string;
-  basePrice: number;
+  // §13.3 — MRP is the printed list price POS actually charges. Sale Price
+  // (basePrice) is MRP − 10%. Every price the sheet carries is stored so the
+  // load never drops one (this was the SE0636x undercharge bug: only the Sale
+  // Price was imported, MRP was lost, so POS fell back to a wrong product MRP).
+  mrp: number;
+  basePrice: number;          // Sale Price (MRP − 10% when omitted)
   costPrice: number;
+  landingPrice: number | null;
   taxRate: number;
-  priceOverride: number | null;
+  mrpOverride: number | null; // per-variant MRP
+  priceOverride: number | null; // per-variant Sale Price
   costOverride: number | null;
+  clearancePrice: number | null;
   quantity: number;
   minStockLevel: number;
 }
@@ -44,8 +52,11 @@ export interface ImportResult {
 }
 
 // ─── Required columns ────────────────────────────────────────────
+// MRP is the primary price; a sheet may instead carry only "Sale Price"/"Base
+// Price" (MRP is then derived). Cost Price is always required. Structural
+// (non-price) columns are all required.
 
-const REQUIRED_COLUMNS = [
+const STRUCTURAL_REQUIRED = [
   'Product Name',
   'Brand',
   'Category',
@@ -53,7 +64,6 @@ const REQUIRED_COLUMNS = [
   'Color',
   'SKU',
   'Barcode',
-  'Base Price',
   'Cost Price',
 ];
 
@@ -65,14 +75,31 @@ const COLUMN_MAP: Record<string, keyof ImportRow> = {
   'Color': 'color',
   'SKU': 'sku',
   'Barcode': 'barcode',
-  'Base Price': 'basePrice',
+  'MRP': 'mrp',
+  'Sale Price': 'basePrice',
+  'Base Price': 'basePrice', // legacy alias for Sale Price
   'Cost Price': 'costPrice',
+  'Landing Price': 'landingPrice',
   'Tax Rate': 'taxRate',
+  'MRP Override': 'mrpOverride',
   'Price Override': 'priceOverride',
   'Cost Override': 'costOverride',
+  'Clearance Price': 'clearancePrice',
   'Quantity': 'quantity',
   'Min Stock Level': 'minStockLevel',
 };
+
+// §13.3 — Sale Price is MRP − 10%, rounded to the nearest rupee (matches the
+// manual product form). Kept in one place so import and UI never drift.
+const saleFromMrp = (mrp: number) => Math.round(mrp * 0.9);
+const mrpFromSale = (sale: number) => Math.round(sale / 0.9);
+
+// Parse a possibly-blank numeric cell → number, or null when empty/invalid.
+function toNum(v: any): number | null {
+  if (v === '' || v === undefined || v === null) return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
 
 // ─── Parse Excel buffer → rows ───────────────────────────────────
 
@@ -93,9 +120,13 @@ export function parseExcelBuffer(buffer: Buffer): ParseResult {
 
   // Validate required columns exist
   const headers = Object.keys(rawRows[0]);
-  const missing = REQUIRED_COLUMNS.filter(
-    (col) => !headers.some((h) => h.trim().toLowerCase() === col.toLowerCase())
-  );
+  const hasCol = (name: string) =>
+    headers.some((h) => h.trim().toLowerCase() === name.toLowerCase());
+  const missing = STRUCTURAL_REQUIRED.filter((col) => !hasCol(col));
+  // A price anchor is required: MRP (preferred) or a Sale/Base Price to derive it.
+  if (!hasCol('MRP') && !hasCol('Sale Price') && !hasCol('Base Price')) {
+    missing.push('MRP (or Sale Price)');
+  }
   if (missing.length > 0) {
     throw new AppError(
       `Missing required columns: ${missing.join(', ')}. Download the template for the expected format.`,
@@ -119,18 +150,39 @@ export function parseExcelBuffer(buffer: Buffer): ParseResult {
       row[field] = raw[rawHeader];
     }
 
-    // Defaults and coercions
-    row.basePrice = parseFloat(row.basePrice) || 0;
+    // ── Price coercion (§13.3: MRP is primary, Sale Price = MRP − 10%) ──
+    const mrp0 = toNum(row.mrp);
+    const base0 = toNum(row.basePrice);
+    if (mrp0 != null && mrp0 > 0) {
+      row.mrp = mrp0;
+      row.basePrice = base0 != null && base0 > 0 ? base0 : saleFromMrp(mrp0);
+    } else if (base0 != null && base0 > 0) {
+      // No MRP given — derive it from the Sale Price so POS charges correctly.
+      row.basePrice = base0;
+      row.mrp = mrpFromSale(base0);
+    } else {
+      row.mrp = 0;
+      row.basePrice = 0;
+    }
     row.costPrice = parseFloat(row.costPrice) || 0;
+    row.landingPrice = toNum(row.landingPrice);
     row.taxRate = row.taxRate !== '' && row.taxRate !== undefined ? parseFloat(row.taxRate) : 18;
-    row.priceOverride =
-      row.priceOverride !== '' && row.priceOverride !== undefined
-        ? parseFloat(row.priceOverride)
-        : null;
-    row.costOverride =
-      row.costOverride !== '' && row.costOverride !== undefined
-        ? parseFloat(row.costOverride)
-        : null;
+
+    // ── Per-variant overrides. Keep MRP-Override and Price-Override in step:
+    //    supplying either fills the other (MRP − 10%). Deriving the MRP override
+    //    from a lone Price Override is what prevents the undercharge bug. ──
+    let mrpOv = toNum(row.mrpOverride);
+    let priceOv = toNum(row.priceOverride);
+    if (mrpOv != null && mrpOv > 0 && (priceOv == null || priceOv <= 0)) {
+      priceOv = saleFromMrp(mrpOv);
+    } else if (priceOv != null && priceOv > 0 && (mrpOv == null || mrpOv <= 0)) {
+      mrpOv = mrpFromSale(priceOv);
+    }
+    row.mrpOverride = mrpOv;
+    row.priceOverride = priceOv;
+    row.costOverride = toNum(row.costOverride);
+    row.clearancePrice = toNum(row.clearancePrice);
+
     row.quantity = parseInt(row.quantity, 10) || 0;
     row.minStockLevel = parseInt(row.minStockLevel, 10);
     if (isNaN(row.minStockLevel)) row.minStockLevel = 0; // §bug8 default 0
@@ -151,12 +203,16 @@ export function parseExcelBuffer(buffer: Buffer): ParseResult {
     if (!row.color) errors.push('Color is required');
     if (!row.sku) errors.push('SKU is required');
     if (!row.barcode) errors.push('Barcode is required');
-    if (row.basePrice <= 0) errors.push('Base Price must be > 0');
+    if (row.mrp <= 0) errors.push('MRP (or Sale Price) must be > 0');
     if (row.costPrice <= 0) errors.push('Cost Price must be > 0');
     if (row.taxRate < 0 || row.taxRate > 100) errors.push('Tax Rate must be 0-100');
     if (row.quantity < 0) errors.push('Quantity cannot be negative');
 
-    if (row.costPrice > row.basePrice) warnings.push('Cost Price > Base Price');
+    if (row.costPrice > row.basePrice) warnings.push('Cost Price > Sale Price');
+    if (row.basePrice > row.mrp) warnings.push('Sale Price > MRP');
+    if (row.mrpOverride != null && row.priceOverride != null && row.priceOverride > row.mrpOverride) {
+      warnings.push('Price Override > MRP Override');
+    }
 
     return { ...row, errors, warnings } as RowValidation;
   });
@@ -285,16 +341,22 @@ export async function executeImport(
         // into CGST + SGST per Indian intra-state convention.
         const halfRate = Math.round((first.taxRate / 2) * 100) / 100;
 
+        // §13.3 — store the full product price stack: MRP (charged), Sale Price
+        // (basePrice), Cost and Landing. MRP/landing are product-level; per-size
+        // differences ride on the variant overrides below.
+        const productPricing = {
+          mrp: first.mrp,
+          basePrice: first.basePrice,
+          costPrice: first.costPrice,
+          landingPrice: first.landingPrice,
+          cgstRate: halfRate,
+          sgstRate: first.taxRate - halfRate,
+        };
+
         if (product) {
-          // Update base price / cost if they differ
           await tx.product.update({
             where: { id: product.id },
-            data: {
-              basePrice: first.basePrice,
-              costPrice: first.costPrice,
-              cgstRate: halfRate,
-              sgstRate: first.taxRate - halfRate,
-            },
+            data: productPricing,
           });
           result.productsUpdated++;
         } else {
@@ -308,10 +370,7 @@ export async function executeImport(
               slug,
               brandId,
               categoryId,
-              basePrice: first.basePrice,
-              costPrice: first.costPrice,
-              cgstRate: halfRate,
-              sgstRate: first.taxRate - halfRate,
+              ...productPricing,
             },
           });
           result.productsCreated++;
@@ -320,11 +379,26 @@ export async function executeImport(
         // Variants
         for (const row of group) {
           try {
+            // A row whose MRP differs from the product's MRP is a per-size price
+            // and is stored as an explicit variant override (even if the sheet
+            // didn't fill the dedicated Override column), so POS charges it.
+            const mrpOverride =
+              row.mrpOverride ?? (row.mrp !== first.mrp ? row.mrp : null);
+            const priceOverride =
+              row.priceOverride ?? (row.basePrice !== first.basePrice ? row.basePrice : null);
+
             let variant = await tx.productVariant.findFirst({
               where: {
                 OR: [{ sku: row.sku }, { barcode: row.barcode }],
               },
             });
+
+            const variantPricing = {
+              mrpOverride,
+              priceOverride,
+              costOverride: row.costOverride,
+              clearancePrice: row.clearancePrice,
+            };
 
             if (variant) {
               await tx.productVariant.update({
@@ -334,8 +408,7 @@ export async function executeImport(
                   color: row.color,
                   sku: row.sku,
                   barcode: row.barcode,
-                  priceOverride: row.priceOverride,
-                  costOverride: row.costOverride,
+                  ...variantPricing,
                 },
               });
               result.variantsUpdated++;
@@ -347,8 +420,7 @@ export async function executeImport(
                   barcode: row.barcode,
                   size: row.size,
                   color: row.color,
-                  priceOverride: row.priceOverride,
-                  costOverride: row.costOverride,
+                  ...variantPricing,
                 },
               });
               result.variantsCreated++;
@@ -393,6 +465,9 @@ export async function executeImport(
 
 export function generateTemplateBuffer(): Buffer {
   const wb = XLSX.utils.book_new();
+  // §13.3 — MRP is the primary price (what POS charges). Sale Price auto-fills to
+  // MRP − 10% if left blank. Per-size prices go in MRP Override (Price/Cost
+  // Override and Clearance Price are optional per-variant fields).
   const sampleData = [
     {
       'Product Name': 'Levis 501 Original Jeans',
@@ -402,11 +477,15 @@ export function generateTemplateBuffer(): Buffer {
       Color: 'Blue',
       SKU: 'LEV-501-32-BLU',
       Barcode: '8901234567890',
-      'Base Price': 3999,
+      MRP: 3999,
+      'Sale Price': '', // blank → auto 3599 (MRP − 10%)
       'Cost Price': 2200,
+      'Landing Price': 2350,
       'Tax Rate': 18,
+      'MRP Override': '',
       'Price Override': '',
       'Cost Override': '',
+      'Clearance Price': '',
       Quantity: 25,
       'Min Stock Level': 5,
     },
@@ -414,15 +493,19 @@ export function generateTemplateBuffer(): Buffer {
       'Product Name': 'Levis 501 Original Jeans',
       Brand: 'Levis',
       Category: 'Jeans',
-      Size: '34',
+      Size: '36',
       Color: 'Blue',
-      SKU: 'LEV-501-34-BLU',
+      SKU: 'LEV-501-36-BLU',
       Barcode: '8901234567891',
-      'Base Price': 3999,
+      MRP: 3999,
+      'Sale Price': '',
       'Cost Price': 2200,
+      'Landing Price': 2350,
       'Tax Rate': 18,
+      'MRP Override': 4299, // this size costs more → per-variant MRP
       'Price Override': '',
       'Cost Override': '',
+      'Clearance Price': '',
       Quantity: 30,
       'Min Stock Level': 5,
     },
@@ -434,11 +517,15 @@ export function generateTemplateBuffer(): Buffer {
       Color: 'White',
       SKU: 'NIK-DRI-M-WHT',
       Barcode: '8901234567892',
-      'Base Price': 2499,
+      MRP: 2499,
+      'Sale Price': 2199, // explicit Sale Price overrides the MRP − 10% default
       'Cost Price': 1400,
+      'Landing Price': '',
       'Tax Rate': 18,
-      'Price Override': 2299,
+      'MRP Override': '',
+      'Price Override': '',
       'Cost Override': '',
+      'Clearance Price': 1799, // dead-stock liquidation price for this variant
       Quantity: 15,
       'Min Stock Level': 3,
     },
@@ -455,11 +542,15 @@ export function generateTemplateBuffer(): Buffer {
     { wch: 12 }, // Color
     { wch: 20 }, // SKU
     { wch: 16 }, // Barcode
-    { wch: 12 }, // Base Price
+    { wch: 10 }, // MRP
+    { wch: 12 }, // Sale Price
     { wch: 12 }, // Cost Price
+    { wch: 14 }, // Landing Price
     { wch: 10 }, // Tax Rate
+    { wch: 14 }, // MRP Override
     { wch: 14 }, // Price Override
     { wch: 14 }, // Cost Override
+    { wch: 16 }, // Clearance Price
     { wch: 10 }, // Quantity
     { wch: 14 }, // Min Stock Level
   ];

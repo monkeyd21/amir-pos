@@ -16,11 +16,15 @@ interface RowValidation {
   color: string;
   sku: string;
   barcode: string;
+  mrp: number;
   basePrice: number;
   costPrice: number;
+  landingPrice: number | null;
   taxRate: number;
+  mrpOverride: number | null;
   priceOverride: number | null;
   costOverride: number | null;
+  clearancePrice: number | null;
   quantity: number;
   minStockLevel: number;
   errors: string[];
