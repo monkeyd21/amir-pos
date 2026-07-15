@@ -127,6 +127,9 @@ interface PosSession {
   openedAt: string;
   status: string;
   openingBalance: number;
+  // §11.0 — the shift's trading day (frozen at open, IST). Comes from the API as
+  // UTC-midnight of the India day; render it in Asia/Kolkata.
+  businessDate?: string;
 }
 
 interface ApiResponse<T> {
@@ -622,6 +625,32 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   needsDayStart = false;
   dayStartAmount: number | null = null;
   dayStartOpening = false;
+
+  /** Today's trading day (IST) — shown on the Day-Start screen for the shift about to open. */
+  get todayLabel(): string {
+    return this.formatShiftDate(new Date().toISOString());
+  }
+
+  /** The open session's trading day (IST) — shown on the EOD reconciliation panel. */
+  get shiftDateLabel(): string {
+    return this.formatShiftDate(this.session?.businessDate ?? this.session?.openedAt);
+  }
+
+  /**
+   * Format a date value as the India trading-day label, e.g. "Wed, 15 July 2026".
+   * Always rendered in Asia/Kolkata so the shown day matches the store's day
+   * regardless of the device/server timezone.
+   */
+  private formatShiftDate(value?: string): string {
+    if (!value) return '';
+    return new Date(value).toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+  }
 
   private initSession(): void {
     this.sessionLoading = true;
