@@ -327,6 +327,7 @@ export class ReportService {
       color: true,
       mrpOverride: true,
       costOverride: true,
+      landingOverride: true,
       product: {
         select: { name: true, mrp: true, costPrice: true, landingPrice: true, cgstRate: true, sgstRate: true },
       },
@@ -365,7 +366,7 @@ export class ReportService {
     const buildRow = (sno: number, billNo: string, v: any, qty: number, net: number, storedTax: number | null) => {
       const purchaseRate = Number(v?.costOverride ?? v?.product?.costPrice ?? 0);
       const saleRate = Number(v?.mrpOverride ?? v?.product?.mrp ?? 0);
-      const landingCost = Number(v?.product?.landingPrice ?? purchaseRate);
+      const landingCost = Number(v?.landingOverride ?? v?.product?.landingPrice ?? purchaseRate);
       const gstRate = Number(v?.product?.cgstRate ?? 0) + Number(v?.product?.sgstRate ?? 0);
       const grossAmount = saleRate * qty;
       // §pnl — profit is measured against LANDING cost (cost after freight/expenses,

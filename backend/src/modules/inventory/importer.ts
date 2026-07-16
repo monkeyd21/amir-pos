@@ -13,6 +13,7 @@ export interface ImportRow {
   color: string;
   sku: string;
   barcode: string;
+  lotCode: string | null;
   // §13.3 — MRP is the printed list price POS actually charges. Sale Price
   // (basePrice) is MRP − 10%. Every price the sheet carries is stored so the
   // load never drops one (this was the SE0636x undercharge bug: only the Sale
@@ -75,6 +76,7 @@ const COLUMN_MAP: Record<string, keyof ImportRow> = {
   'Color': 'color',
   'SKU': 'sku',
   'Barcode': 'barcode',
+  'Lot Code': 'lotCode',
   'MRP': 'mrp',
   'Sale Price': 'basePrice',
   'Base Price': 'basePrice', // legacy alias for Sale Price
@@ -191,6 +193,7 @@ export function parseExcelBuffer(buffer: Buffer): ParseResult {
     for (const f of ['productName', 'brand', 'category', 'size', 'color', 'sku', 'barcode']) {
       row[f] = String(row[f] ?? '').trim();
     }
+    row.lotCode = String(row.lotCode ?? '').trim() || null;
 
     // Validate
     const errors: string[] = [];
@@ -386,6 +389,14 @@ export async function executeImport(
               row.mrpOverride ?? (row.mrp !== first.mrp ? row.mrp : null);
             const priceOverride =
               row.priceOverride ?? (row.basePrice !== first.basePrice ? row.basePrice : null);
+            // Per-size cost / landing also ride on overrides when they differ from
+            // the product's (first-row) values, so profit is measured correctly.
+            const costOverride =
+              row.costOverride ?? (row.costPrice !== first.costPrice ? row.costPrice : null);
+            const landingOverride =
+              row.landingPrice != null && row.landingPrice !== first.landingPrice
+                ? row.landingPrice
+                : null;
 
             let variant = await tx.productVariant.findFirst({
               where: {
@@ -396,8 +407,10 @@ export async function executeImport(
             const variantPricing = {
               mrpOverride,
               priceOverride,
-              costOverride: row.costOverride,
+              costOverride,
+              landingOverride,
               clearancePrice: row.clearancePrice,
+              lotCode: row.lotCode,
             };
 
             if (variant) {

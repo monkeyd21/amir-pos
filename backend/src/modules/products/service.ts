@@ -25,9 +25,22 @@ export const listProducts = async (query: ListProductsQuery) => {
     where.categoryId = parseInt(query.categoryId, 10);
   }
   if (query.search) {
+    // Match on product name/slug OR any variant's SKU / barcode / lot code, so the
+    // products page can be searched by the (numeric) SKU or the scannable barcode.
     where.OR = [
       { name: { contains: query.search, mode: 'insensitive' } },
       { slug: { contains: query.search, mode: 'insensitive' } },
+      {
+        variants: {
+          some: {
+            OR: [
+              { sku: { contains: query.search, mode: 'insensitive' } },
+              { barcode: { contains: query.search, mode: 'insensitive' } },
+              { lotCode: { contains: query.search, mode: 'insensitive' } },
+            ],
+          },
+        },
+      },
     ];
   }
 
