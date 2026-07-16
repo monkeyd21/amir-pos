@@ -10,6 +10,7 @@ import { reconcileCommissionsForSale } from '../../services/commission-reconcile
 import { redeemVouchers } from '../vouchers/service';
 import { recordAudit } from '../../services/audit';
 import { verifyOwnerPin } from '../../services/owner-pin';
+import { gstRateForPrice } from '../../utils/tax';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -746,8 +747,10 @@ export class PosService {
           ? 0
           : Math.round(postOffer * apportionRatio * 100) / 100;
         const lineTaxable = postOffer - apportioned;
-        // Extract GST from within the inclusive post-discount amount (always stored).
-        const lineTax = lineTaxable * (line.taxRate / (100 + line.taxRate));
+        // §gst — dynamic rate on the per-unit charged (post-discount, inclusive)
+        // price: ≤ ₹2,500 → 5%, else 18%. Extract the GST from within the amount.
+        const gstRate = gstRateForPrice(line.quantity > 0 ? lineTaxable / line.quantity : lineTaxable);
+        const lineTax = lineTaxable * (gstRate / (100 + gstRate));
         // Customer pays the inclusive taxable — no tax added on top.
         const lineTotal = lineTaxable;
         // `discount` is the total per-line reduction; the discretionary slice is
@@ -1288,10 +1291,10 @@ export class PosService {
       include: { product: true, inventory: { where: { branchId } } },
     });
     const items = variants.map((v) => {
-      const taxRate = Number(v.product.cgstRate) + Number(v.product.sgstRate);
       // §5/§13.3 — offline POS charges the MRP too (clearance overrides).
       const isClearance = v.clearanceFlag && v.clearancePrice != null;
       const price = isClearance ? Number(v.clearancePrice) : this.nonClearanceChargePrice(v);
+      const taxRate = gstRateForPrice(price); // §gst — dynamic rate on the charged price
       return {
         variantId: v.id,
         barcode: v.barcode,
@@ -1362,8 +1365,10 @@ export class PosService {
           ? Number(variant.product.mrp)
           : null,
       costPrice: Number(variant.costOverride ?? variant.product.costPrice),
-      taxRate:
-        Number(variant.product.cgstRate) + Number(variant.product.sgstRate),
+      // §gst — dynamic rate on the charged price (≤ ₹2,500 → 5%, else 18%).
+      taxRate: gstRateForPrice(
+        isClearance ? Number(variant.clearancePrice) : this.nonClearanceChargePrice(variant)
+      ),
       stock: inventory?.quantity ?? 0,
       clearance: isClearance,
     };
@@ -1479,7 +1484,10 @@ export class PosService {
             : v.product.mrp != null
             ? Number(v.product.mrp)
             : null,
-        taxRate: Number(v.product.cgstRate) + Number(v.product.sgstRate),
+        // §gst — dynamic rate on the charged price (≤ ₹2,500 → 5%, else 18%).
+        taxRate: gstRateForPrice(
+          isClearance ? Number(v.clearancePrice) : this.nonClearanceChargePrice(v)
+        ),
         stock: stockMap.get(v.id) ?? 0,
       };
     });
@@ -1640,7 +1648,9 @@ export class PosService {
 
     for (const item of cartItems) {
       const lineSubtotal = item.unitPrice * item.quantity;
-      const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
+      // §gst — dynamic rate on the per-unit price (≤ ₹2,500 → 5%, else 18%).
+      const gstRate = gstRateForPrice(item.unitPrice);
+      const lineTax = lineSubtotal * (gstRate / (100 + gstRate));
       subtotal += lineSubtotal;
       totalTax += lineTax;
     }
@@ -1813,8 +1823,9 @@ export class PosService {
 
       for (const item of cartItems) {
         const lineSubtotal = item.unitPrice * item.quantity;
-        // Tax-inclusive: extract GST component from the MRP, don't add it.
-        const lineTax = lineSubtotal * (item.taxRate / (100 + item.taxRate));
+        // §gst — dynamic rate on the per-unit price (≤ ₹2,500 → 5%, else 18%).
+        const gstRate = gstRateForPrice(item.unitPrice);
+        const lineTax = lineSubtotal * (gstRate / (100 + gstRate));
         const lineTotal = lineSubtotal;
 
         subtotal += lineSubtotal;

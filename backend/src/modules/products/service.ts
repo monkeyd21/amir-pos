@@ -1,6 +1,7 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { slugify, generateSKU, generateEAN13, getPagination, buildPaginationMeta } from '../../utils/helpers';
+import { hsnForCategory } from '../../utils/tax';
 import { MovementType } from '@prisma/client';
 
 interface ListProductsQuery {
@@ -159,7 +160,8 @@ export const createProduct = async (data: {
       basePrice: data.basePrice,
       costPrice: data.costPrice,
       landingPrice: data.landingPrice ?? null,
-      hsnCode: data.hsnCode ?? null,
+      // §gst — auto-assign the 4-digit HSN from the category when not given.
+      hsnCode: data.hsnCode ?? hsnForCategory(category.name),
       cgstRate: data.cgstRate ?? 9,
       sgstRate: data.sgstRate ?? 9,
       priceIncludesTax: data.priceIncludesTax ?? true,
@@ -268,6 +270,8 @@ export const updateProduct = async (id: number, data: {
   if (data.categoryId) {
     const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
     if (!category) throw new AppError('Category not found', 404);
+    // §gst — re-derive the HSN from the new category unless one is explicitly set.
+    if (data.hsnCode == null) updateData.hsnCode = hsnForCategory(category.name);
   }
 
   const updated = await prisma.product.update({
