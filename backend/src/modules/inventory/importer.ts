@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
+import { hsnForCategory } from '../../utils/tax';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -354,6 +355,8 @@ export async function executeImport(
           landingPrice: first.landingPrice,
           cgstRate: halfRate,
           sgstRate: first.taxRate - halfRate,
+          // §gst — 4-digit HSN auto-assigned from the category.
+          hsnCode: hsnForCategory(first.category),
         };
 
         if (product) {
