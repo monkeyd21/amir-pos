@@ -395,6 +395,8 @@ export class ReportService {
         netAmount: round2(net),
         totalPurchaseValue: round2(totalPurchaseValue),
         totalSaleValue: round2(taxable),
+        // GST portion of this line (0 when GST display is off).
+        gst: round2(net - taxable),
         profitLoss: round2(profitLoss),
         profitLossPct: round2(profitLossPct),
         landingCost: round4(landingCost),
@@ -427,11 +429,13 @@ export class ReportService {
       netAmount: sum((r) => r.netAmount),
       totalPurchaseValue: totalPurchase,
       totalSaleValue: sum((r) => r.totalSaleValue),
+      gst: sum((r) => r.gst),
       profitLoss: totalProfit,
       profitLossPct: totalPurchase !== 0 ? round2((totalProfit / totalPurchase) * 100) : 0,
     };
 
-    return { period: { startDate: query.startDate, endDate: query.endDate }, rows, totals };
+    // §tax — `showGst` lets the UI reveal the GST column only when the switch is on.
+    return { period: { startDate: query.startDate, endDate: query.endDate }, rows, totals, showGst };
   }
 
   // ─── Daily Summary ──────────────────────────────────

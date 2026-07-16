@@ -16,6 +16,7 @@ interface PnlRow {
   netAmount: number;
   totalPurchaseValue: number;
   totalSaleValue: number;
+  gst: number;
   profitLoss: number;
   profitLossPct: number;
   landingCost: number;
@@ -30,6 +31,7 @@ interface PnlTotals {
   netAmount: number;
   totalPurchaseValue: number;
   totalSaleValue: number;
+  gst: number;
   profitLoss: number;
   profitLossPct: number;
 }
@@ -38,6 +40,8 @@ interface PnlData {
   period: { startDate: string; endDate: string };
   rows: PnlRow[];
   totals: PnlTotals;
+  /** GST column is shown only when the account's "Show GST" switch is on. */
+  showGst: boolean;
 }
 
 type Preset = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
