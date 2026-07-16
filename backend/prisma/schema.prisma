@@ -284,11 +284,16 @@ model ProductVariant {
   size           String
   color          String
   barcode        String   @unique
+  // Supplier lot / batch code carried over from the source stock sheet (LOT CODE).
+  lotCode        String?
   // §13.3 — per-variant MRP override. Falls back to the product's MRP when null.
   // Sale Price (priceOverride) auto-fills to mrpOverride − 10% at entry, editable.
   mrpOverride    Decimal? @db.Decimal(10, 2)
   priceOverride  Decimal? @db.Decimal(10, 2)
   costOverride   Decimal? @db.Decimal(10, 2)
+  // Per-variant landing cost (cost after freight/expenses). Falls back to the
+  // product's landingPrice, then the cost, in the P&L.
+  landingOverride Decimal? @db.Decimal(10, 2)
   isActive       Boolean  @default(true)
   // §2.4 — Clearance (dead-stock liquidation). When flagged, clearancePrice is
   // the fixed selling price and ALL counter discounts lock to zero; managed
