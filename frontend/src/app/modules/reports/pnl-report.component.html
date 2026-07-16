@@ -52,6 +52,7 @@
           <th class="px-3 py-2 text-right">Net Amount</th>
           <th class="px-3 py-2 text-right">Total Purchase Value</th>
           <th class="px-3 py-2 text-right">Total Sale Value</th>
+          @if (data.showGst) { <th class="px-3 py-2 text-right">GST</th> }
           <th class="px-3 py-2 text-right">Profit / Loss</th>
           <th class="px-3 py-2 text-right">P/L %</th>
           <th class="px-3 py-2 text-right">Landing Cost</th>
@@ -70,12 +71,13 @@
             <td class="px-3 py-1.5 text-right">{{ n(r.netAmount) }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.totalPurchaseValue) }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.totalSaleValue) }}</td>
+            @if (data.showGst) { <td class="px-3 py-1.5 text-right">{{ n(r.gst) }}</td> }
             <td class="px-3 py-1.5 text-right">{{ n(r.profitLoss) }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.profitLossPct) }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.landingCost, 4) }}</td>
           </tr>
         } @empty {
-          <tr><td colspan="13" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
+          <tr><td [attr.colspan]="data.showGst ? 14 : 13" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
         }
       </tbody>
       @if (data.rows.length > 0) {
@@ -89,6 +91,7 @@
             <td class="px-3 py-2 text-right">{{ n(data.totals.netAmount) }}</td>
             <td class="px-3 py-2 text-right">{{ n(data.totals.totalPurchaseValue) }}</td>
             <td class="px-3 py-2 text-right">{{ n(data.totals.totalSaleValue) }}</td>
+            @if (data.showGst) { <td class="px-3 py-2 text-right">{{ n(data.totals.gst) }}</td> }
             <td class="px-3 py-2 text-right">{{ n(data.totals.profitLoss) }}</td>
             <td class="px-3 py-2 text-right">{{ n(data.totals.profitLossPct) }}</td>
             <td class="px-3 py-2"></td>
