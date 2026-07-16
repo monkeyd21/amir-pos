@@ -101,10 +101,9 @@
             <input
               type="checkbox"
               [(ngModel)]="taxEnabled"
-              (ngModelChange)="saveTaxEnabled()"
-              [disabled]="savingTaxEnabled"
+              (change)="saveTaxEnabled()"
               data-testid="tax-enabled-toggle"
-              class="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+              class="mt-0.5 w-4 h-4 accent-primary cursor-pointer rounded"
             />
             <span class="text-sm font-body">
               <span class="block font-semibold text-on-surface">Charge GST / Taxes</span>
