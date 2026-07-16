@@ -368,7 +368,10 @@ export class ReportService {
       const landingCost = Number(v?.product?.landingPrice ?? purchaseRate);
       const gstRate = Number(v?.product?.cgstRate ?? 0) + Number(v?.product?.sgstRate ?? 0);
       const grossAmount = saleRate * qty;
-      const totalPurchaseValue = purchaseRate * qty;
+      // §pnl — profit is measured against LANDING cost (cost after freight/expenses,
+      // i.e. what's actually paid), not the bare purchase rate. landingCost falls
+      // back to the purchase rate when no landing price is set.
+      const totalPurchaseValue = landingCost * qty;
       // Sale Value = net excluding GST — but only when GST display is ON. When
       // OFF, GST stays hidden so Sale Value = Net. Use the stored line tax when we
       // have it (sales); otherwise back it out from the product's GST rate (returns).
