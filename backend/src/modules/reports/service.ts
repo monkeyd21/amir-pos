@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { getSetting } from '../settings/service';
 
 export class ReportService {
   // ─── Sales Report ───────────────────────────────────
@@ -307,6 +308,10 @@ export class ReportService {
     // §11.0 — sales roll up by businessDate; returns use their own calendar date.
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const round4 = (n: number) => Math.round(n * 10000) / 10000;
+    // §tax — GST is always recorded; this flag only controls whether the P&L
+    // *reveals* it. OFF → Sale Value = Net (GST hidden); ON → Sale Value = Net −
+    // GST, and because the tax was always stored this applies to past bills too.
+    const showGst = await getSetting<boolean>('gstComplianceEnabled', false);
     const s = new Date(query.startDate);
     const e = new Date(query.endDate);
     const bdStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
@@ -364,9 +369,16 @@ export class ReportService {
       const gstRate = Number(v?.product?.cgstRate ?? 0) + Number(v?.product?.sgstRate ?? 0);
       const grossAmount = saleRate * qty;
       const totalPurchaseValue = purchaseRate * qty;
-      // Sale Value = net excluding GST. Use the stored line tax when we have it
-      // (sales); otherwise back it out from the product's GST rate (returns).
-      const taxable = storedTax != null ? net - storedTax : gstRate ? net * (100 / (100 + gstRate)) : net;
+      // Sale Value = net excluding GST — but only when GST display is ON. When
+      // OFF, GST stays hidden so Sale Value = Net. Use the stored line tax when we
+      // have it (sales); otherwise back it out from the product's GST rate (returns).
+      const taxable = !showGst
+        ? net
+        : storedTax != null
+        ? net - storedTax
+        : gstRate
+        ? net * (100 / (100 + gstRate))
+        : net;
       const profitLoss = net - totalPurchaseValue;
       const profitLossPct = totalPurchaseValue !== 0 ? (profitLoss / totalPurchaseValue) * 100 : 0;
       return {
