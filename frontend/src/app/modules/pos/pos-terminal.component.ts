@@ -9,6 +9,7 @@ import { AuthService, User } from '../../core/services/auth.service';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { CustomerDialogComponent } from '../customers/customer-dialog.component';
+import { QuickProductDialogComponent } from './quick-product-dialog.component';
 import { ScanSoundService } from '../../core/services/scan-sound.service';
 import { NoSpinDirective } from '../../shared/directives/no-spin.directive';
 import { OfflineService } from '../../core/services/offline.service';
@@ -873,16 +874,16 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             this.addToCart(res.data);
           } else {
             this.scanSound.invalid();
-            this.notify.warning(`No product found for "${query}"`);
-            this.focusSearchInput();
+            this.notify.warning(`No product found for "${query}" — quick-add it`);
+            this.openQuickAdd(query);
           }
         },
         error: (err) => {
           this.scanSound.invalid();
           this.notify.warning(
-            err.error?.error || `No product found for "${query}"`
+            err.error?.error || `No product found for "${query}" — quick-add it`
           );
-          this.focusSearchInput();
+          this.openQuickAdd(query);
         },
       });
   }
@@ -973,6 +974,32 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     );
     ref.afterClosed().subscribe((result) => {
       if (result && typeof result === 'object') this.selectCustomer(result);
+    });
+  }
+
+  /**
+   * Case B — quick-add a "ghost" item that isn't in the system. Opens the
+   * quick-add dialog (prefilled with the typed name when it isn't a barcode
+   * number); on create the backend returns a ready-to-sell variant which we
+   * drop straight into the cart. Keeps the counter moving instead of blocking.
+   */
+  openQuickAdd(prefill?: string): void {
+    const raw = (prefill ?? this.searchQuery ?? '').trim();
+    // A purely numeric token is almost certainly a scanned barcode, not a name.
+    const name = raw && !/^\d+$/.test(raw) ? raw : '';
+    const ref = this.dialog.open<QuickProductDialogComponent, any, any>(
+      QuickProductDialogComponent,
+      { data: { name }, width: '30rem' }
+    );
+    ref.afterClosed().subscribe((variant) => {
+      if (variant && typeof variant === 'object') {
+        this.searchQuery = '';
+        this.searchResults = [];
+        this.showSearchResults = false;
+        this.addToCart(variant as ProductVariant);
+      } else {
+        this.focusSearchInput();
+      }
     });
   }
 

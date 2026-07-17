@@ -12,6 +12,7 @@ import { RestockComponent } from './restock.component';
 import { StockHistoryComponent } from './stock-history.component';
 import { TaxonomyComponent } from './taxonomy.component';
 import { ClearanceComponent } from './clearance.component';
+import { StockTakeComponent } from './stock-take.component';
 
 export const INVENTORY_ROUTES: Routes = [
   {
@@ -25,6 +26,7 @@ export const INVENTORY_ROUTES: Routes = [
       { path: 'products/:id/restock', component: RestockComponent },
       { path: 'products/:id', component: ProductDetailComponent },
       { path: 'stock', component: StockLevelsComponent },
+      { path: 'stock-take', component: StockTakeComponent },
       { path: 'transfers', component: TransfersComponent },
       { path: 'transfers/create', component: TransferCreateComponent },
       { path: 'barcodes', component: BarcodesComponent },

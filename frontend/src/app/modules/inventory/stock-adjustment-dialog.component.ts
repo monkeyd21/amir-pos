@@ -63,6 +63,19 @@ export class StockAdjustmentDialogComponent implements OnInit {
     this.variantLabel = parts.join(' / ') || item.variant?.sku || '';
   }
 
+  /** Common one-tap reasons — each also picks the right add/remove direction. */
+  readonly quickReasons: { label: string; type: 'add' | 'remove'; reason: string }[] = [
+    { label: 'Found stock', type: 'add', reason: 'Found stock (physical recount)' },
+    { label: 'Damaged', type: 'remove', reason: 'Damaged / write-off' },
+    { label: 'Shrinkage', type: 'remove', reason: 'Shrinkage (missing at count)' },
+    { label: 'Purchase', type: 'add', reason: 'Purchase / stock receipt from supplier' },
+  ];
+
+  applyQuickReason(q: { type: 'add' | 'remove'; reason: string }): void {
+    this.adjustmentType = q.type;
+    this.reason = q.reason;
+  }
+
   get isValid(): boolean {
     return this.quantity !== null && this.quantity > 0 && !!this.reason.trim();
   }

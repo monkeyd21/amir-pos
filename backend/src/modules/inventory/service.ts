@@ -177,6 +177,62 @@ export class InventoryService {
     });
   }
 
+  /**
+   * Stock-take reconciliation: given physical counts per variant, set each to
+   * the counted quantity and log the difference as an `adjustment` movement
+   * (positive = found stock, negative = shrinkage). Zero-variance lines are
+   * skipped. Everything runs in one transaction so a partial count can't leave
+   * inventory half-reconciled.
+   */
+  async reconcileStock(
+    data: {
+      branchId: number;
+      reason?: string | null;
+      counts: { variantId: number; physicalCount: number }[];
+    },
+    userId: number
+  ) {
+    const reason = (data.reason || 'Stock-take reconciliation').trim();
+
+    return prisma.$transaction(async (tx) => {
+      const lines: Array<{ variantId: number; system: number; physical: number; delta: number }> = [];
+
+      for (const c of data.counts) {
+        const physical = Math.max(0, Math.floor(Number(c.physicalCount) || 0));
+        const inv = await tx.inventory.findUnique({
+          where: { variantId_branchId: { variantId: c.variantId, branchId: data.branchId } },
+        });
+        const system = inv?.quantity ?? 0;
+        const delta = physical - system;
+        if (delta === 0) continue;
+
+        await tx.inventory.upsert({
+          where: { variantId_branchId: { variantId: c.variantId, branchId: data.branchId } },
+          update: { quantity: physical },
+          create: { variantId: c.variantId, branchId: data.branchId, quantity: physical },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            variantId: c.variantId,
+            branchId: data.branchId,
+            type: MovementType.adjustment,
+            quantity: delta,
+            notes: `${reason} (${delta > 0 ? 'found' : 'shrinkage'})`,
+            createdBy: userId,
+          },
+        });
+
+        lines.push({ variantId: c.variantId, system, physical, delta });
+      }
+
+      const unitsFound = lines.filter((l) => l.delta > 0).reduce((s, l) => s + l.delta, 0);
+      const unitsShrinkage = lines.filter((l) => l.delta < 0).reduce((s, l) => s - l.delta, 0);
+
+      return { adjusted: lines.length, unitsFound, unitsShrinkage, lines };
+    });
+  }
+
   async restock(data: {
     productId: number;
     vendorId: number;

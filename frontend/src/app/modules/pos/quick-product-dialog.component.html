@@ -1,0 +1,126 @@
+<div class="w-[480px] bg-surface-container/95 backdrop-blur-xl border border-outline-variant/20 rounded-2xl shadow-ambient">
+  <!-- Header -->
+  <div class="flex items-center justify-between p-6 pb-4">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-primary-container/20 shrink-0">
+        <span class="material-symbols-outlined text-primary text-xl">add_box</span>
+      </div>
+      <div>
+        <h3 class="text-lg font-headline font-bold text-on-surface tracking-tight">Quick Add Product</h3>
+        <p class="text-xs font-body text-on-surface-variant">Not in the system — create &amp; stock it to sell now</p>
+      </div>
+    </div>
+    <button (click)="onCancel()" class="p-1.5 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer">
+      <span class="material-symbols-outlined text-on-surface-variant text-xl">close</span>
+    </button>
+  </div>
+
+  <!-- Form -->
+  <form (ngSubmit)="onSubmit()" class="px-6 pb-6 space-y-4">
+    <!-- Name -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Product Name *</label>
+      <input
+        #nameInput
+        appAutoCaps
+        [(ngModel)]="name"
+        name="name"
+        type="text"
+        placeholder="e.g. Cotton Kurti"
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-colors"
+      />
+    </div>
+
+    <!-- Category + MRP -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Category</label>
+        <select
+          [(ngModel)]="categoryId"
+          name="categoryId"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary outline-none transition-colors appearance-none cursor-pointer"
+        >
+          <option [ngValue]="null">Uncategorized</option>
+          @for (cat of categories; track cat.id) {
+            <option [ngValue]="cat.id">{{ cat.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">MRP (₹) *</label>
+        <input
+          [(ngModel)]="mrp"
+          name="mrp"
+          type="number"
+          min="1"
+          placeholder="0"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-colors"
+        />
+      </div>
+    </div>
+
+    <!-- Size + Color + Qty -->
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Size</label>
+        <input
+          appAutoCaps
+          [(ngModel)]="size"
+          name="size"
+          type="text"
+          placeholder="—"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary outline-none transition-colors"
+        />
+      </div>
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Color</label>
+        <input
+          appAutoCaps
+          [(ngModel)]="color"
+          name="color"
+          type="text"
+          placeholder="—"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary outline-none transition-colors"
+        />
+      </div>
+      <div>
+        <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Qty *</label>
+        <input
+          [(ngModel)]="quantity"
+          name="quantity"
+          type="number"
+          min="1"
+          class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary outline-none transition-colors"
+        />
+      </div>
+    </div>
+
+    <!-- Derived preview -->
+    @if (mrp && mrp > 0) {
+      <div class="bg-surface-container-low/50 rounded-lg p-3 text-[11px] font-body text-on-surface-variant flex flex-wrap gap-x-4 gap-y-1">
+        <span>Sale Price <span class="font-semibold text-on-surface">₹{{ salePrice }}</span></span>
+        <span>HSN <span class="font-mono text-on-surface">{{ hsnPreview }}</span></span>
+        <span>GST <span class="font-semibold text-on-surface">{{ gstPreview }}%</span></span>
+        <span class="text-on-surface-variant/70">POS charges the MRP (tax-inclusive)</span>
+      </div>
+    }
+
+    <!-- Actions -->
+    <div class="flex items-center gap-3 pt-1">
+      <button
+        type="button"
+        (click)="onCancel()"
+        class="flex-1 px-4 py-2.5 text-sm font-semibold font-body text-on-surface-variant bg-surface-container-high/50 rounded-lg hover:bg-surface-container-high transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        [disabled]="!isValid || saving"
+        class="flex-1 px-4 py-2.5 text-sm font-semibold font-body bg-primary text-on-primary rounded-lg disabled:opacity-50 hover:bg-primary/90 transition-colors"
+      >
+        {{ saving ? 'Creating…' : 'Create & Add to Cart' }}
+      </button>
+    </div>
+  </form>
+</div>

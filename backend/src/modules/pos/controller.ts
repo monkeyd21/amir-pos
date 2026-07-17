@@ -115,6 +115,19 @@ export class PosController {
     }
   }
 
+  async quickCreateProduct(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const variant = await posService.quickCreateProduct(
+        req.body,
+        req.user!.userId,
+        req.user!.branchId
+      );
+      res.status(201).json({ success: true, data: variant, message: 'Product created and stocked' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async lookupBarcode(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const variant = await posService.lookupBarcode(

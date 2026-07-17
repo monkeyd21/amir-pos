@@ -46,6 +46,22 @@ export class InventoryController {
     }
   }
 
+  async reconcile(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await inventoryService.reconcileStock(
+        { ...req.body, branchId: req.user!.branchId },
+        req.user!.userId
+      );
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: `Reconciled ${result.adjusted} line(s)`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async restock(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const result = await inventoryService.restock(
