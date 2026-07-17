@@ -58,6 +58,9 @@ export class StockLevelsComponent implements OnInit, OnDestroy {
   selectedBranchId: string | null = null;
   lowStockOnly = false;
   search = '';
+  // Tab: 'in' hides out-of-stock (default), 'out' shows only out-of-stock.
+  stockTab: 'in' | 'out' = 'in';
+  outOfStockTotal = 0;
 
   // Pagination
   page = 1;
@@ -82,6 +85,26 @@ export class StockLevelsComponent implements OnInit, OnDestroy {
       next: (branches) => (this.branches = branches),
     });
     this.loadStock();
+    this.loadOutOfStockTotal();
+  }
+
+  /** Total out-of-stock count (for the tab badge) — a cheap count query. */
+  private loadOutOfStockTotal(): void {
+    const params: Record<string, string | number> = { page: 1, limit: 1, stockStatus: 'out' };
+    if (this.selectedBranchId) params['branchId'] = this.selectedBranchId;
+    this.api
+      .get<ApiResponse<InventoryItem[]>>('/inventory', params)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({ next: (res) => (this.outOfStockTotal = res.meta?.total ?? 0), error: () => {} });
+  }
+
+  setStockTab(tab: 'in' | 'out'): void {
+    if (this.stockTab === tab) return;
+    this.stockTab = tab;
+    // Low-stock only makes sense within the in-stock view.
+    if (tab === 'out') this.lowStockOnly = false;
+    this.page = 1;
+    this.loadStock();
   }
 
   ngOnDestroy(): void {
@@ -95,6 +118,7 @@ export class StockLevelsComponent implements OnInit, OnDestroy {
       page: this.page,
       limit: this.limit,
     };
+    params['stockStatus'] = this.stockTab;
     if (this.lowStockOnly) params['lowStock'] = true;
     if (this.selectedBranchId) params['branchId'] = this.selectedBranchId;
     if (this.search) params['search'] = this.search;
@@ -206,7 +230,10 @@ export class StockLevelsComponent implements OnInit, OnDestroy {
       width: '480px',
     });
     ref.afterClosed().subscribe((result) => {
-      if (result) this.loadStock();
+      if (result) {
+        this.loadStock();
+        this.loadOutOfStockTotal();
+      }
     });
   }
 
