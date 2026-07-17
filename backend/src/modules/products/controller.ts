@@ -11,6 +11,15 @@ export const listProducts = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
+export const getInventoryValuation = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await productService.getInventoryValuation();
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getProductById = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const product = await productService.getProductById(parseInt(req.params.id, 10));

@@ -18,6 +18,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', validate(listProductsSchema), controller.listProducts);
+// Static route MUST precede '/:id' so "valuation" isn't captured as an id param.
+router.get('/valuation', controller.getInventoryValuation);
 router.get('/:id', validate(getProductSchema), controller.getProductById);
 router.post('/', authorize('owner', 'manager'), validate(createProductSchema), controller.createProduct);
 router.put('/:id', authorize('owner', 'manager'), validate(updateProductSchema), controller.updateProduct);

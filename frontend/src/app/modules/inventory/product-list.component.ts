@@ -69,8 +69,10 @@ export class ProductListComponent implements OnInit, OnDestroy {
   limit = 10;
   total = 0;
 
-  // Stats
-  totalInventoryValue = 0;
+  // Stats — valuation is computed server-side across ALL stock (not just this page).
+  totalSaleValue = 0;       // Σ effective sale price × stock
+  totalPurchaseValue = 0;   // Σ effective landing cost × stock
+  totalUnits = 0;           // Σ pieces in stock
   lowStockAlerts = 0;
   activeVariants = 0;
 
@@ -86,6 +88,24 @@ export class ProductListComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadFilters();
     this.loadProducts();
+    this.loadValuation();
+  }
+
+  /** Inventory valuation across all stock (server aggregate — page-independent). */
+  private loadValuation(): void {
+    this.api
+      .get<ApiResponse<{ totalSaleValue: number; totalPurchaseValue: number; totalUnits: number }>>(
+        '/products/valuation'
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.totalSaleValue = Number(res.data?.totalSaleValue || 0);
+          this.totalPurchaseValue = Number(res.data?.totalPurchaseValue || 0);
+          this.totalUnits = Number(res.data?.totalUnits || 0);
+        },
+        error: () => {},
+      });
   }
 
   ngOnDestroy(): void {
@@ -135,10 +155,6 @@ export class ProductListComponent implements OnInit, OnDestroy {
   }
 
   private computeStats(): void {
-    this.totalInventoryValue = this.products.reduce(
-      (sum, p) => sum + (p.basePrice || 0) * (p._count?.variants || 0),
-      0
-    );
     this.activeVariants = this.products.reduce(
       (sum, p) => sum + (p._count?.variants || p.variants?.length || 0),
       0

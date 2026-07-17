@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Inject, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule,
@@ -34,10 +34,18 @@ interface CustomerDialogData {
   imports: [CommonModule, ReactiveFormsModule, AutoCapsDirective],
   templateUrl: './customer-dialog.component.html',
 })
-export class CustomerDialogComponent implements OnInit {
+export class CustomerDialogComponent implements OnInit, AfterViewInit {
+  @ViewChild('firstNameInput') firstNameInput?: ElementRef<HTMLInputElement>;
+
   form!: FormGroup;
   saving = false;
   isEdit = false;
+
+  ngAfterViewInit(): void {
+    // Land the cursor in First Name the moment the dialog opens so the cashier
+    // can type straight away (no click needed).
+    setTimeout(() => this.firstNameInput?.nativeElement.focus());
+  }
 
   constructor(
     public dialogRef: DialogRef<boolean | any>,
