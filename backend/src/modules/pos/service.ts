@@ -1506,10 +1506,10 @@ export class PosService {
         OR: [
           { product: { name: { contains: query, mode: 'insensitive' } } },
           { product: { brand: { name: { contains: query, mode: 'insensitive' } } } },
-          // CODE fields match on prefix so "895" doesn't drag in SKU "3895" or a
-          // barcode that merely contains "895" as a substring.
-          { sku: { startsWith: query, mode: 'insensitive' } },
-          { barcode: { startsWith: query, mode: 'insensitive' } },
+          // SKU matches on substring; BARCODE matches EXACTLY only, so a barcode
+          // that merely contains the typed digits doesn't pollute the results.
+          { sku: { contains: query, mode: 'insensitive' } },
+          { barcode: { equals: query, mode: 'insensitive' } },
         ],
       },
       include: {

@@ -26,9 +26,9 @@ export const listProducts = async (query: ListProductsQuery) => {
     where.categoryId = parseInt(query.categoryId, 10);
   }
   if (query.search) {
-    // Names match on substring (natural for text), but CODE fields (SKU / barcode /
-    // lot) match on PREFIX — otherwise searching "895" also returns SKU "3895" and
-    // barcodes like "SE05895" that merely contain "895" as a substring.
+    // Name / SKU / lot match on substring (natural for text + partial-code lookup).
+    // BARCODE matches EXACTLY only — a 13-char barcode like "SE05895" otherwise
+    // shows up for an unrelated SKU search like "895".
     where.OR = [
       { name: { contains: query.search, mode: 'insensitive' } },
       { slug: { contains: query.search, mode: 'insensitive' } },
@@ -36,9 +36,9 @@ export const listProducts = async (query: ListProductsQuery) => {
         variants: {
           some: {
             OR: [
-              { sku: { startsWith: query.search, mode: 'insensitive' } },
-              { barcode: { startsWith: query.search, mode: 'insensitive' } },
-              { lotCode: { startsWith: query.search, mode: 'insensitive' } },
+              { sku: { contains: query.search, mode: 'insensitive' } },
+              { barcode: { equals: query.search, mode: 'insensitive' } },
+              { lotCode: { contains: query.search, mode: 'insensitive' } },
             ],
           },
         },
