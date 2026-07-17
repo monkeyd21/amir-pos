@@ -474,6 +474,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadLoyaltyConfig();
     this.loadHeld();
     this.initOffline();
+    // Re-evaluate the trading day every minute so the stale-shift banner shows
+    // up at midnight without needing a page interaction.
+    this.clockTimer = setInterval(() => { /* tick → CD refreshes staleShiftWarning */ }, 60_000);
   }
 
   // ─── Offline mode ────────────────────────────────────────────────
@@ -616,6 +619,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngOnDestroy(): void {
+    if (this.clockTimer) clearInterval(this.clockTimer);
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -634,6 +638,28 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   /** The open session's trading day (IST) — shown on the EOD reconciliation panel. */
   get shiftDateLabel(): string {
     return this.formatShiftDate(this.session?.businessDate ?? this.session?.openedAt);
+  }
+
+  /** Ticks every minute so the stale-shift banner appears right after midnight
+   *  even when the terminal is left idle (zone.js patches setInterval → CD). */
+  private clockTimer?: ReturnType<typeof setInterval>;
+
+  /** India calendar-day key (YYYY-MM-DD) for trading-day comparisons. */
+  private istDayKey(value?: string): string {
+    const d = value ? new Date(value) : new Date();
+    // en-CA renders ISO-style YYYY-MM-DD; pin to Asia/Kolkata for the store's day.
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+
+  /**
+   * True once the India day has rolled past midnight on a still-open shift:
+   * the shift's frozen trading day is now behind today, so any new bill would
+   * carry yesterday's date. Drives the red "close the shift" banner (§11.0).
+   */
+  get staleShiftWarning(): boolean {
+    const anchor = this.session?.businessDate ?? this.session?.openedAt;
+    if (!anchor) return false;
+    return this.istDayKey(anchor) < this.istDayKey();
   }
 
   /**
