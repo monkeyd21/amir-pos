@@ -46,8 +46,15 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
   @Input() brandName = '';
   /** Product name, used for the SKU base preview (optional). */
   @Input() productName = '';
-  /** Default base price to pre-fill (usually the product's basePrice). */
+  /** Default base price to pre-fill (usually the product's basePrice = Sale Price). */
   @Input() defaultPrice: number | null = null;
+  /**
+   * Default MRP from the left panel. When provided (flat pricing), each line's
+   * MRP is SEEDED from this value once — never derived from the Sale Price. This
+   * keeps MRP authoritative (Sale = MRP − 10% is computed in the parent, not here)
+   * so an imported/clearance MRP that isn't exactly Sale + 10% survives intact.
+   */
+  @Input() defaultMrp: number | null = null;
   /** Cost price from the product — used for margin calculation. */
   @Input() costPrice: number | null = null;
   /** Landing price from the product — used for margin calculation. */
@@ -314,11 +321,11 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
         const price = this.priceOverrides.has(key)
           ? this.priceOverrides.get(key)!
           : this.computePrice(sizeIndex);
-        // MRP: per-row override wins, else derived from the sale price (÷ 0.9)
-        // so the default satisfies the "Sale = MRP − 10%" convention.
+        // MRP: per-row override wins, else the seeded default (left-panel MRP for
+        // flat pricing; ÷ 0.9 fallback only when no MRP was supplied / step mode).
         const mrp = this.mrpOverrides.has(key)
           ? this.mrpOverrides.get(key)!
-          : price > 0 ? Math.round(price / 0.9) : 0;
+          : this.defaultMrpFor(price);
         const stock = this.stockOverrides.has(key)
           ? this.stockOverrides.get(key)!
           : (this.initialStock ?? 0);
@@ -361,6 +368,20 @@ export class BulkVariantGeneratorComponent implements OnInit, OnChanges {
     const base = Number(this.stepBase || 0);
     const inc = Number(this.stepIncrement || 0);
     return base + inc * sizeIndex;
+  }
+
+  /**
+   * The default MRP for a line, BEFORE any per-row override.
+   * Precedence: left-panel MRP (seeded once, flat pricing) → ÷ 0.9 fallback.
+   * We never derive MRP from Sale when a real MRP is available — that would be an
+   * auto-calc coupling the two fields, which is exactly what we're avoiding.
+   */
+  private defaultMrpFor(price: number): number {
+    if (this.pricingMode === 'flat' && this.defaultMrp != null && this.defaultMrp > 0) {
+      return Math.round(this.defaultMrp);
+    }
+    // Step pricing (or no MRP supplied): fall back to the Sale = MRP − 10% relation.
+    return price > 0 ? Math.round(price / 0.9) : 0;
   }
 
   private computeSku(size: string, color: string): string {
