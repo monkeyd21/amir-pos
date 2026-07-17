@@ -121,9 +121,11 @@ export class ReturnDialogComponent implements OnInit {
   get canSubmit(): boolean {
     // §1.2 — 'Other' requires the free-text reason to be filled in.
     if (this.reason === 'other' && !this.otherReason.trim()) return false;
-    // Bug#1 — if a split is entered, it must sum to the refund total.
-    if (this.usingSplit && Math.abs(this.splitRemaining) > 0.5) return false;
-    return this.selectedItems.length > 0 && !this.submitting;
+    if (this.selectedItems.length === 0 || this.submitting) return false;
+    // The refund settlement must be entered and allocated IN FULL — no more
+    // silent "process without an amount". "All cash" one-taps the common case.
+    if (this.refundAmount > 0 && Math.abs(this.splitRemaining) > 0.5) return false;
+    return true;
   }
 
   formatCurrency(amount: number): string {
@@ -157,8 +159,8 @@ export class ReturnDialogComponent implements OnInit {
         condition: item.condition,
       })),
     };
-    // Bug#1 — send the explicit split when entered; otherwise the refund
-    // mirrors the original payment (proportional).
+    // The cashier must allocate the refund explicitly (enforced by canSubmit),
+    // so always send the split breakup.
     if (this.usingSplit) {
       body.refundSplit = [
         ...(this.splitCash ? [{ method: 'cash', amount: this.round2(this.splitCash) }] : []),

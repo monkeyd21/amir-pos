@@ -833,9 +833,12 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       return;
     }
 
-    // 2. Dropdown has results — prefer exact barcode, else top row.
+    // 2. Dropdown has results — prefer exact barcode (case-insensitive), else top row.
     if (this.searchResults.length > 0) {
-      const exact = this.searchResults.find((v) => v.barcode === query);
+      const q = query.toLowerCase();
+      const exact = this.searchResults.find(
+        (v) => (v.barcode || '').toLowerCase() === q || (v.sku || '').toLowerCase() === q
+      );
       this.addToCart(exact || this.searchResults[0]);
       return;
     }

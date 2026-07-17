@@ -542,138 +542,6 @@
             </div>
           </div>
 
-          <!-- Customer Search -->
-          <div>
-            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3">Customer</h2>
-            @if (selectedCustomer) {
-              <div class="p-3 rounded-xl bg-surface-container border border-outline-variant/20">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-on-primary-container">
-                      {{ (selectedCustomer.firstName || '?')[0] }}{{ (selectedCustomer.lastName || '?')[0] }}
-                    </div>
-                    <div>
-                      <p class="text-sm font-medium text-on-surface">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</p>
-                      <p class="text-[10px] text-on-surface-variant">{{ selectedCustomer.phone || selectedCustomer.email }}</p>
-                    </div>
-                  </div>
-                  <button
-                    (click)="clearCustomer()"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
-                  >
-                    <span class="material-symbols-outlined text-base">close</span>
-                  </button>
-                </div>
-                @if (selectedCustomer.loyaltyTier || selectedCustomer.loyaltyPoints != null) {
-                  <div class="flex items-center gap-2 mt-2 pl-11 flex-wrap">
-                    @if (selectedCustomer.loyaltyTier) {
-                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
-                        [class]="getLoyaltyTierColor(selectedCustomer.loyaltyTier)">
-                        {{ selectedCustomer.loyaltyTier }}
-                      </span>
-                    }
-                    @if (selectedCustomer.loyaltyPoints != null) {
-                      <span class="text-[10px] text-on-surface-variant">{{ formatNumber(selectedCustomer.loyaltyPoints) }} pts</span>
-                    }
-                    @if (selectedCustomer.visitCount != null) {
-                      <span class="text-[10px] text-on-surface-variant/50">·</span>
-                      <span class="text-[10px] text-on-surface-variant">{{ selectedCustomer.visitCount }} visits</span>
-                    }
-                    @if (selectedCustomer.totalSpent != null) {
-                      <span class="text-[10px] text-on-surface-variant/50">·</span>
-                      <span class="text-[10px] text-on-surface-variant">{{ formatCurrency(selectedCustomer.totalSpent) }} spent</span>
-                    }
-                  </div>
-                }
-                <!-- §5.5 — birthday insight -->
-                @if (selectedCustomer.dateOfBirth) {
-                  <div class="flex items-center gap-1.5 mt-2 pl-11">
-                    <span class="material-symbols-outlined text-[14px] text-pink-400">cake</span>
-                    <span class="text-[10px] text-on-surface-variant">Birthday {{ selectedCustomer.dateOfBirth | date:'d MMM' }}</span>
-                  </div>
-                }
-                <!-- §5.4 — legacy customers: prompt to fill DOB + gender -->
-                @if (!selectedCustomer.dateOfBirth || !selectedCustomer.gender) {
-                  <button
-                    (click)="editCustomer()"
-                    data-testid="legacy-update-prompt"
-                    class="mt-2 ml-11 inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
-                  >
-                    <span class="material-symbols-outlined text-[14px]">edit_note</span>
-                    Add date of birth &amp; gender
-                  </button>
-                }
-                <!-- §5.6 — AI Phase-1 suggestion (size + category from last 3 purchases) -->
-                @if (customerSuggestion && (customerSuggestion.preferredSize || customerSuggestion.likelyCategory)) {
-                  <div class="mt-2 ml-11 flex items-center gap-2 flex-wrap" data-testid="customer-suggestion">
-                    <span class="material-symbols-outlined text-[14px] text-primary">auto_awesome</span>
-                    @if (customerSuggestion.preferredSize) {
-                      <span class="text-[10px] text-on-surface-variant">Usually buys size <b class="text-on-surface">{{ customerSuggestion.preferredSize }}</b></span>
-                    }
-                    @if (customerSuggestion.likelyCategory) {
-                      <span class="text-[10px] text-on-surface-variant/50">·</span>
-                      <span class="text-[10px] text-on-surface-variant">{{ customerSuggestion.likelyCategory }}</span>
-                    }
-                  </div>
-                }
-              </div>
-            } @else {
-              <div class="flex items-center gap-2">
-                <div class="relative flex-1">
-                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">person_search</span>
-                <input
-                  type="text"
-                  [(ngModel)]="customerSearchQuery"
-                  (input)="onCustomerSearchInput()"
-                  (blur)="closeCustomerResults()"
-                  placeholder="Search customer by name, phone..."
-                  class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-10 pr-4 py-2.5 rounded-xl transition-all outline-none placeholder:text-outline/50"
-                  autocomplete="off"
-                />
-                @if (customerSearchLoading) {
-                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div class="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-                  </div>
-                }
-
-                @if (showCustomerResults && customerSearchResults.length > 0) {
-                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 max-h-48 overflow-y-auto no-scrollbar">
-                    @for (customer of customerSearchResults; track customer.id) {
-                      <button
-                        type="button"
-                        (mousedown)="selectCustomer(customer)"
-                        class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-container-high/50 transition-colors text-left"
-                      >
-                        <div class="w-7 h-7 rounded-full bg-primary-container/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
-                          {{ (customer.firstName || '?')[0] }}{{ (customer.lastName || '?')[0] }}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                          <p class="text-sm text-on-surface truncate">{{ customer.firstName }} {{ customer.lastName }}</p>
-                          <p class="text-[10px] text-on-surface-variant">{{ customer.phone || customer.email }}</p>
-                        </div>
-                      </button>
-                    }
-                  </div>
-                }
-
-                @if (showCustomerResults && customerSearchResults.length === 0 && !customerSearchLoading && customerSearchQuery.length >= 2) {
-                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-4 text-center">
-                    <p class="text-xs text-on-surface-variant">No customers found</p>
-                  </div>
-                }
-                </div>
-                <button
-                  type="button"
-                  (click)="addCustomer()"
-                  title="New customer"
-                  class="shrink-0 flex items-center justify-center w-[42px] h-[42px] bg-primary-container/20 hover:bg-primary-container/30 text-primary border border-outline-variant/20 rounded-xl transition-colors"
-                >
-                  <span class="material-symbols-outlined text-lg">person_add</span>
-                </button>
-              </div>
-            }
-          </div>
-
           <!-- Order Summary -->
           <div>
             <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Order Summary</h2>
@@ -857,6 +725,138 @@
                 <span class="text-on-surface font-bold text-lg font-headline">Total</span>
                 <span class="text-primary font-headline font-extrabold text-2xl">{{ formatCurrency(total) }}</span>
               </div>
+
+          <!-- Customer Search (below discounts) -->
+          <div>
+            <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-3">Customer</h2>
+            @if (selectedCustomer) {
+              <div class="p-3 rounded-xl bg-surface-container border border-outline-variant/20">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-on-primary-container">
+                      {{ (selectedCustomer.firstName || '?')[0] }}{{ (selectedCustomer.lastName || '?')[0] }}
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-on-surface">{{ selectedCustomer.firstName }} {{ selectedCustomer.lastName }}</p>
+                      <p class="text-[10px] text-on-surface-variant">{{ selectedCustomer.phone || selectedCustomer.email }}</p>
+                    </div>
+                  </div>
+                  <button
+                    (click)="clearCustomer()"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-error/10 hover:text-error transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+                @if (selectedCustomer.loyaltyTier || selectedCustomer.loyaltyPoints != null) {
+                  <div class="flex items-center gap-2 mt-2 pl-11 flex-wrap">
+                    @if (selectedCustomer.loyaltyTier) {
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide"
+                        [class]="getLoyaltyTierColor(selectedCustomer.loyaltyTier)">
+                        {{ selectedCustomer.loyaltyTier }}
+                      </span>
+                    }
+                    @if (selectedCustomer.loyaltyPoints != null) {
+                      <span class="text-[10px] text-on-surface-variant">{{ formatNumber(selectedCustomer.loyaltyPoints) }} pts</span>
+                    }
+                    @if (selectedCustomer.visitCount != null) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ selectedCustomer.visitCount }} visits</span>
+                    }
+                    @if (selectedCustomer.totalSpent != null) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ formatCurrency(selectedCustomer.totalSpent) }} spent</span>
+                    }
+                  </div>
+                }
+                <!-- §5.5 — birthday insight -->
+                @if (selectedCustomer.dateOfBirth) {
+                  <div class="flex items-center gap-1.5 mt-2 pl-11">
+                    <span class="material-symbols-outlined text-[14px] text-pink-400">cake</span>
+                    <span class="text-[10px] text-on-surface-variant">Birthday {{ selectedCustomer.dateOfBirth | date:'d MMM' }}</span>
+                  </div>
+                }
+                <!-- §5.4 — legacy customers: prompt to fill DOB + gender -->
+                @if (!selectedCustomer.dateOfBirth || !selectedCustomer.gender) {
+                  <button
+                    (click)="editCustomer()"
+                    data-testid="legacy-update-prompt"
+                    class="mt-2 ml-11 inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[14px]">edit_note</span>
+                    Add date of birth &amp; gender
+                  </button>
+                }
+                <!-- §5.6 — AI Phase-1 suggestion (size + category from last 3 purchases) -->
+                @if (customerSuggestion && (customerSuggestion.preferredSize || customerSuggestion.likelyCategory)) {
+                  <div class="mt-2 ml-11 flex items-center gap-2 flex-wrap" data-testid="customer-suggestion">
+                    <span class="material-symbols-outlined text-[14px] text-primary">auto_awesome</span>
+                    @if (customerSuggestion.preferredSize) {
+                      <span class="text-[10px] text-on-surface-variant">Usually buys size <b class="text-on-surface">{{ customerSuggestion.preferredSize }}</b></span>
+                    }
+                    @if (customerSuggestion.likelyCategory) {
+                      <span class="text-[10px] text-on-surface-variant/50">·</span>
+                      <span class="text-[10px] text-on-surface-variant">{{ customerSuggestion.likelyCategory }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="flex items-center gap-2">
+                <div class="relative flex-1">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">person_search</span>
+                <input
+                  type="text"
+                  [(ngModel)]="customerSearchQuery"
+                  (input)="onCustomerSearchInput()"
+                  (blur)="closeCustomerResults()"
+                  placeholder="Search customer by name, phone..."
+                  class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-10 pr-4 py-2.5 rounded-xl transition-all outline-none placeholder:text-outline/50"
+                  autocomplete="off"
+                />
+                @if (customerSearchLoading) {
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div class="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                  </div>
+                }
+
+                @if (showCustomerResults && customerSearchResults.length > 0) {
+                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 max-h-48 overflow-y-auto no-scrollbar">
+                    @for (customer of customerSearchResults; track customer.id) {
+                      <button
+                        type="button"
+                        (mousedown)="selectCustomer(customer)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-surface-container-high/50 transition-colors text-left"
+                      >
+                        <div class="w-7 h-7 rounded-full bg-primary-container/20 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                          {{ (customer.firstName || '?')[0] }}{{ (customer.lastName || '?')[0] }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm text-on-surface truncate">{{ customer.firstName }} {{ customer.lastName }}</p>
+                          <p class="text-[10px] text-on-surface-variant">{{ customer.phone || customer.email }}</p>
+                        </div>
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (showCustomerResults && customerSearchResults.length === 0 && !customerSearchLoading && customerSearchQuery.length >= 2) {
+                  <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-4 text-center">
+                    <p class="text-xs text-on-surface-variant">No customers found</p>
+                  </div>
+                }
+                </div>
+                <button
+                  type="button"
+                  (click)="addCustomer()"
+                  title="New customer"
+                  class="shrink-0 flex items-center justify-center w-[42px] h-[42px] bg-primary-container/20 hover:bg-primary-container/30 text-primary border border-outline-variant/20 rounded-xl transition-colors"
+                >
+                  <span class="material-symbols-outlined text-lg">person_add</span>
+                </button>
+              </div>
+            }
+          </div>
 
               <!-- Exchange credit applied -->
               @if (exchangeSale && exchangeCredit > 0) {

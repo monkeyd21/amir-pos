@@ -90,8 +90,12 @@ export class OfflineService {
   }
 
   lookupBarcode(barcode: string): CatalogItem | null {
-    const code = barcode.trim();
-    return this.getCatalog().items.find((i) => i.barcode === code) || null;
+    const code = barcode.trim().toLowerCase();
+    return (
+      this.getCatalog().items.find(
+        (i) => (i.barcode || '').toLowerCase() === code || (i.sku || '').toLowerCase() === code
+      ) || null
+    );
   }
 
   // ── Customers (§11.3 — read-only lookup offline) ──────────────────

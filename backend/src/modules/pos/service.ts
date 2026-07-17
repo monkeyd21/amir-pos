@@ -1507,7 +1507,7 @@ export class PosService {
           { product: { name: { contains: query, mode: 'insensitive' } } },
           { product: { brand: { name: { contains: query, mode: 'insensitive' } } } },
           { sku: { contains: query, mode: 'insensitive' } },
-          { barcode: { contains: query } },
+          { barcode: { contains: query, mode: 'insensitive' } },
         ],
       },
       include: {

@@ -17,7 +17,7 @@ router.get(
       const where: any = {};
       if (req.query.entityType) where.entityType = String(req.query.entityType);
       if (req.query.entityId) where.entityId = String(req.query.entityId);
-      if (req.query.action) where.action = { contains: String(req.query.action) };
+      if (req.query.action) where.action = { contains: String(req.query.action), mode: 'insensitive' };
       if (req.query.userId) where.userId = parseInt(String(req.query.userId), 10);
 
       const [rows, total] = await Promise.all([
