@@ -104,6 +104,40 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       this.basePrice = Math.round(this.mrp * 0.9);
       this.recomputeMargin();
     }
+    // GST % is price-driven (dynamic apparel slab) — keep it in sync as MRP changes.
+    this.applyGstRateFromPrice();
+  }
+
+  // ─── GST auto-fill (mirrors backend utils/tax.ts) ────────────────
+  // HSN is category-driven; the CGST/SGST split is price-driven (the Sept-2025
+  // apparel slab). Both auto-populate so the cashier never types them by hand —
+  // checkout still recomputes the rate per line, so these are indicative.
+
+  /** Category-wise HSN — Dress → 6211, everything else → 6204. */
+  private hsnForCategoryName(name: string | null | undefined): string {
+    return (name || '').trim().toUpperCase() === 'DRESS' ? '6211' : '6204';
+  }
+
+  /** Dynamic apparel GST: ≤ ₹2,500 → 5%, above → 18%. */
+  private gstRateForPrice(mrp: number | null): number {
+    return (Number(mrp) || 0) > 2500 ? 18 : 5;
+  }
+
+  private selectedCategoryName(): string {
+    return this.categories.find((c) => c.id === this.categoryId)?.name || '';
+  }
+
+  /** Split the price-driven GST rate evenly into CGST + SGST. */
+  private applyGstRateFromPrice(): void {
+    const half = this.gstRateForPrice(this.mrp) / 2;
+    this.cgstRate = half;
+    this.sgstRate = half;
+  }
+
+  /** Picking a category auto-fills its HSN code and refreshes the GST split. */
+  onCategoryChange(): void {
+    this.hsnCode = this.hsnForCategoryName(this.selectedCategoryName());
+    this.applyGstRateFromPrice();
   }
 
   /** §13.1 — entering a margin % sets the Sale Price from cost. */
@@ -122,10 +156,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   description = '';
   vendorId: number | null = null;
   lotCode = '';
-  // GST per Indian retail rules: HSN + CGST + SGST. Default 9+9 = 18%.
+  // GST per Indian retail rules: HSN + CGST + SGST. Auto-filled from category +
+  // price (apparel dynamic slab); default 2.5+2.5 = 5% until a category is picked.
   hsnCode = '';
-  cgstRate: number | null = 9;
-  sgstRate: number | null = 9;
+  cgstRate: number | null = 2.5;
+  sgstRate: number | null = 2.5;
   priceIncludesTax = true;
   // Return policy flags (e.g. clearance/sale/defective goods).
   nonReturnable = false;
@@ -376,6 +411,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           const cat = res.data;
           this.categories.push({ id: cat.id, name: cat.name });
           this.categoryId = cat.id;
+          this.onCategoryChange();
           this.addingCategory = false;
           this.newCategoryName = '';
           this.savingCategory = false;
