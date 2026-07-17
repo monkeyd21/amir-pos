@@ -2,6 +2,27 @@
 <app-page-header title="Inventory Levels" subtitle="Monitor stock across branches and variants">
 </app-page-header>
 
+<!-- Stock tabs — out-of-stock items live in their own tab, hidden by default -->
+<div class="flex items-center gap-1 mb-4 border-b border-outline-variant/10">
+  <button
+    (click)="setStockTab('in')"
+    class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer"
+    [class]="stockTab === 'in' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+  >
+    In Stock
+  </button>
+  <button
+    (click)="setStockTab('out')"
+    class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer flex items-center gap-2"
+    [class]="stockTab === 'out' ? 'border-error text-error' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+  >
+    Out of Stock
+    @if (outOfStockTotal > 0) {
+      <span class="min-w-[20px] px-1.5 py-0.5 rounded-full bg-error/15 text-error text-[10px] font-bold">{{ outOfStockTotal }}</span>
+    }
+  </button>
+</div>
+
 <!-- Filter Bar -->
 <div class="bg-surface-container-low/50 p-2 rounded-xl flex flex-wrap items-center gap-2 mb-6">
   <!-- Search -->
@@ -31,17 +52,19 @@
     <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/40 text-sm">expand_more</span>
   </div>
 
-  <!-- Low Stock Toggle -->
-  <button
-    (click)="toggleLowStock()"
-    class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-    [class]="lowStockOnly
-      ? 'bg-tertiary/20 text-tertiary'
-      : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/60'"
-  >
-    <span class="material-symbols-outlined text-sm">warning</span>
-    Low Stock
-  </button>
+  <!-- Low Stock Toggle (only meaningful within the In-Stock tab) -->
+  @if (stockTab === 'in') {
+    <button
+      (click)="toggleLowStock()"
+      class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+      [class]="lowStockOnly
+        ? 'bg-tertiary/20 text-tertiary'
+        : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high/60'"
+    >
+      <span class="material-symbols-outlined text-sm">warning</span>
+      Low Stock
+    </button>
+  }
 
   <!-- Clear -->
   @if (hasFilters) {
@@ -112,7 +135,7 @@
   <app-empty-state
     icon="inventory"
     title="No inventory items"
-    [message]="lowStockOnly ? 'No low stock items found' : 'Inventory data will appear once products are stocked'"
+    [message]="stockTab === 'out' ? 'No out-of-stock items — everything is stocked' : lowStockOnly ? 'No low stock items found' : 'Inventory data will appear once products are stocked'"
   ></app-empty-state>
 }
 

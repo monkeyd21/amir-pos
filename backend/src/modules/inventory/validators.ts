@@ -5,6 +5,8 @@ export const listInventorySchema = z.object({
     branchId: z.string().optional(),
     variantId: z.string().optional(),
     lowStock: z.enum(['true', 'false']).optional(),
+    // 'in' → quantity > 0, 'out' → quantity <= 0. Omitted → all (used by stock-take).
+    stockStatus: z.enum(['in', 'out']).optional(),
     search: z.string().optional(),
     page: z.string().optional(),
     limit: z.string().optional(),

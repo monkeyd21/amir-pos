@@ -8,6 +8,7 @@ export class InventoryService {
     branchId?: string;
     variantId?: string;
     lowStock?: string;
+    stockStatus?: 'in' | 'out';
     search?: string;
     page?: string;
     limit?: string;
@@ -30,6 +31,15 @@ export class InventoryService {
       };
     }
 
+    // Stock-status tab filter (independent of the low-stock toggle):
+    //   'in'  → quantity > 0 (default view hides out-of-stock)
+    //   'out' → quantity <= 0 (separate "Out of Stock" tab)
+    if (query.stockStatus === 'out') {
+      where.quantity = { lte: 0 };
+    } else if (query.stockStatus === 'in') {
+      where.quantity = { gt: 0 };
+    }
+
     if (query.lowStock === 'true') {
       where.quantity = { lte: prisma.inventory.fields.minStockLevel as any };
       // Use raw filter for self-referencing column comparison
@@ -43,6 +53,11 @@ export class InventoryService {
     if (query.lowStock === 'true') {
       const baseWhere: Prisma.InventoryWhereInput = {
         branchId,
+        ...(query.stockStatus === 'out'
+          ? { quantity: { lte: 0 } }
+          : query.stockStatus === 'in'
+          ? { quantity: { gt: 0 } }
+          : {}),
         ...(query.variantId ? { variantId: parseInt(query.variantId) } : {}),
         ...(query.search ? {
           variant: {
