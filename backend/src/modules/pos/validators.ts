@@ -7,6 +7,19 @@ export const openSessionSchema = z.object({
   }),
 });
 
+// Case B "ghost product" quick-add at the counter.
+export const quickCreateProductSchema = z.object({
+  body: z.object({
+    name: z.string().min(1, 'Product name is required'),
+    categoryId: z.number().int().positive().optional().nullable(),
+    brandId: z.number().int().positive().optional().nullable(),
+    mrp: z.number().positive('A valid MRP is required'),
+    size: z.string().optional().nullable(),
+    color: z.string().optional().nullable(),
+    quantity: z.number().int().positive().default(1),
+  }),
+});
+
 export const closeSessionSchema = z.object({
   body: z.object({
     // §8.1a-6 — physical cash counted in the drawer at close.

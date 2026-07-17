@@ -10,6 +10,7 @@ import {
   transferParamsSchema,
   updateMovementSchema,
   listMovementsSchema,
+  reconcileStockSchema,
 } from './validators';
 import { upload } from '../../middleware/upload';
 import prisma from '../../config/database';
@@ -101,6 +102,12 @@ router.post(
   authorize('owner', 'manager'),
   validate(adjustStockSchema),
   inventoryController.adjust
+);
+router.post(
+  '/reconcile',
+  authorize('owner', 'manager'),
+  validate(reconcileStockSchema),
+  inventoryController.reconcile
 );
 router.post(
   '/restock',

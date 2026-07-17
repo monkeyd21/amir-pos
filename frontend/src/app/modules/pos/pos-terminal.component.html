@@ -237,9 +237,17 @@
             }
 
             @if (showSearchResults && searchResults.length === 0 && !searchLoading && searchQuery.length >= 2) {
-              <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-8 text-center">
+              <div class="absolute top-full left-0 right-0 mt-1 bg-surface-container rounded-xl border border-outline-variant/20 shadow-ambient z-50 p-6 text-center">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">search_off</span>
-                <p class="text-sm text-on-surface-variant">No products found</p>
+                <p class="text-sm text-on-surface-variant mb-3">No products found</p>
+                <button
+                  type="button"
+                  (mousedown)="openQuickAdd(searchQuery)"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors cursor-pointer"
+                >
+                  <span class="material-symbols-outlined text-base">add_box</span>
+                  Quick add "{{ searchQuery }}"
+                </button>
               </div>
             }
           </div>

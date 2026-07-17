@@ -13,6 +13,7 @@ export class InventoryLayoutComponent {
   private readonly allTabs = [
     { label: 'Products', path: 'products', icon: 'checkroom' },
     { label: 'Stock Levels', path: 'stock', icon: 'inventory_2' },
+    { label: 'Stock Take', path: 'stock-take', icon: 'fact_check' },
     { label: 'Transfers', path: 'transfers', icon: 'local_shipping' },
     { label: 'Barcodes', path: 'barcodes', icon: 'barcode' },
     { label: 'Brands & Categories', path: 'taxonomy', icon: 'sell' },

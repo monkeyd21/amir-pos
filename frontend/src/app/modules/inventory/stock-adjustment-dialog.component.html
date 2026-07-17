@@ -87,6 +87,20 @@
     <!-- Reason -->
     <div>
       <label class="label-upper mb-1.5 block">Reason *</label>
+      <div class="flex flex-wrap gap-1.5 mb-2">
+        @for (q of quickReasons; track q.label) {
+          <button
+            type="button"
+            (click)="applyQuickReason(q)"
+            class="px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-colors cursor-pointer"
+            [class]="reason === q.reason
+              ? 'border-primary bg-primary-container/20 text-primary'
+              : 'border-outline-variant/20 bg-surface-container-lowest text-on-surface-variant hover:border-outline-variant/40'"
+          >
+            {{ q.label }}
+          </button>
+        }
+      </div>
       <textarea
         [(ngModel)]="reason"
         rows="2"

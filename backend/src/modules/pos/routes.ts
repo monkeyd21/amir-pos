@@ -11,6 +11,7 @@ import {
   createUpiPaymentSchema,
   checkUpiPaymentSchema,
   evaluateCartSchema,
+  quickCreateProductSchema,
 } from './validators';
 
 const router = Router();
@@ -33,6 +34,14 @@ router.get('/upi/:intentId/status', validate(checkUpiPaymentSchema), posControll
 // Product search & barcode lookup
 router.get('/products/search', posController.searchProducts);
 router.get('/lookup/:barcode', posController.lookupBarcode);
+
+// Case B — quick-add a ghost product (physical item with no record) at the counter.
+router.post(
+  '/quick-product',
+  authorize('owner', 'manager', 'cashier'),
+  validate(quickCreateProductSchema),
+  posController.quickCreateProduct
+);
 
 // Catalog snapshot for offline caching (scan + price with no network)
 router.get('/catalog', posController.catalog);

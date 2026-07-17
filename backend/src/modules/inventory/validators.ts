@@ -22,6 +22,20 @@ export const adjustStockSchema = z.object({
   }),
 });
 
+export const reconcileStockSchema = z.object({
+  body: z.object({
+    reason: z.string().optional().nullable(),
+    counts: z
+      .array(
+        z.object({
+          variantId: z.number().int().positive(),
+          physicalCount: z.number().int().nonnegative(),
+        })
+      )
+      .min(1, 'At least one count is required'),
+  }),
+});
+
 export const restockSchema = z.object({
   body: z.object({
     productId: z.number().int().positive(),

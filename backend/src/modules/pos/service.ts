@@ -11,6 +11,8 @@ import { redeemVouchers } from '../vouchers/service';
 import { recordAudit } from '../../services/audit';
 import { verifyOwnerPin } from '../../services/owner-pin';
 import { gstRateForPrice } from '../../utils/tax';
+import { createProduct as createProductService } from '../products/service';
+import { slugify } from '../../utils/helpers';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -1312,6 +1314,75 @@ export class PosService {
       };
     });
     return { items, syncedAt: new Date().toISOString(), count: items.length };
+  }
+
+  /**
+   * Case B "ghost product": an item is physically in hand but has no record at
+   * all (barcode/SKU doesn't resolve). Create a minimal product + one variant +
+   * initial stock in one shot so the sale isn't blocked, then return it in the
+   * SAME shape as lookupBarcode so the POS can drop it straight into the cart.
+   * Category drives HSN + dynamic GST automatically (via createProduct).
+   */
+  async quickCreateProduct(
+    data: {
+      name: string;
+      categoryId?: number | null;
+      brandId?: number | null;
+      mrp: number;
+      size?: string | null;
+      color?: string | null;
+      quantity: number;
+    },
+    userId: number,
+    branchId: number
+  ) {
+    const name = (data.name || '').trim();
+    if (!name) throw new AppError('Product name is required', 400);
+    const mrp = Number(data.mrp);
+    if (!(mrp > 0)) throw new AppError('A valid MRP is required', 400);
+    const qty = Math.max(1, Math.floor(Number(data.quantity) || 1));
+
+    const categoryId = data.categoryId ?? (await this.ensureDefaultCategory());
+    const brandId = data.brandId ?? (await this.ensureDefaultBrand());
+
+    const product = await createProductService(
+      {
+        name,
+        brandId,
+        categoryId,
+        mrp,
+        basePrice: Math.round(mrp * 0.9), // §13.3 — Sale = MRP − 10%
+        costPrice: 0,
+        variants: [
+          {
+            size: (data.size || '').trim(),
+            color: (data.color || '').trim(),
+            initialStock: qty,
+          },
+        ],
+      },
+      userId,
+      branchId
+    );
+
+    // Re-fetch through the normal lookup so the POS gets an identical payload.
+    return this.lookupBarcode(product.variants[0].barcode, branchId);
+  }
+
+  private async ensureDefaultBrand(): Promise<number> {
+    const existing = await prisma.brand.findFirst({ where: { name: 'General' } });
+    if (existing) return existing.id;
+    const created = await prisma.brand.create({ data: { name: 'General', slug: slugify('General') } });
+    return created.id;
+  }
+
+  private async ensureDefaultCategory(): Promise<number> {
+    const existing = await prisma.category.findFirst({ where: { name: 'Uncategorized' } });
+    if (existing) return existing.id;
+    const created = await prisma.category.create({
+      data: { name: 'Uncategorized', slug: slugify('Uncategorized') },
+    });
+    return created.id;
   }
 
   async lookupBarcode(barcode: string, branchId: number) {
