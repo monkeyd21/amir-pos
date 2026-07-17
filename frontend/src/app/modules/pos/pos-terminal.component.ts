@@ -199,7 +199,6 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // against the new payable (otherwise a stale ₹7 waiver would hang around
   // after an item is removed and quietly throw the total off).
   roundMode: 'none' | 'down' | 'up' = 'none';
-  taxRate = 0.18;
   /** GST compliance gate — until enabled, the tax line stays hidden at POS. */
   gstEnabled = false;
 
@@ -1368,10 +1367,36 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    *
    *   net = inclusive / (1 + rate)
    *   tax = inclusive − net = inclusive × rate / (1 + rate)
+   *
+   * The rate is DYNAMIC per line (the Sept-2025 apparel slab), NOT a flat 18%:
+   * ≤ ₹2,500 per-unit inclusive → 5%, above → 18%. This mirrors the backend's
+   * per-line gstRateForPrice so the shown GST matches what gets persisted.
    */
   get taxAmount(): number {
-    const payable = this.subtotal - this.offerDiscountTotal - this.discount;
-    return (payable * this.taxRate) / (1 + this.taxRate);
+    return this.cart.reduce((sum, item) => {
+      const inclusive = this.getLineTotal(item);
+      if (inclusive <= 0 || item.quantity <= 0) return sum;
+      const rate = this.gstRateForUnitPrice(inclusive / item.quantity);
+      return sum + (inclusive * rate) / (100 + rate);
+    }, 0);
+  }
+
+  /** Dynamic apparel GST rate (%) for a tax-inclusive unit price: ≤₹2,500 → 5%, above → 18%. */
+  private gstRateForUnitPrice(unitInclusive: number): number {
+    return unitInclusive > 2500 ? 18 : 5;
+  }
+
+  /** GST-line label — a single rate ("5%"), or a range ("5–18%") when the cart mixes slabs. */
+  get gstRateLabel(): string {
+    const rates = new Set<number>();
+    for (const item of this.cart) {
+      const inclusive = this.getLineTotal(item);
+      if (inclusive <= 0 || item.quantity <= 0) continue;
+      rates.add(this.gstRateForUnitPrice(inclusive / item.quantity));
+    }
+    if (rates.size === 0) return '';
+    if (rates.size === 1) return `${[...rates][0]}%`;
+    return `${Math.min(...rates)}–${Math.max(...rates)}%`;
   }
 
   /**

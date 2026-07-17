@@ -840,7 +840,7 @@
 
               @if (gstEnabled) {
                 <div class="flex justify-between text-xs">
-                  <span class="text-on-surface-variant/70 italic">Incl. 18% GST</span>
+                  <span class="text-on-surface-variant/70 italic">Incl. {{ gstRateLabel }} GST</span>
                   <span class="text-on-surface-variant/70 italic">{{ formatCurrency(taxAmount) }}</span>
                 </div>
               }
