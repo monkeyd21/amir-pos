@@ -18,6 +18,7 @@ interface Variant {
   color?: string;
   barcode?: string;
   priceOverride: number | null;
+  mrpOverride: number | null;
   costOverride: number | null;
   isActive: boolean;
   inventory?: { quantity: number; branchId: number }[];
@@ -29,6 +30,7 @@ interface Product {
   slug?: string;
   description?: string;
   basePrice: number;
+  mrp?: number | null;
   costPrice?: number;
   landingPrice?: number | null;
   taxRate?: number;
@@ -107,6 +109,13 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
 
   getEffectivePrice(variant: Variant): number {
     return variant.priceOverride ?? Number(this.product?.basePrice || 0);
+  }
+
+  /** §13.3 — the list price (MRP): per-variant override, else the product MRP.
+   *  Returns null when the product has no MRP recorded (renders as a dash). */
+  getEffectiveMrp(variant: Variant): number | null {
+    const raw = variant.mrpOverride ?? this.product?.mrp ?? null;
+    return raw != null ? Number(raw) : null;
   }
 
   formatCurrency(value: number): string {

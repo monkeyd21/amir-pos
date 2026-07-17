@@ -75,6 +75,44 @@ export const listProducts = async (query: ListProductsQuery) => {
   return { products, meta: buildPaginationMeta(page, limit, total) };
 };
 
+/**
+ * Inventory valuation across ALL active variants (not just one page):
+ *  - saleValue     = Σ effective Sale Price × stock  (priceOverride ?? product.basePrice)
+ *  - purchaseValue = Σ effective landing cost × stock (landingOverride ?? product.landingPrice ?? costPrice)
+ * Stock is summed across every branch. Prices are Prisma Decimals → Number() before math.
+ */
+export const getInventoryValuation = async () => {
+  const variants = await prisma.productVariant.findMany({
+    where: { isActive: true, product: { isActive: true } },
+    select: {
+      priceOverride: true,
+      landingOverride: true,
+      product: { select: { basePrice: true, landingPrice: true, costPrice: true } },
+      inventory: { select: { quantity: true } },
+    },
+  });
+
+  let totalSaleValue = 0;
+  let totalPurchaseValue = 0;
+  let totalUnits = 0;
+
+  for (const v of variants) {
+    const stock = v.inventory.reduce((s, i) => s + (i.quantity || 0), 0);
+    if (stock <= 0) continue;
+    const sale = Number(v.priceOverride ?? v.product.basePrice ?? 0);
+    const landing = Number(v.landingOverride ?? v.product.landingPrice ?? v.product.costPrice ?? 0);
+    totalSaleValue += sale * stock;
+    totalPurchaseValue += landing * stock;
+    totalUnits += stock;
+  }
+
+  return {
+    totalSaleValue: Math.round(totalSaleValue * 100) / 100,
+    totalPurchaseValue: Math.round(totalPurchaseValue * 100) / 100,
+    totalUnits,
+  };
+};
+
 export const getProductById = async (id: number) => {
   const product = await prisma.product.findUnique({
     where: { id },

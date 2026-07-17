@@ -175,6 +175,7 @@
           <th class="th-label">Size</th>
           <th class="th-label">Color</th>
           <th class="th-label">Barcode</th>
+          <th class="th-label text-right">MRP</th>
           <th class="th-label text-right">Price</th>
           <th class="th-label text-right">Stock</th>
           <th class="th-label text-center">Status</th>
@@ -207,6 +208,16 @@
             <td class="px-6 py-4">
               @if (variant.barcode) {
                 <code class="text-xs font-mono text-on-surface-variant">{{ variant.barcode }}</code>
+              } @else {
+                <span class="text-on-surface-variant/40">—</span>
+              }
+            </td>
+            <td class="px-6 py-4 text-right">
+              @if (getEffectiveMrp(variant) !== null) {
+                <span class="text-sm text-on-surface-variant">{{ formatCurrency(getEffectiveMrp(variant)!) }}</span>
+                @if (variant.mrpOverride !== null) {
+                  <span class="block text-[10px] text-tertiary mt-0.5">override</span>
+                }
               } @else {
                 <span class="text-on-surface-variant/40">—</span>
               }

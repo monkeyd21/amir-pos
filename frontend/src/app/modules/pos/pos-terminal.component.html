@@ -671,7 +671,10 @@
             <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Order Summary</h2>
             <div class="space-y-3">
               <div class="flex justify-between text-sm">
-                <span class="text-on-surface-variant">Subtotal ({{ cart.length }} items)</span>
+                <span class="text-on-surface-variant">
+                  Subtotal ({{ cart.length }} {{ cart.length === 1 ? 'line' : 'lines' }},
+                  {{ totalQuantity }} {{ totalQuantity === 1 ? 'pc' : 'pcs' }})
+                </span>
                 <span class="text-on-surface font-medium">{{ formatCurrency(subtotal) }}</span>
               </div>
 

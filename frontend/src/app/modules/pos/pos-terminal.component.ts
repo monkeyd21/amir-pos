@@ -1103,6 +1103,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     );
   }
 
+  /** Total pieces across all cart lines (e.g. 2 t-shirts + 1 jeans = 3). */
+  get totalQuantity(): number {
+    return this.cart.reduce((sum, item) => sum + item.quantity, 0);
+  }
+
   /** Total discount from offers across all cart lines (only qualified lines). */
   get offerDiscountTotal(): number {
     return this.cart.reduce(
