@@ -776,7 +776,14 @@ export class ProductFormComponent implements OnInit, OnDestroy {
         sku: v.sku,
         productName: this.createdProduct.name,
         variantLabel: [v.size, v.color].filter(Boolean).join(' / '),
-        price: Number(v.priceOverride || this.createdProduct.basePrice || 0),
+        // §13.3 — the label prints MRP (struck) above the Sale Price. Send BOTH:
+        // Sale = priceOverride ?? product.basePrice; MRP = mrpOverride ?? product.mrp.
+        // Without an explicit `mrp` the renderer falls back to `price`, printing the
+        // same number twice (the "MRP printed twice" bug on immediate post-create print).
+        price: Number(v.priceOverride ?? this.createdProduct.basePrice ?? 0),
+        mrp: Number(
+          v.mrpOverride ?? this.createdProduct.mrp ?? v.priceOverride ?? this.createdProduct.basePrice ?? 0
+        ),
         lotCode: this.lotCode.trim() || undefined,
         copies: this.printCopies.get(v.id) || 1,
       }));
