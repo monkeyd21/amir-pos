@@ -56,7 +56,7 @@
       @if (selectedItems.length > 0) {
         <div class="mb-5 p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10" data-testid="refund-split">
           <div class="flex items-center justify-between mb-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Refund To (optional split)</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Refund To (enter amount) *</label>
             <button (click)="fillCash()" type="button" class="text-[11px] font-semibold text-primary hover:underline">All cash</button>
           </div>
           <div class="grid grid-cols-3 gap-2">
@@ -76,14 +76,10 @@
                 class="w-full px-2 py-1.5 text-sm bg-surface-container-lowest border border-outline-variant/20 rounded-lg outline-none focus:border-primary" />
             </div>
           </div>
-          @if (usingSplit) {
-            <p class="mt-2 text-[11px] font-body" [class]="splitRemaining === 0 ? 'text-green-500' : 'text-amber-500'">
-              Allocated {{ formatCurrency(splitTotal) }} of {{ formatCurrency(refundAmount) }}
-              @if (splitRemaining !== 0) { · {{ formatCurrency(splitRemaining) }} left to allocate }
-            </p>
-          } @else {
-            <p class="mt-2 text-[11px] font-body text-on-surface-variant/70">Leave blank to refund the same way it was paid.</p>
-          }
+          <p class="mt-2 text-[11px] font-body" [class]="splitRemaining === 0 ? 'text-green-500' : 'text-amber-500'">
+            Allocated {{ formatCurrency(splitTotal) }} of {{ formatCurrency(refundAmount) }}
+            @if (splitRemaining !== 0) { · {{ formatCurrency(splitRemaining) }} left to allocate }
+          </p>
         </div>
       }
 
