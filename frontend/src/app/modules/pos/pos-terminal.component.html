@@ -35,6 +35,27 @@
 @if (!sessionLoading && !needsDayStart) {
   <div class="flex flex-col h-screen bg-surface overflow-hidden">
 
+    <!-- §11.0 — Stale-shift banner: the India day rolled past midnight while this
+         shift is still open. New bills would carry yesterday's date — the cashier
+         must close (EOD) and start a fresh shift, and must NOT edit bill dates. -->
+    @if (staleShiftWarning) {
+      <div class="shrink-0 bg-red-600 text-white px-6 py-2.5 flex items-center gap-3" data-testid="stale-shift-banner">
+        <span class="material-symbols-outlined text-xl shrink-0">warning</span>
+        <div class="flex-1 text-sm leading-snug">
+          <p class="font-bold">Day changed — close this shift before billing.</p>
+          <p class="text-white/90">
+            Shift opened on <span class="font-semibold">{{ shiftDateLabel }}</span>, but today is
+            <span class="font-semibold">{{ todayLabel }}</span>. New bills will be stamped with the old date.
+            Close the shift (EOD) and start a new one — never change bill dates.
+          </p>
+        </div>
+        <button (click)="openEodPanel()" data-testid="stale-shift-close"
+          class="shrink-0 px-4 py-2 text-sm font-semibold bg-white text-red-700 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+          Close Shift
+        </button>
+      </div>
+    }
+
     <!-- Top Bar -->
     <header class="flex items-center justify-between px-6 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
       <div class="flex items-center gap-4">
