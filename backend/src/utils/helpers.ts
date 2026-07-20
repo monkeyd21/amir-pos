@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import prisma from '../config/database';
 
 /**
  * Generate a unique sale/return number
@@ -16,22 +17,28 @@ export const generateNumber = (prefix: string): string => {
 export const fullName = (p: { firstName: string; lastName?: string | null }): string =>
   `${p.firstName} ${p.lastName ?? ''}`.trim();
 
+// First 9-digit number; the sequence runs 100000001, 100000002, …
+const BARCODE_BASE = 100000000;
+
 /**
- * Generate EAN-13 barcode with check digit
+ * Reserve `count` sequential 9-digit NUMERIC barcodes (printed as Code128 — NOT
+ * EAN-13). Reads the current max 9-digit numeric barcode and hands out the next
+ * ones; legacy non-numeric barcodes (e.g. "SE05658") are ignored and left as-is.
+ * Code128 carries its own mod-103 checksum, so no data-level check digit is needed.
+ *
+ * Reserve ALL of a batch's barcodes up front (one call) — within a transaction
+ * the just-inserted rows aren't visible to the MAX query, so per-row calls would
+ * collide.
  */
-export const generateEAN13 = (prefix: string = '200'): string => {
-  const digits = prefix + Math.floor(Math.random() * 10 ** (12 - prefix.length))
-    .toString()
-    .padStart(12 - prefix.length, '0');
-
-  // Calculate check digit
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    sum += parseInt(digits[i]) * (i % 2 === 0 ? 1 : 3);
-  }
-  const checkDigit = (10 - (sum % 10)) % 10;
-
-  return digits + checkDigit;
+export const nextBarcodes = async (count: number): Promise<string[]> => {
+  if (count <= 0) return [];
+  const rows = await prisma.$queryRawUnsafe<{ m: bigint | null }[]>(
+    `SELECT MAX(barcode::bigint) AS m FROM product_variants WHERE barcode ~ '^[0-9]{9}$'`
+  );
+  const start = Number(rows[0]?.m ?? BARCODE_BASE) || BARCODE_BASE;
+  const out: string[] = [];
+  for (let i = 1; i <= count; i++) out.push(String(start + i));
+  return out;
 };
 
 /**

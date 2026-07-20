@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
-import { slugify, generateSKU, generateEAN13, getPagination, buildPaginationMeta } from '../../utils/helpers';
+import { slugify, generateSKU, nextBarcodes, getPagination, buildPaginationMeta } from '../../utils/helpers';
 import { hsnForCategory } from '../../utils/tax';
 import { MovementType } from '@prisma/client';
 
@@ -178,9 +178,10 @@ export const createProduct = async (data: {
   if (!brand) throw new AppError('Brand not found', 404);
   if (!category) throw new AppError('Category not found', 404);
 
-  const variantData = (data.variants || []).map((v) => ({
+  const barcodes = await nextBarcodes((data.variants || []).length);
+  const variantData = (data.variants || []).map((v, i) => ({
     sku: generateSKU(brand.name, data.name, v.size, v.color),
-    barcode: generateEAN13(),
+    barcode: barcodes[i],
     size: v.size,
     color: v.color,
     mrpOverride: v.mrpOverride ?? null,
@@ -357,7 +358,7 @@ export const addVariant = async (productId: number, data: {
   }
 
   const sku = generateSKU(product.brand.name, product.name, data.size, data.color);
-  const barcode = generateEAN13();
+  const [barcode] = await nextBarcodes(1);
 
   const variant = await prisma.productVariant.create({
     data: {
@@ -588,11 +589,15 @@ export const bulkCreateVariants = async (
     // `id` for downstream inventory + movement rows, and Prisma 5.12 lacks
     // `createManyAndReturn`. Inventory + movement writes, however, get
     // batched per-variant so we send fewer round-trips overall.
+    // Reserve all barcodes up front — inside the tx the inserted rows aren't
+    // yet visible to nextBarcodes' MAX query, so per-row calls would collide.
+    const bulkBarcodes = await nextBarcodes(toCreate.length);
+    let bcIdx = 0;
     for (const v of toCreate) {
       const sku = v.sku && v.sku.trim()
         ? v.sku.trim()
         : generateSKU(product.brand.name, product.name, v.size, v.color);
-      const barcode = generateEAN13();
+      const barcode = bulkBarcodes[bcIdx++];
 
       const variant = await tx.productVariant.create({
         data: {

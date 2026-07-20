@@ -1,4 +1,4 @@
-import { generateEAN13, generateSKU, slugify, getPagination, buildPaginationMeta, isWithinPolicyWindow, billPaymentStatus } from '../helpers';
+import { generateSKU, slugify, getPagination, buildPaginationMeta, isWithinPolicyWindow, billPaymentStatus } from '../helpers';
 
 describe('§3.4 billPaymentStatus (edit lock)', () => {
   it('unpaid when nothing is paid', () => {
@@ -31,47 +31,6 @@ describe('§1.5 isWithinPolicyWindow (return/exchange policy windows)', () => {
 });
 
 describe('Utils / Helpers', () => {
-  // ─── generateEAN13 ──────────────────────────────────────────────
-  describe('generateEAN13', () => {
-    it('should produce a 13-digit string', () => {
-      const barcode = generateEAN13();
-      expect(barcode).toHaveLength(13);
-      expect(/^\d{13}$/.test(barcode)).toBe(true);
-    });
-
-    it('should start with the given prefix', () => {
-      const barcode = generateEAN13('300');
-      expect(barcode.startsWith('300')).toBe(true);
-    });
-
-    it('should use default prefix "200" when none provided', () => {
-      const barcode = generateEAN13();
-      expect(barcode.startsWith('200')).toBe(true);
-    });
-
-    it('should generate a valid EAN-13 check digit', () => {
-      const barcode = generateEAN13();
-      const digits = barcode.split('').map(Number);
-
-      // Recalculate check digit
-      let sum = 0;
-      for (let i = 0; i < 12; i++) {
-        sum += digits[i] * (i % 2 === 0 ? 1 : 3);
-      }
-      const expectedCheck = (10 - (sum % 10)) % 10;
-      expect(digits[12]).toBe(expectedCheck);
-    });
-
-    it('should produce unique barcodes across multiple calls', () => {
-      const set = new Set<string>();
-      for (let i = 0; i < 50; i++) {
-        set.add(generateEAN13());
-      }
-      // Statistically all 50 should be unique (collision chance negligible)
-      expect(set.size).toBe(50);
-    });
-  });
-
   // ─── generateSKU ────────────────────────────────────────────────
   describe('generateSKU', () => {
     it('should follow the format BRA-NAM-SIZE-COL-RAND', () => {
