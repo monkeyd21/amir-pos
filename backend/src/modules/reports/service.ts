@@ -323,6 +323,8 @@ export class ReportService {
     const branchFilter = branchId ? { branchId } : {};
 
     const variantSelect = {
+      sku: true,
+      barcode: true,
       size: true,
       color: true,
       mrpOverride: true,
@@ -389,6 +391,8 @@ export class ReportService {
         sno,
         billNo,
         itemName: itemName(v),
+        sku: v?.sku ?? '',
+        barcode: v?.barcode ?? '',
         quantity: qty,
         purchaseRate: round2(purchaseRate),
         saleRate: round4(saleRate),

@@ -9,6 +9,8 @@ interface PnlRow {
   sno: number;
   billNo: string;
   itemName: string;
+  sku: string;
+  barcode: string;
   quantity: number;
   purchaseRate: number;
   saleRate: number;
