@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
-import { generateEAN13 } from '../../utils/helpers';
+import { nextBarcodes } from '../../utils/helpers';
 
 export const lookupByBarcode = async (barcode: string) => {
   const variant = await prisma.productVariant.findUnique({
@@ -36,7 +36,7 @@ export const generateBarcode = async (variantId: number) => {
     return { variantId: variant.id, barcode: variant.barcode, sku: variant.sku };
   }
 
-  const barcode = generateEAN13();
+  const [barcode] = await nextBarcodes(1);
 
   const updated = await prisma.productVariant.update({
     where: { id: variantId },
