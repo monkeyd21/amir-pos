@@ -248,6 +248,33 @@
               </table>
             </div>
           }
+
+          <!-- Archived (legacy) bills linked to this customer -->
+          @if (historicalBills.length > 0) {
+            <div class="mt-6">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-label font-semibold text-on-surface-variant uppercase tracking-wider">Archived Bills (legacy) · {{ historicalBills.length }}</h3>
+                <a routerLink="/historical" class="text-xs text-primary hover:underline">Open archive</a>
+              </div>
+              <div class="bg-surface-container rounded-xl overflow-hidden border border-outline-variant/10">
+                <table class="w-full text-left text-sm">
+                  <thead><tr class="bg-surface-container-low/50 text-on-surface-variant/60 text-xs">
+                    <th class="px-4 py-2">Bill</th><th>Date</th><th class="text-center">Items</th><th class="text-right px-4">Total</th>
+                  </tr></thead>
+                  <tbody class="divide-y divide-outline-variant/10">
+                    @for (hb of historicalBills; track hb.id) {
+                      <tr class="hover:bg-surface-container-high/30">
+                        <td class="px-4 py-2 font-mono text-xs">{{ hb.billNumber }} <span class="text-on-surface-variant/50">· {{ hb.fiscalYear }}</span></td>
+                        <td class="text-on-surface-variant text-xs">{{ hb.billDate ? (hb.billDate | date:'d MMM y') : '—' }}</td>
+                        <td class="text-center text-on-surface-variant">{{ hb._count?.items ?? 0 }}</td>
+                        <td class="text-right px-4 font-medium" [class]="(+hb.total) < 0 ? 'text-error' : 'text-on-surface'">{{ formatCurrency(hb.total) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
         </div>
       }
 
