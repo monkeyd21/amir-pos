@@ -45,6 +45,8 @@
           <th class="px-3 py-2 text-left">SNo</th>
           <th class="px-3 py-2 text-left">Bill No</th>
           <th class="px-3 py-2 text-left">Item Name</th>
+          <th class="px-3 py-2 text-left">Barcode</th>
+          <th class="px-3 py-2 text-left">SKU</th>
           <th class="px-3 py-2 text-right">Qty</th>
           <th class="px-3 py-2 text-right">Purchase Rate</th>
           <th class="px-3 py-2 text-right">Sale Rate</th>
@@ -64,6 +66,8 @@
             <td class="px-3 py-1.5 text-left">{{ r.sno }}</td>
             <td class="px-3 py-1.5 text-left font-semibold">{{ r.showBill ? r.billNo : '' }}</td>
             <td class="px-3 py-1.5 text-left font-sans">{{ r.itemName }}</td>
+            <td class="px-3 py-1.5 text-left">{{ r.barcode }}</td>
+            <td class="px-3 py-1.5 text-left">{{ r.sku }}</td>
             <td class="px-3 py-1.5 text-right">{{ r.quantity }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.purchaseRate) }}</td>
             <td class="px-3 py-1.5 text-right">{{ n(r.saleRate, 4) }}</td>
@@ -77,13 +81,13 @@
             <td class="px-3 py-1.5 text-right">{{ n(r.landingCost, 4) }}</td>
           </tr>
         } @empty {
-          <tr><td [attr.colspan]="data.showGst ? 14 : 12" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
+          <tr><td [attr.colspan]="data.showGst ? 16 : 14" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
         }
       </tbody>
       @if (data.rows.length > 0) {
         <tfoot class="bg-primary text-on-primary font-mono font-bold border-t-2 border-primary">
           <tr>
-            <td class="px-3 py-2 text-left font-sans uppercase tracking-wide" colspan="3">Grand Totals</td>
+            <td class="px-3 py-2 text-left font-sans uppercase tracking-wide" colspan="5">Grand Totals</td>
             <td class="px-3 py-2 text-right">{{ data.totals.quantity }}</td>
             <td class="px-3 py-2"></td>
             <td class="px-3 py-2"></td>
