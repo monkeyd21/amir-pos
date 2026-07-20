@@ -338,7 +338,11 @@ export class ReportService {
     const sales = await prisma.sale.findMany({
       where: {
         businessDate: { gte: bdStart, lt: bdEnd },
-        status: { in: ['completed', 'partially_returned'] },
+        // Include fully 'returned' sales too — otherwise a sale that's entirely
+        // returned drops its positive line while its refund still counts as a
+        // negative return row, making the P&L go negative instead of netting to
+        // zero. With the sale line present, sale + return cancel out.
+        status: { in: ['completed', 'partially_returned', 'returned'] },
         ...branchFilter,
       },
       orderBy: { createdAt: 'asc' },
