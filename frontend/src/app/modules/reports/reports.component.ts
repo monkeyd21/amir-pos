@@ -24,6 +24,15 @@ interface ReportCard {
 export class ReportsComponent {
   reports: ReportCard[] = [
     {
+      icon: 'history',
+      title: 'Historical Sales (Archive)',
+      description: 'Migrated legacy bills — totals by fiscal year and month, cash vs card. Read-only archive, separate from live sales.',
+      gradient: 'from-amber-500/20 to-orange-500/20',
+      iconBg: 'bg-gradient-to-br from-amber-500 to-orange-500',
+      iconColor: 'text-white',
+      route: '/reports/historical',
+    },
+    {
       icon: 'balance',
       title: 'Variance Report',
       description: 'Daily & monthly EOD reconciliation variance — Cash, UPI and Card tracked separately, with PIN-override history and largest-variance days (§8.4).',

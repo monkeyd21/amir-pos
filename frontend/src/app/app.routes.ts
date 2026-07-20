@@ -39,6 +39,11 @@ export const routes: Routes = [
           import('./modules/sales/sales.routes').then((m) => m.SALES_ROUTES),
       },
       {
+        path: 'historical',
+        loadChildren: () =>
+          import('./modules/historical/historical.routes').then((m) => m.HISTORICAL_ROUTES),
+      },
+      {
         path: 'offers',
         loadChildren: () =>
           import('./modules/offers/offers.routes').then((m) => m.OFFERS_ROUTES),

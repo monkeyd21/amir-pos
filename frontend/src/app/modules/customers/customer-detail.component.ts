@@ -80,6 +80,7 @@ export class CustomerDetailComponent implements OnInit {
   stats: CustomerStats | null = null;
   sales: Sale[] = [];
   loyaltyTransactions: LoyaltyTransaction[] = [];
+  historicalBills: any[] = [];
   loading = true;
   activeTab: 'purchases' | 'loyalty' | 'messages' = 'purchases';
 
@@ -101,7 +102,16 @@ export class CustomerDetailComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadCustomer(+id);
+      this.loadHistoricalBills(+id);
     }
+  }
+
+  /** Migrated legacy bills linked to this customer (archive — read-only). */
+  private loadHistoricalBills(id: number): void {
+    this.api.get<{ success: boolean; data: any[] }>(`/historical/customers/${id}/bills`).subscribe({
+      next: (res) => (this.historicalBills = res.data ?? []),
+      error: () => (this.historicalBills = []),
+    });
   }
 
   private loadCustomer(id: number): void {
