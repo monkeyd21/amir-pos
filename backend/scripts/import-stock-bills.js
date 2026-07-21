@@ -50,7 +50,24 @@ function baseName(name, colour) {
 function parse(FILE) {
   const XLSX = require('xlsx');
   const wb = XLSX.readFile(FILE);
-  const excelDate = (serial) => { const n = num(serial); if (!n || n < 1000) return null; const o = XLSX.SSF.parse_date_code(n); return o ? new Date(Date.UTC(o.y, o.m - 1, o.d, 6, 0, 0)).toISOString() : null; };
+  // BILL DATE cells are a MIX of true Excel serials (numbers) and TEXT strings
+  // like "14/08/2025" (dd/mm/yyyy — Indian FY, header says "From 01/04/2025 …").
+  // A number-only parse silently dropped ~57% of dates to null. Handle both.
+  const excelDate = (raw) => {
+    if (raw === '' || raw == null) return null;
+    if (typeof raw === 'number' || /^\d+(\.\d+)?$/.test(String(raw).trim())) {
+      const n = num(raw); if (!n || n < 1000) return null;
+      const o = XLSX.SSF.parse_date_code(n);
+      return o ? new Date(Date.UTC(o.y, o.m - 1, o.d, 6, 0, 0)).toISOString() : null;
+    }
+    const s = String(raw).trim();
+    const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/); // dd/mm/yyyy
+    if (m) { let d = +m[1], mo = +m[2], y = +m[3]; if (y < 100) y += 2000; if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return new Date(Date.UTC(y, mo - 1, d, 6, 0, 0)).toISOString(); }
+    const t = Date.parse(s); if (!isNaN(t)) { const dt = new Date(t); return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), 6, 0, 0)).toISOString(); }
+    return null;
+  };
+  // First parseable date across the bill's rows (some rows in a group are blank).
+  const pickDate = (rs) => { for (const r of rs) { const d = excelDate(r[2]); if (d) return d; } return null; };
 
   // STOCK
   const srows = XLSX.utils.sheet_to_json(wb.Sheets['Previous Stock'], { defval: '' })
@@ -108,7 +125,7 @@ function parse(FILE) {
       const pick = (idx) => { for (const r of rs) if (String(r[idx]).trim() !== '') return num(r[idx]); return 0; };
       const gross = pick(15), total = pick(18);
       let tax = 0; const items = rs.map((r) => { const sgst = num(r[24]), cgst = num(r[25]); tax += sgst + cgst; const qty = num(r[11]), rt = num(r[13]); return { barcode: String(r[7] || '').trim() || null, itemName: String(r[8] || '').trim() || null, colour: String(r[9] || '').trim() || null, size: String(r[10] || '').trim() || null, category: String(r[5] || '').trim() || null, brandName: String(r[6] || '').trim() || null, quantity: Math.trunc(qty), mrp: num(r[12]), rate: rt, cdPercent: num(r[14]), sgst, cgst, lineTotal: round2(rt * qty) }; });
-      out.push({ billNumber: `${prefix}-${String(seq).padStart(4, '0')}`, fiscalYear: fy, originalBillNo: b, billDate: excelDate(rs[0][2]), customerNameRaw: String(rs[0][3] || '').trim() || null, customerMobile: normPhone(rs[0][4]) || null, grossAmount: round2(gross), discountAmount: round2(gross - total), taxAmount: round2(tax), total: round2(total), cashAmount: round2(pick(20)), cardAmount: round2(pick(19)), items });
+      out.push({ billNumber: `${prefix}-${String(seq).padStart(4, '0')}`, fiscalYear: fy, originalBillNo: b, billDate: pickDate(rs), customerNameRaw: String(rs[0][3] || '').trim() || null, customerMobile: normPhone(rs[0][4]) || null, grossAmount: round2(gross), discountAmount: round2(gross - total), taxAmount: round2(tax), total: round2(total), cashAmount: round2(pick(20)), cardAmount: round2(pick(19)), items });
     }
     return out;
   };
