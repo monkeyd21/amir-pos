@@ -66,13 +66,14 @@
                   @else {
                     <table class="w-full text-left text-xs">
                       <thead><tr class="text-on-surface-variant/60">
-                        <th class="py-1">Item</th><th>Colour/Size</th><th>Barcode</th>
+                        <th class="py-1">Item</th><th>Category</th><th>Colour/Size</th><th>Barcode</th>
                         <th class="text-right">Qty</th><th class="text-right">MRP</th><th class="text-right">Rate</th><th class="text-right">Line</th>
                       </tr></thead>
                       <tbody>
                         @for (it of expandedItems; track it.id) {
                           <tr class="border-t border-outline-variant/5">
                             <td class="py-1 text-on-surface">{{ it.itemName || '—' }}</td>
+                            <td class="text-on-surface-variant">{{ it.category || '—' }}</td>
                             <td class="text-on-surface-variant">{{ it.colour }}{{ it.colour && it.size ? ' / ' : '' }}{{ it.size }}</td>
                             <td class="font-mono text-on-surface-variant/70">{{ it.barcode || '—' }}@if (it.variantId) { <span class="material-symbols-outlined text-[11px] text-primary align-middle">check_circle</span> }</td>
                             <td class="text-right">{{ it.quantity }}</td>
