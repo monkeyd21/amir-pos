@@ -1421,6 +1421,7 @@ export class PosService {
       sku: variant.sku,
       size: variant.size,
       color: variant.color,
+      lotCode: variant.lotCode,
       productName: variant.product.name,
       brand: variant.product.brand?.name,
       category: variant.product.category?.name,
@@ -1541,6 +1542,9 @@ export class PosService {
         sku: v.sku,
         size: v.size,
         color: v.color,
+        // Supplier lot/batch code — printed on the barcode label when the
+        // template has a lotCode element; also lets the print queue carry it.
+        lotCode: v.lotCode,
         productName: v.product.name,
         brand: v.product.brand?.name,
         category: v.product.category?.name,
