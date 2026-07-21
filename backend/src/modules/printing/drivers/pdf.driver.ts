@@ -49,22 +49,106 @@ const bwipBcid: Record<BarcodeType, string> = {
   qr: 'qrcode',
 };
 
+// ─── Vector bar capture ──────────────────────────────────────────
+// The previous driver embedded the barcode as a rasterized PNG, which the
+// browser/OS print pipeline then bilinear-smoothed — blurring the bars into
+// an unreadable wavy pattern. Instead we take bwip-js's `raw()` module grid
+// (`sbs` = alternating bar/space widths, bar-first) and draw the bars as
+// VECTOR rectangles at exact integer-module boundaries — crisp at any DPI and
+// geometrically perfect (no raster pixel-snapping distortion of bar ratios).
+//
+// Only LINEAR (1D) symbologies expose a single `sbs`. QR / 2D / composite
+// codes return a different structure → we fall back to the PNG path.
+interface CapturedBars {
+  bars: { x: number; w: number }[]; // module space, x = left edge
+  unitW: number; // total symbol width in modules
+}
+
+function captureLinearBars(type: BarcodeType, text: string): CapturedBars | null {
+  let arr: any;
+  try {
+    arr = (bwipjs as any).raw({ bcid: bwipBcid[type], text });
+  } catch {
+    return null;
+  }
+  // A single linear segment with an sbs array; anything else → PNG fallback.
+  if (!Array.isArray(arr) || arr.length !== 1) return null;
+  const sbs = arr[0]?.sbs;
+  if (!Array.isArray(sbs) || sbs.length === 0) return null;
+
+  const bars: { x: number; w: number }[] = [];
+  let cursor = 0;
+  for (let i = 0; i < sbs.length; i++) {
+    const w = sbs[i];
+    if (i % 2 === 0 && w > 0) bars.push({ x: cursor, w }); // even index = bar
+    cursor += w;
+  }
+  if (bars.length === 0 || cursor <= 0) return null;
+  return { bars, unitW: cursor };
+}
+
 /**
- * Render a barcode element to a PNG buffer via bwip-js, then embed it
- * at the right (x, y) in points. For QR codes the element's
- * `barcodeHeightMm` is used as the square side length.
+ * Render a barcode element. LINEAR barcodes are drawn as crisp VECTOR bars
+ * (see captureLinearBars). QR / 2D and any failure fall back to an embedded
+ * PNG via bwip-js.
  */
 async function drawBarcode(
   doc: any,
   el: LabelElement,
-  data: LabelData
+  data: LabelData,
+  labelWidthMm: number
 ): Promise<void> {
   const text = (data.sku ?? '').trim();
   if (!text) return;
   const type: BarcodeType = el.barcodeType ?? 'code128';
   const heightMm = el.barcodeHeightMm ?? 10;
   const includetext = el.showBarcodeText !== false;
+  const xPt = el.xMm * MM_TO_PT;
+  const yPt = el.yMm * MM_TO_PT;
 
+  // ── Vector path for 1D barcodes ──
+  if (type !== 'qr') {
+    const cap = captureLinearBars(type, text);
+    if (cap) {
+      // Pick the module (X-dimension) width. Target ~0.33 mm (13 mil) for
+      // reliable handheld scanning, but shrink to fit the label if needed.
+      const availMm = Math.max(10, labelWidthMm - el.xMm - 2);
+      const unitMm = el.widthMm
+        ? el.widthMm / cap.unitW
+        : Math.max(0.19, Math.min(0.33, availMm / cap.unitW));
+      const barsHeightPt = heightMm * MM_TO_PT;
+      const unitPt = unitMm * MM_TO_PT;
+
+      doc.save();
+      doc.fillColor('#000000');
+      for (const b of cap.bars) {
+        doc.rect(xPt + b.x * unitPt, yPt, b.w * unitPt, barsHeightPt).fill();
+      }
+      doc.restore();
+
+      // Human-readable line, drawn as vector Helvetica centred under the bars.
+      if (includetext) {
+        const totalWidthPt = cap.unitW * unitPt;
+        let fontSize = 9;
+        doc.font('Helvetica');
+        while (fontSize > 5) {
+          doc.fontSize(fontSize);
+          if (doc.widthOfString(text) <= totalWidthPt) break;
+          fontSize -= 0.5;
+        }
+        doc.fillColor('#000000').font('Helvetica').fontSize(fontSize);
+        doc.text(text, xPt, yPt + barsHeightPt + 1, {
+          width: totalWidthPt,
+          align: 'center',
+          lineBreak: false,
+        });
+      }
+      return;
+    }
+    // else: fall through to the PNG fallback below.
+  }
+
+  // ── PNG fallback (QR / 2D, or if vector capture failed) ──
   try {
     const png = await bwipjs.toBuffer({
       bcid: bwipBcid[type],
@@ -77,28 +161,18 @@ async function drawBarcode(
       paddingwidth: 0,
       paddingheight: 0,
     });
-    const xPt = el.xMm * MM_TO_PT;
-    const yPt = el.yMm * MM_TO_PT;
     if (type === 'qr') {
       const sizePt = heightMm * MM_TO_PT;
       doc.image(png, xPt, yPt, { width: sizePt, height: sizePt });
     } else {
-      // Let pdfkit fit the image to the bounding height; width is
-      // determined by aspect ratio. If an explicit widthMm is supplied,
-      // use it.
       const heightPt = (heightMm + (includetext ? 3 : 0)) * MM_TO_PT;
       if (el.widthMm) {
-        doc.image(png, xPt, yPt, {
-          width: el.widthMm * MM_TO_PT,
-          height: heightPt,
-        });
+        doc.image(png, xPt, yPt, { width: el.widthMm * MM_TO_PT, height: heightPt });
       } else {
         doc.image(png, xPt, yPt, { height: heightPt });
       }
     }
   } catch (err: any) {
-    // Corrupt input (e.g. EAN-13 with non-digit SKU) — skip this element
-    // rather than blow up the entire batch.
     console.warn(
       `[pdf driver] barcode render failed for ${type} "${text}": ${err?.message ?? err}`
     );
@@ -163,7 +237,7 @@ async function drawLabel(
   for (const el of template.elements) {
     if (el.visible === false) continue;
     if (el.type === 'barcode') {
-      await drawBarcode(doc, el, item);
+      await drawBarcode(doc, el, item, template.widthMm);
     } else {
       drawText(doc, el, item);
     }
