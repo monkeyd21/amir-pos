@@ -467,6 +467,9 @@ export async function testPrint(
     variantLabel: 'M / Blue',
     price: 1999,
     mrp: 2199,
+    // Include a sample lot code so a template with a lotCode element shows it
+    // on the test print (otherwise the element renders blank).
+    lotCode: '26/04/26/30/09',
     copies: 1,
   };
 
