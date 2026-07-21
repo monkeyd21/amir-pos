@@ -14,6 +14,7 @@ interface Product {
   id: number;
   name: string;
   slug?: string;
+  mrp?: number | string | null;
   basePrice: number;
   description?: string;
   brand?: { id: number; name: string };
