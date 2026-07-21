@@ -16,6 +16,7 @@ interface BarcodeItem {
   variantLabel: string;
   price: number;
   mrp?: number;
+  lotCode?: string;
   copies: number;
 }
 
@@ -30,6 +31,7 @@ interface VariantSearchResult {
   clearance?: boolean;
   mrp?: number;
   mrpOverride?: number | string | null;
+  lotCode?: string | null;
   productName?: string;
   brand?: string;
   barcode?: string;
@@ -176,6 +178,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       mrp: variant.mrpOverride != null ? Number(variant.mrpOverride)
         : variant.mrp != null ? Number(variant.mrp)
         : variant.product?.mrp != null ? Number(variant.product.mrp) : undefined,
+      lotCode: variant.lotCode ?? undefined,
       copies: 1,
     });
 
@@ -221,6 +224,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       variantLabel: item.variantLabel || undefined,
       price: item.price,
       mrp: item.mrp,
+      lotCode: item.lotCode,
       copies: item.copies,
     }));
 
@@ -315,6 +319,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       ),
       mrp: v?.mrpOverride != null ? Number(v.mrpOverride)
         : v?.product?.mrp != null ? Number(v.product.mrp) : undefined,
+      lotCode: v?.lotCode ?? undefined,
       copies: Math.abs(m.quantity || 1),
     });
   }
