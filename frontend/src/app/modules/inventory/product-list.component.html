@@ -79,6 +79,7 @@
             <th class="th-label text-left">SKU</th>
             <th class="th-label text-left">Brand</th>
             <th class="th-label text-left">Category</th>
+            <th class="th-label text-right">MRP</th>
             <th class="th-label text-right">Price</th>
             <th class="th-label text-center">Variants</th>
             <th class="th-label text-right">Actions</th>
@@ -105,6 +106,10 @@
               <!-- Category -->
               <td class="px-6 py-4 text-sm text-on-surface-variant">
                 {{ product.category?.name || '—' }}
+              </td>
+              <!-- MRP -->
+              <td class="px-6 py-4 text-right">
+                <span class="text-sm text-on-surface-variant">{{ product.mrp != null ? formatCurrency(+product.mrp) : '—' }}</span>
               </td>
               <!-- Price -->
               <td class="px-6 py-4 text-right">
