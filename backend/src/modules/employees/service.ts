@@ -53,15 +53,18 @@ export class EmployeeService {
 
   async create(body: {
     firstName: string;
-    lastName: string;
-    email: string;
+    lastName?: string | null;
+    email?: string | null;
     phone?: string | null;
     role: string;
     branchId?: number;
     commissionRate?: number;
   }) {
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
-    if (existing) throw new AppError('Email already in use', 400);
+    // Email is optional; only enforce uniqueness when one is provided.
+    if (body.email) {
+      const existing = await prisma.user.findUnique({ where: { email: body.email } });
+      if (existing) throw new AppError('Email already in use', 400);
+    }
 
     // Default password — employee should change on first login
     const passwordHash = await bcrypt.hash('changeme123', 12);
@@ -69,8 +72,8 @@ export class EmployeeService {
     const user = await prisma.user.create({
       data: {
         firstName: body.firstName,
-        lastName: body.lastName,
-        email: body.email,
+        lastName: body.lastName ?? null,
+        email: body.email ?? null,
         phone: body.phone || null,
         role: body.role as any,
         branchId: body.branchId || 1,
@@ -98,8 +101,8 @@ export class EmployeeService {
     id: number,
     body: {
       firstName?: string;
-      lastName?: string;
-      email?: string;
+      lastName?: string | null;
+      email?: string | null;
       phone?: string | null;
       role?: string;
       branchId?: number;

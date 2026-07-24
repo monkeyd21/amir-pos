@@ -136,10 +136,10 @@ enum UserRole {
 model User {
   id             Int      @id @default(autoincrement())
   branchId       Int
-  email          String   @unique
+  email          String?  @unique
   passwordHash   String
   firstName      String
-  lastName       String
+  lastName       String?
   phone          String?
   role           UserRole @default(staff)
   commissionRate Decimal  @default(0) @db.Decimal(5, 2)

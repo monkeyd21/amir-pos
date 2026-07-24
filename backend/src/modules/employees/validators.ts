@@ -2,11 +2,16 @@ import { z } from 'zod';
 
 const roleEnum = z.enum(['owner', 'manager', 'cashier', 'staff']);
 
+// Blank strings from the form mean "not provided" for optional fields.
+const emptyToNull = (v: unknown) => (v === '' || v == null ? null : v);
+
 export const createEmployeeSchema = z.object({
   body: z.object({
     firstName: z.string().min(1, 'First name is required').max(100),
-    lastName: z.string().min(1, 'Last name is required').max(100),
-    email: z.string().email('Invalid email'),
+    // Last name and email are NOT mandatory — many employees are just
+    // salespeople tracked for commission who never log in.
+    lastName: z.preprocess(emptyToNull, z.string().max(100).nullable().optional()),
+    email: z.preprocess(emptyToNull, z.string().email('Invalid email').nullable().optional()),
     phone: z.string().max(20).optional().nullable(),
     role: roleEnum.default('staff'),
     branchId: z.number().int().positive().optional().nullable(),
@@ -20,8 +25,8 @@ export const updateEmployeeSchema = z.object({
   }),
   body: z.object({
     firstName: z.string().min(1).max(100).optional(),
-    lastName: z.string().min(1).max(100).optional(),
-    email: z.string().email().optional(),
+    lastName: z.preprocess(emptyToNull, z.string().max(100).nullable().optional()),
+    email: z.preprocess(emptyToNull, z.string().email('Invalid email').nullable().optional()),
     phone: z.string().max(20).optional().nullable(),
     role: roleEnum.optional(),
     branchId: z.number().int().positive().optional().nullable(),

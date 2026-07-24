@@ -290,7 +290,7 @@ export class SalesService {
       date: sale.createdAt,
       // §bug1 — trading day for the printed date (time still comes from `date`).
       businessDate: sale.businessDate ?? sale.createdAt,
-      cashier: `${sale.user.firstName} ${sale.user.lastName}`,
+      cashier: [sale.user.firstName, sale.user.lastName].filter(Boolean).join(' '),
       customer: sale.customer
         ? { name: fullName(sale.customer), phone: sale.customer.phone }
         : null,
@@ -391,7 +391,7 @@ export class SalesService {
       originalSaleNumber: ret.originalSale.saleNumber,
       type: ret.type,
       date: ret.createdAt,
-      cashier: `${ret.user.firstName} ${ret.user.lastName}`,
+      cashier: [ret.user.firstName, ret.user.lastName].filter(Boolean).join(' '),
       customer: ret.originalSale.customer
         ? { name: fullName(ret.originalSale.customer), phone: ret.originalSale.customer.phone }
         : null,
