@@ -26,7 +26,7 @@ interface ApiResponse<T> {
         <a routerLink="/employees" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors cursor-pointer">
           <span class="material-symbols-outlined text-lg">arrow_back</span> Back
         </a>
-        <button (click)="save()" [disabled]="saving || !form.firstName || !form.lastName || !form.email"
+        <button (click)="save()" [disabled]="saving || !form.firstName"
           class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           @if (saving) {
             <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
@@ -53,14 +53,14 @@ interface ApiResponse<T> {
                 class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
             </label>
             <label class="flex flex-col gap-1.5">
-              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Last Name *</span>
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Last Name</span>
               <input type="text" [(ngModel)]="form.lastName" placeholder="Doe"
                 class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
             </label>
           </div>
 
           <label class="flex flex-col gap-1.5">
-            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Email *</span>
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Email</span>
             <input type="email" [(ngModel)]="form.email" placeholder="john&#64;clothingerp.com"
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
           </label>
