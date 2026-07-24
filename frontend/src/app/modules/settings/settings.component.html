@@ -86,6 +86,28 @@
           />
         </div>
 
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Receipt Header</label>
+          <input
+            type="text"
+            [(ngModel)]="storeReceiptHeader"
+            placeholder="e.g. Welcome to our store!"
+            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+          />
+          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the top of every bill.</p>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Receipt Footer</label>
+          <input
+            type="text"
+            [(ngModel)]="storeReceiptFooter"
+            placeholder="e.g. Thank you for shopping!"
+            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
+          />
+          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the bottom of every bill.</p>
+        </div>
+
         <div>
           <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Tax Rate (%)</label>
           <input
@@ -133,9 +155,10 @@
       <div class="mt-6 pt-5 border-t border-outline-variant/10">
         <button
           (click)="saveGeneral()"
-          class="px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer"
+          [disabled]="savingGeneral"
+          class="px-6 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Save Changes
+          {{ savingGeneral ? 'Saving...' : 'Save Changes' }}
         </button>
       </div>
     </div>
