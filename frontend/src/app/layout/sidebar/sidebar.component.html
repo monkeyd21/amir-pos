@@ -25,15 +25,17 @@
     }
 
     <!-- Settings separated -->
-    <div class="mt-8">
-      <a
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
-        [routerLink]="settingsNav.path"
-        routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
-      >
-        <span class="material-symbols-outlined text-[20px]">{{ settingsNav.icon }}</span>
-        <span class="text-sm font-medium">{{ settingsNav.label }}</span>
-      </a>
-    </div>
+    @if (settingsNav) {
+      <div class="mt-8">
+        <a
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-[#c5c5d8] opacity-70 hover:bg-[#171f33] hover:text-[#dae2fd] hover:opacity-100"
+          [routerLink]="settingsNav.path"
+          routerLinkActive="!bg-[#171f33] !border-l-4 !border-[#465FFF] !rounded-r-xl !text-[#dae2fd] !opacity-100 active-nav"
+        >
+          <span class="material-symbols-outlined text-[20px]">{{ settingsNav.icon }}</span>
+          <span class="text-sm font-medium">{{ settingsNav.label }}</span>
+        </a>
+      </div>
+    }
   </nav>
 </aside>

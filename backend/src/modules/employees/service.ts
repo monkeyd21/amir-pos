@@ -7,9 +7,13 @@ import { getSetting } from '../settings/service';
 export class EmployeeService {
   // ─── Employee CRUD ─────────────────────────────────
 
-  async list(query: { page?: string; limit?: string; search?: string }) {
+  async list(query: { page?: string; limit?: string; search?: string; status?: string }) {
     const { page, limit, skip } = getPagination(query);
     const where: any = {};
+
+    // Active / inactive tab filter ('active' | 'inactive'; anything else = all).
+    if (query.status === 'active') where.isActive = true;
+    else if (query.status === 'inactive') where.isActive = false;
 
     if (query.search) {
       where.OR = [
@@ -386,27 +390,30 @@ export class EmployeeService {
       payPeriodEnd: Date;
     }> = [];
 
+    // §commission — minimum DAILY-sales threshold. Commission is earned only on
+    // the portion of an employee's own daily sales ABOVE this ₹ figure. 0 = off
+    // (every rupee earns commission, i.e. the original behaviour).
+    const dailyThreshold =
+      Number(await getSetting<number>('commissionDailyThreshold', 0)) || 0;
+
+    // First collect every (employee, sale) commission base, tagged with the
+    // trading day, WITHOUT applying the rate yet — we need each employee's full
+    // daily total before we know how much of it clears the threshold.
+    type Entry = { userId: number; saleId: number; base: number; rate: number; day: string };
+    const entries: Entry[] = [];
+
     for (const sale of sales) {
+      const day = (sale.businessDate ?? sale.createdAt).toISOString().slice(0, 10);
+
       if (mode === 'bill_level') {
         // ── Bill-level: commission on whole sale for the cashier ──
-        const key = `${sale.id}-${sale.userId}`;
-        if (existingKeys.has(key)) continue;
-
         const rate = Number(sale.user.commissionRate);
         if (rate <= 0) continue;
-
         // Net out anything already refunded — no commission on returned value.
         const refunded = sale.returns.reduce((s, r) => s + Number(r.total), 0);
         const netTotal = Math.max(0, Number(sale.total) - refunded);
-        const amount = Math.round(netTotal * (rate / 100) * 100) / 100;
-        newCommissions.push({
-          userId: sale.userId,
-          saleId: sale.id,
-          amount,
-          rate,
-          payPeriodStart: startDate,
-          payPeriodEnd: endDate,
-        });
+        if (netTotal <= 0) continue;
+        entries.push({ userId: sale.userId, saleId: sale.id, base: netTotal, rate, day });
       } else {
         // ── Item-level: commission per agent per line item ──
         const agentTotals = new Map<number, number>();
@@ -416,30 +423,42 @@ export class EmployeeService {
           const live = item.quantity - item.returnedQuantity;
           if (live <= 0) continue;
           const netLine = Number(item.total) * (live / item.quantity);
-          const current = agentTotals.get(item.agentId) ?? 0;
-          agentTotals.set(item.agentId, current + netLine);
+          agentTotals.set(item.agentId, (agentTotals.get(item.agentId) ?? 0) + netLine);
         }
-
         for (const [agentId, lineTotal] of agentTotals) {
-          const key = `${sale.id}-${agentId}`;
-          if (existingKeys.has(key)) continue;
-
           const agent = sale.items.find((i) => i.agentId === agentId)?.agent;
           if (!agent) continue;
           const rate = Number(agent.commissionRate);
           if (rate <= 0) continue;
-
-          const amount = Math.round(lineTotal * (rate / 100) * 100) / 100;
-          newCommissions.push({
-            userId: agentId,
-            saleId: sale.id,
-            amount,
-            rate,
-            payPeriodStart: startDate,
-            payPeriodEnd: endDate,
-          });
+          entries.push({ userId: agentId, saleId: sale.id, base: lineTotal, rate, day });
         }
       }
+    }
+
+    // Sum each employee's sales per trading day → how much clears the threshold.
+    const dailyBase = new Map<string, number>();
+    for (const e of entries) {
+      const k = `${e.userId}|${e.day}`;
+      dailyBase.set(k, (dailyBase.get(k) ?? 0) + e.base);
+    }
+
+    for (const e of entries) {
+      const key = `${e.saleId}-${e.userId}`;
+      if (existingKeys.has(key)) continue;
+      const base = dailyBase.get(`${e.userId}|${e.day}`) ?? 0;
+      // Only the amount above the threshold is commissionable; spread that
+      // reduction across the day's sales in proportion to each sale's value.
+      const factor = base > 0 ? Math.max(0, base - dailyThreshold) / base : 0;
+      const amount = Math.round(e.base * factor * (e.rate / 100) * 100) / 100;
+      if (amount <= 0) continue; // day fell below the threshold → no commission
+      newCommissions.push({
+        userId: e.userId,
+        saleId: e.saleId,
+        amount,
+        rate: e.rate,
+        payPeriodStart: startDate,
+        payPeriodEnd: endDate,
+      });
     }
 
     if (newCommissions.length > 0) {

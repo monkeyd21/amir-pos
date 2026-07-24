@@ -154,6 +154,41 @@ router.put(
   }
 );
 
+// Commission daily-sales threshold (₹): commission is earned only on the portion
+// of an employee's own daily sales ABOVE this figure. 0 = no threshold.
+router.get('/commission-threshold', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const threshold = await getSetting<number>('commissionDailyThreshold', 0);
+    res.json({ success: true, data: { commissionDailyThreshold: Number(threshold) || 0 } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put(
+  '/commission-threshold',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const value = Number(req.body.commissionDailyThreshold);
+      if (!Number.isFinite(value) || value < 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'commissionDailyThreshold must be a number ≥ 0',
+        });
+      }
+      await setSetting('commissionDailyThreshold', value);
+      res.json({
+        success: true,
+        data: { commissionDailyThreshold: value },
+        message: 'Commission threshold updated',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Bill numbering: per-channel prefixes for human-friendly sale numbers (W-0001 / O-0001).
 // `pad` controls zero-padding width of the running counter.
 const DEFAULT_BILL_NUMBERING = { walkin: 'W', online: 'O', pad: 4 };
