@@ -60,9 +60,12 @@ export class ReceiptPrintService {
   // The store runs a 2-inch (58mm) thermal printer. The receipt MUST be laid
   // out natively at this width: if it's designed for 80mm, the printer scales
   // the whole page down to 58mm, which both shrinks the text and blurs it. At
-  // 58mm the standard thermal grid is 32 monospace columns. Paper width (58mm)
-  // is also set in each template's @page / .receipt CSS below.
-  private readonly COLS = 32;
+  // 58mm the nominal grid is 32 monospace columns, but this printer's actual
+  // imaging area is a bit narrower — 32 cols clipped the right-hand prices, so
+  // the grid is trimmed to 27 cols (pulls the price column left, into view, and
+  // closes the wide middle gap). Paper width (58mm) is also set in each
+  // template's @page / .receipt CSS below.
+  private readonly COLS = 27;
   private readonly divider = '='.repeat(this.COLS);
   private readonly thin = '-'.repeat(this.COLS);
 
@@ -151,9 +154,9 @@ export class ReceiptPrintService {
 <html lang="en"><head><meta charset="UTF-8"><title>${title} - ${this.esc(r.returnNumber)}</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Courier New',monospace; font-size:11px; line-height:1.35; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
+body { font-family:'Courier New',monospace; font-size:12px; line-height:1.35; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
 .receipt { width:58mm; background:#fff; padding:2mm; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
-.center { text-align:center; } .store-name { font-size:13px; font-weight:bold; }
+.center { text-align:center; } .store-name { font-size:15px; font-weight:bold; }
 .item { margin:4px 0; } .discount { color:#888; } strong { font-weight:bold; }
 .actions { margin-top:16px; display:flex; gap:8px; }
 .actions button { padding:8px 20px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-family:'Inter',Arial,sans-serif; }
@@ -334,7 +337,7 @@ ${divider}</div></div>
 
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.35;
       color: #000;
       background: #f5f5f5;
@@ -355,7 +358,7 @@ ${divider}</div></div>
     }
 
     .center { text-align: center; }
-    .store-name { font-size: 13px; font-weight: bold; }
+    .store-name { font-size: 15px; font-weight: bold; }
     .item { margin: 4px 0; }
     .discount { color: #888; }
     .flag { font-weight: bold; }
