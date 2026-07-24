@@ -56,6 +56,16 @@ interface ReceiptResponse {
 export class ReceiptPrintService {
   constructor(private api: ApiService) {}
 
+  // ── Paper geometry ──────────────────────────────────────────────
+  // The store runs a 2-inch (58mm) thermal printer. The receipt MUST be laid
+  // out natively at this width: if it's designed for 80mm, the printer scales
+  // the whole page down to 58mm, which both shrinks the text and blurs it. At
+  // 58mm the standard thermal grid is 32 monospace columns. Paper width (58mm)
+  // is also set in each template's @page / .receipt CSS below.
+  private readonly COLS = 32;
+  private readonly divider = '='.repeat(this.COLS);
+  private readonly thin = '-'.repeat(this.COLS);
+
   // §bug2 — the printed receipt hides the Tax line until GST compliance is turned
   // on. Resolved per-print from the gstComplianceEnabled setting (default hidden).
   private showGst = false;
@@ -106,8 +116,8 @@ export class ReceiptPrintService {
   }
 
   private buildRefundReceiptHtml(r: any): string {
-    const divider = '========================================';
-    const thin = '----------------------------------------';
+    const divider = this.divider;
+    const thin = this.thin;
     const line = (l: string, v: string) => l + this.pad(l, v) + v;
 
     const itemsHtml = (r.items || [])
@@ -141,14 +151,14 @@ export class ReceiptPrintService {
 <html lang="en"><head><meta charset="UTF-8"><title>${title} - ${this.esc(r.returnNumber)}</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Courier New',monospace; font-size:12px; line-height:1.4; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
-.receipt { width:302px; background:#fff; padding:12px 16px; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
-.center { text-align:center; } .store-name { font-size:16px; font-weight:bold; }
-.item { margin:6px 0; } .discount { color:#888; } strong { font-weight:bold; }
+body { font-family:'Courier New',monospace; font-size:11px; line-height:1.35; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
+.receipt { width:58mm; background:#fff; padding:2mm; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+.center { text-align:center; } .store-name { font-size:13px; font-weight:bold; }
+.item { margin:4px 0; } .discount { color:#888; } strong { font-weight:bold; }
 .actions { margin-top:16px; display:flex; gap:8px; }
 .actions button { padding:8px 20px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-family:'Inter',Arial,sans-serif; }
 .btn-print { background:#1a1a2e; color:#fff; } .btn-close { background:#e0e0e0; color:#333; }
-@media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:100%; max-width:80mm; padding:2mm; font-weight:bold; color:#000; } .receipt .discount { color:#000 !important; } .actions { display:none !important; } @page { size:80mm auto; margin:0; } }
+@media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:58mm; max-width:58mm; padding:1mm; font-weight:bold; color:#000; } .receipt .discount { color:#000 !important; } .actions { display:none !important; } @page { size:58mm auto; margin:0; } }
 </style></head><body>
 <div class="receipt"><div class="center">${divider}
 <span class="store-name">${this.esc(r.branchName)}</span>
@@ -183,8 +193,8 @@ ${divider}</div></div>
   }
 
   private buildReceiptHtml(r: ReceiptData): string {
-    const divider = '========================================';
-    const thinDivider = '----------------------------------------';
+    const divider = this.divider;
+    const thinDivider = this.thin;
 
     const itemsHtml = r.items
       .map((item) => {
@@ -324,8 +334,8 @@ ${divider}</div></div>
 
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 12px;
-      line-height: 1.4;
+      font-size: 11px;
+      line-height: 1.35;
       color: #000;
       background: #f5f5f5;
       display: flex;
@@ -335,9 +345,9 @@ ${divider}</div></div>
     }
 
     .receipt {
-      width: 302px;
+      width: 58mm;
       background: #fff;
-      padding: 12px 16px;
+      padding: 2mm;
       white-space: pre;
       word-wrap: break-word;
       overflow-wrap: break-word;
@@ -345,7 +355,7 @@ ${divider}</div></div>
     }
 
     .center { text-align: center; }
-    .store-name { font-size: 16px; font-weight: bold; }
+    .store-name { font-size: 13px; font-weight: bold; }
     .item { margin: 4px 0; }
     .discount { color: #888; }
     .flag { font-weight: bold; }
@@ -396,9 +406,9 @@ ${divider}</div></div>
       }
       .receipt {
         box-shadow: none;
-        width: 100%;
-        max-width: 80mm;
-        padding: 2mm;
+        width: 58mm;
+        max-width: 58mm;
+        padding: 1mm;
         font-weight: bold;
         color: #000;
       }
@@ -406,7 +416,7 @@ ${divider}</div></div>
       .actions { display: none !important; }
 
       @page {
-        size: 80mm auto;
+        size: 58mm auto;
         margin: 0;
       }
     }
@@ -481,7 +491,7 @@ ${divider}</div>
   }
 
   /** Pad with spaces to right-align value on a 40-char wide receipt line */
-  private pad(left: string, right: string, width: number = 40): string {
+  private pad(left: string, right: string, width: number = this.COLS): string {
     const gap = width - left.length - right.length;
     return gap > 0 ? ' '.repeat(gap) : ' ';
   }
