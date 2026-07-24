@@ -1189,8 +1189,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     const offerDisc =
       item.qualified && item.offerDiscount ? item.offerDiscount : 0;
 
+    // §2.3 — per-line Owner Discretion Discount (OD%), applied on the line gross
+    // using the SAME formula as `discretionaryDiscountTotal` so the sum of line
+    // totals stays exact against the bill. It's an independent top-up (the bill
+    // total subtracts it separately), so it also applies to discount-locked
+    // lines — hence it's added before the excludeFromDiscount short-circuit.
+    const pct = Math.min(15, Math.max(0, item.discretionaryPct ?? 0));
+    const discretionaryDisc = pct
+      ? Math.round(gross * (pct / 100) * 100) / 100
+      : 0;
+
     if (item.excludeFromDiscount) {
-      return offerDisc;
+      return Math.min(gross, offerDisc + discretionaryDisc);
     }
 
     const postOffer = gross - offerDisc;
@@ -1198,14 +1208,14 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // `this.discount` (getter) already includes resolvedDiscount + roundOff.
     const billLevel = this.discount;
     if (billLevel === 0 || this.discountBase <= 0) {
-      return offerDisc;
+      return Math.min(gross, offerDisc + discretionaryDisc);
     }
 
     const ratio = billLevel / this.discountBase;
     const apportioned = postOffer * ratio;
     // Clamp the total line reduction to the gross — a stray rounding
     // error can't flip a line total negative.
-    return Math.min(gross, offerDisc + apportioned);
+    return Math.min(gross, offerDisc + discretionaryDisc + apportioned);
   }
 
   /** Effective discount on this line as a percentage of its gross. */
