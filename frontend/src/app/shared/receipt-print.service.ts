@@ -269,6 +269,12 @@ ${divider}</div></div>
       policyNote = `\n${thinDivider}\n<span class="flag">${notes.map((t) => this.esc(t)).join('\n')}</span>`;
     }
 
+    // Total quantity of items across all lines, shown on the bill.
+    const totalQty = r.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+    const qtyLabel = 'Total Qty:';
+    const qtyVal = String(totalQty);
+    const totalQtyLine = qtyLabel + this.pad(qtyLabel, qtyVal) + qtyVal;
+
     const subtotalLabel = 'Subtotal:';
     const subtotalVal = this.formatCurrency(r.subtotal);
     const subtotalLine = subtotalLabel + this.pad(subtotalLabel, subtotalVal) + subtotalVal;
@@ -468,6 +474,7 @@ ${customerLine}${thinDivider}
 ITEMS:
 ${itemsHtml}
 ${thinDivider}
+${totalQtyLine}
 ${subtotalLine}${discountLine}${taxLine}
 ${thinDivider}
 ${totalLine}${exchangeLines}
