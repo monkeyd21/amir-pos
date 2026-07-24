@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { NotificationService } from '../../core/services/notification.service';
 import { ApiService } from '../../core/services/api.service';
+import { BranchService } from '../../core/services/branch.service';
 
 interface Branch {
   id: number;
@@ -75,10 +76,18 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  // General settings
-  storeName = "Sabiha's Ethnic";
-  storeAddress = '123 Fashion Street, Mumbai, India';
-  storePhone = '+91 98765 43210';
+  // General settings — "Store Information" IS the branch record the printed
+  // receipt reads (name / address / phone / receiptHeader / receiptFooter).
+  // Loaded from and saved to the current branch via the branches API in
+  // loadStoreInfo() / saveGeneral(). Blank until loaded so stale placeholders
+  // never flash on screen or get saved over real data.
+  storeName = '';
+  storeAddress = '';
+  storePhone = '';
+  storeReceiptHeader = '';
+  storeReceiptFooter = '';
+  currentBranchId: number | null = null;
+  savingGeneral = false;
   taxRate = 18;
   currency = 'INR';
 
@@ -133,10 +142,12 @@ export class SettingsComponent implements OnInit {
 
   constructor(
     private notification: NotificationService,
-    private api: ApiService
+    private api: ApiService,
+    private branchService: BranchService
   ) {}
 
   ngOnInit(): void {
+    this.loadStoreInfo();
     this.loadCommissionMode();
     this.loadLoyaltyConfig();
     this.loadMessagingConfig();
@@ -317,8 +328,57 @@ export class SettingsComponent implements OnInit {
     this.activeTab = tabId;
   }
 
+  /** Load the current branch's store details into the General form. */
+  loadStoreInfo(): void {
+    this.api.get<any>('/branches').subscribe({
+      next: (res) => {
+        const list: any[] = res?.data || res || [];
+        if (!list.length) return;
+        // Prefer the branch the user is operating in; fall back to the first.
+        const curId = this.branchService.getCurrentBranch()?.id;
+        const b = list.find((x) => String(x.id) === String(curId)) || list[0];
+        this.currentBranchId = b.id;
+        this.storeName = b.name || '';
+        this.storeAddress = b.address || '';
+        this.storePhone = b.phone || '';
+        this.storeReceiptHeader = b.receiptHeader || '';
+        this.storeReceiptFooter = b.receiptFooter || '';
+      },
+      error: () => {},
+    });
+  }
+
   saveGeneral(): void {
-    this.notification.success('General settings saved');
+    if (this.savingGeneral) return;
+    if (this.currentBranchId == null) {
+      this.notification.error('Store details are still loading — try again in a moment');
+      return;
+    }
+    const name = this.storeName.trim();
+    if (!name) {
+      this.notification.error('Store name is required');
+      return;
+    }
+    this.savingGeneral = true;
+    // Persist to the branch record the receipt reads. Empty strings are sent as
+    // null (the API accepts nullable) so a cleared field actually clears.
+    const payload = {
+      name,
+      address: this.storeAddress.trim() || null,
+      phone: this.storePhone.trim() || null,
+      receiptHeader: this.storeReceiptHeader.trim() || null,
+      receiptFooter: this.storeReceiptFooter.trim() || null,
+    };
+    this.api.put<any>(`/branches/${this.currentBranchId}`, payload).subscribe({
+      next: () => {
+        this.savingGeneral = false;
+        this.notification.success('Store details saved');
+      },
+      error: (err) => {
+        this.savingGeneral = false;
+        this.notification.error(err.error?.error || 'Failed to save store details');
+      },
+    });
   }
 
   saveBranch(branch: Branch): void {
