@@ -88,24 +88,24 @@
 
         <div class="md:col-span-2">
           <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Receipt Header</label>
-          <input
-            type="text"
+          <textarea
             [(ngModel)]="storeReceiptHeader"
-            placeholder="e.g. Welcome to our store!"
-            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
-          />
-          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the top of every bill.</p>
+            rows="3"
+            placeholder="Printed under the store name — one line each, e.g.&#10;WHATS APP No.: 9975099760&#10;INSTAGRAM @SABIHASETHNIC"
+            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors resize-y"
+          ></textarea>
+          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the top of every bill, under the store name (e.g. WhatsApp / Instagram). One line each.</p>
         </div>
 
         <div class="md:col-span-2">
           <label class="block text-xs font-semibold font-body text-on-surface-variant mb-1.5">Receipt Footer</label>
-          <input
-            type="text"
+          <textarea
             [(ngModel)]="storeReceiptFooter"
-            placeholder="e.g. Thank you for shopping!"
-            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors"
-          />
-          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the bottom of every bill.</p>
+            rows="2"
+            placeholder="e.g. See You Soon; Because One Visit is Not Enough"
+            class="w-full px-4 py-2.5 bg-surface-container-high rounded-lg text-sm font-body text-on-surface placeholder-on-surface-variant/40 border border-outline-variant/20 focus:border-primary focus:outline-none transition-colors resize-y"
+          ></textarea>
+          <p class="text-xs font-body text-on-surface-variant/70 mt-1">Printed at the bottom of every bill (above the policy).</p>
         </div>
 
         <div class="md:col-span-2">
