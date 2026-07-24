@@ -26,6 +26,7 @@ export const updateBranchSchema = z.object({
     taxConfig: z.record(z.any()).optional(),
     receiptHeader: z.string().optional().nullable(),
     receiptFooter: z.string().optional().nullable(),
+    returnPolicy: z.string().optional().nullable(),
     isActive: z.boolean().optional(),
   }),
 });

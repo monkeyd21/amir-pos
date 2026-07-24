@@ -27,6 +27,7 @@ interface ReceiptPayment {
 interface ReceiptData {
   receiptHeader: string | null;
   receiptFooter: string | null;
+  returnPolicy: string | null;
   branchName: string;
   branchAddress: string;
   branchPhone: string;
@@ -217,6 +218,15 @@ ${divider}</div></div>
       .filter((l) => l)
       .join('\n');
 
+    // Editable Return & Exchange policy (Store Settings → branch.returnPolicy),
+    // printed at the very bottom under a bold heading that's larger than the
+    // policy lines below it.
+    const policyBlock = r.returnPolicy
+      ? `${thinDivider}
+<div class="policy-title center">Please read the Return &amp; Exchange Policy</div>
+<div class="policy-body">${this.esc(r.returnPolicy)}</div>`
+      : '';
+
     const itemsHtml = r.items
       .map((item) => {
         const variantLine = item.variant ? `  ${this.esc(item.variant)}` : '';
@@ -381,6 +391,9 @@ ${divider}</div></div>
     .discount { color: #888; }
     .flag { font-weight: bold; }
     strong { font-weight: bold; }
+    /* Return & Exchange policy: heading larger than the fine-print body. */
+    .policy-title { font-size: 14px; font-weight: bold; margin-top: 2mm; }
+    .policy-body { font-size: 10px; line-height: 1.3; }
 
     .actions {
       margin-top: 16px;
@@ -467,6 +480,7 @@ ${thinDivider}
 ${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
 <div class="center">Thank you for shopping!
 ${divider}</div>
+${policyBlock}
 </div>
 
 <div class="actions">
