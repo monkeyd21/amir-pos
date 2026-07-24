@@ -759,7 +759,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       )
       .subscribe({
         next: (res) => {
-          if (res) {
+          // Only apply if the query is still active. A scan that beat the
+          // debounce may have auto-added and cleared the box before this
+          // (already in-flight) search resolved — without this guard that stale
+          // result would resurrect the dropdown right after the add.
+          if (res && this.searchQuery.trim().length >= 2) {
             this.searchResults = res.data || [];
             this.showSearchResults = true;
             // Reset keyboard selection — the new result list may be

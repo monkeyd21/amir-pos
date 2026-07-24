@@ -1385,18 +1385,31 @@ export class PosService {
     return created.id;
   }
 
-  async lookupBarcode(barcode: string, branchId: number) {
-    const variant = await prisma.productVariant.findFirst({
-      where: { barcode, isActive: true },
-      include: {
-        product: {
-          include: {
-            brand: { select: { id: true, name: true } },
-            category: { select: { id: true, name: true } },
-          },
+  async lookupBarcode(code: string, branchId: number) {
+    const include = {
+      product: {
+        include: {
+          brand: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true } },
         },
       },
+    } as const;
+
+    // Resolve the scanned code by BARCODE first, then fall back to SKU (both
+    // exact, case-insensitive). Old inventory has the SKU — not a numeric
+    // barcode — printed on its label, so a barcode-only lookup 404s and the POS
+    // pops a spurious quick-add dialog. Matching SKU here lets those scans
+    // auto-add. Barcode takes precedence to avoid a stray SKU/barcode collision.
+    let variant = await prisma.productVariant.findFirst({
+      where: { barcode: { equals: code, mode: 'insensitive' }, isActive: true },
+      include,
     });
+    if (!variant) {
+      variant = await prisma.productVariant.findFirst({
+        where: { sku: { equals: code, mode: 'insensitive' }, isActive: true },
+        include,
+      });
+    }
 
     if (!variant) {
       throw new AppError('Product not found for this barcode', 404);
