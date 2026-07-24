@@ -57,6 +57,7 @@ export const updateBranch = async (id: number, data: {
   taxConfig?: Record<string, any>;
   receiptHeader?: string | null;
   receiptFooter?: string | null;
+  returnPolicy?: string | null;
   isActive?: boolean;
 }) => {
   const branch = await prisma.branch.findUnique({ where: { id } });

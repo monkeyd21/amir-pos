@@ -282,6 +282,7 @@ export class SalesService {
     return {
       receiptHeader: sale.branch.receiptHeader,
       receiptFooter: sale.branch.receiptFooter,
+      returnPolicy: sale.branch.returnPolicy,
       branchName: sale.branch.name,
       branchAddress: sale.branch.address,
       branchPhone: sale.branch.phone,

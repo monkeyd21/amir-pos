@@ -86,6 +86,7 @@ export class SettingsComponent implements OnInit {
   storePhone = '';
   storeReceiptHeader = '';
   storeReceiptFooter = '';
+  storeReturnPolicy = '';
   currentBranchId: number | null = null;
   savingGeneral = false;
   taxRate = 18;
@@ -343,6 +344,7 @@ export class SettingsComponent implements OnInit {
         this.storePhone = b.phone || '';
         this.storeReceiptHeader = b.receiptHeader || '';
         this.storeReceiptFooter = b.receiptFooter || '';
+        this.storeReturnPolicy = b.returnPolicy || '';
       },
       error: () => {},
     });
@@ -368,6 +370,7 @@ export class SettingsComponent implements OnInit {
       phone: this.storePhone.trim() || null,
       receiptHeader: this.storeReceiptHeader.trim() || null,
       receiptFooter: this.storeReceiptFooter.trim() || null,
+      returnPolicy: this.storeReturnPolicy.trim() || null,
     };
     this.api.put<any>(`/branches/${this.currentBranchId}`, payload).subscribe({
       next: () => {
