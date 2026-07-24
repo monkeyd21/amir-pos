@@ -52,45 +52,9 @@ interface ReceiptResponse {
   data: ReceiptData;
 }
 
-/**
- * One printed line. The receipt is a flat list of these, laid out on a
- * monospace grid (COLS wide) and rendered to a 1-bit bitmap for printing.
- */
-interface ReceiptRow {
-  text: string;
-  bold?: boolean;
-  align?: 'left' | 'center';
-  /** Larger type — used for the store name only. */
-  big?: boolean;
-  /** A vertical spacer, not a text line. */
-  blank?: boolean;
-}
-
 @Injectable({ providedIn: 'root' })
 export class ReceiptPrintService {
   constructor(private api: ApiService) {}
-
-  // ── Thermal geometry ────────────────────────────────────────────
-  //
-  // The receipt is drawn to a pure black/white bitmap at the printer's native
-  // dot width and printed as an image. This is deliberate: a thermal head is
-  // 1-bit (a dot is either burned or not), but a browser renders text with
-  // GRAYSCALE anti-aliasing on the glyph edges. When that grayscale page is
-  // sent through the OS print pipeline to a 1-bit thermal printer, the driver
-  // DITHERS the gray edges into scattered dots — which at receipt sizes comes
-  // out as the smeared, doubled, unreadable text we were seeing. By rendering
-  // ourselves and thresholding every pixel to pure black or white, there is no
-  // grayscale left for the driver to dither, so the print is crisp.
-  //
-  // 80mm paper → 576 printable dots @203 dpi ≈ 72mm of print width. If the
-  // shop ever moves to 58mm paper, set DOTS=384 / WIDTH_MM=48.
-  private readonly DOTS = 576;
-  private readonly WIDTH_MM = 72;
-  /** Monospace columns the text layout is designed around (== divider width). */
-  private readonly COLS = 40;
-  /** Luminance cutoff for 1-bit thresholding. Higher = thicker/darker glyphs,
-   *  which read better on thermal paper that tends to print thin. */
-  private readonly THRESHOLD = 168;
 
   // §bug2 — the printed receipt hides the Tax line until GST compliance is turned
   // on. Resolved per-print from the gstComplianceEnabled setting (default hidden).
@@ -114,384 +78,383 @@ export class ReceiptPrintService {
     const receipt = res.data;
     this.showGst = await this.fetchGstEnabled();
 
-    const rows = this.buildReceiptRows(receipt);
-    const canvas = this.renderRowsToBitmap(rows);
-    this.printBitmap(canvas, `Receipt - ${receipt.saleNumber}`);
+    const printWindow = window.open('', '_blank', 'width=420,height=700');
+    if (!printWindow) {
+      throw new Error('Pop-up blocked. Please allow pop-ups for receipt printing.');
+    }
+
+    const html = this.buildReceiptHtml(receipt);
+    printWindow.document.write(html);
+    printWindow.document.close();
   }
 
   /**
    * §1.3a — print/show the customer-facing refund/exchange breakup receipt for
-   * a completed return. Same 1-bit thermal render as a sale receipt.
+   * a completed return. Opens the same print window as a sale receipt.
    */
   async printRefundReceipt(returnId: number): Promise<void> {
     const res = await firstValueFrom(
       this.api.get<{ success: boolean; data: any }>(`/sales/returns/${returnId}/receipt`)
     );
     const r = res.data;
-    const rows = this.buildRefundRows(r);
-    const title = String(r.type || 'return').toUpperCase() === 'EXCHANGE' ? 'EXCHANGE' : 'REFUND';
-    const canvas = this.renderRowsToBitmap(rows);
-    this.printBitmap(canvas, `${title} - ${r.returnNumber}`);
-  }
-
-  // ── Row builders (the receipt layout) ───────────────────────────
-
-  private buildReceiptRows(r: ReceiptData): ReceiptRow[] {
-    const divider = '='.repeat(this.COLS);
-    const thin = '-'.repeat(this.COLS);
-    const rows: ReceiptRow[] = [];
-    const push = (text: string, opts: Partial<ReceiptRow> = {}) => rows.push({ text, ...opts });
-    const line = (l: string, v: string) => l + this.pad(l, v) + v;
-
-    push(divider, { align: 'center' });
-    push(r.branchName, { align: 'center', bold: true, big: true });
-    if (r.branchAddress) push(r.branchAddress, { align: 'center' });
-    if (r.branchPhone) push('Phone: ' + r.branchPhone, { align: 'center' });
-    push(divider, { align: 'center' });
-    if (r.receiptHeader) {
-      push(r.receiptHeader, { align: 'center' });
-      push(thin);
-    }
-
-    push(`Sale #: ${r.saleNumber}`);
-    push(`Date: ${this.formatDate(r.date)}`);
-    push(`Cashier: ${r.cashier}`);
-    if (r.customer) {
-      push(
-        `Customer: ${r.customer.name}${r.customer.phone ? ' (' + r.customer.phone + ')' : ''}`
-      );
-    }
-    push(thin);
-    push('', { blank: true });
-
-    push('ITEMS:');
-    for (const item of r.items) {
-      push(item.name);
-      if (item.variant) push('  ' + item.variant);
-      const priceLine = `  ${item.quantity} x ${this.formatCurrency(item.unitPrice)}`;
-      const totalStr = this.formatCurrency(item.total);
-      push(priceLine + this.pad(priceLine, totalStr) + totalStr);
-      if (item.discount > 0) {
-        push(line('    Disc:', `-${this.formatCurrency(item.discount)}`));
-      }
-      // Per-item loyalty points redeemed — this line's share of the bill's
-      // redemption, so the customer sees which items the points came off.
-      if (item.loyaltyPointsRedeemed && item.loyaltyPointsRedeemed > 0) {
-        push(line('    Loyalty:', `-${item.loyaltyPointsRedeemed} pts`));
-      }
-      // §1.2 — flag non-returnable / exchange-only goods on the printed bill.
-      if (item.nonReturnable) push('  ** NON-RETURNABLE **', { bold: true });
-      else if (item.exchangeOnly) push('  ** EXCHANGE ONLY **', { bold: true });
-    }
-    push(thin);
-
-    push(line('Subtotal:', this.formatCurrency(r.subtotal)));
-    if (r.discountAmount > 0) {
-      push(line('Discount:', `-${this.formatCurrency(r.discountAmount)}`));
-    }
-    // Tax line only when GST compliance is on.
-    if (this.showGst) {
-      push(line('Tax:', this.formatCurrency(r.taxAmount)));
-    }
-    push(thin);
-    push(line('TOTAL:', this.formatCurrency(r.total)), { bold: true });
-
-    // Exchange: goods returned and credited against this bill.
-    const exchangeCredit = r.exchangeCredit || 0;
-    const exchangeRefund = r.exchangeRefund || 0;
-    if (exchangeCredit > 0) {
-      push(line('Exchange credit:', `-${this.formatCurrency(exchangeCredit)}`));
-      if (r.exchangeOriginalSaleNumber) push('  vs ' + r.exchangeOriginalSaleNumber);
-      if (exchangeRefund > 0) {
-        push(line('REFUND:', this.formatCurrency(exchangeRefund)), { bold: true });
-      } else {
-        push(
-          line('Net Payable:', this.formatCurrency(Math.max(0, r.total - exchangeCredit))),
-          { bold: true }
-        );
-      }
-    }
-    push(thin);
-    push('', { blank: true });
-
-    push('PAYMENT:');
-    for (const p of r.payments) {
-      const methodLabel = this.formatPaymentMethod(p.method);
-      push(line(methodLabel, this.formatCurrency(p.amount)));
-      if (p.referenceNumber) push('  Ref: ' + p.referenceNumber);
-    }
-    const amountDue = Math.max(0, r.total - exchangeCredit);
-    const changeAmount = r.payments.reduce((sum, p) => sum + p.amount, 0) - amountDue;
-    if (changeAmount > 0.01) {
-      push(line('Change:', this.formatCurrency(changeAmount)));
-    }
-
-    if (r.loyaltyPointsEarned > 0 || r.loyaltyPointsRedeemed > 0) {
-      push(thin);
-      if (r.loyaltyPointsEarned > 0) {
-        push(line('Points Earned:', String(r.loyaltyPointsEarned)));
-      }
-      if (r.loyaltyPointsRedeemed > 0) {
-        push(line('Points Redeemed:', String(r.loyaltyPointsRedeemed)));
-      }
-    }
-
-    // §1.2 — legend below the items if any line carries a sale-policy flag.
-    const hasNonReturnable = r.items.some((i) => i.nonReturnable);
-    const hasExchangeOnly = r.items.some((i) => !i.nonReturnable && i.exchangeOnly);
-    if (hasNonReturnable || hasExchangeOnly) {
-      push(thin);
-      if (hasNonReturnable) {
-        push('** NON-RETURNABLE items cannot be returned or exchanged.', { bold: true });
-      }
-      if (hasExchangeOnly) {
-        push('** EXCHANGE ONLY items can be exchanged but not refunded.', { bold: true });
-      }
-    }
-
-    push(thin);
-    if (r.receiptFooter) push(r.receiptFooter, { align: 'center' });
-    push('Thank you for shopping!', { align: 'center' });
-    push(divider, { align: 'center' });
-    return rows;
-  }
-
-  private buildRefundRows(r: any): ReceiptRow[] {
-    const divider = '='.repeat(this.COLS);
-    const thin = '-'.repeat(this.COLS);
-    const rows: ReceiptRow[] = [];
-    const push = (text: string, opts: Partial<ReceiptRow> = {}) => rows.push({ text, ...opts });
-    const line = (l: string, v: string) => l + this.pad(l, v) + v;
-    const title = String(r.type || 'return').toUpperCase() === 'EXCHANGE' ? 'EXCHANGE' : 'REFUND';
-
-    push(divider, { align: 'center' });
-    push(r.branchName, { align: 'center', bold: true, big: true });
-    if (r.branchAddress) push(r.branchAddress, { align: 'center' });
-    if (r.branchPhone) push('Phone: ' + r.branchPhone, { align: 'center' });
-    push(divider, { align: 'center' });
-    push(`${title} RECEIPT`, { align: 'center', bold: true });
-
-    push(`${title} #: ${r.returnNumber}`);
-    push(`Against Bill: ${r.originalSaleNumber}`);
-    push(`Date: ${this.formatDate(r.date)}`);
-    push(`Cashier: ${r.cashier}`);
-    if (r.customer) {
-      push(
-        `Customer: ${r.customer.name}${r.customer.phone ? ' (' + r.customer.phone + ')' : ''}`
-      );
-    }
-    push(thin);
-    push('', { blank: true });
-
-    push('ITEMS RETURNED:');
-    for (const it of r.items || []) {
-      push(it.name);
-      push(`  ${it.variant}  x${it.quantity}`);
-      push(line('  Tag/MRP:', this.formatCurrency(it.mrpUnit)));
-      if (it.perUnitAdjustment > 0) {
-        push(line('  Less adj:', '-' + this.formatCurrency(it.perUnitAdjustment)));
-      }
-      push(line('  Net paid:', this.formatCurrency(it.netUnit)));
-      push(line('  Refund:', this.formatCurrency(it.refund)), { bold: true });
-    }
-    push(thin);
-    push(line('TOTAL ' + title + ':', this.formatCurrency(r.refundTotal)), { bold: true });
-    push(thin);
-
-    push('REFUNDED VIA:');
-    for (const b of r.refundBreakup || []) {
-      push(line(this.formatPaymentMethod(b.method) + ':', this.formatCurrency(b.amount)));
-    }
-    if (r.loyaltyPointsRestored > 0) {
-      push(line('Points returned:', String(r.loyaltyPointsRestored)));
-    }
-    push(thin);
-
-    if (r.receiptFooter) push(r.receiptFooter, { align: 'center' });
-    push('Refund value is derived from the net price paid,', { align: 'center' });
-    push('not the tag price.', { align: 'center' });
-    push(divider, { align: 'center' });
-    return rows;
-  }
-
-  // ── 1-bit bitmap renderer ───────────────────────────────────────
-
-  /**
-   * Lay the rows out on a monospace grid and draw them to an offscreen canvas
-   * at the printer's native dot width, then threshold every pixel to pure
-   * black or white so the OS print pipeline has no grayscale to dither.
-   */
-  private renderRowsToBitmap(rows: ReceiptRow[]): HTMLCanvasElement {
-    const width = this.DOTS;
-    const marginX = 8;
-    const usable = width - marginX * 2;
-    const font = (px: number, bold: boolean) =>
-      `${bold ? 'bold ' : ''}${px}px 'Courier New', 'Roboto Mono', monospace`;
-
-    // Derive the font size that makes COLS monospace chars fill the usable
-    // width. Monospace advance scales linearly with px, so measure once at a
-    // reference size and solve.
-    const measure = document.createElement('canvas').getContext('2d')!;
-    const probe = 100;
-    measure.font = font(probe, false);
-    const wAtProbe = measure.measureText('M'.repeat(this.COLS)).width || probe * this.COLS * 0.6;
-    const baseSize = Math.max(14, Math.floor((usable / wAtProbe) * probe));
-    const bigSize = Math.round(baseSize * 1.35);
-    const lineOf = (r: ReceiptRow) => Math.round((r.big ? bigSize : baseSize) * 1.35);
-    const spacer = Math.round(baseSize * 0.6);
-
-    // Word-wrap any row longer than the grid so nothing runs off the edge.
-    const wrapped: ReceiptRow[] = [];
-    for (const r of rows) {
-      if (r.blank) {
-        wrapped.push(r);
-        continue;
-      }
-      const parts = this.wrap(r.text, this.COLS);
-      for (const part of parts) wrapped.push({ ...r, text: part });
-    }
-
-    // Total height.
-    const padTop = 12;
-    const padBottom = 28;
-    let height = padTop + padBottom;
-    for (const r of wrapped) height += r.blank ? spacer : lineOf(r);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#000';
-    ctx.textBaseline = 'top';
-
-    let y = padTop;
-    for (const r of wrapped) {
-      if (r.blank) {
-        y += spacer;
-        continue;
-      }
-      const size = r.big ? bigSize : baseSize;
-      ctx.font = font(size, !!r.bold);
-      let x = marginX;
-      if (r.align === 'center') {
-        const w = ctx.measureText(r.text).width;
-        x = Math.max(marginX, Math.round((width - w) / 2));
-      }
-      ctx.fillText(r.text, x, y);
-      y += lineOf(r);
-    }
-
-    this.thresholdToBlackWhite(ctx, width, height);
-    return canvas;
-  }
-
-  /** Collapse every pixel to pure black or pure white (kills anti-alias gray). */
-  private thresholdToBlackWhite(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number
-  ): void {
-    const img = ctx.getImageData(0, 0, w, h);
-    const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      const v = lum < this.THRESHOLD ? 0 : 255;
-      d[i] = d[i + 1] = d[i + 2] = v;
-      d[i + 3] = 255;
-    }
-    ctx.putImageData(img, 0, 0);
-  }
-
-  /** Word-aware wrap to `cols` characters; hard-splits over-long tokens. */
-  private wrap(text: string, cols: number): string[] {
-    if (text.length <= cols) return [text];
-    const lines: string[] = [];
-    let cur = '';
-    for (const word of text.split(' ')) {
-      if (!cur.length) cur = word;
-      else if ((cur + ' ' + word).length <= cols) cur += ' ' + word;
-      else {
-        lines.push(cur);
-        cur = word;
-      }
-      while (cur.length > cols) {
-        lines.push(cur.slice(0, cols));
-        cur = cur.slice(cols);
-      }
-    }
-    if (cur.length) lines.push(cur);
-    return lines.length ? lines : [text];
-  }
-
-  /** Open a print window showing the bitmap at native width and print it. */
-  private printBitmap(canvas: HTMLCanvasElement, title: string): void {
-    const dataUrl = canvas.toDataURL('image/png');
     const printWindow = window.open('', '_blank', 'width=420,height=700');
     if (!printWindow) {
       throw new Error('Pop-up blocked. Please allow pop-ups for receipt printing.');
     }
-    const widthMm = this.WIDTH_MM;
-    printWindow.document.write(`<!DOCTYPE html>
+    printWindow.document.write(this.buildRefundReceiptHtml(r));
+    printWindow.document.close();
+  }
+
+  private buildRefundReceiptHtml(r: any): string {
+    const divider = '========================================';
+    const thin = '----------------------------------------';
+    const line = (l: string, v: string) => l + this.pad(l, v) + v;
+
+    const itemsHtml = (r.items || [])
+      .map((it: any) => {
+        const head = `${this.esc(it.name)}\n  ${this.esc(it.variant)}  x${it.quantity}`;
+        const mrp = line('  Tag/MRP:', this.formatCurrency(it.mrpUnit));
+        const adj =
+          it.perUnitAdjustment > 0
+            ? `\n<span class="discount">${line('  Less adj:', '-' + this.formatCurrency(it.perUnitAdjustment))}</span>`
+            : '';
+        const net = line('  Net paid:', this.formatCurrency(it.netUnit));
+        const ref = `<strong>${line('  Refund:', this.formatCurrency(it.refund))}</strong>`;
+        return `<div class="item">${head}\n${mrp}${adj}\n${net}\n${ref}</div>`;
+      })
+      .join('');
+
+    const breakupHtml = (r.refundBreakup || [])
+      .map((b: any) => line(this.formatPaymentMethod(b.method) + ':', this.formatCurrency(b.amount)))
+      .join('\n');
+
+    const loyaltyLine =
+      r.loyaltyPointsRestored > 0
+        ? `\n${line('Points returned:', String(r.loyaltyPointsRestored))}`
+        : '';
+    const customerLine = r.customer
+      ? `Customer: ${this.esc(r.customer.name)}${r.customer.phone ? ' (' + this.esc(r.customer.phone) + ')' : ''}\n`
+      : '';
+    const title = String(r.type || 'return').toUpperCase() === 'EXCHANGE' ? 'EXCHANGE' : 'REFUND';
+
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>${title} - ${this.esc(r.returnNumber)}</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Courier New',monospace; font-size:12px; line-height:1.4; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
+.receipt { width:302px; background:#fff; padding:12px 16px; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+.center { text-align:center; } .store-name { font-size:16px; font-weight:bold; }
+.item { margin:6px 0; } .discount { color:#888; } strong { font-weight:bold; }
+.actions { margin-top:16px; display:flex; gap:8px; }
+.actions button { padding:8px 20px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-family:'Inter',Arial,sans-serif; }
+.btn-print { background:#1a1a2e; color:#fff; } .btn-close { background:#e0e0e0; color:#333; }
+@media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:100%; max-width:80mm; padding:2mm; font-weight:bold; color:#000; } .receipt .discount { color:#000 !important; } .actions { display:none !important; } @page { size:80mm auto; margin:0; } }
+</style></head><body>
+<div class="receipt"><div class="center">${divider}
+<span class="store-name">${this.esc(r.branchName)}</span>
+${this.esc(r.branchAddress || '')}
+${r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : ''}
+${divider}
+<strong>${title} RECEIPT</strong></div>
+${title} #: ${this.esc(r.returnNumber)}
+Against Bill: ${this.esc(r.originalSaleNumber)}
+Date: ${this.formatDate(r.date)}
+Cashier: ${this.esc(r.cashier)}
+${customerLine}${thin}
+
+ITEMS RETURNED:
+${itemsHtml}
+${thin}
+<strong>${line('TOTAL ' + title + ':', this.formatCurrency(r.refundTotal))}</strong>
+${thin}
+REFUNDED VIA:
+${breakupHtml}${loyaltyLine}
+${thin}
+${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
+<div class="center">Refund value is derived from the net price paid,
+not the tag price.
+${divider}</div></div>
+<div class="actions">
+  <button class="btn-print" onclick="window.print()">Print</button>
+  <button class="btn-close" onclick="window.close()">Close</button>
+</div>
+<script>setTimeout(function(){ window.print(); }, 500);<\/script>
+</body></html>`;
+  }
+
+  private buildReceiptHtml(r: ReceiptData): string {
+    const divider = '========================================';
+    const thinDivider = '----------------------------------------';
+
+    const itemsHtml = r.items
+      .map((item) => {
+        const variantLine = item.variant ? `  ${this.esc(item.variant)}` : '';
+        const priceLine = `  ${item.quantity} x ${this.formatCurrency(item.unitPrice)}`;
+        const totalStr = this.formatCurrency(item.total);
+        const padded = priceLine + this.pad(priceLine, totalStr) + totalStr;
+        let discountLine = '';
+        if (item.discount > 0) {
+          const discStr = `-${this.formatCurrency(item.discount)}`;
+          const discLabel = '    Disc:';
+          discountLine = `\n<span class="discount">${discLabel}${this.pad(discLabel, discStr)}${discStr}</span>`;
+        }
+        // Per-item loyalty points redeemed — this line's share of the bill's
+        // redemption, so the customer sees which items the points came off.
+        let loyaltyLine = '';
+        if (item.loyaltyPointsRedeemed && item.loyaltyPointsRedeemed > 0) {
+          const lpStr = `-${item.loyaltyPointsRedeemed} pts`;
+          const lpLabel = '    Loyalty:';
+          loyaltyLine = `\n<span class="discount">${lpLabel}${this.pad(lpLabel, lpStr)}${lpStr}</span>`;
+        }
+        // §1.2 — flag non-returnable / exchange-only goods on the printed bill.
+        let flagLine = '';
+        if (item.nonReturnable) {
+          flagLine = `\n<span class="flag">  ** NON-RETURNABLE **</span>`;
+        } else if (item.exchangeOnly) {
+          flagLine = `\n<span class="flag">  ** EXCHANGE ONLY **</span>`;
+        }
+        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}${loyaltyLine}${flagLine}</div>`;
+      })
+      .join('');
+
+    // §1.2 — legend below the items if any line carries a sale-policy flag.
+    const hasNonReturnable = r.items.some((i) => i.nonReturnable);
+    const hasExchangeOnly = r.items.some((i) => !i.nonReturnable && i.exchangeOnly);
+    let policyNote = '';
+    if (hasNonReturnable || hasExchangeOnly) {
+      const notes: string[] = [];
+      if (hasNonReturnable) notes.push('** NON-RETURNABLE items cannot be returned or exchanged.');
+      if (hasExchangeOnly) notes.push('** EXCHANGE ONLY items can be exchanged but not refunded.');
+      policyNote = `\n${thinDivider}\n<span class="flag">${notes.map((t) => this.esc(t)).join('\n')}</span>`;
+    }
+
+    const subtotalLabel = 'Subtotal:';
+    const subtotalVal = this.formatCurrency(r.subtotal);
+    const subtotalLine = subtotalLabel + this.pad(subtotalLabel, subtotalVal) + subtotalVal;
+
+    let discountLine = '';
+    if (r.discountAmount > 0) {
+      const discLabel = 'Discount:';
+      const discVal = `-${this.formatCurrency(r.discountAmount)}`;
+      discountLine = `\n${discLabel}${this.pad(discLabel, discVal)}${discVal}`;
+    }
+
+    // Tax line only when GST compliance is on. Carries its own leading newline so
+    // that when hidden it leaves no blank line on the receipt.
+    const taxLabel = 'Tax:';
+    const taxVal = this.formatCurrency(r.taxAmount);
+    const taxLine = this.showGst ? `\n${taxLabel}${this.pad(taxLabel, taxVal)}${taxVal}` : '';
+
+    const totalLabel = 'TOTAL:';
+    const totalVal = this.formatCurrency(r.total);
+    const totalLine = `<strong>${totalLabel}${this.pad(totalLabel, totalVal)}${totalVal}</strong>`;
+
+    // Exchange: goods returned and credited against this bill.
+    const exchangeCredit = r.exchangeCredit || 0;
+    const exchangeRefund = r.exchangeRefund || 0;
+    let exchangeLines = '';
+    if (exchangeCredit > 0) {
+      const cLabel = 'Exchange credit:';
+      const cVal = `-${this.formatCurrency(exchangeCredit)}`;
+      let block = `\n${cLabel}${this.pad(cLabel, cVal)}${cVal}`;
+      if (r.exchangeOriginalSaleNumber) {
+        block += `\n  vs ${this.esc(r.exchangeOriginalSaleNumber)}`;
+      }
+      if (exchangeRefund > 0) {
+        const rLabel = 'REFUND:';
+        const rVal = this.formatCurrency(exchangeRefund);
+        block += `\n<strong>${rLabel}${this.pad(rLabel, rVal)}${rVal}</strong>`;
+      } else {
+        const nLabel = 'Net Payable:';
+        const nVal = this.formatCurrency(Math.max(0, r.total - exchangeCredit));
+        block += `\n<strong>${nLabel}${this.pad(nLabel, nVal)}${nVal}</strong>`;
+      }
+      exchangeLines = block;
+    }
+
+    const paymentsHtml = r.payments
+      .map((p) => {
+        const methodLabel = this.formatPaymentMethod(p.method);
+        const amtStr = this.formatCurrency(p.amount);
+        let line = methodLabel + this.pad(methodLabel, amtStr) + amtStr;
+        if (p.referenceNumber) {
+          line += `\n  Ref: ${this.esc(p.referenceNumber)}`;
+        }
+        return line;
+      })
+      .join('\n');
+
+    const amountDue = Math.max(0, r.total - exchangeCredit);
+    const changeAmount = r.payments.reduce((sum, p) => sum + p.amount, 0) - amountDue;
+    let changeLine = '';
+    if (changeAmount > 0.01) {
+      const changeLabel = 'Change:';
+      const changeVal = this.formatCurrency(changeAmount);
+      changeLine = `\n${changeLabel}${this.pad(changeLabel, changeVal)}${changeVal}`;
+    }
+
+    let loyaltySection = '';
+    if (r.loyaltyPointsEarned > 0 || r.loyaltyPointsRedeemed > 0) {
+      let lines = '';
+      if (r.loyaltyPointsEarned > 0) {
+        const earnLabel = 'Points Earned:';
+        const earnVal = String(r.loyaltyPointsEarned);
+        lines += earnLabel + this.pad(earnLabel, earnVal) + earnVal;
+      }
+      if (r.loyaltyPointsRedeemed > 0) {
+        const redLabel = 'Points Redeemed:';
+        const redVal = String(r.loyaltyPointsRedeemed);
+        if (lines) lines += '\n';
+        lines += redLabel + this.pad(redLabel, redVal) + redVal;
+      }
+      loyaltySection = `\n${thinDivider}\n${lines}`;
+    }
+
+    const customerLine = r.customer
+      ? `Customer: ${this.esc(r.customer.name)}${r.customer.phone ? ' (' + this.esc(r.customer.phone) + ')' : ''}\n`
+      : '';
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>${this.esc(title)}</title>
+  <title>Receipt - ${this.esc(r.saleNumber)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #000;
       background: #f5f5f5;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 20px;
     }
-    /* Print the 1-bit bitmap at 1:1 with the paper; never let the browser
-       resample it (pixelated/crisp-edges) so the crisp dots stay crisp. */
-    img {
-      display: block;
-      width: ${widthMm}mm;
-      height: auto;
+
+    .receipt {
+      width: 302px;
       background: #fff;
+      padding: 12px 16px;
+      white-space: pre;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
     }
-    .actions { margin-top: 16px; display: flex; gap: 8px; }
+
+    .center { text-align: center; }
+    .store-name { font-size: 16px; font-weight: bold; }
+    .item { margin: 4px 0; }
+    .discount { color: #888; }
+    .flag { font-weight: bold; }
+    strong { font-weight: bold; }
+
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 8px;
+    }
+
     .actions button {
-      padding: 8px 20px; font-size: 13px; border: none; border-radius: 4px;
-      cursor: pointer; font-family: 'Inter', Arial, sans-serif;
+      padding: 8px 20px;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Inter', Arial, sans-serif;
     }
-    .btn-print { background: #1a1a2e; color: #fff; }
-    .btn-close { background: #e0e0e0; color: #333; }
+
+    .btn-print {
+      background: #1a1a2e;
+      color: #fff;
+    }
+    .btn-print:hover { background: #16213e; }
+
+    .btn-close {
+      background: #e0e0e0;
+      color: #333;
+    }
+    .btn-close:hover { background: #ccc; }
+
     @media print {
-      body { background: none; padding: 0; display: block; }
-      img { box-shadow: none; width: ${widthMm}mm; }
+      /* Thermal heads are 1-bit: grayscale anti-aliased strokes get dithered
+         into an unreadable stipple. Force pure black and a heavier weight so
+         every glyph survives as solid dots (the bold TOTAL line already prints
+         cleanly — this lifts the rest to the same legibility). Kept as real
+         text so the on-screen/PDF copy stays crisp and resolution-independent. */
+      html, body {
+        background: none;
+        padding: 0;
+        display: block;
+        color: #000;
+        -webkit-font-smoothing: none;
+        text-rendering: geometricPrecision;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .receipt {
+        box-shadow: none;
+        width: 100%;
+        max-width: 80mm;
+        padding: 2mm;
+        font-weight: bold;
+        color: #000;
+      }
+      .receipt .discount { color: #000 !important; }
       .actions { display: none !important; }
-      @page { size: 80mm auto; margin: 0; }
+
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <img id="receipt" src="${dataUrl}" alt="Receipt">
-  <div class="actions">
-    <button class="btn-print" onclick="window.print()">Print Receipt</button>
-    <button class="btn-close" onclick="window.close()">Close</button>
-  </div>
-  <script>
-    (function () {
-      var img = document.getElementById('receipt');
-      function go() { setTimeout(function () { window.print(); }, 300); }
-      if (img.complete) go(); else img.onload = go;
-    })();
-  <\/script>
-</body>
-</html>`);
-    printWindow.document.close();
-  }
 
-  // ── Formatting helpers ──────────────────────────────────────────
+<div class="receipt">
+<div class="center">${divider}
+<span class="store-name">${this.esc(r.branchName)}</span>
+${this.esc(r.branchAddress || '')}
+${r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : ''}
+${divider}</div>
+${r.receiptHeader ? '<div class="center">' + this.esc(r.receiptHeader) + '</div>\n' + thinDivider : ''}
+Sale #: ${this.esc(r.saleNumber)}
+Date: ${this.formatDate(r.date)}
+Cashier: ${this.esc(r.cashier)}
+${customerLine}${thinDivider}
+
+ITEMS:
+${itemsHtml}
+${thinDivider}
+${subtotalLine}${discountLine}${taxLine}
+${thinDivider}
+${totalLine}${exchangeLines}
+${thinDivider}
+
+PAYMENT:
+${paymentsHtml}${changeLine}
+${loyaltySection}${policyNote}
+${thinDivider}
+${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
+<div class="center">Thank you for shopping!
+${divider}</div>
+</div>
+
+<div class="actions">
+  <button class="btn-print" onclick="window.print()">Print Receipt</button>
+  <button class="btn-close" onclick="window.close()">Close</button>
+</div>
+
+<script>
+  setTimeout(function() { window.print(); }, 500);
+<\/script>
+
+</body>
+</html>`;
+  }
 
   private formatCurrency(amount: number): string {
     return new Intl.NumberFormat('en-IN', {
@@ -517,13 +480,13 @@ export class ReceiptPrintService {
     return method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
   }
 
-  /** Pad with spaces to right-align `right` on a COLS-wide monospace line. */
-  private pad(left: string, right: string, width: number = this.COLS): string {
+  /** Pad with spaces to right-align value on a 40-char wide receipt line */
+  private pad(left: string, right: string, width: number = 40): string {
     const gap = width - left.length - right.length;
     return gap > 0 ? ' '.repeat(gap) : ' ';
   }
 
-  /** Escape HTML entities (used only for the print-window <title>). */
+  /** Escape HTML entities */
   private esc(str: string): string {
     if (!str) return '';
     return str
