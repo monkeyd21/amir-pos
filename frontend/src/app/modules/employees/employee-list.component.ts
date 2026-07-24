@@ -9,8 +9,8 @@ import { NotificationService } from '../../core/services/notification.service';
 interface Employee {
   id: number;
   firstName: string;
-  lastName: string;
-  email: string;
+  lastName?: string | null;
+  email?: string | null;
   phone?: string;
   role: string;
   status: string;
@@ -37,6 +37,9 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   loading = true;
   searchQuery = '';
 
+  /** Active / Inactive tab. Disabled employees live under the Inactive tab. */
+  statusFilter: 'active' | 'inactive' = 'active';
+
   page = 1;
   limit = 20;
   total = 0;
@@ -60,6 +63,7 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
     const params: Record<string, string | number | boolean> = {
       page: this.page,
       limit: this.limit,
+      status: this.statusFilter,
     };
     if (this.searchQuery) params['search'] = this.searchQuery;
 
@@ -82,6 +86,30 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
   onSearch(): void {
     this.page = 1;
     this.loadEmployees();
+  }
+
+  setStatusFilter(status: 'active' | 'inactive'): void {
+    if (this.statusFilter === status) return;
+    this.statusFilter = status;
+    this.page = 1;
+    this.loadEmployees();
+  }
+
+  /** Enable a disabled employee / disable an active one. */
+  toggleActive(emp: Employee, event: Event): void {
+    event.stopPropagation();
+    const makeActive = emp.status !== 'active';
+    this.api
+      .put<ApiResponse<Employee>>(`/employees/${emp.id}`, { isActive: makeActive })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          const name = [emp.firstName, emp.lastName].filter(Boolean).join(' ');
+          this.notify.success(`${name} ${makeActive ? 'enabled' : 'disabled'}`);
+          this.loadEmployees();
+        },
+        error: (err) => this.notify.error(err.error?.error || 'Failed to update employee'),
+      });
   }
 
   formatRole(role: string): string {

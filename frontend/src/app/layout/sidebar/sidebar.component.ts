@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 
 interface NavItem {
   icon: string;
@@ -15,7 +16,7 @@ interface NavItem {
   templateUrl: './sidebar.component.html',
 })
 export class SidebarComponent {
-  mainNav: NavItem[] = [
+  private readonly allNav: NavItem[] = [
     { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
     { icon: 'point_of_sale', label: 'POS', path: '/pos' },
     { icon: 'inventory_2', label: 'Inventory', path: '/inventory' },
@@ -32,5 +33,17 @@ export class SidebarComponent {
     { icon: 'history', label: 'Audit Log', path: '/audit' },
   ];
 
-  settingsNav: NavItem = { icon: 'settings', label: 'Settings', path: '/settings' };
+  /** Billing staff (cashier) only get POS + Sales (for returns/exchanges). */
+  private readonly cashierPaths = ['/pos', '/sales'];
+
+  mainNav: NavItem[];
+  settingsNav: NavItem | null = { icon: 'settings', label: 'Settings', path: '/settings' };
+
+  constructor(private auth: AuthService) {
+    const isCashier = this.auth.getCurrentUser()?.role === 'cashier';
+    this.mainNav = isCashier
+      ? this.allNav.filter((n) => this.cashierPaths.includes(n.path))
+      : this.allNav;
+    if (isCashier) this.settingsNav = null;
+  }
 }

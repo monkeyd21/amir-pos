@@ -57,6 +57,24 @@
       </div>
     </div>
 
+    <!-- Active / Inactive tabs — disabled employees live under Inactive -->
+    <div class="flex items-center gap-1 border-b border-outline-variant/15">
+      <button
+        (click)="setStatusFilter('active')"
+        class="px-4 py-2.5 text-sm font-body -mb-px border-b-2 transition-colors"
+        [class]="statusFilter === 'active' ? 'border-primary text-on-surface font-semibold' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+      >
+        Active
+      </button>
+      <button
+        (click)="setStatusFilter('inactive')"
+        class="px-4 py-2.5 text-sm font-body -mb-px border-b-2 transition-colors"
+        [class]="statusFilter === 'inactive' ? 'border-primary text-on-surface font-semibold' : 'border-transparent text-on-surface-variant hover:text-on-surface'"
+      >
+        Inactive
+      </button>
+    </div>
+
     <!-- Employees Table -->
     <div class="bg-surface-container rounded-xl overflow-hidden">
       <table class="w-full text-left">
@@ -100,12 +118,23 @@
                 </span>
               </td>
               <td class="px-6 py-5">
-                <a
-                  [routerLink]="['/employees', emp.id, 'edit']"
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-surface-container-high hover:text-on-surface transition-colors"
-                >
-                  <span class="material-symbols-outlined text-lg">edit</span>
-                </a>
+                <div class="flex items-center gap-1">
+                  <a
+                    [routerLink]="['/employees', emp.id, 'edit']"
+                    class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant/50 hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-lg">edit</span>
+                  </a>
+                  <button
+                    type="button"
+                    (click)="toggleActive(emp, $event)"
+                    [title]="emp.status === 'active' ? 'Disable employee' : 'Enable employee'"
+                    class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                    [class]="emp.status === 'active' ? 'text-on-surface-variant/50 hover:bg-red-500/10 hover:text-red-400' : 'text-on-surface-variant/50 hover:bg-green-500/10 hover:text-green-400'"
+                  >
+                    <span class="material-symbols-outlined text-lg">{{ emp.status === 'active' ? 'person_off' : 'person' }}</span>
+                  </button>
+                </div>
               </td>
             </tr>
           }

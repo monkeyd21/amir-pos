@@ -151,6 +151,20 @@ export class ReceiptPrintService {
       : '';
     const title = String(r.type || 'return').toUpperCase() === 'EXCHANGE' ? 'EXCHANGE' : 'REFUND';
 
+    // Same store-identity block as the sale bill: title, store name, address,
+    // phone and the Receipt Header (WhatsApp / Instagram), all from Store Settings.
+    const headerBlock = [
+      divider,
+      `<strong>${this.esc(title)} RECEIPT</strong>`,
+      `<span class="store-name">${this.esc(r.branchName)}</span>`,
+      r.branchAddress ? this.esc(r.branchAddress) : '',
+      r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : '',
+      r.receiptHeader ? this.esc(r.receiptHeader) : '',
+      divider,
+    ]
+      .filter((l) => l)
+      .join('\n');
+
     return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>${title} - ${this.esc(r.returnNumber)}</title>
 <style>
@@ -164,12 +178,7 @@ body { font-family:'Courier New',monospace; font-size:12px; line-height:1.35; co
 .btn-print { background:#1a1a2e; color:#fff; } .btn-close { background:#e0e0e0; color:#333; }
 @media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:58mm; max-width:58mm; padding:1mm; font-weight:bold; color:#000; } .receipt .discount { color:#000 !important; } .actions { display:none !important; } @page { size:58mm auto; margin:0; } }
 </style></head><body>
-<div class="receipt"><div class="center">${divider}
-<span class="store-name">${this.esc(r.branchName)}</span>
-${this.esc(r.branchAddress || '')}
-${r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : ''}
-${divider}
-<strong>${title} RECEIPT</strong></div>
+<div class="receipt"><div class="center">${headerBlock}</div>
 ${title} #: ${this.esc(r.returnNumber)}
 Against Bill: ${this.esc(r.originalSaleNumber)}
 Date: ${this.formatDate(r.date)}

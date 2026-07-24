@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { MainLayoutComponent } from './layout/main-layout/main-layout.component';
 import { authGuard } from './core/guards/auth.guard';
+import { cashierRestrictGuard } from './core/guards/cashier-restrict.guard';
 import { Capacitor } from '@capacitor/core';
 
 // On native mobile (Capacitor Android/iOS), land on the mobile POS by default.
@@ -22,6 +23,7 @@ export const routes: Routes = [
     path: '',
     component: MainLayoutComponent,
     canActivate: [authGuard],
+    canActivateChild: [cashierRestrictGuard],
     children: [
       {
         path: 'dashboard',
