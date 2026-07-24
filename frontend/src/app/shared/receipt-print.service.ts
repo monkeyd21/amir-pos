@@ -155,7 +155,7 @@ export class ReceiptPrintService {
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Courier New',monospace; font-size:12px; line-height:1.35; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
-.receipt { width:58mm; background:#fff; padding:2mm; white-space:pre; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
+.receipt { width:58mm; background:#fff; padding:2mm; white-space:pre-wrap; overflow-wrap:anywhere; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
 .center { text-align:center; } .store-name { font-size:15px; font-weight:bold; }
 .item { margin:4px 0; } .discount { color:#888; } strong { font-weight:bold; }
 .actions { margin-top:16px; display:flex; gap:8px; }
@@ -198,6 +198,24 @@ ${divider}</div></div>
   private buildReceiptHtml(r: ReceiptData): string {
     const divider = this.divider;
     const thinDivider = this.thin;
+
+    // Top identity block, all driven by Store Settings (the branch record):
+    // a compulsory document title (BILL OF SUPPLY, or TAX INVOICE once GST is
+    // turned on), the store name, address, phone and the free-text Receipt
+    // Header (used for WhatsApp / Instagram lines). Built as a filtered list so
+    // blank fields never leave empty lines.
+    const billTitle = this.showGst ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+    const headerBlock = [
+      divider,
+      `<strong>${this.esc(billTitle)}</strong>`,
+      `<span class="store-name">${this.esc(r.branchName)}</span>`,
+      r.branchAddress ? this.esc(r.branchAddress) : '',
+      r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : '',
+      r.receiptHeader ? this.esc(r.receiptHeader) : '',
+      divider,
+    ]
+      .filter((l) => l)
+      .join('\n');
 
     const itemsHtml = r.items
       .map((item) => {
@@ -351,9 +369,9 @@ ${divider}</div></div>
       width: 58mm;
       background: #fff;
       padding: 2mm;
-      white-space: pre;
+      white-space: pre-wrap;
       word-wrap: break-word;
-      overflow-wrap: break-word;
+      overflow-wrap: anywhere;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     }
 
@@ -428,12 +446,7 @@ ${divider}</div></div>
 <body>
 
 <div class="receipt">
-<div class="center">${divider}
-<span class="store-name">${this.esc(r.branchName)}</span>
-${this.esc(r.branchAddress || '')}
-${r.branchPhone ? 'Phone: ' + this.esc(r.branchPhone) : ''}
-${divider}</div>
-${r.receiptHeader ? '<div class="center">' + this.esc(r.receiptHeader) + '</div>\n' + thinDivider : ''}
+<div class="center">${headerBlock}</div>
 Sale #: ${this.esc(r.saleNumber)}
 Date: ${this.formatDate(r.date)}
 Cashier: ${this.esc(r.cashier)}
