@@ -26,7 +26,7 @@ interface ApiResponse<T> {
         <a routerLink="/employees" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors cursor-pointer">
           <span class="material-symbols-outlined text-lg">arrow_back</span> Back
         </a>
-        <button (click)="save()" [disabled]="saving || !form.firstName"
+        <button (click)="save()" [disabled]="saving || !form.firstName || (!isEdit && !form.password)"
           class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           @if (saving) {
             <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
@@ -114,11 +114,17 @@ interface ApiResponse<T> {
             }
           </div>
 
-          @if (!isEdit) {
-            <p class="text-[10px] text-on-surface-variant/60 pt-2 border-t border-outline-variant/10">
-              Default password: <code class="font-mono text-primary/70">changeme123</code> — the employee should change it on first login.
+          <label class="flex flex-col gap-1.5 pt-2 border-t border-outline-variant/10">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">
+              {{ isEdit ? 'Reset Password' : 'Password *' }}
+            </span>
+            <input type="password" [(ngModel)]="form.password" autocomplete="new-password"
+              [placeholder]="isEdit ? 'Leave blank to keep current password' : 'At least 6 characters'"
+              class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            <p class="text-[10px] text-on-surface-variant/60">
+              {{ isEdit ? 'Only fill this in to change the login password.' : 'The employee logs in with their email and this password.' }}
             </p>
-          }
+          </label>
         </div>
       </div>
     }
@@ -140,6 +146,7 @@ export class EmployeeFormComponent implements OnInit {
     branchId: null as number | null,
     commissionRate: 0,
     isActive: true,
+    password: '',
   };
 
   roles = [
@@ -185,6 +192,7 @@ export class EmployeeFormComponent implements OnInit {
             branchId: emp.branch?.id ?? emp.branchId ?? null,
             commissionRate: Number(emp.commissionRate ?? 0),
             isActive: emp.isActive ?? true,
+            password: '',
           };
         }
         this.loading = false;

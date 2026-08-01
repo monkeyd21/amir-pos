@@ -17,13 +17,17 @@ export interface ReceiptSale {
     taxAmount?: number | string;
     total: number | string;
     nonReturnable?: boolean; // SaleItem-level flag (line marked at checkout)
+    isClearance?: boolean; // §2.4 — line sold from clearance
     variant: {
       size: string;
       color: string;
       sku: string;
+      mrpOverride?: number | string | null;
       product: {
         name: string;
         hsnCode?: string | null;
+        mrp?: number | string | null;
+        basePrice?: number | string | null;
         cgstRate?: number | string;
         sgstRate?: number | string;
         priceIncludesTax?: boolean;
@@ -37,6 +41,17 @@ export interface ReceiptSale {
   taxAmount: number | string;
   discountAmount: number | string;
   total: number | string;
+  // §bug13 — items returned/exchanged against this bill (shown after the sold
+  // items). Populated by the caller when the sale has an exchange credit.
+  exchangeOriginalSaleNumber?: string | null;
+  exchangedItems?: Array<{
+    name: string;
+    variant: string;
+    quantity: number;
+    unitPrice: number;
+    mrp?: number;
+    total: number;
+  }>;
 }
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -185,6 +200,19 @@ export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buf
           .fontSize(8);
       }
 
+      // §2.4/bug8 — clearance line: print the original MRP it was marked down
+      // from, beside the fixed clearance price already shown as the line total.
+      if (item.isClearance) {
+        const mrp = n(item.variant.mrpOverride ?? item.variant.product.mrp ?? item.variant.product.basePrice);
+        if (mrp > n(item.unitPrice)) {
+          doc
+            .font('Helvetica')
+            .fontSize(7)
+            .text(`CLEARANCE (was ${fmtINR(mrp)})`, 12, doc.y, { width: W * 0.7 })
+            .fontSize(8);
+        }
+      }
+
       if (flagText) {
         doc
           .font('Helvetica-Bold')
@@ -200,6 +228,31 @@ export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buf
     doc.moveDown(0.1);
     doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
     doc.moveDown(0.3);
+
+    // §bug13 — items returned/exchanged against this bill, listed under the sold
+    // items so both halves of the swap appear on one receipt.
+    if (sale.exchangedItems && sale.exchangedItems.length > 0) {
+      const heading = sale.exchangeOriginalSaleNumber
+        ? `EXCHANGED (vs ${sale.exchangeOriginalSaleNumber})`
+        : 'ITEMS EXCHANGED (returned)';
+      doc.font('Helvetica-Bold').fontSize(8).text(heading, 12, doc.y, { width: W });
+      doc.font('Helvetica').fontSize(8);
+      for (const it of sale.exchangedItems) {
+        const rowTop = doc.y;
+        doc.text(String(it.quantity), 12 + W * 0.59, rowTop, { width: W * 0.12, align: 'right' });
+        doc.text('- ' + fmtINR(it.total), 12 + W * 0.71, rowTop, { width: W * 0.29, align: 'right' });
+        doc.text(it.name, 12, rowTop, { width: W * 0.58 });
+        if (it.variant) {
+          doc.font('Helvetica-Oblique').fontSize(7).text(it.variant, 12, doc.y, { width: W * 0.58 }).font('Helvetica').fontSize(8);
+        }
+        if (it.mrp) {
+          doc.fontSize(7).text(`MRP ${fmtINR(it.mrp)}`, 12, doc.y, { width: W * 0.58 }).fontSize(8);
+        }
+        doc.moveDown(0.3);
+      }
+      doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
+      doc.moveDown(0.3);
+    }
 
     // §1.2 — legend for the sale-policy markers above.
     if (anyNonReturnable || anyExchangeOnly) {

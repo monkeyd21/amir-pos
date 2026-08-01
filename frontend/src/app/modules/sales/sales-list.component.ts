@@ -139,6 +139,32 @@ export class SalesListComponent implements OnInit {
     return text;
   }
 
+  /** Sum of line MRPs (printed tag price × qty) for a sale — variant override →
+   *  product MRP → base price → billed unit price. */
+  getMrpTotal(sale: Sale): number {
+    return (sale.items || []).reduce((sum: number, it: any) => {
+      const v = it?.variant;
+      const raw = v?.mrpOverride ?? v?.product?.mrp ?? v?.product?.basePrice;
+      const mrp = raw != null ? Number(raw) : Number(it?.unitPrice) || 0;
+      return sum + mrp * (Number(it?.quantity) || 0);
+    }, 0);
+  }
+
+  /** Sum of line Sale Prices (§13.3 list price = MRP − 10% × qty) for a sale —
+   *  variant.priceOverride → product.basePrice. */
+  getSalePriceTotal(sale: Sale): number {
+    return (sale.items || []).reduce((sum: number, it: any) => {
+      const v = it?.variant;
+      const raw = v?.priceOverride ?? v?.product?.basePrice;
+      const sp = raw != null ? Number(raw) : Number(it?.unitPrice) || 0;
+      return sum + sp * (Number(it?.quantity) || 0);
+    }, 0);
+  }
+
+  num(v: unknown): number {
+    return Number(v) || 0;
+  }
+
   getPaymentMethod(sale: Sale): string {
     return sale.payments?.[0]?.method || sale.paymentMethod || '';
   }

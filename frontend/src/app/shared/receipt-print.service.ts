@@ -16,6 +16,21 @@ interface ReceiptItem {
   loyaltyPointsRedeemed?: number;
   nonReturnable?: boolean;
   exchangeOnly?: boolean;
+  /** §2.4 — line was sold from clearance; show original MRP struck against the
+   *  fixed clearance price. */
+  isClearance?: boolean;
+  /** Original MRP for a clearance line ("was …"). */
+  mrp?: number;
+}
+
+interface ExchangedItem {
+  name: string;
+  variant: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  mrp?: number;
+  total: number;
 }
 
 interface ReceiptPayment {
@@ -46,6 +61,9 @@ interface ReceiptData {
   exchangeCredit?: number;
   exchangeRefund?: number;
   exchangeOriginalSaleNumber?: string | null;
+  /** §bug13 — items returned/exchanged against this bill, shown alongside the
+   *  newly sold items on the same receipt. */
+  exchangedItems?: ExchangedItem[];
 }
 
 interface ReceiptResponse {
@@ -242,6 +260,12 @@ ${divider}</div></div>
         const priceLine = `  ${item.quantity} x ${this.formatCurrency(item.unitPrice)}`;
         const totalStr = this.formatCurrency(item.total);
         const padded = priceLine + this.pad(priceLine, totalStr) + totalStr;
+        // §2.4/bug8 — clearance line: show the original MRP it was marked down
+        // from, so the customer sees MRP vs the fixed clearance price on the bill.
+        let clearanceLine = '';
+        if (item.isClearance && item.mrp && item.mrp > item.unitPrice) {
+          clearanceLine = `\n<span class="discount">  CLEARANCE (was ${this.formatCurrency(item.mrp)})</span>`;
+        }
         let discountLine = '';
         if (item.discount > 0) {
           const discStr = `-${this.formatCurrency(item.discount)}`;
@@ -263,9 +287,30 @@ ${divider}</div></div>
         } else if (item.exchangeOnly) {
           flagLine = `\n<span class="flag">  ** EXCHANGE ONLY **</span>`;
         }
-        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${discountLine}${loyaltyLine}${flagLine}</div>`;
+        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${clearanceLine}${discountLine}${loyaltyLine}${flagLine}</div>`;
       })
       .join('');
+
+    // §bug13 — items returned/exchanged against this bill. Printed as their own
+    // block right under the sold items so the customer sees both halves of the
+    // swap on one receipt (e.g. bill W0019). Values are the net credit given.
+    let exchangedBlock = '';
+    if (r.exchangedItems && r.exchangedItems.length > 0) {
+      const rows = r.exchangedItems
+        .map((it) => {
+          const variantLine = it.variant ? `  ${this.esc(it.variant)}` : '';
+          const mrpLine = it.mrp ? `\n  MRP ${this.formatCurrency(it.mrp)}` : '';
+          const priceLine = `  ${it.quantity} x ${this.formatCurrency(it.unitPrice)}`;
+          const totalStr = `-${this.formatCurrency(it.total)}`;
+          const padded = priceLine + this.pad(priceLine, totalStr) + totalStr;
+          return `<div class="item">${this.esc(it.name)}${variantLine ? '\n' + variantLine : ''}${mrpLine}\n${padded}</div>`;
+        })
+        .join('');
+      const heading = r.exchangeOriginalSaleNumber
+        ? `EXCHANGED (vs ${this.esc(r.exchangeOriginalSaleNumber)}):`
+        : 'ITEMS EXCHANGED (returned):';
+      exchangedBlock = `${thinDivider}\n${heading}\n${rows}`;
+    }
 
     // §1.2 — legend below the items if any line carries a sale-policy flag.
     const hasNonReturnable = r.items.some((i) => i.nonReturnable);
@@ -482,7 +527,7 @@ ${customerLine}${thinDivider}
 
 ITEMS:
 ${itemsHtml}
-${thinDivider}
+${exchangedBlock ? exchangedBlock + '\n' : ''}${thinDivider}
 ${totalQtyLine}
 ${subtotalLine}${discountLine}${taxLine}
 ${thinDivider}

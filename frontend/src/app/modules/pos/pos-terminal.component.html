@@ -141,14 +141,27 @@
           <span class="text-xs text-on-surface-variant">{{ currentUser.firstName }} {{ currentUser.lastName }}</span>
         }
 
-        <!-- Back to Dashboard -->
-        <a
-          routerLink="/dashboard"
-          class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
+        <!-- Back to Dashboard (owner/manager only — billing roles get bounced) -->
+        @if (!isBillingOnly) {
+          <a
+            routerLink="/dashboard"
+            class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
+          >
+            <span class="material-symbols-outlined text-lg">arrow_back</span>
+            <span>Dashboard</span>
+          </a>
+        }
+
+        <!-- Sign out — always reachable from the POS terminal -->
+        <button
+          (click)="logout()"
+          data-testid="pos-logout"
+          class="flex items-center gap-2 text-xs text-on-surface-variant hover:text-red-400 transition-colors"
+          title="Sign out"
         >
-          <span class="material-symbols-outlined text-lg">arrow_back</span>
-          <span>Dashboard</span>
-        </a>
+          <span class="material-symbols-outlined text-lg">logout</span>
+          <span>Sign out</span>
+        </button>
       </div>
     </header>
 
@@ -266,6 +279,22 @@
           }
 
           @if (cart.length > 0 || selectedReturnItems.length > 0) {
+            <!-- Whole-bill salesperson: pick one agent for the entire transaction;
+                 it stamps every line (and new scans) so the cashier needn't set
+                 the per-line Agent column one by one. -->
+            <div class="flex items-center justify-end gap-2 mb-3">
+              <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Salesperson (whole bill)</label>
+              <select
+                [(ngModel)]="transactionAgentId"
+                (ngModelChange)="applyTransactionAgent()"
+                class="px-2 py-1.5 text-xs font-body bg-surface-container-lowest text-on-surface border border-outline-variant/20 rounded-lg focus:outline-none focus:border-primary/50"
+              >
+                <option [ngValue]="null">— Per line —</option>
+                @for (agent of agents; track agent.id) {
+                  <option [ngValue]="agent.id">{{ agent.name }}</option>
+                }
+              </select>
+            </div>
             <div class="bg-surface-container rounded-xl overflow-hidden">
               <table class="w-full text-left">
                 <thead>
@@ -1534,16 +1563,16 @@
                   }
                 }
               } @else {
-                <!-- Scan the returned product's barcode -->
+                <!-- Scan the returned product's barcode or type its SKU -->
                 <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-                  Scan the barcode on the item the customer is returning. We'll find the bill it was sold on.
+                  Scan the barcode or type the SKU of the item the customer is returning. We'll find the bill it was sold on.
                 </p>
                 <div class="relative">
                   <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">barcode_scanner</span>
                   <input
                     [(ngModel)]="exchangeScanQuery"
                     (keyup.enter)="scanExchangeItem()"
-                    placeholder="Scan or type item barcode..."
+                    placeholder="Scan barcode or type SKU..."
                     class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm pl-10 pr-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
                     autocomplete="off"
                   />
@@ -1551,7 +1580,15 @@
                 @if (exchangeScanVariant && exchangeScanResults.length > 0) {
                   <p class="text-xs text-on-surface-variant">
                     <span class="font-semibold text-on-surface">{{ exchangeScanVariant.productName }}</span>
-                    ({{ exchangeScanVariant.size }} / {{ exchangeScanVariant.color }}) — sold on:
+                    ({{ exchangeScanVariant.size }} / {{ exchangeScanVariant.color }})
+                    @if (exchangeScanVariant.barcode || exchangeScanVariant.sku) {
+                      <span class="block text-[11px] font-mono text-on-surface-variant/60 mt-0.5">
+                        @if (exchangeScanVariant.sku) { SKU {{ exchangeScanVariant.sku }} }
+                        @if (exchangeScanVariant.sku && exchangeScanVariant.barcode) { · }
+                        @if (exchangeScanVariant.barcode) { Barcode {{ exchangeScanVariant.barcode }} }
+                      </span>
+                    }
+                    <span class="block mt-1">Sold on:</span>
                   </p>
                 }
                 @for (c of exchangeScanResults; track c.saleItemId) {
@@ -1589,6 +1626,11 @@
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-medium text-on-surface truncate">{{ it.productName }}</p>
                       <p class="text-[11px] text-on-surface-variant">{{ it.size }} / {{ it.color }} · {{ formatCurrency(it.unitPrice) }} each · {{ it.available }} returnable</p>
+                      <p class="text-[11px] font-mono text-on-surface-variant/60 mt-0.5">
+                        @if (it.sku && it.sku !== '-') { SKU {{ it.sku }} }
+                        @if (it.sku && it.sku !== '-' && it.barcode && it.barcode !== '-') { · }
+                        @if (it.barcode && it.barcode !== '-') { Barcode {{ it.barcode }} }
+                      </p>
                     </div>
                   </label>
                   @if (it.selected) {

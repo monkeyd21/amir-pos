@@ -151,6 +151,8 @@
             <th class="th-label text-left">Sale #</th>
             <th class="th-label text-left">Customer</th>
             <th class="th-label text-left">Items</th>
+            <th class="th-label text-right">MRP</th>
+            <th class="th-label text-right">Sale Price</th>
             <th class="th-label text-right">Total</th>
             <th class="th-label text-left">Payment</th>
             <th class="th-label text-left">Status</th>
@@ -177,6 +179,16 @@
               <!-- Items -->
               <td class="px-6 py-4">
                 <span class="text-sm font-body text-on-surface-variant max-w-[200px] truncate block">{{ getItemsSummary(sale) }}</span>
+              </td>
+
+              <!-- Total MRP -->
+              <td class="px-6 py-4 text-right">
+                <span class="text-sm font-body text-on-surface-variant/70">{{ formatCurrency(getMrpTotal(sale)) }}</span>
+              </td>
+
+              <!-- Total Sale Price (MRP − 10%) -->
+              <td class="px-6 py-4 text-right">
+                <span class="text-sm font-body text-on-surface-variant/70">{{ formatCurrency(getSalePriceTotal(sale)) }}</span>
               </td>
 
               <!-- Total -->

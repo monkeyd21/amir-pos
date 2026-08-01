@@ -33,17 +33,19 @@ export class SidebarComponent {
     { icon: 'history', label: 'Audit Log', path: '/audit' },
   ];
 
-  /** Billing staff (cashier) only get POS + Sales (for returns/exchanges). */
-  private readonly cashierPaths = ['/pos', '/sales'];
+  /** Billing roles (cashier + staff) only get POS + Sales (for returns/exchanges). */
+  private readonly billingPaths = ['/pos', '/sales'];
+  private readonly billingOnlyRoles = ['cashier', 'staff'];
 
   mainNav: NavItem[];
   settingsNav: NavItem | null = { icon: 'settings', label: 'Settings', path: '/settings' };
 
   constructor(private auth: AuthService) {
-    const isCashier = this.auth.getCurrentUser()?.role === 'cashier';
-    this.mainNav = isCashier
-      ? this.allNav.filter((n) => this.cashierPaths.includes(n.path))
+    const role = this.auth.getCurrentUser()?.role ?? '';
+    const isBillingOnly = this.billingOnlyRoles.includes(role);
+    this.mainNav = isBillingOnly
+      ? this.allNav.filter((n) => this.billingPaths.includes(n.path))
       : this.allNav;
-    if (isCashier) this.settingsNav = null;
+    if (isBillingOnly) this.settingsNav = null;
   }
 }

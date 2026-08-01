@@ -7,6 +7,8 @@ import { NotificationService } from '../../core/services/notification.service';
 interface ReturnItem {
   saleItemId: number;
   productName: string;
+  sku: string;
+  barcode: string;
   size: string;
   color: string;
   maxQuantity: number;
@@ -20,21 +22,23 @@ interface ReturnItem {
 interface NewItem {
   variantId: number;
   productName: string;
+  sku: string;
+  barcode: string;
   size: string;
   color: string;
   quantity: number;
   unitPrice: number;
-  barcode?: string;
 }
 
+// Shape returned by both /pos/products/search and /pos/lookup/:code — flat.
 interface SearchResult {
-  id: number;
+  variantId: number;
   sku: string;
-  barcode?: string;
+  barcode: string;
   size?: string;
   color?: string;
   price: number;
-  product: { name: string };
+  productName: string;
 }
 
 @Component({
@@ -84,6 +88,8 @@ export class ExchangeDialogComponent implements OnInit {
     this.items = this.returnableItems.map((item) => ({
       saleItemId: item.id,
       productName: item.variant?.product?.name || item.productName || item.name || 'Unknown',
+      sku: item.variant?.sku || item.sku || '-',
+      barcode: item.variant?.barcode || item.barcode || '-',
       size: item.variant?.size || '-',
       color: item.variant?.color || '-',
       maxQuantity: item.quantity - (item.returnedQuantity || 0),
@@ -167,23 +173,55 @@ export class ExchangeDialogComponent implements OnInit {
   }
 
   addNewItem(result: SearchResult): void {
-    const existing = this.newItems.find((i) => i.variantId === result.id);
+    const existing = this.newItems.find((i) => i.variantId === result.variantId);
     if (existing) {
       existing.quantity++;
     } else {
       this.newItems.push({
-        variantId: result.id,
-        productName: result.product?.name || 'Unknown',
+        variantId: result.variantId,
+        productName: result.productName || 'Unknown',
+        sku: result.sku || '-',
+        barcode: result.barcode || '-',
         size: result.size || '-',
         color: result.color || '-',
         quantity: 1,
-        unitPrice: result.price,
-        barcode: result.barcode,
+        unitPrice: Number(result.price),
       });
     }
     this.searchQuery = '';
     this.showResults = false;
     this.searchResults = [];
+  }
+
+  // Manual barcode/SKU entry: pressing Enter looks up an EXACT barcode-or-SKU
+  // match via /pos/lookup/:code and adds it directly (scanner and keyboard both
+  // land here). Falls back to the single search result when there's exactly one.
+  onSearchEnter(): void {
+    const code = this.searchQuery.trim();
+    if (!code) return;
+    clearTimeout(this.searchTimeout);
+    this.searching = true;
+    this.api.get<any>('/pos/lookup/' + encodeURIComponent(code)).subscribe({
+      next: (res) => {
+        this.searching = false;
+        if (res?.data) {
+          this.addNewItem(res.data as SearchResult);
+        } else if (this.searchResults.length === 1) {
+          this.addNewItem(this.searchResults[0]);
+        } else {
+          this.notify.error('No exact barcode/SKU match — pick from the list');
+        }
+      },
+      error: () => {
+        this.searching = false;
+        // Not an exact code — if the substring search already found one row, take it.
+        if (this.searchResults.length === 1) {
+          this.addNewItem(this.searchResults[0]);
+        } else {
+          this.notify.error('No product found for "' + code + '"');
+        }
+      },
+    });
   }
 
   removeNewItem(index: number): void {

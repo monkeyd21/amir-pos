@@ -740,6 +740,7 @@ export class PosService {
         agentId?: number | null;
         nonReturnable?: boolean;
         ownerDiscretionDiscount?: number;
+        isClearance?: boolean;
       }> = [];
 
       for (const line of lines) {
@@ -773,6 +774,7 @@ export class PosService {
           agentId: line.agentId,
           nonReturnable: line.nonReturnable,
           ownerDiscretionDiscount: line.discretionaryDiscount,
+          isClearance: line.isClearance,
         });
       }
 
@@ -1551,6 +1553,7 @@ export class PosService {
       const isClearance = v.clearanceFlag && v.clearancePrice != null;
       return {
         variantId: v.id,
+        productId: v.productId,
         barcode: v.barcode,
         sku: v.sku,
         size: v.size,

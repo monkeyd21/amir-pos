@@ -31,13 +31,13 @@ router.get('/:id/receipt.pdf', validate(saleIdParamSchema), salesController.rece
 // Returns and exchanges
 router.post(
   '/:saleId/return',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'cashier', 'staff'),
   validate(processReturnSchema),
   salesController.processReturn
 );
 router.post(
   '/:saleId/exchange',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'cashier', 'staff'),
   validate(processExchangeSchema),
   salesController.processExchange
 );
@@ -46,7 +46,7 @@ router.post(
 // inventory movement — just an audit record of the refused attempt.
 router.post(
   '/:saleId/reject',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'cashier', 'staff'),
   validate(rejectInspectionSchema),
   salesController.rejectInspection
 );

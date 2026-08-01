@@ -11,6 +11,7 @@ const elementTypeEnum = z.enum([
   'price',
   'mrp',
   'lotCode',
+  'clearance',
   'text',
 ]);
 
@@ -139,6 +140,7 @@ const labelDataSchema = z.object({
   price: z.number().nonnegative(),
   mrp: z.number().nonnegative().optional(),
   lotCode: z.string().optional(),
+  clearance: z.boolean().optional(),
   copies: z.number().int().positive().max(99).optional(),
 });
 

@@ -27,6 +27,7 @@ export interface LabelItem {
   price?: number;
   mrp?: number;
   lotCode?: string;
+  clearance?: boolean;
   copies?: number;
 }
 

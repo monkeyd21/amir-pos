@@ -63,6 +63,7 @@ export class EmployeeService {
     role: string;
     branchId?: number;
     commissionRate?: number;
+    password: string;
   }) {
     // Email is optional; only enforce uniqueness when one is provided.
     if (body.email) {
@@ -70,8 +71,8 @@ export class EmployeeService {
       if (existing) throw new AppError('Email already in use', 400);
     }
 
-    // Default password — employee should change on first login
-    const passwordHash = await bcrypt.hash('changeme123', 12);
+    // Password is set by whoever creates the account (no shared default).
+    const passwordHash = await bcrypt.hash(body.password, 12);
 
     const user = await prisma.user.create({
       data: {
@@ -112,6 +113,7 @@ export class EmployeeService {
       branchId?: number;
       commissionRate?: number;
       isActive?: boolean;
+      password?: string | null;
     }
   ) {
     const user = await prisma.user.findUnique({ where: { id } });
@@ -131,6 +133,8 @@ export class EmployeeService {
     if (body.branchId !== undefined) data.branchId = body.branchId;
     if (body.commissionRate !== undefined) data.commissionRate = body.commissionRate;
     if (body.isActive !== undefined) data.isActive = body.isActive;
+    // Only reset the password when a new one is supplied (blank = keep current).
+    if (body.password) data.passwordHash = await bcrypt.hash(body.password, 12);
 
     return prisma.user.update({
       where: { id },

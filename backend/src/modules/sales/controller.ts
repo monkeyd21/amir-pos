@@ -82,8 +82,44 @@ export class SalesController {
       });
       if (!sale) throw new AppError('Sale not found', 404);
 
+      // §bug13 — include the items exchanged/returned against this bill so the
+      // shared PDF shows both the sold and the returned goods.
+      let exchangedItems: Array<{ name: string; variant: string; quantity: number; unitPrice: number; mrp: number; total: number }> = [];
+      let exchangeOriginalSaleNumber: string | null = null;
+      if (sale.exchangeReturnId) {
+        const ret = await prisma.return.findUnique({
+          where: { id: sale.exchangeReturnId },
+          include: {
+            originalSale: { select: { saleNumber: true } },
+            items: { include: { saleItem: { include: { variant: { include: { product: true } } } } } },
+          },
+        });
+        exchangeOriginalSaleNumber = ret?.originalSale?.saleNumber ?? null;
+        exchangedItems = (ret?.items ?? []).map((ri) => {
+          const si = ri.saleItem;
+          const netUnit = si.quantity > 0 ? Number(si.total) / si.quantity : Number(si.total);
+          const mrp =
+            si.variant.mrpOverride != null
+              ? Number(si.variant.mrpOverride)
+              : si.variant.product.mrp != null
+              ? Number(si.variant.product.mrp)
+              : Number(si.variant.product.basePrice);
+          return {
+            name: si.variant.product.name,
+            variant: `${si.variant.size} / ${si.variant.color}`,
+            quantity: ri.quantity,
+            unitPrice: Math.round(netUnit * 100) / 100,
+            mrp: Math.round(mrp * 100) / 100,
+            total: Math.round(netUnit * ri.quantity * 100) / 100,
+          };
+        });
+      }
+
       const showGst = await getSetting<boolean>('gstComplianceEnabled', false);
-      const pdf = await buildReceiptPdf(sale as any, showGst);
+      const pdf = await buildReceiptPdf(
+        { ...(sale as any), exchangedItems, exchangeOriginalSaleNumber },
+        showGst
+      );
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',

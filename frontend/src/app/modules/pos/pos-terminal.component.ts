@@ -172,6 +172,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // ─── Agents / salesmen ──────────────────────────────────────────
   agents: Array<{ id: number; name: string }> = [];
   defaultAgentId: number | null = null;
+  // Optional single salesperson for the WHOLE bill. When set, every cart line is
+  // tagged to this agent (and new lines adopt it), overriding the per-line pick.
+  transactionAgentId: number | null = null;
 
   // ─── Manual discount ─────────────────────────────────────────────
   //
@@ -405,6 +408,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     productName: string;
     size: string;
     color: string;
+    sku: string;
+    barcode: string;
     available: number;
     quantity: number;
     condition: 'resellable' | 'damaged';
@@ -549,6 +554,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       });
   }
 
+  /**
+   * Assign one salesperson to the whole bill: stamp every current cart line with
+   * the chosen agent. New lines pick it up via addToCart. Clearing it (null)
+   * leaves existing per-line picks as-is so the cashier can still fine-tune.
+   */
+  applyTransactionAgent(): void {
+    if (this.transactionAgentId == null) return;
+    for (const item of this.cart) {
+      item.agentId = this.transactionAgentId;
+    }
+  }
+
   ngAfterViewInit(): void {
     // Park the caret in the search box the moment the terminal loads so
     // the cashier can start scanning/typing without reaching for the mouse.
@@ -690,29 +707,33 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             this.sessionLoading = false;
             this.focusSearchInput();
           } else {
-            this.promptDayStart();
+            this.autoOpenSession();
           }
         },
         error: () => {
-          this.promptDayStart();
+          this.autoOpenSession();
         },
       });
   }
 
-  /** Show the mandatory Day-Start screen, pre-filled with the last shift's
-   *  closing float (owner still confirms/edits it). */
-  private promptDayStart(): void {
-    this.sessionLoading = false;
-    this.needsDayStart = true;
+  /** Auto-open the shift at ₹0 — the opening drawer balance is no longer
+   *  prompted (owner request). Billing begins immediately with no Day-Start
+   *  screen. The closing/EOD reconciliation still works (expected cash just
+   *  becomes sales − refunds, with a ₹0 opening float). */
+  private autoOpenSession(): void {
+    this.needsDayStart = false;
     this.api
-      .get<ApiResponse<{ suggested: number }>>('/pos/sessions/suggested-opening')
+      .post<ApiResponse<PosSession>>('/pos/sessions/open', { openingAmount: 0 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
-          if (this.dayStartAmount == null) this.dayStartAmount = res.data?.suggested ?? 0;
+          this.session = res.data;
+          this.sessionLoading = false;
+          this.focusSearchInput();
         },
-        error: () => {
-          if (this.dayStartAmount == null) this.dayStartAmount = 0;
+        error: (err) => {
+          this.sessionLoading = false;
+          this.notify.error(err.error?.error || 'Failed to open POS session');
         },
       });
   }
@@ -736,6 +757,18 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           this.notify.error(err.error?.error || 'Failed to open POS session');
         },
       });
+  }
+
+  /** Billing-only roles (cashier/staff) are bounced from the dashboard, so the
+   *  POS terminal is their whole app — they need a Sign out here. */
+  get isBillingOnly(): boolean {
+    const role = this.currentUser?.role;
+    return role === 'cashier' || role === 'staff';
+  }
+
+  /** Sign out from the POS terminal (clears tokens + returns to /login). */
+  logout(): void {
+    this.auth.logout();
   }
 
   private setupSearch(): void {
@@ -1086,7 +1119,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         quantity: 1,
         unitPrice: variant.price,
         maxStock: stock,
-        agentId: this.defaultAgentId ?? 0,
+        // A whole-bill salesperson (if chosen) wins over the cashier default so
+        // every new line is tagged to that agent; otherwise fall back to cashier.
+        agentId: this.transactionAgentId ?? this.defaultAgentId ?? 0,
         // §2.4 — clearance: price is fixed; lock from bill-level discount and
         // auto-mark non-returnable (mirrors the backend enforcement).
         isClearance: !!variant.clearance,
@@ -1992,6 +2027,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
               productName: it.variant?.product?.name || it.productName || 'Item',
               size: it.variant?.size || '-',
               color: it.variant?.color || '-',
+              sku: it.variant?.sku || '-',
+              barcode: it.variant?.barcode || '-',
               available,
               // A scanned item means "this one unit is coming back" — default
               // its qty to 1; otherwise default to all returnable.

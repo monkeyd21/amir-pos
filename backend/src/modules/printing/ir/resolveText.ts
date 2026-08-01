@@ -33,6 +33,10 @@ export function resolveElementText(
       const amount = Math.round(data.mrp ?? data.price ?? 0);
       return prefix ? `${prefix} ${amount}` : String(amount);
     }
+    case 'clearance':
+      // §2.4 — only prints on clearance labels; empty (and thus skipped by the
+      // drivers) on normal labels, so the same template serves both.
+      return data.clearance ? (el.content?.trim() || 'CLEARANCE') : '';
     case 'text':
       return el.content ?? '';
     default:

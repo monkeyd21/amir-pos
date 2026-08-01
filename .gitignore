@@ -18,3 +18,6 @@ id_ed25519.pub
 
 # Local deploy credentials (never commit)
 deploy-secrets.local
+
+# Agent scratchpad (SSH helper, build tarballs, ad-hoc SQL) — never commit
+scratchpad/

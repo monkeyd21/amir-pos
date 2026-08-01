@@ -85,12 +85,20 @@ export class SalesService {
    * came from so they can pick the right one.
    */
   async getReturnableByBarcode(barcode: string, branchId: number) {
+    // Accept an exact barcode OR an exact SKU (case-insensitive) — the cashier
+    // can scan the label or type the SKU, mirroring the POS product search.
+    const code = barcode.trim();
     const variant = await prisma.productVariant.findFirst({
-      where: { barcode },
+      where: {
+        OR: [
+          { barcode: { equals: code, mode: 'insensitive' } },
+          { sku: { equals: code, mode: 'insensitive' } },
+        ],
+      },
       include: { product: { include: { brand: true } } },
     });
     if (!variant) {
-      throw new AppError(`Barcode not found: ${barcode}`, 404);
+      throw new AppError(`Item not found: ${code}`, 404);
     }
 
     const saleItems = await prisma.saleItem.findMany({
@@ -140,6 +148,8 @@ export class SalesService {
         productName: variant.product.name,
         size: variant.size,
         color: variant.color,
+        sku: variant.sku,
+        barcode: variant.barcode,
       },
       candidates,
     };
@@ -267,12 +277,50 @@ export class SalesService {
     // Exchange: goods returned at the counter, credited against this bill.
     const exchangeCredit = Number(sale.exchangeCreditAmount || 0);
     let exchangeOriginalSaleNumber: string | null = null;
+    // §bug13 — the bill must list BOTH the newly sold items (above) AND the
+    // items returned/exchanged against it, so the customer sees the full swap
+    // on one receipt. Pull the exchange Return's lines here.
+    let exchangedItems: Array<{
+      name: string;
+      variant: string;
+      sku: string;
+      quantity: number;
+      unitPrice: number;
+      mrp: number;
+      total: number;
+    }> = [];
     if (sale.exchangeReturnId) {
       const ret = await prisma.return.findUnique({
         where: { id: sale.exchangeReturnId },
-        select: { originalSale: { select: { saleNumber: true } } },
+        include: {
+          originalSale: { select: { saleNumber: true } },
+          items: {
+            include: {
+              saleItem: { include: { variant: { include: { product: true } } } },
+            },
+          },
+        },
       });
       exchangeOriginalSaleNumber = ret?.originalSale?.saleNumber ?? null;
+      exchangedItems = (ret?.items ?? []).map((ri) => {
+        const si = ri.saleItem;
+        const netUnit = si.quantity > 0 ? Number(si.total) / si.quantity : Number(si.total);
+        const mrp =
+          si.variant.mrpOverride != null
+            ? Number(si.variant.mrpOverride)
+            : si.variant.product.mrp != null
+            ? Number(si.variant.product.mrp)
+            : Number(si.variant.product.basePrice);
+        return {
+          name: si.variant.product.name,
+          variant: `${si.variant.size} / ${si.variant.color}`,
+          sku: si.variant.sku,
+          quantity: ri.quantity,
+          unitPrice: Math.round(netUnit * 100) / 100,
+          mrp: Math.round(mrp * 100) / 100,
+          total: Math.round(netUnit * ri.quantity * 100) / 100,
+        };
+      });
     }
     const exchangeRefund =
       exchangeCredit > Number(sale.total)
@@ -303,6 +351,15 @@ export class SalesService {
         discount: Number(item.discount),
         taxAmount: Number(item.taxAmount),
         total: Number(item.total),
+        // §2.4/bug8 — for a clearance line, surface the original MRP so the
+        // receipt can print "was <MRP>" beside the fixed clearance price.
+        isClearance: Boolean((item as any).isClearance),
+        mrp:
+          item.variant.mrpOverride != null
+            ? Number(item.variant.mrpOverride)
+            : item.variant.product.mrp != null
+            ? Number(item.variant.product.mrp)
+            : Number(item.variant.product.basePrice),
         // Per-item share of the loyalty points redeemed on this bill. The
         // redemption was apportioned across lines by paid value, so each line
         // carries `redeemed × (lineTotal / saleTotal)`. This is the SAME ratio
@@ -334,6 +391,7 @@ export class SalesService {
       exchangeCredit,
       exchangeRefund,
       exchangeOriginalSaleNumber,
+      exchangedItems,
     };
   }
 

@@ -19,6 +19,7 @@ export type LabelElementType =
   | 'price'
   | 'mrp'
   | 'lotCode'
+  | 'clearance'
   | 'text';
 
 export type TextAlign = 'left' | 'center' | 'right';
@@ -93,6 +94,8 @@ export interface LabelData {
   /** §13.3 — printed MRP (list price). Sale Price is `price`. */
   mrp?: number;
   lotCode?: string;
+  /** §2.4 — when true, a `clearance` element prints its marker (e.g. "CLEARANCE"). */
+  clearance?: boolean;
   /** Number of copies of this exact label. */
   copies?: number;
 }

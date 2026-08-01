@@ -28,7 +28,7 @@ router.get('/sessions/suggested-opening', posController.suggestedOpening);
 router.get('/sessions/expected', posController.sessionExpected);
 
 // UPI payments
-router.post('/upi/create', authorize('owner', 'manager', 'cashier'), validate(createUpiPaymentSchema), posController.createUpiPayment);
+router.post('/upi/create', authorize('owner', 'manager', 'cashier', 'staff'), validate(createUpiPaymentSchema), posController.createUpiPayment);
 router.get('/upi/:intentId/status', validate(checkUpiPaymentSchema), posController.checkUpiPaymentStatus);
 
 // Product search & barcode lookup
@@ -38,7 +38,7 @@ router.get('/lookup/:barcode', posController.lookupBarcode);
 // Case B — quick-add a ghost product (physical item with no record) at the counter.
 router.post(
   '/quick-product',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'cashier', 'staff'),
   validate(quickCreateProductSchema),
   posController.quickCreateProduct
 );
@@ -52,7 +52,7 @@ router.post('/cart/evaluate', validate(evaluateCartSchema), posController.evalua
 // Checkout
 router.post(
   '/checkout',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'cashier', 'staff'),
   validate(checkoutSchema),
   posController.checkout
 );

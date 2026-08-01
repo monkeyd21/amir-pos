@@ -29,7 +29,9 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
   try {
     const variants = await prisma.productVariant.findMany({
       where: { clearanceFlag: true },
-      include: { product: { select: { name: true, mrp: true, basePrice: true } } },
+      include: {
+        product: { select: { name: true, mrp: true, basePrice: true, costPrice: true } },
+      },
       orderBy: { id: 'desc' },
     });
     res.json({
@@ -37,10 +39,15 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
       data: variants.map((v) => ({
         variantId: v.id,
         sku: v.sku,
+        barcode: v.barcode,
         size: v.size,
         color: v.color,
         productName: v.product.name,
         mrp: v.product.mrp ?? v.product.basePrice,
+        // §Clearance — surface the purchase (cost) price so the owner can see
+        // the margin left after clearance. Per-variant override wins over the
+        // product-level cost.
+        purchasePrice: v.costOverride ?? v.product.costPrice,
         clearancePrice: v.clearancePrice,
       })),
     });

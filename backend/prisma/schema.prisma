@@ -553,6 +553,10 @@ model SaleItem {
   // defective, final-sale goods) even when the product itself is returnable.
   // Returns are blocked if this OR the product's nonReturnable flag is set.
   nonReturnable           Boolean  @default(false)
+  // §2.4 — set at checkout when the line was priced off the variant's clearance
+  // flag. Persisted so the receipt can show "was <MRP>" against the clearance
+  // price even after the variant later leaves clearance.
+  isClearance             Boolean  @default(false)
 
   sale        Sale           @relation(fields: [saleId], references: [id])
   variant     ProductVariant @relation(fields: [variantId], references: [id])

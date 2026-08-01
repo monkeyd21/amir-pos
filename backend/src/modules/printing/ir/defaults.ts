@@ -76,5 +76,19 @@ export const DEFAULT_LABEL_TEMPLATE: LabelTemplate = {
       content: 'Rs.',
       visible: true,
     },
+    {
+      // §2.4 — only prints on clearance labels (empty otherwise). Marks the tag
+      // as a clearance item so the counter/customer can tell at a glance.
+      id: 'clearance',
+      type: 'clearance',
+      xMm: 2.5,
+      yMm: 52,
+      fontSizePt: 16,
+      weight: 'bold',
+      align: 'center',
+      widthMm: 45,
+      content: 'CLEARANCE',
+      visible: true,
+    },
   ],
 };

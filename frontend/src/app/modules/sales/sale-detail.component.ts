@@ -163,6 +163,29 @@ export class SaleDetailComponent implements OnInit {
       });
   }
 
+  // Salesperson for the WHOLE bill selected in the header dropdown.
+  bulkAgentId: number | null = null;
+
+  /**
+   * Assign one salesperson to every line of the sale in a single call. Uses the
+   * bulk mode of PUT /sales/:id/agents ({ agentId }) which the backend applies
+   * to all sale items at once.
+   */
+  applyBulkAgent(): void {
+    if (!this.sale || this.bulkAgentId == null) return;
+    const agentId = this.bulkAgentId;
+    this.api
+      .put<any>(`/sales/${this.sale.id}/agents`, { agentId })
+      .subscribe({
+        next: () => {
+          this.sale!.items.forEach((it) => (it.agentId = agentId));
+          const name = this.agents.find((a) => a.id === agentId)?.name ?? 'agent';
+          this.notify.success(`All lines assigned to ${name}`);
+        },
+        error: () => this.notify.error('Failed to assign salesperson'),
+      });
+  }
+
   loadSale(id: string): void {
     this.loading = true;
     this.api.get<SaleResponse>(`/sales/${id}`).subscribe({
@@ -229,8 +252,49 @@ export class SaleDetailComponent implements OnInit {
     return item.variant?.product?.name || item.productName || item.name || 'Unknown Product';
   }
 
+  /** Line subtotal = quantity × Sale Price (§13.3 list price), NOT MRP. */
   getItemSubtotal(item: SaleItem): number {
-    return item.subtotal || item.unitPrice * item.quantity;
+    return this.salePriceOf(item) * this.num(item.quantity);
+  }
+
+  /** Tag/MRP price for a line: variant override → product MRP → base price
+   *  → billed unit price (last-resort fallback). This is the printed price the
+   *  store actually charges. Works for sale items and return items alike. */
+  mrpOf(item: any): number {
+    const v = item?.variant;
+    const raw = v?.mrpOverride ?? v?.product?.mrp ?? v?.product?.basePrice;
+    return raw != null ? Number(raw) : this.num(item?.unitPrice);
+  }
+
+  /** Sale Price for a line (§13.3): the stored list price = MRP − 10%.
+   *  variant.priceOverride → product.basePrice. Distinct from MRP and from the
+   *  billed unitPrice (POS charges MRP, not this). */
+  salePriceOf(item: any): number {
+    const v = item?.variant;
+    const raw = v?.priceOverride ?? v?.product?.basePrice;
+    return raw != null ? Number(raw) : this.mrpOf(item);
+  }
+
+  /** Sum of line MRPs (tag price × qty) across the whole bill. */
+  get totalMrp(): number {
+    return (this.sale?.items || []).reduce(
+      (sum: number, it: any) => sum + this.mrpOf(it) * this.num(it.quantity),
+      0
+    );
+  }
+
+  /** Sum of line Sale Prices (MRP − 10% × qty) across the whole bill. */
+  get totalSalePrice(): number {
+    return (this.sale?.items || []).reduce(
+      (sum: number, it: any) => sum + this.salePriceOf(it) * this.num(it.quantity),
+      0
+    );
+  }
+
+  /** MRP total minus what was actually paid — the customer's saving. */
+  get totalSaved(): number {
+    const s = this.totalMrp - this.num(this.sale?.total);
+    return s > 0 ? Math.round(s * 100) / 100 : 0;
   }
 
   getCustomerName(): string {
