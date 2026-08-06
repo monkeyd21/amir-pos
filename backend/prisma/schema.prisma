@@ -306,6 +306,10 @@ model ProductVariant {
   clearanceFlag  Boolean  @default(false)
   clearancePrice Decimal? @db.Decimal(10, 2)
   createdAt      DateTime @default(now())
+  // Bumped on every variant update (incl. setting clearanceFlag). Drives the
+  // "recent first" ordering of the clearance list so freshly-flagged articles
+  // surface at the top instead of sorting by variant id.
+  updatedAt      DateTime @updatedAt @default(now())
 
   product            Product             @relation(fields: [productId], references: [id])
   inventory          Inventory[]

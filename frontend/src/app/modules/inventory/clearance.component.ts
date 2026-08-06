@@ -208,7 +208,8 @@ export class ClearanceComponent implements OnInit, OnDestroy {
       clearancePrice: null,
       include: true,
     };
-    this.pending.push(row);
+    // Recent-first: the just-scanned article goes to the TOP of the pending list.
+    this.pending.unshift(row);
     // Cost isn't in the POS search payload (kept out so cashiers can't see it);
     // fetch it from the owner-only product endpoint and fill the row in place.
     if (r.productId) this.fillPurchasePrice(row, r.productId);
@@ -262,18 +263,19 @@ export class ClearanceComponent implements OnInit, OnDestroy {
           const productMrp = product?.mrp != null ? Number(product.mrp) : null;
           const productBase = product?.basePrice != null ? Number(product.basePrice) : null;
           const productCost = product?.costPrice != null ? Number(product.costPrice) : null;
-          let added = 0;
+          const newRows: PendingRow[] = [];
           for (const v of variants) {
             if (v.isActive === false) continue;
             if (v.clearanceFlag) continue; // already on clearance
             if (this.pending.some((p) => p.variantId === v.id)) continue;
+            if (newRows.some((p) => p.variantId === v.id)) continue;
             if (this.items.some((i) => i.variantId === v.id)) continue;
             const mrp = v.mrpOverride != null ? Number(v.mrpOverride) : productMrp ?? productBase;
             const cost = v.costOverride != null ? Number(v.costOverride) : productCost;
             const label = [product?.name, [v.size, v.color].filter(Boolean).join(' / ')]
               .filter(Boolean)
               .join(' — ');
-            this.pending.push({
+            newRows.push({
               variantId: v.id,
               sku: v.sku,
               barcode: v.barcode ?? '',
@@ -284,8 +286,10 @@ export class ClearanceComponent implements OnInit, OnDestroy {
               clearancePrice: null,
               include: true,
             });
-            added++;
           }
+          // Recent-first: the just-added line lands at the TOP of the pending list.
+          this.pending.unshift(...newRows);
+          const added = newRows.length;
           this.addingLine = false;
           this.searchQuery = '';
           this.searchResults = [];
