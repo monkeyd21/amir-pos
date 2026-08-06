@@ -72,6 +72,9 @@ export class BarcodesComponent implements OnInit, OnDestroy {
   browseStartDate = '';
   browseEndDate = '';
   browseType = 'purchase';
+  // §Barcodes — default to only variants that currently have on-hand stock, so
+  // sold-through items don't clutter the label browser with stale purchases.
+  browseInStockOnly = true;
   browseResults: any[] = [];
   browseLoading = false;
   browseTotal = 0;
@@ -253,6 +256,7 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       limit: '200',
     };
     if (this.browseType) params['type'] = this.browseType;
+    if (this.browseInStockOnly) params['inStockOnly'] = 'true';
     if (this.browseSearch.trim()) params['search'] = this.browseSearch.trim();
     if (this.browseLotCode.trim()) params['lotCode'] = this.browseLotCode.trim();
     if (this.browseVendorId) params['vendorId'] = String(this.browseVendorId);
@@ -291,6 +295,11 @@ export class BarcodesComponent implements OnInit, OnDestroy {
   onBrowseVendorChange(id: number | null): void {
     this.browseVendorId = id;
     this.loadBrowse();
+  }
+
+  /** Current on-hand stock for a browse movement's variant (this branch). */
+  browseStock(m: any): number {
+    return Number(m?.variant?.inventory?.[0]?.quantity ?? 0);
   }
 
   addBrowseResultToQueue(m: any): void {

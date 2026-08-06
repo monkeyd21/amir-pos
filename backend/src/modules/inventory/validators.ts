@@ -100,6 +100,7 @@ export const listMovementsSchema = z.object({
     lotCode: z.string().optional(),
     vendorId: z.string().optional(),
     search: z.string().optional(),
+    inStockOnly: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     page: z.string().optional(),

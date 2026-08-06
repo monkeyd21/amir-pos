@@ -160,6 +160,13 @@
         </div>
       </div>
 
+      <!-- In-stock filter -->
+      <label class="flex items-center gap-2 cursor-pointer select-none w-fit">
+        <input type="checkbox" [(ngModel)]="browseInStockOnly" (ngModelChange)="onBrowseFilterChange()"
+          class="w-4 h-4 rounded border-outline-variant/40 text-primary focus:ring-primary/30 cursor-pointer" />
+        <span class="text-[11px] font-semibold text-on-surface-variant/70">In-stock only (hide sold-through items)</span>
+      </label>
+
       <!-- Results -->
       @if (browseLoading) {
         <div class="flex items-center justify-center py-8">
@@ -184,6 +191,7 @@
                 <th class="px-3 py-2">Variant</th>
                 <th class="px-3 py-2">Lot</th>
                 <th class="px-3 py-2 text-right">Qty</th>
+                <th class="px-3 py-2 text-right">Stock</th>
                 <th class="px-3 py-2">Date</th>
                 <th class="px-3 py-2 w-10"></th>
               </tr>
@@ -212,6 +220,11 @@
                       [class.text-green-600]="m.quantity > 0"
                       [class.text-error]="m.quantity < 0">
                     {{ m.quantity > 0 ? '+' : '' }}{{ m.quantity }}
+                  </td>
+                  <td class="px-3 py-2 text-right font-mono font-semibold"
+                      [class.text-error]="browseStock(m) === 0"
+                      [class.text-on-surface]="browseStock(m) > 0">
+                    {{ browseStock(m) }}
                   </td>
                   <td class="px-3 py-2 text-[10px] text-on-surface-variant">
                     {{ m.createdAt | date:'dd MMM yy' }}

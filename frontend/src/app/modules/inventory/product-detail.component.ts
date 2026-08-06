@@ -60,6 +60,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   product: Product | null = null;
   loading = true;
 
+  // Variants table filter — show only variants with on-hand stock > 0.
+  showInStockOnly = false;
+
   // Add variant form
   showAddVariant = false;
   newVariant = { size: '', color: '', priceOverride: null as number | null, costOverride: null as number | null };
@@ -113,6 +116,12 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
           this.router.navigate(['/inventory/products']);
         },
       });
+  }
+
+  /** Variants shown in the table — optionally filtered to in-stock only. */
+  get displayedVariants(): Variant[] {
+    const variants = this.product?.variants ?? [];
+    return this.showInStockOnly ? variants.filter((v) => this.getStock(v) > 0) : variants;
   }
 
   getStock(variant: Variant): number {

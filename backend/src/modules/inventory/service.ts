@@ -610,6 +610,7 @@ export class InventoryService {
     lotCode?: string;
     vendorId?: string;
     search?: string;
+    inStockOnly?: string;
     startDate?: string;
     endDate?: string;
     page?: string;
@@ -619,11 +620,8 @@ export class InventoryService {
 
     const where: Prisma.InventoryMovementWhereInput = {};
 
-    if (query.branchId) {
-      where.branchId = parseInt(query.branchId);
-    } else {
-      where.branchId = userBranchId;
-    }
+    const branchId = query.branchId ? parseInt(query.branchId) : userBranchId;
+    where.branchId = branchId;
 
     if (query.variantId) {
       where.variantId = parseInt(query.variantId);
@@ -641,14 +639,26 @@ export class InventoryService {
       where.vendorId = parseInt(query.vendorId);
     }
 
+    // Search + optional in-stock filter both constrain the related variant, so
+    // build one variant where-clause and attach it if non-empty.
+    const variantWhere: Prisma.ProductVariantWhereInput = {};
     if (query.search) {
-      where.variant = {
-        OR: [
-          { sku: { contains: query.search, mode: 'insensitive' } },
-          { product: { name: { contains: query.search, mode: 'insensitive' } } },
-          { product: { brand: { name: { contains: query.search, mode: 'insensitive' } } } },
-        ],
-      };
+      variantWhere.OR = [
+        { sku: { contains: query.search, mode: 'insensitive' } },
+        { product: { name: { contains: query.search, mode: 'insensitive' } } },
+        { product: { brand: { name: { contains: query.search, mode: 'insensitive' } } } },
+      ];
+    }
+    // §Barcodes — the browse view lists historical movements, so a variant that
+    // was purchased then fully sold still appears with its old +qty even though
+    // it now holds 0. inStockOnly keeps only movements whose variant currently
+    // has on-hand stock in this branch, so the label browser reflects what's
+    // actually in stock.
+    if (query.inStockOnly === 'true') {
+      variantWhere.inventory = { some: { branchId, quantity: { gt: 0 } } };
+    }
+    if (Object.keys(variantWhere).length > 0) {
+      where.variant = variantWhere;
     }
 
     if (query.startDate || query.endDate) {
@@ -673,6 +683,9 @@ export class InventoryService {
               product: {
                 include: { brand: { select: { id: true, name: true } } },
               },
+              // Current on-hand for THIS branch, so the browse row can show live
+              // stock next to the historical movement quantity.
+              inventory: { where: { branchId }, select: { quantity: true, branchId: true } },
             },
           },
           branch: true,
