@@ -28,6 +28,29 @@
   </div>
 </div>
 
+<!-- Smart Search: bill number, article (SKU / product name), or barcode -->
+<div class="mb-6">
+  <div class="relative">
+    <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-lg text-on-surface-variant pointer-events-none">search</span>
+    <input
+      type="text"
+      [(ngModel)]="search"
+      (ngModelChange)="onSearchChange()"
+      placeholder="Search by bill no. (W0028), article (SKU / name), or barcode…"
+      class="w-full pl-11 pr-11 py-3 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+    />
+    @if (search) {
+      <button
+        (click)="clearSearch()"
+        class="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-surface-container-high transition-colors cursor-pointer"
+        aria-label="Clear search"
+      >
+        <span class="material-symbols-outlined text-lg text-on-surface-variant">close</span>
+      </button>
+    }
+  </div>
+</div>
+
 <!-- §11.5 — offline bills awaiting sync -->
 @if (pendingSync.length > 0) {
   <div class="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4" data-testid="pending-sync">
@@ -59,7 +82,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- Date Range Start -->
       <div>
-        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">From Date</label>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">From Date (trading day)</label>
         <input
           type="date"
           [(ngModel)]="startDate"
@@ -69,7 +92,7 @@
 
       <!-- Date Range End -->
       <div>
-        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">To Date</label>
+        <label class="block mb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">To Date (trading day)</label>
         <input
           type="date"
           [(ngModel)]="endDate"

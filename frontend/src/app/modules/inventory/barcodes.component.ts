@@ -319,7 +319,9 @@ export class BarcodesComponent implements OnInit, OnDestroy {
       ),
       mrp: v?.mrpOverride != null ? Number(v.mrpOverride)
         : v?.product?.mrp != null ? Number(v.product.mrp) : undefined,
-      lotCode: v?.lotCode ?? undefined,
+      // The lot code lives on the movement (m.lotCode) — the variant copy is a
+      // denormalized fallback. Prefer the movement's own lot when browsing.
+      lotCode: m?.lotCode ?? v?.lotCode ?? undefined,
       copies: Math.abs(m.quantity || 1),
     });
   }

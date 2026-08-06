@@ -16,6 +16,8 @@ export const createEmployeeSchema = z.object({
     role: roleEnum.default('staff'),
     branchId: z.number().int().positive().optional().nullable(),
     commissionRate: z.number().min(0).max(100).optional().nullable(),
+    // Per-employee minimum daily-sales target (₹) for commission.
+    commissionThreshold: z.number().min(0).optional().nullable(),
     // Password is mandatory at creation — whoever adds the employee sets it.
     password: z.string().min(6, 'Password must be at least 6 characters').max(100),
   }),
@@ -33,6 +35,7 @@ export const updateEmployeeSchema = z.object({
     role: roleEnum.optional(),
     branchId: z.number().int().positive().optional().nullable(),
     commissionRate: z.number().min(0).max(100).optional().nullable(),
+    commissionThreshold: z.number().min(0).optional().nullable(),
     isActive: z.boolean().optional(),
     // Optional on edit — blank means keep the current password.
     password: z.preprocess(emptyToNull, z.string().min(6, 'Password must be at least 6 characters').max(100).nullable().optional()),

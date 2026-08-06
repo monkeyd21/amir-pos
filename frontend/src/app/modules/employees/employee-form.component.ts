@@ -103,16 +103,26 @@ interface ApiResponse<T> {
               </div>
               <p class="text-[10px] text-on-surface-variant/60">Percentage of sale amount earned as commission</p>
             </label>
-            @if (isEdit) {
-              <label class="flex flex-col gap-1.5">
-                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Status</span>
-                <div class="flex items-center gap-3 h-[42px]">
-                  <input type="checkbox" [(ngModel)]="form.isActive" class="w-5 h-5 rounded" />
-                  <span class="text-sm font-body text-on-surface">{{ form.isActive ? 'Active' : 'Inactive' }}</span>
-                </div>
-              </label>
-            }
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Daily Sales Target (₹)</span>
+              <div class="relative w-full">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant/60">₹</span>
+                <input type="number" [(ngModel)]="form.commissionThreshold" min="0" step="100" placeholder="0"
+                  class="w-full pl-7 pr-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              </div>
+              <p class="text-[10px] text-on-surface-variant/60">Commission is earned only on this employee's daily sales above this amount. 0 = no target.</p>
+            </label>
           </div>
+
+          @if (isEdit) {
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Status</span>
+              <div class="flex items-center gap-3 h-[42px]">
+                <input type="checkbox" [(ngModel)]="form.isActive" class="w-5 h-5 rounded" />
+                <span class="text-sm font-body text-on-surface">{{ form.isActive ? 'Active' : 'Inactive' }}</span>
+              </div>
+            </label>
+          }
 
           <label class="flex flex-col gap-1.5 pt-2 border-t border-outline-variant/10">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">
@@ -145,6 +155,7 @@ export class EmployeeFormComponent implements OnInit {
     role: 'staff',
     branchId: null as number | null,
     commissionRate: 0,
+    commissionThreshold: 0,
     isActive: true,
     password: '',
   };
@@ -191,6 +202,7 @@ export class EmployeeFormComponent implements OnInit {
             role: emp.role ?? 'staff',
             branchId: emp.branch?.id ?? emp.branchId ?? null,
             commissionRate: Number(emp.commissionRate ?? 0),
+            commissionThreshold: Number(emp.commissionThreshold ?? 0),
             isActive: emp.isActive ?? true,
             password: '',
           };

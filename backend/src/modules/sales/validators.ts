@@ -23,6 +23,8 @@ export const listSalesSchema = z.object({
     branchId: z.string().optional(),
     status: z.string().optional(),
     customerId: z.string().optional(),
+    paymentMethod: z.string().optional(),
+    search: z.string().optional(),
     businessDate: z.string().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),

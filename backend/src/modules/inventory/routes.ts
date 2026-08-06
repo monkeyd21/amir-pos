@@ -31,9 +31,18 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
       where: { clearanceFlag: true },
       include: {
         product: { select: { name: true, mrp: true, basePrice: true, costPrice: true } },
+        inventory: { select: { quantity: true } },
       },
       orderBy: { id: 'desc' },
     });
+    // §Clearance — the ACTIVE list shows every clearance-flagged variant. We do
+    // NOT gate on Inventory.quantity > 0: clearance is for aged/dead stock the
+    // shop still physically holds, and much of that legacy stock has a recorded
+    // on-hand of 0 (or no Inventory row at all). Gating on stock silently hid
+    // freshly-flagged articles — they'd be absent here AND from the Sold tab
+    // (never sold), so "added to clearance but not showing". Stock is surfaced
+    // below as an informational column instead. The Sold tab independently
+    // aggregates what has actually sold on clearance.
     res.json({
       success: true,
       data: variants.map((v) => ({
@@ -49,8 +58,72 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
         // product-level cost.
         purchasePrice: v.costOverride ?? v.product.costPrice,
         clearancePrice: v.clearancePrice,
+        stock: v.inventory.reduce((s, inv) => s + (inv.quantity ?? 0), 0),
       })),
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// §Clearance — "Sold Articles" tab. Lists clearance articles that have actually
+// been SOLD, i.e. any variant that appears on a SaleItem flagged isClearance=true
+// (the persisted snapshot taken at checkout — it survives even if the variant
+// later leaves clearance). We aggregate net quantity sold (gross − returned) per
+// variant and carry the distinct bill numbers/dates. Registered before
+// `/clearance/:variantId` so "sold" is never parsed as a :variantId param.
+router.get('/clearance/sold', authorize('owner'), async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const soldItems = await prisma.saleItem.findMany({
+      where: { isClearance: true, sale: { status: 'completed' } },
+      include: {
+        variant: {
+          include: {
+            product: { select: { name: true, mrp: true, basePrice: true, costPrice: true } },
+          },
+        },
+        sale: { select: { saleNumber: true, createdAt: true, businessDate: true } },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    // Group by variant. quantitySold is net of returns; the fixed clearance
+    // price on a clearance line is stored in SaleItem.unitPrice, and the struck
+    // MRP snapshot in SaleItem.mrp (fall back to the live variant/product MRP).
+    const byVariant = new Map<number, any>();
+    for (const it of soldItems) {
+      const vid = it.variantId;
+      let row = byVariant.get(vid);
+      if (!row) {
+        const v = it.variant;
+        row = {
+          variantId: vid,
+          sku: v.sku,
+          barcode: v.barcode,
+          size: v.size,
+          color: v.color,
+          productName: v.product.name,
+          mrp: it.mrp ?? v.mrpOverride ?? v.product.mrp ?? v.product.basePrice,
+          clearancePrice: it.unitPrice ?? v.clearancePrice,
+          purchasePrice: v.costOverride ?? v.product.costPrice,
+          quantitySold: 0,
+          stillOnClearance: v.clearanceFlag,
+          sales: [] as { saleNumber: string; date: Date }[],
+        };
+        byVariant.set(vid, row);
+      }
+      row.quantitySold += (it.quantity ?? 0) - (it.returnedQuantity ?? 0);
+      const date = it.sale.businessDate ?? it.sale.createdAt;
+      if (!row.sales.some((s: any) => s.saleNumber === it.sale.saleNumber)) {
+        row.sales.push({ saleNumber: it.sale.saleNumber, date });
+      }
+    }
+
+    const data = Array.from(byVariant.values())
+      // Only meaningful "sold" rows (a fully-refunded line nets to zero).
+      .filter((r) => r.quantitySold > 0);
+
+    res.json({ success: true, data });
   } catch (e) {
     next(e);
   }

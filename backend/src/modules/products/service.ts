@@ -184,6 +184,10 @@ export const createProduct = async (data: {
     barcode: barcodes[i],
     size: v.size,
     color: v.color,
+    // Carry the lot/batch code onto the variant so the barcode label prints it
+    // in EVERY flow — not just the immediate print-after-creation. The Barcode
+    // Printing module (search + browse) reads variant.lotCode.
+    lotCode: data.lotCode ?? null,
     mrpOverride: v.mrpOverride ?? null,
     priceOverride: v.priceOverride ?? null,
     costOverride: v.costOverride ?? null,
@@ -606,6 +610,8 @@ export const bulkCreateVariants = async (
           barcode,
           size: v.size,
           color: v.color,
+          // Carry the lot code so every barcode-label print flow shows it.
+          lotCode: data.lotCode ?? null,
           mrpOverride: v.mrpOverride ?? null,
           priceOverride: v.priceOverride ?? null,
           costOverride: v.costOverride ?? null,

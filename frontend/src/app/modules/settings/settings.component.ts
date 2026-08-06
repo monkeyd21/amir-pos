@@ -99,10 +99,8 @@ export class SettingsComponent implements OnInit {
   // Commission mode
   commissionMode: 'item_level' | 'bill_level' = 'item_level';
 
-  // §commission — minimum daily-sales threshold (₹). Commission is earned only
-  // on the portion of an employee's own daily sales above this figure. 0 = off.
-  commissionThreshold = 0;
-  savingCommissionThreshold = false;
+  // The minimum daily-sales target is now per-employee (set on the employee
+  // form), not store-wide — no threshold state lives here anymore.
 
   // Bill numbering — per-channel prefixes for human-friendly sale numbers
   billNumbering = { walkin: 'W', online: 'O', pad: 4 };
@@ -155,7 +153,6 @@ export class SettingsComponent implements OnInit {
   ngOnInit(): void {
     this.loadStoreInfo();
     this.loadCommissionMode();
-    this.loadCommissionThreshold();
     this.loadLoyaltyConfig();
     this.loadMessagingConfig();
     this.loadBillNumbering();
@@ -329,37 +326,6 @@ export class SettingsComponent implements OnInit {
         this.notification.success(`Commission mode set to ${mode === 'item_level' ? 'Item Level' : 'Bill Level'}`);
       },
     });
-  }
-
-  loadCommissionThreshold(): void {
-    this.api.get<any>('/settings/commission-threshold').subscribe({
-      next: (res: any) => {
-        this.commissionThreshold = Number(res.data?.commissionDailyThreshold) || 0;
-      },
-    });
-  }
-
-  saveCommissionThreshold(): void {
-    if (this.savingCommissionThreshold) return;
-    const value = Math.max(0, Number(this.commissionThreshold) || 0);
-    this.savingCommissionThreshold = true;
-    this.api
-      .put<any>('/settings/commission-threshold', { commissionDailyThreshold: value })
-      .subscribe({
-        next: () => {
-          this.commissionThreshold = value;
-          this.savingCommissionThreshold = false;
-          this.notification.success(
-            value > 0
-              ? `Commission applies only above ₹${value}/day per employee`
-              : 'Daily commission threshold removed'
-          );
-        },
-        error: (err) => {
-          this.savingCommissionThreshold = false;
-          this.notification.error(err.error?.error || 'Failed to update threshold');
-        },
-      });
   }
 
   setActiveTab(tabId: string): void {

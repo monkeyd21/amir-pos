@@ -23,6 +23,24 @@ interface ClearanceItem {
   mrp: number | string | null;
   purchasePrice: number | string | null;
   clearancePrice: number | string | null;
+  stock?: number | string | null;
+}
+
+// §Clearance — a clearance article that has been sold at least once (net of
+// returns). Populated from the /inventory/clearance/sold endpoint.
+interface SoldClearanceItem {
+  variantId: number;
+  sku: string;
+  barcode: string;
+  size: string;
+  color: string;
+  productName: string;
+  mrp: number | string | null;
+  clearancePrice: number | string | null;
+  purchasePrice: number | string | null;
+  quantitySold: number;
+  stillOnClearance: boolean;
+  sales: { saleNumber: string; date: string }[];
 }
 
 interface SearchResult {
@@ -62,9 +80,17 @@ export class ClearanceComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private search$ = new Subject<string>();
 
+  // §Clearance — in-page tabs: active (still-in-stock) vs sold-through articles.
+  activeTab: 'active' | 'sold' = 'active';
+
   loading = false;
   applying = false;
   items: ClearanceItem[] = [];
+
+  // Sold Articles tab state.
+  soldItems: SoldClearanceItem[] = [];
+  soldLoading = false;
+  soldLoaded = false;
 
   searchQuery = '';
   searchResults: SearchResult[] = [];
@@ -131,6 +157,31 @@ export class ClearanceComponent implements OnInit, OnDestroy {
         error: () => {
           this.loading = false;
           this.notification.error('Failed to load clearance items');
+        },
+      });
+  }
+
+  // §Clearance — switch between the Active and Sold Articles tabs. The sold
+  // list is fetched lazily the first time its tab is opened.
+  selectTab(tab: 'active' | 'sold'): void {
+    this.activeTab = tab;
+    if (tab === 'sold' && !this.soldLoaded && !this.soldLoading) this.loadSold();
+  }
+
+  loadSold(): void {
+    this.soldLoading = true;
+    this.api
+      .get<any>('/inventory/clearance/sold')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.soldItems = res?.data ?? [];
+          this.soldLoaded = true;
+          this.soldLoading = false;
+        },
+        error: () => {
+          this.soldLoading = false;
+          this.notification.error('Failed to load sold clearance articles');
         },
       });
   }
@@ -295,6 +346,7 @@ export class ClearanceComponent implements OnInit, OnDestroy {
           this.notification.success(`${items.length} SKU(s) put on clearance`);
           this.pending = [];
           this.bulkPrice = null;
+          this.soldLoaded = false; // sold tab may now include newly-flagged SKUs
           this.loadClearance();
         },
         error: (err) => {

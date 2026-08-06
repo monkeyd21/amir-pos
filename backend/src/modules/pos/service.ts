@@ -492,6 +492,7 @@ export class PosService {
         variantId: number;
         quantity: number;
         unitPrice: number;
+        mrp: number;
         costPrice: number;
         taxRate: number;
         agentId: number | null;
@@ -542,11 +543,22 @@ export class PosService {
         const unitPrice = isClearance
           ? Number(variant.clearancePrice)
           : this.nonClearanceChargePrice(variant);
+        // Snapshot the tag/MRP at the moment of sale so the bill/receipt shows the
+        // historical MRP even if the variant's MRP is edited or it later leaves
+        // clearance. For a clearance line this is the "was <MRP>" against the fixed
+        // clearance price captured in `unitPrice`.
+        const mrp =
+          variant.mrpOverride != null
+            ? Number(variant.mrpOverride)
+            : variant.product.mrp != null
+            ? Number(variant.product.mrp)
+            : Number(variant.product.basePrice);
 
         saleItemsData.push({
           variantId: variant.id,
           quantity: item.quantity,
           unitPrice,
+          mrp,
           costPrice,
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
@@ -658,6 +670,7 @@ export class PosService {
         variantId: number;
         quantity: number;
         unitPrice: number;
+        mrp: number;
         taxRate: number;
         lineGross: number;
         offerDiscount: number;
@@ -686,6 +699,7 @@ export class PosService {
           variantId: item.variantId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          mrp: item.mrp,
           taxRate: item.taxRate,
           lineGross,
           offerDiscount,
@@ -732,6 +746,7 @@ export class PosService {
         variantId: number;
         quantity: number;
         unitPrice: number;
+        mrp: number;
         discount: number;
         taxAmount: number;
         total: number;
@@ -766,6 +781,7 @@ export class PosService {
           variantId: line.variantId,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
+          mrp: line.mrp,
           discount: Math.round(lineDiscountTotal * 100) / 100,
           taxAmount: Math.round(lineTax * 100) / 100,
           total: Math.round(lineTotal * 100) / 100,

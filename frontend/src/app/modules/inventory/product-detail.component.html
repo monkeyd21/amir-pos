@@ -82,6 +82,33 @@
     </div>
   }
 
+  <!-- Variant Totals — plain sum of each variant's effective price across all
+       variants (one per variant, not stock-weighted). -->
+  @if (product.variants.length > 0) {
+    <div class="mb-8">
+      <p class="label-upper mb-3">Totals across {{ product.variants.length }} variant{{ product.variants.length !== 1 ? 's' : '' }}</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-surface-container-high p-5 rounded-xl relative overflow-hidden">
+          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary"></div>
+          <p class="label-upper mb-2">Sum Cost Price</p>
+          <p class="text-2xl font-headline font-bold text-on-surface" data-testid="sum-cost">{{ formatCurrency(variantTotals.cost) }}</p>
+        </div>
+        <div class="bg-surface-container-high p-5 rounded-xl">
+          <p class="label-upper mb-2">Sum Landing Price</p>
+          <p class="text-2xl font-headline font-bold text-on-surface" data-testid="sum-landing">{{ formatCurrency(variantTotals.landing) }}</p>
+        </div>
+        <div class="bg-surface-container-high p-5 rounded-xl">
+          <p class="label-upper mb-2">Sum MRP</p>
+          <p class="text-2xl font-headline font-bold text-on-surface" data-testid="sum-mrp">{{ formatCurrency(variantTotals.mrp) }}</p>
+        </div>
+        <div class="bg-surface-container-high p-5 rounded-xl">
+          <p class="label-upper mb-2">Sum Sale Price</p>
+          <p class="text-2xl font-headline font-bold text-on-surface" data-testid="sum-sale">{{ formatCurrency(variantTotals.sale) }}</p>
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- Variants Table -->
   <div class="mb-4 flex items-center justify-between">
     <h2 class="text-xl font-headline font-bold text-on-surface">Variants</h2>
@@ -213,7 +240,16 @@
               }
             </td>
             <td class="px-6 py-4 text-right">
-              @if (getEffectiveMrp(variant) !== null) {
+              @if (editingVariantId === variant.id) {
+                <input
+                  type="number"
+                  min="0"
+                  [(ngModel)]="editValues.mrpOverride"
+                  [placeholder]="product.mrp != null ? formatCurrency(+product.mrp) : 'MRP'"
+                  data-testid="edit-mrp-override"
+                  class="w-24 px-2 py-1 text-sm text-right bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+                />
+              } @else if (getEffectiveMrp(variant) !== null) {
                 <span class="text-sm text-on-surface-variant">{{ formatCurrency(getEffectiveMrp(variant)!) }}</span>
                 @if (variant.mrpOverride !== null) {
                   <span class="block text-[10px] text-tertiary mt-0.5">override</span>
@@ -223,11 +259,22 @@
               }
             </td>
             <td class="px-6 py-4 text-right">
-              <span class="text-sm font-bold text-on-surface">
-                {{ formatCurrency(getEffectivePrice(variant)) }}
-              </span>
-              @if (variant.priceOverride !== null) {
-                <span class="block text-[10px] text-tertiary mt-0.5">override</span>
+              @if (editingVariantId === variant.id) {
+                <input
+                  type="number"
+                  min="0"
+                  [(ngModel)]="editValues.priceOverride"
+                  [placeholder]="formatCurrency(+product.basePrice)"
+                  data-testid="edit-price-override"
+                  class="w-24 px-2 py-1 text-sm text-right font-bold bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+                />
+              } @else {
+                <span class="text-sm font-bold text-on-surface">
+                  {{ formatCurrency(getEffectivePrice(variant)) }}
+                </span>
+                @if (variant.priceOverride !== null) {
+                  <span class="block text-[10px] text-tertiary mt-0.5">override</span>
+                }
               }
             </td>
             <td class="px-6 py-4 text-right">
@@ -247,20 +294,50 @@
             </td>
             <td class="px-6 py-4 text-right">
               <div class="flex items-center justify-end gap-1">
-                <button
-                  (click)="adjustStock(variant)"
-                  class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
-                >
-                  <span class="material-symbols-outlined text-sm">tune</span>
-                  Adjust
-                </button>
-                <a
-                  [routerLink]="['/inventory/stock']"
-                  [queryParams]="{ variantId: variant.id }"
-                  class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                >
-                  <span class="material-symbols-outlined text-sm">visibility</span>
-                </a>
+                @if (editingVariantId === variant.id) {
+                  <button
+                    (click)="saveEditPrice(variant)"
+                    [disabled]="savingEdit"
+                    data-testid="save-price-override"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-primary-container text-on-primary-container hover:opacity-90 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span class="material-symbols-outlined text-sm">check</span>
+                    {{ savingEdit ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button
+                    (click)="cancelEditPrice()"
+                    [disabled]="savingEdit"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-error transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    <span class="material-symbols-outlined text-sm">close</span>
+                  </button>
+                } @else {
+                  @if (canEditPrices) {
+                    <button
+                      (click)="startEditPrice(variant)"
+                      title="Override MRP / Sale Price"
+                      data-testid="edit-price"
+                      class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
+                    >
+                      <span class="material-symbols-outlined text-sm">edit</span>
+                      Prices
+                    </button>
+                  }
+                  <button
+                    (click)="adjustStock(variant)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold bg-surface-container-highest/60 text-on-surface-variant hover:bg-primary-container/20 hover:text-primary rounded-lg transition-colors cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-sm">tune</span>
+                    Adjust
+                  </button>
+                  <a
+                    [routerLink]="['/inventory/stock']"
+                    [queryParams]="{ variantId: variant.id }"
+                    class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <span class="material-symbols-outlined text-sm">visibility</span>
+                  </a>
+                }
               </div>
             </td>
           </tr>

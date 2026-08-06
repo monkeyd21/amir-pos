@@ -9,6 +9,7 @@ import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-sp
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { StockAdjustmentDialogComponent } from './stock-adjustment-dialog.component';
 import { BranchService } from '../../core/services/branch.service';
+import { AuthService } from '../../core/services/auth.service';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
 
 interface Variant {
@@ -20,6 +21,7 @@ interface Variant {
   priceOverride: number | null;
   mrpOverride: number | null;
   costOverride: number | null;
+  landingOverride: number | null;
   isActive: boolean;
   inventory?: { quantity: number; branchId: number }[];
 }
@@ -63,16 +65,27 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   newVariant = { size: '', color: '', priceOverride: null as number | null, costOverride: null as number | null };
   savingVariant = false;
 
+  // Only owner/manager may override prices (matches the backend authz on
+  // PUT /products/:id/variants/:variantId).
+  canEditPrices = false;
+
+  // Inline per-variant price override editor
+  editingVariantId: number | null = null;
+  editValues = { mrpOverride: null as number | null, priceOverride: null as number | null };
+  savingEdit = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private api: ApiService,
     private notify: NotificationService,
     private dialog: DialogService,
-    private branchService: BranchService
+    private branchService: BranchService,
+    private auth: AuthService
   ) {}
 
   ngOnInit(): void {
+    this.canEditPrices = this.auth.hasRole(['owner', 'manager']);
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.loadProduct(id);
@@ -108,7 +121,7 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   }
 
   getEffectivePrice(variant: Variant): number {
-    return variant.priceOverride ?? Number(this.product?.basePrice || 0);
+    return Number(variant.priceOverride ?? this.product?.basePrice ?? 0);
   }
 
   /** §13.3 — the list price (MRP): per-variant override, else the product MRP.
@@ -116,6 +129,36 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   getEffectiveMrp(variant: Variant): number | null {
     const raw = variant.mrpOverride ?? this.product?.mrp ?? null;
     return raw != null ? Number(raw) : null;
+  }
+
+  /** Effective cost (purchase) price: per-variant override, else product cost. */
+  getEffectiveCost(variant: Variant): number {
+    return Number(variant.costOverride ?? this.product?.costPrice ?? 0);
+  }
+
+  /** Effective landing cost: per-variant override, else the product landing
+   *  price, falling back to the cost price (mirrors the P&L fallback chain). */
+  getEffectiveLanding(variant: Variant): number {
+    return Number(
+      variant.landingOverride ?? this.product?.landingPrice ?? this.getEffectiveCost(variant)
+    );
+  }
+
+  /** Totals across every variant — a plain sum of each variant's effective
+   *  price (one per variant, NOT stock-weighted). MRP skips variants with no
+   *  MRP recorded. */
+  get variantTotals(): { cost: number; landing: number; mrp: number; sale: number } {
+    const variants = this.product?.variants ?? [];
+    return variants.reduce(
+      (acc, v) => {
+        acc.cost += this.getEffectiveCost(v);
+        acc.landing += this.getEffectiveLanding(v);
+        acc.mrp += this.getEffectiveMrp(v) ?? 0;
+        acc.sale += this.getEffectivePrice(v);
+        return acc;
+      },
+      { cost: 0, landing: 0, mrp: 0, sale: 0 }
+    );
   }
 
   formatCurrency(value: number): string {
@@ -148,6 +191,53 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     ref.afterClosed().subscribe((result) => {
       if (result) this.loadProduct(String(this.product!.id));
     });
+  }
+
+  /** Open the inline editor for a variant's MRP / Sale Price overrides.
+   *  Pre-fills with the current per-variant overrides (null = "inherit from
+   *  product", shown as an empty input). */
+  startEditPrice(variant: Variant): void {
+    this.editingVariantId = variant.id;
+    this.editValues = {
+      mrpOverride: variant.mrpOverride != null ? Number(variant.mrpOverride) : null,
+      priceOverride: variant.priceOverride != null ? Number(variant.priceOverride) : null,
+    };
+  }
+
+  cancelEditPrice(): void {
+    this.editingVariantId = null;
+    this.savingEdit = false;
+  }
+
+  /** Persist the overrides. An empty field clears the override (sends null) so
+   *  the variant falls back to the product-level MRP / base price. */
+  saveEditPrice(variant: Variant): void {
+    if (this.savingEdit || !this.product) return;
+    this.savingEdit = true;
+
+    const toNumOrNull = (v: number | null): number | null =>
+      v === null || (v as unknown as string) === '' ? null : Number(v);
+
+    const body = {
+      mrpOverride: toNumOrNull(this.editValues.mrpOverride),
+      priceOverride: toNumOrNull(this.editValues.priceOverride),
+    };
+
+    this.api
+      .put<ApiResponse<any>>(`/products/${this.product.id}/variants/${variant.id}`, body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notify.success('Prices updated');
+          this.editingVariantId = null;
+          this.savingEdit = false;
+          this.loadProduct(String(this.product!.id));
+        },
+        error: (err) => {
+          this.savingEdit = false;
+          this.notify.error(err?.error?.error || 'Failed to update prices');
+        },
+      });
   }
 
   toggleAddVariant(): void {

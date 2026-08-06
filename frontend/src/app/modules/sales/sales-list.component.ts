@@ -51,10 +51,13 @@ export class SalesListComponent implements OnInit {
   totalItems = 0;
 
   // Filters
+  search = '';
   statusFilter = '';
   paymentMethodFilter = '';
   startDate = '';
   endDate = '';
+
+  private searchDebounce?: ReturnType<typeof setTimeout>;
 
   statuses = ['completed', 'pending', 'cancelled', 'returned', 'partially_returned'];
   paymentMethods = ['cash', 'card', 'upi'];
@@ -83,6 +86,7 @@ export class SalesListComponent implements OnInit {
       page: this.currentPage,
       limit: this.pageSize,
     };
+    if (this.search.trim()) params['search'] = this.search.trim();
     if (this.statusFilter) params['status'] = this.statusFilter;
     if (this.paymentMethodFilter) params['paymentMethod'] = this.paymentMethodFilter;
     if (this.startDate) params['startDate'] = this.startDate;
@@ -106,7 +110,19 @@ export class SalesListComponent implements OnInit {
     this.loadSales();
   }
 
+  /** Debounced search — refetch server-side 350ms after typing stops. */
+  onSearchChange(): void {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => this.applyFilters(), 350);
+  }
+
+  clearSearch(): void {
+    this.search = '';
+    this.applyFilters();
+  }
+
   clearFilters(): void {
+    this.search = '';
     this.statusFilter = '';
     this.paymentMethodFilter = '';
     this.startDate = '';
@@ -256,6 +272,6 @@ export class SalesListComponent implements OnInit {
   }
 
   get hasActiveFilters(): boolean {
-    return !!(this.statusFilter || this.paymentMethodFilter || this.startDate || this.endDate);
+    return !!(this.search.trim() || this.statusFilter || this.paymentMethodFilter || this.startDate || this.endDate);
   }
 }

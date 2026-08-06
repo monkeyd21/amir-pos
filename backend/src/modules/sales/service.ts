@@ -17,6 +17,8 @@ export class SalesService {
     branchId?: string;
     status?: string;
     customerId?: string;
+    paymentMethod?: string;
+    search?: string;
     businessDate?: string;
     startDate?: string;
     endDate?: string;
@@ -37,22 +39,64 @@ export class SalesService {
       where.customerId = parseInt(query.customerId);
     }
 
+    // Filter by tender/payment method (any payment on the bill matches).
+    if (query.paymentMethod) {
+      where.payments = { some: { method: query.paymentMethod as PaymentMethod } };
+    }
+
+    // ── Smart search box ────────────────────────────────────────────────
+    // One box, three intents (per the search-matching convention):
+    //  • Bill number (saleNumber)  — case-insensitive CONTAINS ("W0028").
+    //  • Article SKU / product name — case-insensitive CONTAINS.
+    //  • Barcode                    — EXACT match only (never substring —
+    //    substrings of SE##### barcodes create noise).
+    // The three are OR-ed so a single term matches whichever field fits.
+    const term = query.search?.trim();
+    if (term) {
+      where.OR = [
+        { saleNumber: { contains: term, mode: 'insensitive' } },
+        {
+          items: {
+            some: {
+              variant: {
+                OR: [
+                  // Barcode is EXACT (case-insensitive) — see convention.
+                  { barcode: { equals: term, mode: 'insensitive' } },
+                  // SKU / product name are CONTAINS.
+                  { sku: { contains: term, mode: 'insensitive' } },
+                  { product: { name: { contains: term, mode: 'insensitive' } } },
+                ],
+              },
+            },
+          },
+        },
+      ];
+    }
+
     // §bug10 — filter the previous-bills list by trading day (business_date), so
     // the POS defaults to "today's bills" instead of an endless list. A single
     // YYYY-MM-DD selects that whole trading day (incl. its post-midnight bills).
+    // A `@db.Date` column stores the India trading day as UTC-midnight, so the
+    // range bounds are built with Date.UTC(...) to compare apples-to-apples.
     if (query.businessDate) {
       const [y, m, d] = query.businessDate.split('-').map(Number);
-      const start = new Date(y, (m || 1) - 1, d || 1);
-      const end = new Date(y, (m || 1) - 1, (d || 1) + 1);
+      const start = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+      const end = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + 1));
       where.businessDate = { gte: start, lt: end };
     } else if (query.startDate || query.endDate) {
-      where.createdAt = {};
+      // Date range filters on the trading day (businessDate). Each YYYY-MM-DD is
+      // interpreted as the India trading day at UTC-midnight; `endDate` is
+      // inclusive (bumped to the next day's midnight with `lt`).
+      const range: Prisma.DateTimeFilter = {};
       if (query.startDate) {
-        where.createdAt.gte = new Date(query.startDate);
+        const [y, m, d] = query.startDate.split('-').map(Number);
+        range.gte = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
       }
       if (query.endDate) {
-        where.createdAt.lte = new Date(query.endDate);
+        const [y, m, d] = query.endDate.split('-').map(Number);
+        range.lt = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + 1));
       }
+      where.businessDate = range;
     }
 
     const [sales, total] = await Promise.all([
@@ -354,8 +398,12 @@ export class SalesService {
         // §2.4/bug8 — for a clearance line, surface the original MRP so the
         // receipt can print "was <MRP>" beside the fixed clearance price.
         isClearance: Boolean((item as any).isClearance),
+        // Prefer the MRP snapshotted at sale time; fall back to the variant for
+        // pre-snapshot rows (nullable column, backfilled best-effort).
         mrp:
-          item.variant.mrpOverride != null
+          (item as any).mrp != null
+            ? Number((item as any).mrp)
+            : item.variant.mrpOverride != null
             ? Number(item.variant.mrpOverride)
             : item.variant.product.mrp != null
             ? Number(item.variant.product.mrp)

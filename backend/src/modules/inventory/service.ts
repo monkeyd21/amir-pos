@@ -310,6 +310,15 @@ export class InventoryService {
           },
         });
 
+        // Keep the variant's lot code as the most-recently-received lot so the
+        // barcode label (printed via the search flow) reflects the current lot.
+        if (data.lotCode) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { lotCode: data.lotCode },
+          });
+        }
+
         results.push({ variantId: item.variantId, previousQty: prevQty, newQty });
       }
 

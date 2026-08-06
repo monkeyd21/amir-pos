@@ -252,24 +252,34 @@ export class SaleDetailComponent implements OnInit {
     return item.variant?.product?.name || item.productName || item.name || 'Unknown Product';
   }
 
-  /** Line subtotal = quantity × Sale Price (§13.3 list price), NOT MRP. */
+  /** Line subtotal. For a clearance line this is what was actually charged
+   *  (the fixed clearance price captured on the sale item), NOT the variant's
+   *  display Sale Price. Otherwise quantity × Sale Price (§13.3 list price). */
   getItemSubtotal(item: SaleItem): number {
+    if ((item as any)?.isClearance) {
+      const total = (item as any)?.total;
+      return total != null ? this.num(total) : this.num(item.unitPrice) * this.num(item.quantity);
+    }
     return this.salePriceOf(item) * this.num(item.quantity);
   }
 
-  /** Tag/MRP price for a line: variant override → product MRP → base price
-   *  → billed unit price (last-resort fallback). This is the printed price the
-   *  store actually charges. Works for sale items and return items alike. */
+  /** Tag/MRP price for a line: the MRP snapshotted at sale time → variant
+   *  override → product MRP → base price → billed unit price (last-resort
+   *  fallback). The snapshot keeps historical bills correct even if the
+   *  variant's MRP is later edited. Works for sale items and return items. */
   mrpOf(item: any): number {
+    if (item?.mrp != null) return Number(item.mrp);
     const v = item?.variant;
     const raw = v?.mrpOverride ?? v?.product?.mrp ?? v?.product?.basePrice;
     return raw != null ? Number(raw) : this.num(item?.unitPrice);
   }
 
-  /** Sale Price for a line (§13.3): the stored list price = MRP − 10%.
-   *  variant.priceOverride → product.basePrice. Distinct from MRP and from the
-   *  billed unitPrice (POS charges MRP, not this). */
+  /** Sale Price for a line. §2.4 — a clearance line was charged its fixed
+   *  clearance price, so show the actual billed unitPrice (NOT the variant's
+   *  display Sale Price). Otherwise (§13.3) the stored list price = MRP − 10%:
+   *  variant.priceOverride → product.basePrice. */
   salePriceOf(item: any): number {
+    if (item?.isClearance) return this.num(item?.unitPrice);
     const v = item?.variant;
     const raw = v?.priceOverride ?? v?.product?.basePrice;
     return raw != null ? Number(raw) : this.mrpOf(item);

@@ -13,6 +13,27 @@
     </p>
   </div>
 
+  <!-- ── In-page tabs: Active vs Sold Articles ─────────────── -->
+  <div class="flex items-center gap-1 border-b border-outline-variant/15">
+    <button
+      (click)="selectTab('active')"
+      class="relative px-4 py-2.5 text-sm font-semibold transition-colors"
+      [class]="activeTab === 'active' ? 'text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'"
+    >
+      On clearance
+      @if (activeTab === 'active') { <span class="absolute inset-x-0 -bottom-px h-0.5 bg-primary rounded-full"></span> }
+    </button>
+    <button
+      (click)="selectTab('sold')"
+      class="relative px-4 py-2.5 text-sm font-semibold transition-colors"
+      [class]="activeTab === 'sold' ? 'text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'"
+    >
+      Sold Articles
+      @if (activeTab === 'sold') { <span class="absolute inset-x-0 -bottom-px h-0.5 bg-primary rounded-full"></span> }
+    </button>
+  </div>
+
+  @if (activeTab === 'active') {
   <!-- ── Add SKUs to clearance ─────────────────────────────── -->
   <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
     <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Add to clearance</h3>
@@ -208,4 +229,69 @@
       </div>
     }
   </div>
+  }
+
+  @if (activeTab === 'sold') {
+  <!-- ── Sold Articles ─────────────────────────────────────── -->
+  <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">Sold clearance articles ({{ soldItems.length }})</h3>
+    </div>
+    <p class="text-[12px] text-on-surface-variant/70 mb-4">
+      Clearance articles that have been billed at least once. Quantity is net of returns; a fully
+      sold-through SKU no longer appears on the "On clearance" tab.
+    </p>
+
+    @if (soldLoading) {
+      <div class="flex items-center justify-center py-10">
+        <div class="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      </div>
+    } @else if (soldItems.length === 0) {
+      <div class="text-center py-8 bg-surface-container-lowest/50 rounded-lg border border-dashed border-outline-variant/20">
+        <p class="text-sm text-on-surface-variant/60">No clearance articles sold yet.</p>
+      </div>
+    } @else {
+      <div class="overflow-hidden rounded-lg border border-outline-variant/15">
+        <table class="w-full text-sm">
+          <thead class="bg-surface-container-high/40 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant text-left">
+            <tr>
+              <th class="px-3 py-2">SKU</th>
+              <th class="px-3 py-2">Barcode</th>
+              <th class="px-3 py-2">Article</th>
+              <th class="px-3 py-2 text-right">MRP</th>
+              <th class="px-3 py-2 text-right">Clearance</th>
+              <th class="px-3 py-2 text-right">Qty sold</th>
+              <th class="px-3 py-2">Bill(s)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/5">
+            @for (item of soldItems; track item.variantId) {
+              <tr>
+                <td class="px-3 py-2 font-mono text-on-surface-variant align-top">{{ item.sku }}</td>
+                <td class="px-3 py-2 font-mono text-on-surface-variant/70 align-top">{{ item.barcode || '—' }}</td>
+                <td class="px-3 py-2 text-on-surface align-top">
+                  {{ item.productName }} <span class="text-on-surface-variant/60 text-xs">{{ item.size }} / {{ item.color }}</span>
+                  @if (!item.stillOnClearance) {
+                    <span class="ml-1 inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">off clearance</span>
+                  }
+                </td>
+                <td class="px-3 py-2 text-right font-mono text-on-surface-variant line-through align-top">₹{{ num(item.mrp) }}</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-error align-top">₹{{ num(item.clearancePrice) }}</td>
+                <td class="px-3 py-2 text-right font-mono font-semibold text-on-surface align-top">{{ item.quantitySold }}</td>
+                <td class="px-3 py-2 text-on-surface-variant align-top">
+                  @for (s of item.sales; track s.saleNumber) {
+                    <div class="text-[11px] leading-relaxed">
+                      <span class="font-mono">{{ s.saleNumber }}</span>
+                      <span class="text-on-surface-variant/50"> · {{ s.date | date:'dd/MM/yy' }}</span>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+  }
 </div>

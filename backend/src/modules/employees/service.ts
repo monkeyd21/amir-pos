@@ -41,6 +41,7 @@ export class EmployeeService {
           branchId: true,
           branch: { select: { id: true, name: true } },
           commissionRate: true,
+          commissionThreshold: true,
           createdAt: true,
         },
       }),
@@ -63,6 +64,7 @@ export class EmployeeService {
     role: string;
     branchId?: number;
     commissionRate?: number;
+    commissionThreshold?: number;
     password: string;
   }) {
     // Email is optional; only enforce uniqueness when one is provided.
@@ -84,6 +86,7 @@ export class EmployeeService {
         branchId: body.branchId || 1,
         passwordHash,
         commissionRate: body.commissionRate ?? 0,
+        commissionThreshold: body.commissionThreshold ?? 0,
       },
       select: {
         id: true,
@@ -93,6 +96,7 @@ export class EmployeeService {
         phone: true,
         role: true,
         commissionRate: true,
+        commissionThreshold: true,
         isActive: true,
         branch: { select: { id: true, name: true } },
         createdAt: true,
@@ -112,6 +116,7 @@ export class EmployeeService {
       role?: string;
       branchId?: number;
       commissionRate?: number;
+      commissionThreshold?: number;
       isActive?: boolean;
       password?: string | null;
     }
@@ -132,6 +137,7 @@ export class EmployeeService {
     if (body.role !== undefined) data.role = body.role;
     if (body.branchId !== undefined) data.branchId = body.branchId;
     if (body.commissionRate !== undefined) data.commissionRate = body.commissionRate;
+    if (body.commissionThreshold !== undefined) data.commissionThreshold = body.commissionThreshold;
     if (body.isActive !== undefined) data.isActive = body.isActive;
     // Only reset the password when a new one is supplied (blank = keep current).
     if (body.password) data.passwordHash = await bcrypt.hash(body.password, 12);
@@ -147,6 +153,7 @@ export class EmployeeService {
         phone: true,
         role: true,
         commissionRate: true,
+        commissionThreshold: true,
         isActive: true,
         branch: { select: { id: true, name: true } },
         createdAt: true,
@@ -365,10 +372,10 @@ export class EmployeeService {
     const sales = await prisma.sale.findMany({
       where: salesWhere,
       include: {
-        user: { select: { id: true, commissionRate: true } },
+        user: { select: { id: true, commissionRate: true, commissionThreshold: true } },
         items: {
           include: {
-            agent: { select: { id: true, commissionRate: true } },
+            agent: { select: { id: true, commissionRate: true, commissionThreshold: true } },
           },
         },
         returns: { select: { total: true } },
@@ -394,11 +401,11 @@ export class EmployeeService {
       payPeriodEnd: Date;
     }> = [];
 
-    // §commission — minimum DAILY-sales threshold. Commission is earned only on
-    // the portion of an employee's own daily sales ABOVE this ₹ figure. 0 = off
-    // (every rupee earns commission, i.e. the original behaviour).
-    const dailyThreshold =
-      Number(await getSetting<number>('commissionDailyThreshold', 0)) || 0;
+    // §commission — minimum DAILY-sales target, now PER-EMPLOYEE (each employee's
+    // `commissionThreshold`). Commission is earned only on the portion of that
+    // employee's own daily sales ABOVE their target. 0 = off for that employee
+    // (every rupee earns commission). There is no store-wide threshold.
+    const userThreshold = new Map<number, number>();
 
     // First collect every (employee, sale) commission base, tagged with the
     // trading day, WITHOUT applying the rate yet — we need each employee's full
@@ -417,6 +424,7 @@ export class EmployeeService {
         const refunded = sale.returns.reduce((s, r) => s + Number(r.total), 0);
         const netTotal = Math.max(0, Number(sale.total) - refunded);
         if (netTotal <= 0) continue;
+        userThreshold.set(sale.userId, Number(sale.user.commissionThreshold) || 0);
         entries.push({ userId: sale.userId, saleId: sale.id, base: netTotal, rate, day });
       } else {
         // ── Item-level: commission per agent per line item ──
@@ -434,6 +442,7 @@ export class EmployeeService {
           if (!agent) continue;
           const rate = Number(agent.commissionRate);
           if (rate <= 0) continue;
+          userThreshold.set(agentId, Number(agent.commissionThreshold) || 0);
           entries.push({ userId: agentId, saleId: sale.id, base: lineTotal, rate, day });
         }
       }
@@ -450,11 +459,12 @@ export class EmployeeService {
       const key = `${e.saleId}-${e.userId}`;
       if (existingKeys.has(key)) continue;
       const base = dailyBase.get(`${e.userId}|${e.day}`) ?? 0;
-      // Only the amount above the threshold is commissionable; spread that
-      // reduction across the day's sales in proportion to each sale's value.
-      const factor = base > 0 ? Math.max(0, base - dailyThreshold) / base : 0;
+      // Only the amount above THIS employee's own target is commissionable; spread
+      // that reduction across the day's sales in proportion to each sale's value.
+      const threshold = userThreshold.get(e.userId) ?? 0;
+      const factor = base > 0 ? Math.max(0, base - threshold) / base : 0;
       const amount = Math.round(e.base * factor * (e.rate / 100) * 100) / 100;
-      if (amount <= 0) continue; // day fell below the threshold → no commission
+      if (amount <= 0) continue; // day fell below the target → no commission
       newCommissions.push({
         userId: e.userId,
         saleId: e.saleId,

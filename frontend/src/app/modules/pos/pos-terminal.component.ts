@@ -707,19 +707,51 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             this.sessionLoading = false;
             this.focusSearchInput();
           } else {
-            this.autoOpenSession();
+            this.startNewSession();
           }
         },
         error: () => {
-          this.autoOpenSession();
+          this.startNewSession();
+        },
+      });
+  }
+
+  /** Decide how a fresh shift opens based on the role:
+   *  - Billing-only roles (cashier/staff) skip the opening-drawer prompt and
+   *    auto-open at ₹0 (owner request — they shouldn't manage the float).
+   *  - Owners/admins/managers still get the Day-Start (Open Shift) screen so
+   *    they can set/confirm the opening drawer balance. */
+  private startNewSession(): void {
+    if (this.isBillingOnly) {
+      this.autoOpenSession();
+    } else {
+      this.promptDayStart();
+    }
+  }
+
+  /** Show the Day-Start (Open Shift) screen, pre-filled with the last shift's
+   *  closing float — the owner confirms or edits it before billing begins. */
+  private promptDayStart(): void {
+    this.sessionLoading = false;
+    this.needsDayStart = true;
+    this.api
+      .get<ApiResponse<{ suggested: number }>>('/pos/sessions/suggested-opening')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          if (this.dayStartAmount == null) this.dayStartAmount = res.data?.suggested ?? 0;
+        },
+        error: () => {
+          if (this.dayStartAmount == null) this.dayStartAmount = 0;
         },
       });
   }
 
   /** Auto-open the shift at ₹0 — the opening drawer balance is no longer
-   *  prompted (owner request). Billing begins immediately with no Day-Start
-   *  screen. The closing/EOD reconciliation still works (expected cash just
-   *  becomes sales − refunds, with a ₹0 opening float). */
+   *  prompted for billing-only roles (owner request). Billing begins
+   *  immediately with no Day-Start screen. The closing/EOD reconciliation still
+   *  works (expected cash just becomes sales − refunds, with a ₹0 opening
+   *  float). */
   private autoOpenSession(): void {
     this.needsDayStart = false;
     this.api
