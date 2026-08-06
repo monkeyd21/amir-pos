@@ -10,6 +10,7 @@ export class InventoryService {
     lowStock?: string;
     stockStatus?: 'in' | 'out';
     search?: string;
+    lotCode?: string;
     page?: string;
     limit?: string;
   }, userBranchId: number) {
@@ -22,13 +23,21 @@ export class InventoryService {
       where.variantId = parseInt(query.variantId);
     }
 
+    // Search (sku / product name / brand) and lot code both constrain the
+    // related variant — build one variant where-clause.
+    const variantWhere: Prisma.ProductVariantWhereInput = {};
     if (query.search) {
-      where.variant = {
-        OR: [
-          { sku: { contains: query.search, mode: 'insensitive' } },
-          { product: { name: { contains: query.search, mode: 'insensitive' } } },
-        ],
-      };
+      variantWhere.OR = [
+        { sku: { contains: query.search, mode: 'insensitive' } },
+        { product: { name: { contains: query.search, mode: 'insensitive' } } },
+        { product: { brand: { name: { contains: query.search, mode: 'insensitive' } } } },
+      ];
+    }
+    if (query.lotCode) {
+      variantWhere.lotCode = { contains: query.lotCode, mode: 'insensitive' };
+    }
+    if (Object.keys(variantWhere).length > 0) {
+      where.variant = variantWhere;
     }
 
     // Stock-status tab filter (independent of the low-stock toggle):

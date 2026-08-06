@@ -8,6 +8,7 @@ export const listInventorySchema = z.object({
     // 'in' → quantity > 0, 'out' → quantity <= 0. Omitted → all (used by stock-take).
     stockStatus: z.enum(['in', 'out']).optional(),
     search: z.string().optional(),
+    lotCode: z.string().optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
   }),

@@ -251,20 +251,20 @@ export class BarcodesComponent implements OnInit, OnDestroy {
 
   loadBrowse(): void {
     this.browseLoading = true;
+    // §Barcodes — browse CURRENT STOCK (not purchase movements). A variant
+    // stocked via adjustment / bulk-generate / stock-take has no purchase
+    // movement, so a movements-based browse silently hid it. Listing live
+    // inventory shows every in-stock variant regardless of how it was stocked.
     const params: Record<string, string> = {
       page: '1',
       limit: '200',
     };
-    if (this.browseType) params['type'] = this.browseType;
-    if (this.browseInStockOnly) params['inStockOnly'] = 'true';
+    if (this.browseInStockOnly) params['stockStatus'] = 'in';
     if (this.browseSearch.trim()) params['search'] = this.browseSearch.trim();
     if (this.browseLotCode.trim()) params['lotCode'] = this.browseLotCode.trim();
-    if (this.browseVendorId) params['vendorId'] = String(this.browseVendorId);
-    if (this.browseStartDate) params['startDate'] = this.browseStartDate;
-    if (this.browseEndDate) params['endDate'] = this.browseEndDate;
 
     this.api
-      .get<any>('/inventory/movements', params)
+      .get<any>('/inventory', params)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -297,9 +297,9 @@ export class BarcodesComponent implements OnInit, OnDestroy {
     this.loadBrowse();
   }
 
-  /** Current on-hand stock for a browse movement's variant (this branch). */
+  /** Current on-hand stock for a browse row (inventory quantity, this branch). */
   browseStock(m: any): number {
-    return Number(m?.variant?.inventory?.[0]?.quantity ?? 0);
+    return Number(m?.quantity ?? 0);
   }
 
   addBrowseResultToQueue(m: any): void {
