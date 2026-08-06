@@ -773,7 +773,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     const items = this.createdProduct.variants
       .filter((v: any) => (this.printCopies.get(v.id) || 0) > 0)
       .map((v: any) => ({
-        sku: v.sku,
+        // The label's `sku` field is encoded as the SCANNABLE barcode. Use the
+        // variant's numeric barcode; fall back to the SKU only if none exists.
+        // Passing the alphanumeric SKU here prints an unscannable label (the POS
+        // barcode lookup is exact-match on the numeric barcode).
+        sku: v.barcode || v.sku,
         productName: this.createdProduct.name,
         variantLabel: [v.size, v.color].filter(Boolean).join(' / '),
         // §13.3 — the label prints MRP (struck) above the Sale Price. Send BOTH:

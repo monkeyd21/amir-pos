@@ -38,6 +38,7 @@ interface Product {
 interface RestockRow {
   variantId: number;
   sku: string;
+  barcode: string;
   size: string;
   color: string;
   currentStock: number;
@@ -134,6 +135,7 @@ export class RestockComponent implements OnInit, OnDestroy {
       .map((v) => ({
         variantId: v.id,
         sku: v.sku,
+        barcode: v.barcode ?? '',
         size: v.size,
         color: v.color,
         currentStock: this.stockForBranch(v.inventory, bid),
@@ -274,7 +276,10 @@ export class RestockComponent implements OnInit, OnDestroy {
     const items = this.restockedItems
       .filter((r) => (this.printCopies.get(r.variantId) || 0) > 0)
       .map((r) => ({
-        sku: r.sku,
+        // The label's `sku` field is encoded as the SCANNABLE barcode — pass the
+        // numeric barcode, not the alphanumeric SKU (which won't scan / match at
+        // POS). Fall back to SKU only when a variant has no barcode.
+        sku: r.barcode || r.sku,
         productName: this.product!.name,
         variantLabel: [r.size, r.color].filter(Boolean).join(' / '),
         price: Number(this.product!.basePrice),

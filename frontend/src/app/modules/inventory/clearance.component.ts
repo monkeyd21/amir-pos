@@ -398,7 +398,9 @@ export class ClearanceComponent implements OnInit, OnDestroy {
     const labels = this.items
       .filter((i) => this.selectedIds.has(i.variantId))
       .map((i) => ({
-        sku: i.sku,
+        // `sku` on the label is encoded as the scannable barcode — use the
+        // numeric barcode, not the alphanumeric SKU (unscannable at POS).
+        sku: i.barcode || i.sku,
         productName: i.productName,
         variantLabel: [i.size, i.color].filter(Boolean).join(' / ') || undefined,
         price: this.num(i.clearancePrice),
