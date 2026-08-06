@@ -36,8 +36,10 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
       // §Clearance — most-recently-flagged first ("recent first"). updatedAt is
       // bumped whenever clearanceFlag is set (see POST below), so a just-added
       // article surfaces at the top instead of sorting by variant id, which has
-      // nothing to do with when it was put on clearance.
-      orderBy: { updatedAt: 'desc' },
+      // nothing to do with when it was put on clearance. id desc is a deterministic
+      // tiebreaker for the pre-existing backlog, which shares one updatedAt from
+      // the column's backfill (all tied until each is next re-flagged/edited).
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     });
     // §Clearance — the ACTIVE list shows every clearance-flagged variant. We do
     // NOT gate on Inventory.quantity > 0: clearance is for aged/dead stock the
