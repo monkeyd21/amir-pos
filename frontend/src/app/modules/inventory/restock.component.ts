@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { BranchService } from '../../core/services/branch.service';
 import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
@@ -86,6 +87,7 @@ export class RestockComponent implements OnInit, OnDestroy {
     private notification: NotificationService,
     private route: ActivatedRoute,
     private router: Router,
+    private branch: BranchService,
     private labelPrint: LabelPrintService
   ) {}
 
@@ -121,6 +123,12 @@ export class RestockComponent implements OnInit, OnDestroy {
     const defaultUnitCost = this.product.costPrice
       ? Number(this.product.costPrice)
       : null;
+    // The product endpoint returns inventory rows for ALL branches; the restock
+    // targets the branch we're currently operating in (same one sent as
+    // X-Branch-Id). Pick THAT branch's stock — taking inventory[0] blindly landed
+    // on whichever branch Prisma returned first (often a qty-0 sibling branch), so
+    // current stock read 0 even when this branch held units.
+    const bid = this.currentBranchId();
     this.rows = this.product.variants
       .filter((v) => v.isActive)
       .map((v) => ({
@@ -128,11 +136,34 @@ export class RestockComponent implements OnInit, OnDestroy {
         sku: v.sku,
         size: v.size,
         color: v.color,
-        currentStock: v.inventory?.[0]?.quantity ?? 0,
+        currentStock: this.stockForBranch(v.inventory, bid),
         addQty: 0,
         unitCost: defaultUnitCost,
       }));
     this.applySorting();
+  }
+
+  /** Numeric id of the branch we're operating in, or null if none is selected. */
+  private currentBranchId(): number | null {
+    const id = this.branch.getCurrentBranch()?.id;
+    return id != null && id !== '' ? Number(id) : null;
+  }
+
+  /**
+   * Stock for the operating branch. When the branch is known we use exactly that
+   * branch's row (0 if it has none). Only when no branch is selected do we fall
+   * back to summing every branch, which beats silently showing 0.
+   */
+  private stockForBranch(
+    inventory: { quantity: number; branchId: number }[] | undefined,
+    branchId: number | null
+  ): number {
+    if (!inventory || inventory.length === 0) return 0;
+    if (branchId != null) {
+      const row = inventory.find((i) => Number(i.branchId) === branchId);
+      return row ? Number(row.quantity) || 0 : 0;
+    }
+    return inventory.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
   }
 
   applySorting(): void {
