@@ -116,7 +116,9 @@ export class CommissionsComponent implements OnInit, OnDestroy {
         next: (res: any) => {
           this.calculating = false;
           const d = res.data;
-          this.notify.success(`${d.created} commission(s) created, ${d.skipped} skipped (mode: ${d.mode})`);
+          const parts = [`${d.created} commission(s) recalculated`];
+          if (d.skipped) parts.push(`${d.skipped} left as-is (already paid)`);
+          this.notify.success(`${parts.join(', ')} (mode: ${d.mode})`);
           this.loadCommissions();
         },
         error: () => {

@@ -394,13 +394,19 @@ export class EmployeeService {
     endDate: string;
     branchId?: string;
   }) {
-    const startDate = new Date(query.startDate);
-    const endDate = new Date(query.endDate);
     const mode = await getSetting<string>('commissionMode', 'item_level');
 
+    // Fetch every COMPLETED sale whose BILL date (businessDate ?? createdAt) is
+    // in range, so each business day is COMPLETE and the daily threshold is
+    // measured against the whole day — not just the slice caught in one run.
+    // Include partially-returned sales — their still-sold (live) items earn
+    // commission (the base nets out returned units below). Only fully-returned /
+    // voided / pending sales are excluded. Recomputing now DELETES stale rows,
+    // so we must see every sale that legitimately earns commission or we'd wipe
+    // a partially-returned bill's commission.
     const salesWhere: any = {
-      createdAt: { gte: startDate, lte: endDate },
-      status: 'completed',
+      ...this.billDateSaleFilter(query.startDate, query.endDate),
+      status: { in: ['completed', 'partially_returned'] },
     };
     if (query.branchId) salesWhere.branchId = parseInt(query.branchId);
 
@@ -417,24 +423,9 @@ export class EmployeeService {
       },
     });
 
-    const allSaleIds = sales.map((s) => s.id);
-    const existingKeys = new Set(
-      (
-        await prisma.commission.findMany({
-          where: { saleId: { in: allSaleIds } },
-          select: { saleId: true, userId: true },
-        })
-      ).map((c) => `${c.saleId}-${c.userId}`)
-    );
-
-    const newCommissions: Array<{
-      userId: number;
-      saleId: number;
-      amount: number;
-      rate: number;
-      payPeriodStart: Date;
-      payPeriodEnd: Date;
-    }> = [];
+    // saleId -> business day (YYYY-MM-DD)
+    const dayOf = new Map<number, string>();
+    for (const s of sales) dayOf.set(s.id, (s.businessDate ?? s.createdAt).toISOString().slice(0, 10));
 
     // §commission — minimum DAILY-sales target, now PER-EMPLOYEE (each employee's
     // `commissionThreshold`). Commission is earned only on the portion of that
@@ -449,7 +440,7 @@ export class EmployeeService {
     const entries: Entry[] = [];
 
     for (const sale of sales) {
-      const day = (sale.businessDate ?? sale.createdAt).toISOString().slice(0, 10);
+      const day = dayOf.get(sale.id)!;
 
       if (mode === 'bill_level') {
         // ── Bill-level: commission on whole sale for the cashier ──
@@ -490,34 +481,81 @@ export class EmployeeService {
       dailyBase.set(k, (dailyBase.get(k) ?? 0) + e.base);
     }
 
+    // Existing commissions for these sales. A (employee, business-day) group that
+    // already has a PAID row is LOCKED — never touched (recomputing would change a
+    // settled payout). Every other group is recomputed: stale PENDING rows are
+    // deleted and replaced, so re-running is safe/idempotent.
+    const scopeSaleIds = sales.map((s) => s.id);
+    const existing = scopeSaleIds.length
+      ? await prisma.commission.findMany({
+          where: { saleId: { in: scopeSaleIds } },
+          select: { id: true, saleId: true, userId: true, status: true },
+        })
+      : [];
+
+    const lockedGroups = new Set<string>();
+    for (const c of existing) {
+      if (c.status === 'paid') {
+        const day = dayOf.get(c.saleId);
+        if (day) lockedGroups.add(`${c.userId}|${day}`);
+      }
+    }
+
+    const pendingIdsToDelete: number[] = [];
+    for (const c of existing) {
+      if (c.status === 'paid') continue;
+      const day = dayOf.get(c.saleId);
+      if (day && !lockedGroups.has(`${c.userId}|${day}`)) pendingIdsToDelete.push(c.id);
+    }
+
+    const newCommissions: Array<{
+      userId: number;
+      saleId: number;
+      amount: number;
+      rate: number;
+      payPeriodStart: Date;
+      payPeriodEnd: Date;
+    }> = [];
+    let lockedSkipped = 0;
+
     for (const e of entries) {
-      const key = `${e.saleId}-${e.userId}`;
-      if (existingKeys.has(key)) continue;
-      const base = dailyBase.get(`${e.userId}|${e.day}`) ?? 0;
-      // Only the amount above THIS employee's own target is commissionable; spread
-      // that reduction across the day's sales in proportion to each sale's value.
+      const group = `${e.userId}|${e.day}`;
+      if (lockedGroups.has(group)) {
+        lockedSkipped++;
+        continue;
+      }
+      const base = dailyBase.get(group) ?? 0;
       const threshold = userThreshold.get(e.userId) ?? 0;
+      // Only the employee's OWN daily sales ABOVE their threshold earn commission;
+      // spread that across the day's bills in proportion to each bill's base.
       const factor = base > 0 ? Math.max(0, base - threshold) / base : 0;
       const amount = Math.round(e.base * factor * (e.rate / 100) * 100) / 100;
-      if (amount <= 0) continue; // day fell below the target → no commission
+      if (amount <= 0) continue; // whole day below the threshold → no commission
+      const day = new Date(e.day); // payPeriod = the business day this bill belongs to
       newCommissions.push({
         userId: e.userId,
         saleId: e.saleId,
         amount,
         rate: e.rate,
-        payPeriodStart: startDate,
-        payPeriodEnd: endDate,
+        payPeriodStart: day,
+        payPeriodEnd: day,
       });
     }
 
-    if (newCommissions.length > 0) {
-      await prisma.commission.createMany({ data: newCommissions });
-    }
+    await prisma.$transaction([
+      ...(pendingIdsToDelete.length
+        ? [prisma.commission.deleteMany({ where: { id: { in: pendingIdsToDelete } } })]
+        : []),
+      ...(newCommissions.length
+        ? [prisma.commission.createMany({ data: newCommissions })]
+        : []),
+    ]);
 
     return {
       mode,
       created: newCommissions.length,
-      skipped: existingKeys.size,
+      deleted: pendingIdsToDelete.length,
+      skipped: lockedSkipped, // left untouched because the day has a paid payout
       period: { startDate: query.startDate, endDate: query.endDate },
     };
   }
