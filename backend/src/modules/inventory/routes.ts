@@ -41,31 +41,51 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
       // the column's backfill (all tied until each is next re-flagged/edited).
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     });
-    // §Clearance — the ACTIVE list shows every clearance-flagged variant. We do
-    // NOT gate on Inventory.quantity > 0: clearance is for aged/dead stock the
-    // shop still physically holds, and much of that legacy stock has a recorded
-    // on-hand of 0 (or no Inventory row at all). Gating on stock silently hid
-    // freshly-flagged articles — they'd be absent here AND from the Sold tab
-    // (never sold), so "added to clearance but not showing". Stock is surfaced
-    // below as an informational column instead. The Sold tab independently
-    // aggregates what has actually sold on clearance.
+    // §Clearance — a flagged article stays in the ACTIVE list while there is
+    // still something to clear. We do NOT gate purely on Inventory.quantity > 0:
+    // much legacy dead stock is recorded on-hand 0 (or has no Inventory row) yet
+    // is physically held and was never sold — gating on stock alone silently hid
+    // those freshly-flagged articles. Instead an article drops OFF the active
+    // list only once it is BOTH sold-through on clearance AND out of stock; it
+    // then lives solely in the Sold Articles tab (previously such sold-out
+    // articles wrongly showed in BOTH lists). Stock stays as an info column.
+    const flaggedIds = variants.map((v) => v.id);
+    const clearanceSales = flaggedIds.length
+      ? await prisma.saleItem.findMany({
+          where: { isClearance: true, variantId: { in: flaggedIds }, sale: { status: 'completed' } },
+          select: { variantId: true, quantity: true, returnedQuantity: true },
+        })
+      : [];
+    // Net units actually sold on clearance per variant (gross − returned),
+    // matching the Sold tab's definition.
+    const soldNet = new Map<number, number>();
+    for (const si of clearanceSales) {
+      soldNet.set(
+        si.variantId,
+        (soldNet.get(si.variantId) ?? 0) + ((si.quantity ?? 0) - (si.returnedQuantity ?? 0))
+      );
+    }
+
     res.json({
       success: true,
-      data: variants.map((v) => ({
-        variantId: v.id,
-        sku: v.sku,
-        barcode: v.barcode,
-        size: v.size,
-        color: v.color,
-        productName: v.product.name,
-        mrp: v.product.mrp ?? v.product.basePrice,
-        // §Clearance — surface the purchase (cost) price so the owner can see
-        // the margin left after clearance. Per-variant override wins over the
-        // product-level cost.
-        purchasePrice: v.costOverride ?? v.product.costPrice,
-        clearancePrice: v.clearancePrice,
-        stock: v.inventory.reduce((s, inv) => s + (inv.quantity ?? 0), 0),
-      })),
+      data: variants
+        .map((v) => ({
+          variantId: v.id,
+          sku: v.sku,
+          barcode: v.barcode,
+          size: v.size,
+          color: v.color,
+          productName: v.product.name,
+          mrp: v.product.mrp ?? v.product.basePrice,
+          // §Clearance — surface the purchase (cost) price so the owner can see
+          // the margin left after clearance. Per-variant override wins over the
+          // product-level cost.
+          purchasePrice: v.costOverride ?? v.product.costPrice,
+          clearancePrice: v.clearancePrice,
+          stock: v.inventory.reduce((s, inv) => s + (inv.quantity ?? 0), 0),
+        }))
+        // Sold-through on clearance AND out of stock → belongs only in the Sold tab.
+        .filter((r) => !((soldNet.get(r.variantId) ?? 0) > 0 && r.stock <= 0)),
     });
   } catch (e) {
     next(e);
