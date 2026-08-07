@@ -19,6 +19,9 @@ interface CommissionRecord {
     saleNumber: string;
     totalAmount: number;
     total?: number;
+    // Actual bill date — what the Date column should show.
+    businessDate?: string | null;
+    createdAt?: string;
   };
   amount: number;
   rate: number;
@@ -276,6 +279,15 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   getSaleTotal(record: CommissionRecord): number | null {
     const v = record.sale?.totalAmount ?? record.sale?.total;
     return v != null ? Number(v) : null;
+  }
+
+  /** The bill's actual date (business date, else when the sale was created).
+   *  Falls back to the commission row's createdAt only if the sale is missing.
+   *  NOTE: do NOT use commission.createdAt here — that is when the calc run
+   *  inserted the row (often days after the bill), which made every row show
+   *  the same date. */
+  getSaleDate(record: CommissionRecord): string {
+    return record.sale?.businessDate || record.sale?.createdAt || record.createdAt;
   }
 
   getStatusClasses(status: string): string {

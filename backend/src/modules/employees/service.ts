@@ -333,7 +333,9 @@ export class EmployeeService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: { id: true, firstName: true, lastName: true } },
-          sale: { select: { id: true, saleNumber: true, total: true } },
+          // businessDate/createdAt = the actual bill date, shown in the table.
+          // (commission.createdAt is just when the calc run inserted the row.)
+          sale: { select: { id: true, saleNumber: true, total: true, businessDate: true, createdAt: true } },
         },
       }),
       prisma.commission.count({ where }),
@@ -502,7 +504,7 @@ export class EmployeeService {
       data: { status: 'paid' },
       include: {
         user: { select: { id: true, firstName: true, lastName: true } },
-        sale: { select: { id: true, saleNumber: true, total: true } },
+        sale: { select: { id: true, saleNumber: true, total: true, businessDate: true, createdAt: true } },
       },
     });
   }

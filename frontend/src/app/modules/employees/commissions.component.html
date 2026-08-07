@@ -274,7 +274,7 @@
                 {{ formatCurrency(record.amount) }}
               </td>
               <td class="px-6 py-5 text-sm text-on-surface-variant">
-                {{ formatDate(record.createdAt) }}
+                {{ formatDate(getSaleDate(record)) }}
               </td>
               <td class="px-6 py-5">
                 <span class="status-pill" [ngClass]="getStatusClasses(record.status)">
