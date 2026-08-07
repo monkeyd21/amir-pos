@@ -59,6 +59,20 @@
       </div>
     </div>
 
+    <!-- Purchase (cost) price — feeds correct P&L for this ghost article -->
+    <div>
+      <label class="block text-[11px] font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Purchase Price (₹)</label>
+      <input
+        [(ngModel)]="costPrice"
+        name="costPrice"
+        type="number"
+        min="0"
+        placeholder="0"
+        class="w-full px-3.5 py-2.5 text-sm font-body text-on-surface bg-surface-container-high/50 rounded-lg border border-outline-variant/15 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-colors"
+      />
+      <p class="mt-1 text-[10px] text-on-surface-variant/60">What you paid for it — used for profit / P&amp;L. Optional.</p>
+    </div>
+
     <!-- Size + Color + Qty -->
     <div class="grid grid-cols-3 gap-4">
       <div>

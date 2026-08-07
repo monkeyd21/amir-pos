@@ -17,6 +17,9 @@ export const quickCreateProductSchema = z.object({
     size: z.string().optional().nullable(),
     color: z.string().optional().nullable(),
     quantity: z.number().int().positive().default(1),
+    // Purchase (cost) price so ghost-product P&L is correct — without it COGS is
+    // 0 and profit is overstated. Optional; defaults to 0 when omitted.
+    costPrice: z.number().nonnegative().optional().nullable(),
   }),
 });
 

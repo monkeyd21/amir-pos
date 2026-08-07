@@ -39,6 +39,7 @@ export class QuickProductDialogComponent implements OnInit, AfterViewInit {
   name = '';
   categoryId: number | null = null;
   mrp: number | null = null;
+  costPrice: number | null = null;
   size = '';
   color = '';
   quantity = 1;
@@ -92,6 +93,8 @@ export class QuickProductDialogComponent implements OnInit, AfterViewInit {
       name: this.name.trim(),
       categoryId: this.categoryId ?? undefined,
       mrp: Number(this.mrp),
+      costPrice:
+        this.costPrice != null && Number(this.costPrice) >= 0 ? Number(this.costPrice) : undefined,
       size: this.size.trim() || undefined,
       color: this.color.trim() || undefined,
       quantity: Math.max(1, Math.floor(this.quantity || 1)),

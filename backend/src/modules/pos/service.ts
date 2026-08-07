@@ -1350,6 +1350,7 @@ export class PosService {
       size?: string | null;
       color?: string | null;
       quantity: number;
+      costPrice?: number | null;
     },
     userId: number,
     branchId: number
@@ -1370,7 +1371,8 @@ export class PosService {
         categoryId,
         mrp,
         basePrice: Math.round(mrp * 0.9), // §13.3 — Sale = MRP − 10%
-        costPrice: 0,
+        // Purchase price entered at the counter (else 0) — feeds P&L COGS.
+        costPrice: Math.max(0, Number(data.costPrice) || 0),
         variants: [
           {
             size: (data.size || '').trim(),
