@@ -306,6 +306,34 @@ export class EmployeeService {
 
   // ─── Commissions ────────────────────────────────────
 
+  /**
+   * Build a Prisma `sale` relation filter that matches by the bill date
+   * (`sale.businessDate ?? sale.createdAt`) for a [startDate, endDate] range.
+   * businessDate is a @db.Date (day only); createdAt is the timestamp fallback
+   * used only for the rare sale with no businessDate. Returns undefined when no
+   * range is given.
+   */
+  private billDateSaleFilter(startDate?: string, endDate?: string): any | undefined {
+    if (!startDate && !endDate) return undefined;
+    const dateRange: any = {}; // sale.businessDate (date)
+    const tsRange: any = {}; // sale.createdAt (timestamp) fallback
+    if (startDate) {
+      const s = new Date(startDate);
+      dateRange.gte = s;
+      tsRange.gte = s;
+    }
+    if (endDate) {
+      const e = new Date(endDate);
+      dateRange.lte = e;
+      const eEnd = new Date(e);
+      eEnd.setHours(23, 59, 59, 999); // include the whole end day for timestamps
+      tsRange.lte = eEnd;
+    }
+    return {
+      OR: [{ businessDate: dateRange }, { businessDate: null, createdAt: tsRange }],
+    };
+  }
+
   async listCommissions(query: {
     page?: string;
     limit?: string;
@@ -319,18 +347,23 @@ export class EmployeeService {
 
     if (query.userId) where.userId = parseInt(query.userId);
     if (query.status) where.status = query.status;
-    if (query.startDate || query.endDate) {
-      where.payPeriodStart = {};
-      if (query.startDate) where.payPeriodStart.gte = new Date(query.startDate);
-      if (query.endDate) where.payPeriodStart.lte = new Date(query.endDate);
-    }
+    // Date range filters by the BILL date (sale.businessDate ?? sale.createdAt),
+    // matching the Date column — not payPeriodStart (the calc-run window).
+    const saleDate = this.billDateSaleFilter(query.startDate, query.endDate);
+    if (saleDate) where.sale = saleDate;
 
     const [commissions, total] = await Promise.all([
       prisma.commission.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        // Sort by bill date (desc). businessDate is the trading day; sale.createdAt
+        // orders bills within a day; commission.createdAt is a final tiebreaker.
+        orderBy: [
+          { sale: { businessDate: 'desc' } },
+          { sale: { createdAt: 'desc' } },
+          { createdAt: 'desc' },
+        ],
         include: {
           user: { select: { id: true, firstName: true, lastName: true } },
           // businessDate/createdAt = the actual bill date, shown in the table.
@@ -517,17 +550,21 @@ export class EmployeeService {
     endDate: string;
     userId?: number;
   }) {
+    // Match by the BILL date (sale.businessDate ?? sale.createdAt), same as the
+    // list — so "pay 01–05 Aug" pays commissions for bills from those days, not
+    // whenever the calc run happened to insert the rows.
     const where: any = {
       status: 'pending',
-      createdAt: {
-        gte: new Date(query.startDate),
-        lte: new Date(query.endDate),
-      },
+      sale: this.billDateSaleFilter(query.startDate, query.endDate),
     };
     if (query.userId) where.userId = query.userId;
 
+    // updateMany can't filter on a relation, so resolve the ids first.
+    const ids = (await prisma.commission.findMany({ where, select: { id: true } })).map((c) => c.id);
+    if (ids.length === 0) return { paidCount: 0 };
+
     const result = await prisma.commission.updateMany({
-      where,
+      where: { id: { in: ids } },
       data: { status: 'paid' },
     });
 
