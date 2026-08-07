@@ -30,7 +30,7 @@
             </span>
           }
           <span class="text-sm text-on-surface-variant">
-            {{ product.variants.length }} variant{{ product.variants.length !== 1 ? 's' : '' }}
+            {{ displayedVariants.length }} variant{{ displayedVariants.length !== 1 ? 's' : '' }}{{ showInStockOnly ? ' in stock' : '' }}
           </span>
         </div>
       </div>
@@ -82,11 +82,11 @@
     </div>
   }
 
-  <!-- Variant Totals — plain sum of each variant's effective price across all
-       variants (one per variant, not stock-weighted). -->
-  @if (product.variants.length > 0) {
+  <!-- Variant Totals — plain sum of each displayed variant's effective price
+       (one per variant, not stock-weighted). Follows the in-stock-only filter. -->
+  @if (displayedVariants.length > 0) {
     <div class="mb-8">
-      <p class="label-upper mb-3">Totals across {{ product.variants.length }} variant{{ product.variants.length !== 1 ? 's' : '' }}</p>
+      <p class="label-upper mb-3">Totals across {{ displayedVariants.length }} variant{{ displayedVariants.length !== 1 ? 's' : '' }}{{ showInStockOnly ? ' in stock' : '' }}</p>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-surface-container-high p-5 rounded-xl relative overflow-hidden">
           <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary"></div>

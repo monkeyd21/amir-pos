@@ -60,8 +60,10 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   product: Product | null = null;
   loading = true;
 
-  // Variants table filter — show only variants with on-hand stock > 0.
-  showInStockOnly = false;
+  // View filter — show only variants with on-hand stock > 0. Defaults ON so the
+  // page reflects only in-stock articles (the header count, the totals, and the
+  // table all follow this flag). Untick to see every variant.
+  showInStockOnly = true;
 
   // Add variant form
   showAddVariant = false;
@@ -118,7 +120,9 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       });
   }
 
-  /** Variants shown in the table — optionally filtered to in-stock only. */
+  /** Variants reflected in the view — optionally filtered to in-stock only.
+   *  Drives the header count, the totals cards, and the variants table so they
+   *  all stay consistent with the in-stock-only toggle. */
   get displayedVariants(): Variant[] {
     const variants = this.product?.variants ?? [];
     return this.showInStockOnly ? variants.filter((v) => this.getStock(v) > 0) : variants;
@@ -153,11 +157,12 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** Totals across every variant — a plain sum of each variant's effective
-   *  price (one per variant, NOT stock-weighted). MRP skips variants with no
-   *  MRP recorded. */
+  /** Totals across the currently displayed variants — a plain sum of each
+   *  variant's effective price (one per variant, NOT stock-weighted). Respects
+   *  the in-stock-only filter so the sums match the count and the table. MRP
+   *  skips variants with no MRP recorded. */
   get variantTotals(): { cost: number; landing: number; mrp: number; sale: number } {
-    const variants = this.product?.variants ?? [];
+    const variants = this.displayedVariants;
     return variants.reduce(
       (acc, v) => {
         acc.cost += this.getEffectiveCost(v);
