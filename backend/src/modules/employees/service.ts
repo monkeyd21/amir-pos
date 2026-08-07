@@ -396,17 +396,15 @@ export class EmployeeService {
   }) {
     const mode = await getSetting<string>('commissionMode', 'item_level');
 
-    // Fetch every COMPLETED sale whose BILL date (businessDate ?? createdAt) is
-    // in range, so each business day is COMPLETE and the daily threshold is
-    // measured against the whole day — not just the slice caught in one run.
-    // Include partially-returned sales — their still-sold (live) items earn
-    // commission (the base nets out returned units below). Only fully-returned /
-    // voided / pending sales are excluded. Recomputing now DELETES stale rows,
-    // so we must see every sale that legitimately earns commission or we'd wipe
-    // a partially-returned bill's commission.
+    // Fetch every real sale whose BILL date (businessDate ?? createdAt) is in
+    // range, so each business day is COMPLETE and the daily threshold is measured
+    // against the whole day. Commission is paid on GROSS sold value — the
+    // salesperson did their part at the point of sale, so returns/exchanges never
+    // reduce it. Hence we include returned + partially-returned sales too (their
+    // original sold value still earns).
     const salesWhere: any = {
       ...this.billDateSaleFilter(query.startDate, query.endDate),
-      status: { in: ['completed', 'partially_returned'] },
+      status: { in: ['completed', 'partially_returned', 'returned'] },
     };
     if (query.branchId) salesWhere.branchId = parseInt(query.branchId);
 
@@ -419,7 +417,6 @@ export class EmployeeService {
             agent: { select: { id: true, commissionRate: true, commissionThreshold: true } },
           },
         },
-        returns: { select: { total: true } },
       },
     });
 
@@ -443,25 +440,24 @@ export class EmployeeService {
       const day = dayOf.get(sale.id)!;
 
       if (mode === 'bill_level') {
-        // ── Bill-level: commission on whole sale for the cashier ──
+        // ── Bill-level: commission on the whole sale for the cashier ──
+        // GROSS: returns don't reduce it (the cashier rang up the sale).
         const rate = Number(sale.user.commissionRate);
         if (rate <= 0) continue;
-        // Net out anything already refunded — no commission on returned value.
-        const refunded = sale.returns.reduce((s, r) => s + Number(r.total), 0);
-        const netTotal = Math.max(0, Number(sale.total) - refunded);
-        if (netTotal <= 0) continue;
+        const grossTotal = Number(sale.total);
+        if (grossTotal <= 0) continue;
         userThreshold.set(sale.userId, Number(sale.user.commissionThreshold) || 0);
-        entries.push({ userId: sale.userId, saleId: sale.id, base: netTotal, rate, day });
+        entries.push({ userId: sale.userId, saleId: sale.id, base: grossTotal, rate, day });
       } else {
         // ── Item-level: commission per agent per line item ──
+        // GROSS: the full sold line value, NOT netted for returns — the agent
+        // sold it; a later return/exchange is not their problem.
         const agentTotals = new Map<number, number>();
         for (const item of sale.items) {
           if (!item.agentId || !item.agent) continue;
-          // Commission base is the value still sold — exclude returned units.
-          const live = item.quantity - item.returnedQuantity;
-          if (live <= 0) continue;
-          const netLine = Number(item.total) * (live / item.quantity);
-          agentTotals.set(item.agentId, (agentTotals.get(item.agentId) ?? 0) + netLine);
+          const grossLine = Number(item.total);
+          if (grossLine <= 0) continue;
+          agentTotals.set(item.agentId, (agentTotals.get(item.agentId) ?? 0) + grossLine);
         }
         for (const [agentId, lineTotal] of agentTotals) {
           const agent = sale.items.find((i) => i.agentId === agentId)?.agent;
@@ -610,10 +606,10 @@ export class EmployeeService {
   }
 
   /**
-   * §9.2 — monthly commission statement: per employee, the original commission
-   * (had nothing been returned), the deductions from returns/exchanges, and the
-   * net retained. Net comes from the live commission rows (already reconciled);
-   * original is recomputed from the full sale value at the same rate.
+   * §9.2 — commission statement per employee. Commission is paid on GROSS sold
+   * value, so returns/exchanges never reduce it: there are no return deductions.
+   * `original` therefore equals `net` (the actual commission earned, after the
+   * daily threshold) and `deductions` is always 0 — kept for API/UI shape.
    */
   async getCommissionStatement(query: { startDate: string; endDate: string; branchId?: string }) {
     const where: any = {
@@ -624,42 +620,25 @@ export class EmployeeService {
 
     const commissions = await prisma.commission.findMany({
       where,
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
-        sale: {
-          select: { id: true, userId: true, total: true, items: { select: { agentId: true, total: true } } },
-        },
-      },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
-    const byUser = new Map<number, { user: any; original: number; net: number }>();
-    const seen = new Set<string>();
-
+    const byUser = new Map<number, { user: any; net: number }>();
     for (const c of commissions) {
       let u = byUser.get(c.userId);
       if (!u) {
-        u = { user: c.user, original: 0, net: 0 };
+        u = { user: c.user, net: 0 };
         byUser.set(c.userId, u);
       }
       u.net += Number(c.amount);
-      const key = `${c.saleId}-${c.userId}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        let grossBase = c.sale.items
-          .filter((i) => i.agentId === c.userId)
-          .reduce((s, i) => s + Number(i.total), 0);
-        // bill-level fallback: the cashier earns on the whole bill.
-        if (grossBase === 0 && c.sale.userId === c.userId) grossBase = Number(c.sale.total);
-        u.original += grossBase * (Number(c.rate) / 100);
-      }
     }
 
     const rows = [...byUser.values()].map((u) => ({
       userId: u.user?.id,
       name: u.user ? `${u.user.firstName} ${u.user.lastName ?? ''}`.trim() : '',
-      original: round2(u.original),
-      deductions: round2(u.original - u.net),
+      original: round2(u.net),
+      deductions: 0,
       net: round2(u.net),
     }));
 
