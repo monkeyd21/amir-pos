@@ -35,10 +35,16 @@ interface Employee {
   lastName: string;
 }
 
+interface CommissionTotals {
+  total: number;
+  pending: number;
+  paid: number;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
-  meta?: { total: number; page: number; limit: number };
+  meta?: { total: number; page: number; limit: number; totals?: CommissionTotals };
 }
 
 @Component({
@@ -71,6 +77,9 @@ export class CommissionsComponent implements OnInit, OnDestroy {
   page = 1;
   limit = 20;
   total = 0;
+
+  // Money KPIs across the WHOLE filtered set (from meta), not just the current page.
+  totals: CommissionTotals = { total: 0, pending: 0, paid: 0 };
 
   constructor(
     private api: ApiService,
@@ -211,6 +220,7 @@ export class CommissionsComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.records = res.data || [];
           this.total = res.meta?.total ?? this.records.length;
+          this.totals = res.meta?.totals ?? { total: 0, pending: 0, paid: 0 };
           this.loading = false;
         },
         error: () => {
@@ -262,20 +272,19 @@ export class CommissionsComponent implements OnInit, OnDestroy {
       });
   }
 
+  // KPIs come from meta.totals (whole filtered set), NOT this.records (one page) —
+  // otherwise the cards show only the current page's subtotal and disagree with the
+  // record count and the commission statement.
   get totalCommissions(): number {
-    return this.records.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    return Number(this.totals.total || 0);
   }
 
   get pendingCommissions(): number {
-    return this.records
-      .filter((r) => r.status?.toLowerCase() === 'pending')
-      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    return Number(this.totals.pending || 0);
   }
 
   get paidCommissions(): number {
-    return this.records
-      .filter((r) => r.status?.toLowerCase() === 'paid')
-      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    return Number(this.totals.paid || 0);
   }
 
   getSaleTotal(record: CommissionRecord): number | null {

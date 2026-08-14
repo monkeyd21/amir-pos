@@ -352,7 +352,7 @@ export class EmployeeService {
     const saleDate = this.billDateSaleFilter(query.startDate, query.endDate);
     if (saleDate) where.sale = saleDate;
 
-    const [commissions, total] = await Promise.all([
+    const [commissions, total, totalsAgg] = await Promise.all([
       prisma.commission.findMany({
         where,
         skip,
@@ -372,9 +372,33 @@ export class EmployeeService {
         },
       }),
       prisma.commission.count({ where }),
+      // Money KPIs must cover the WHOLE filtered set, not just the current page —
+      // otherwise the cards (page subtotal) disagree with the statement/record count.
+      prisma.commission.groupBy({ by: ['status'], where, _sum: { amount: true } }),
     ]);
 
-    return { data: commissions, meta: buildPaginationMeta(page, limit, total) };
+    let totalAmount = 0;
+    let pendingAmount = 0;
+    let paidAmount = 0;
+    for (const g of totalsAgg) {
+      const amt = Number(g._sum.amount || 0);
+      totalAmount += amt;
+      if (g.status === 'paid') paidAmount += amt;
+      else if (g.status === 'pending') pendingAmount += amt;
+    }
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    return {
+      data: commissions,
+      meta: {
+        ...buildPaginationMeta(page, limit, total),
+        totals: {
+          total: round2(totalAmount),
+          pending: round2(pendingAmount),
+          paid: round2(paidAmount),
+        },
+      },
+    };
   }
 
   /**
