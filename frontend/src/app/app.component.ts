@@ -18,6 +18,24 @@ export class AppComponent {
   private swUpdate = inject(SwUpdate);
 
   constructor() {
+    // Stop mouse-wheel / two-finger scroll from silently changing a focused
+    // <input type="number"> value — a data-entry footgun across every form in
+    // the app (POS discounts, prices, stock, report filters…). Registered once
+    // at the document root so it covers all numeric fields. Capture phase +
+    // non-passive so preventDefault() actually blocks the increment; scoped to
+    // the number input that currently has focus, so normal page scrolling and
+    // scrolling over unfocused fields are unaffected.
+    document.addEventListener(
+      'wheel',
+      (e) => {
+        const el = e.target as HTMLElement | null;
+        if (el instanceof HTMLInputElement && el.type === 'number' && el === document.activeElement) {
+          e.preventDefault();
+        }
+      },
+      { capture: true, passive: false }
+    );
+
     // Service worker update handling. Without this the POS — whose tabs stay
     // open all day — keeps serving the OLD cached bundle after a deploy until
     // every tab is closed, which reads as "flaky after an update" (a plain
