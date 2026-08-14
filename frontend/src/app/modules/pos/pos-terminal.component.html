@@ -365,6 +365,12 @@
                               On Offer
                             </span>
                           }
+                          @if (item.oversold) {
+                            <span class="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-500/15 border border-orange-500/30 text-[9px] font-extrabold uppercase tracking-wider text-orange-400" title="Sold while out of stock — stock is topped up on checkout">
+                              <span class="material-symbols-outlined text-[11px]">inventory_2</span>
+                              Out of stock
+                            </span>
+                          }
                         </div>
                         <div class="mt-1 flex items-center gap-2 text-[10px] font-mono text-on-surface-variant/70">
                           @if (item.barcode) {

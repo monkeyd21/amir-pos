@@ -420,6 +420,46 @@ export class PosService {
     }
   }
 
+  /**
+   * §ghost-inventory — never dead-end a counter sale for want of recorded stock.
+   * If the on-hand count at `branchId` can't cover `quantity`, top it up first
+   * with an `adjustment` stock-in for exactly the shortfall, so the subsequent
+   * sale deduction lands at zero instead of going negative — and the correction
+   * is auditable (a movement linked to the sale). In-stock lines are a no-op.
+   */
+  private async topUpShortfall(
+    tx: Prisma.TransactionClient,
+    variantId: number,
+    branchId: number,
+    quantity: number,
+    saleId: number,
+    userId: number
+  ): Promise<void> {
+    const inv = await tx.inventory.findUnique({
+      where: { variantId_branchId: { variantId, branchId } },
+    });
+    const shortfall = quantity - (inv?.quantity ?? 0);
+    if (shortfall <= 0) return;
+
+    await tx.inventory.upsert({
+      where: { variantId_branchId: { variantId, branchId } },
+      update: { quantity: { increment: shortfall } },
+      create: { variantId, branchId, quantity, minStockLevel: 0 },
+    });
+    await tx.inventoryMovement.create({
+      data: {
+        variantId,
+        branchId,
+        type: MovementType.adjustment,
+        quantity: shortfall,
+        referenceId: saleId,
+        referenceType: 'sale',
+        notes: 'Auto stock-in — sold while out of stock',
+        createdBy: userId,
+      },
+    });
+  }
+
   private async _checkoutTxn(
     data: {
       items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean; discretionaryPct?: number }[];
@@ -511,23 +551,11 @@ export class PosService {
       for (const item of data.items) {
         const variant = variantByBarcode.get(item.barcode)!;
 
-        const inventory = await tx.inventory.findUnique({
-          where: {
-            variantId_branchId: {
-              variantId: variant.id,
-              branchId,
-            },
-          },
-        });
-
-        // Offline bills already left the counter — record them even if stock
-        // reads short (it may go negative; the count is reconciled later).
-        if (!data.offline && (!inventory || inventory.quantity < item.quantity)) {
-          throw new AppError(
-            `Insufficient stock for ${variant.product.name} (${variant.size}/${variant.color}). Available: ${inventory?.quantity ?? 0}, Requested: ${item.quantity}`,
-            400
-          );
-        }
+        // §ghost-inventory — stock is NOT a gate here any more. An out-of-stock
+        // article can still be sold at the counter (convenience over blocking);
+        // the deduction step (8) tops up any shortfall so the count stays
+        // non-negative and auditable. Offline bills keep their prior behaviour
+        // (deducted as-is, may go negative, reconciled later).
 
         const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
         const taxRate =
@@ -1105,6 +1133,13 @@ export class PosService {
 
       // 8. Deduct inventory and create movement records
       for (const item of saleItemsData) {
+        // §ghost-inventory — cover any shortfall first so the sale never fails and
+        // the count doesn't go negative. Offline bills are left to reconcile
+        // against a possibly-negative count, as before.
+        if (!data.offline) {
+          await this.topUpShortfall(tx, item.variantId, branchId, item.quantity, sale.id, userId);
+        }
+
         await tx.inventory.update({
           where: {
             variantId_branchId: {
@@ -1716,21 +1751,8 @@ export class PosService {
     for (const item of data.items) {
       const variant = variantByBarcode.get(item.barcode)!;
 
-      const inventory = await prisma.inventory.findUnique({
-        where: {
-          variantId_branchId: {
-            variantId: variant.id,
-            branchId,
-          },
-        },
-      });
-
-      if (!inventory || inventory.quantity < item.quantity) {
-        throw new AppError(
-          `Insufficient stock for ${variant.product.name} (${variant.size}/${variant.color}). Available: ${inventory?.quantity ?? 0}, Requested: ${item.quantity}`,
-          400
-        );
-      }
+      // §ghost-inventory — no stock gate; any shortfall is topped up at deduction
+      // time so an out-of-stock article can still be sold.
 
       const taxRate =
         Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
@@ -2006,6 +2028,9 @@ export class PosService {
 
       // Deduct inventory and create movement records
       for (const item of cartItems) {
+        // §ghost-inventory — cover any shortfall first (keeps the count non-negative).
+        await this.topUpShortfall(tx, item.variantId, intent.branchId, item.quantity, sale.id, intent.userId);
+
         await tx.inventory.update({
           where: {
             variantId_branchId: {

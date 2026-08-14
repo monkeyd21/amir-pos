@@ -109,6 +109,9 @@ interface CartItem {
   discretionaryPct?: number;
   /** §2.4 — clearance line: fixed price, all discounts locked, non-returnable. */
   isClearance?: boolean;
+  /** §ghost-inventory — sold while out of stock; the count is topped up on
+   *  checkout. Flags the line so the cashier sees it was oversold. */
+  oversold?: boolean;
 }
 
 interface EvaluatedLine {
@@ -1115,21 +1118,15 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     const vid = variant.variantId || variant.id!;
     const existing = this.cart.find((c) => c.variantId === vid);
     const stock = this.getVariantStock(variant);
-
-    // Block 0-stock items outright — the backend would reject checkout
-    // with an "Insufficient stock" error, so there's no point letting them
-    // land in the cart and surprising the cashier at the end of the sale.
-    if (stock <= 0 && !existing) {
-      this.scanSound.outOfStock();
-      this.notify.warning(
-        `${variant.productName || variant.product?.name || 'Item'} is out of stock`
-      );
-      this.focusSearchInput();
-      return;
-    }
+    // §ghost-inventory — an existing article that's out of stock can still be
+    // sold at the counter (convenience over blocking). It's added anyway; the
+    // backend tops the stock up on checkout so the count stays non-negative.
+    const oversold = stock <= 0;
 
     if (existing) {
-      if (existing.quantity >= existing.maxStock) {
+      // Oversold lines have no real ceiling (stock is topped up on checkout);
+      // in-stock lines still cap at what's on hand.
+      if (!existing.oversold && existing.quantity >= existing.maxStock) {
         this.scanSound.outOfStock();
         this.notify.warning('Maximum stock reached');
         this.focusSearchInput();
@@ -1139,7 +1136,15 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       // Re-scan of an item already in the cart — distinct cue from a fresh add.
       this.scanSound.duplicate();
     } else {
-      this.scanSound.valid();
+      if (oversold) {
+        // Not an error — inform, but let the sale proceed.
+        this.scanSound.outOfStock();
+        this.notify.warning(
+          `${variant.productName || variant.product?.name || 'Item'} is out of stock — added anyway; stock will be adjusted on checkout`
+        );
+      } else {
+        this.scanSound.valid();
+      }
       this.cart.push({
         variantId: vid,
         barcode: variant.barcode || variant.sku || '',
@@ -1150,7 +1155,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         color: variant.color || '',
         quantity: 1,
         unitPrice: variant.price,
-        maxStock: stock,
+        // Oversold lines aren't limited by on-hand stock (topped up on checkout).
+        maxStock: oversold ? Number.MAX_SAFE_INTEGER : stock,
+        oversold,
         // A whole-bill salesperson (if chosen) wins over the cashier default so
         // every new line is tagged to that agent; otherwise fall back to cashier.
         agentId: this.transactionAgentId ?? this.defaultAgentId ?? 0,

@@ -170,6 +170,10 @@ describe('Employees Module', () => {
     it('should list commissions', async () => {
       prismaMock.commission.findMany.mockResolvedValue([fakeCommission]);
       prismaMock.commission.count.mockResolvedValue(1);
+      // meta.totals is aggregated via groupBy(status) over the full filtered set.
+      prismaMock.commission.groupBy.mockResolvedValue([
+        { status: 'pending', _sum: { amount: 100 } },
+      ] as any);
 
       const res = await request(app)
         .get(`${BASE}/commissions`)
