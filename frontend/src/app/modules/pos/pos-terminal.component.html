@@ -202,12 +202,11 @@
                   <button
                     type="button"
                     [attr.data-search-result-index]="idx"
-                    [disabled]="isVariantOutOfStock(variant)"
                     (mousedown)="addToCart(variant)"
                     (mouseenter)="highlightedResultIndex = idx"
-                    class="w-full flex items-center gap-4 px-4 py-3 transition-colors text-left border-l-2"
+                    class="w-full flex items-center gap-4 px-4 py-3 transition-colors text-left border-l-2 cursor-pointer"
                     [class]="isVariantOutOfStock(variant)
-                      ? (highlightedResultIndex === idx ? 'bg-red-500/20 border-red-500/60 cursor-not-allowed' : 'bg-red-500/10 border-red-500/60 cursor-not-allowed')
+                      ? (highlightedResultIndex === idx ? 'bg-red-500/25 border-red-500/60' : 'bg-red-500/10 border-red-500/60 hover:bg-red-500/20')
                       : (highlightedResultIndex === idx ? 'bg-primary-container/15 border-primary-container/60' : 'border-transparent hover:bg-surface-container-high/50')"
                   >
                     <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -237,7 +236,7 @@
                         {{ formatCurrency(variant.price) }}
                       </p>
                       @if (isVariantOutOfStock(variant)) {
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-red-400">Out of stock</p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-red-400">Out of stock · sell</p>
                       } @else {
                         <p class="text-[10px] text-on-surface-variant">
                           Stock: {{ getVariantStock(variant) }}
