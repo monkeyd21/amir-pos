@@ -60,8 +60,14 @@ describe('Products Module', () => {
       expect(res.body.data.name).toBe('Classic Polo');
     });
 
-    it('should return 409 for duplicate product name', async () => {
-      prismaMock.product.findUnique.mockResolvedValue(fakeProduct); // slug collision
+    it('should allow a duplicate product name and create a new article with a suffixed slug (§req 10)', async () => {
+      // Base slug 'classic-polo' is taken; the next candidate 'classic-polo-2' is free.
+      prismaMock.product.findUnique
+        .mockResolvedValueOnce(fakeProduct) // slug collision on 'classic-polo'
+        .mockResolvedValueOnce(null); //       'classic-polo-2' is free
+      prismaMock.brand.findUnique.mockResolvedValue(fakeBrand);
+      prismaMock.category.findUnique.mockResolvedValue(fakeCategory);
+      prismaMock.product.create.mockResolvedValue(fakeProduct);
 
       const res = await request(app)
         .post(BASE)
@@ -74,8 +80,14 @@ describe('Products Module', () => {
           costPrice: 800,
         });
 
-      expect(res.status).toBe(409);
-      expect(res.body.error).toMatch(/already exists/i);
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      // A new, separate product record was created with the de-duplicated slug.
+      expect(prismaMock.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'Classic Polo', slug: 'classic-polo-2' }),
+        })
+      );
     });
 
     it('should return 404 if brand does not exist', async () => {

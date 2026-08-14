@@ -136,6 +136,27 @@ export const getProductById = async (id: number) => {
   return product;
 };
 
+/**
+ * Find a free, unique slug for a product NAME. Duplicate display names are
+ * allowed (§req 10 — a new stock lot of the same article is a separate product
+ * with its own SKU/barcode/price), but Product.slug is @unique, so append
+ * `-2`, `-3`, … until an unused slug is found. `excludeId` lets an update keep
+ * its own slug without colliding with itself.
+ */
+const uniqueProductSlug = async (name: string, excludeId?: number): Promise<string> => {
+  const base = slugify(name);
+  let candidate = base;
+  let n = 1;
+  // Bounded in practice by how many same-named lots exist.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const existing = await prisma.product.findUnique({ where: { slug: candidate } });
+    if (!existing || existing.id === excludeId) return candidate;
+    n += 1;
+    candidate = `${base}-${n}`;
+  }
+};
+
 export const createProduct = async (data: {
   name: string;
   brandId: number;
@@ -162,12 +183,12 @@ export const createProduct = async (data: {
     initialStock?: number;
   }>;
 }, userId?: number, branchId?: number) => {
-  const slug = slugify(data.name);
-
-  const existing = await prisma.product.findUnique({ where: { slug } });
-  if (existing) {
-    throw new AppError('Product with this name already exists', 409);
-  }
+  // §req 10 — duplicate product NAMES are allowed. A fresh stock lot of an
+  // existing article (bought at a new price, or in new sizes/colors) is a NEW
+  // product with its own SKU + barcode + cost/sale price. Product.slug is still
+  // @unique, so suffix it (`-2`, `-3`, …) to keep the constraint satisfied while
+  // the display name repeats.
+  const slug = await uniqueProductSlug(data.name);
 
   // Verify brand and category exist
   const [brand, category] = await Promise.all([
@@ -298,12 +319,9 @@ export const updateProduct = async (id: number, data: {
   const updateData: any = { ...data };
 
   if (data.name) {
-    const slug = slugify(data.name);
-    const existing = await prisma.product.findUnique({ where: { slug } });
-    if (existing && existing.id !== id) {
-      throw new AppError('Product with this name already exists', 409);
-    }
-    updateData.slug = slug;
+    // Duplicate names allowed (§req 10); keep this product's own slug when the
+    // name is unchanged, otherwise suffix to avoid clashing with another product.
+    updateData.slug = await uniqueProductSlug(data.name, id);
   }
 
   if (data.brandId) {

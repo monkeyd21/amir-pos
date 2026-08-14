@@ -701,9 +701,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
             }
             this.notification.success('Product created');
           },
-          error: () => {
+          error: (err: any) => {
             this.saving = false;
-            this.notification.error('Failed to create product');
+            this.notification.error(
+              err.error?.error || err.error?.message || 'Failed to create product'
+            );
           },
         });
       return;
@@ -750,9 +752,11 @@ export class ProductFormComponent implements OnInit, OnDestroy {
               },
             });
         },
-        error: () => {
+        error: (err: any) => {
           this.saving = false;
-          this.notification.error('Failed to save product');
+          this.notification.error(
+            err.error?.error || err.error?.message || 'Failed to save product'
+          );
         },
       });
   }
