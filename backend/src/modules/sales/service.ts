@@ -3,6 +3,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
 import { getSetting } from '../settings/service';
+import { buildUpiUri, upiQrDataUrl, UpiConfig, DEFAULT_UPI_CONFIG } from '../../utils/upi';
 
 // §1.5 / Bug#2 — return/exchange policy windows. The refund/return window is
 // Settings-configurable (`returnWindowDays`, default 15); exchanges stay at 15.
@@ -371,6 +372,26 @@ export class SalesService {
         ? Math.round((exchangeCredit - Number(sale.total)) * 100) / 100
         : 0;
 
+    // §upi — a "scan to pay" QR with the payable amount pre-filled, printed on
+    // the bill when a store VPA is configured. Amount = what's actually due
+    // (total less any exchange credit); skipped when nothing is payable.
+    const amountDue = Math.max(0, Number(sale.total) - exchangeCredit);
+    const upiCfg = await getSetting<UpiConfig>('upiConfig', DEFAULT_UPI_CONFIG);
+    let upiQr: string | null = null;
+    let upiVpa: string | null = null;
+    let upiAmount = 0;
+    if (upiCfg.vpa && amountDue > 0) {
+      upiVpa = upiCfg.vpa;
+      upiAmount = amountDue;
+      const uri = buildUpiUri({
+        vpa: upiCfg.vpa,
+        name: upiCfg.merchantName || sale.branch.name,
+        amount: amountDue,
+        note: sale.saleNumber,
+      });
+      upiQr = await upiQrDataUrl(uri);
+    }
+
     return {
       receiptHeader: sale.branch.receiptHeader,
       receiptFooter: sale.branch.receiptFooter,
@@ -440,6 +461,10 @@ export class SalesService {
       exchangeRefund,
       exchangeOriginalSaleNumber,
       exchangedItems,
+      // UPI scan-to-pay QR (data URL) + its VPA and amount, or null when unset.
+      upiQr,
+      upiVpa,
+      upiAmount,
     };
   }
 

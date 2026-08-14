@@ -137,6 +137,10 @@ export class SettingsComponent implements OnInit {
   };
   savingMessaging = false;
 
+  // UPI "scan to pay" QR on bills.
+  upiConfig = { vpa: '', merchantName: '' };
+  savingUpiConfig = false;
+
   // Branches
   branches: Branch[] = [
     { id: 1, name: 'Main Store', code: 'MAIN', address: '123 Fashion Street, Mumbai', isActive: true },
@@ -155,6 +159,7 @@ export class SettingsComponent implements OnInit {
     this.loadCommissionMode();
     this.loadLoyaltyConfig();
     this.loadMessagingConfig();
+    this.loadUpiConfig();
     this.loadBillNumbering();
     this.loadPaymentAccounts();
     this.loadReturnWindow();
@@ -307,6 +312,28 @@ export class SettingsComponent implements OnInit {
       },
       error: () => {
         this.savingMessaging = false;
+      },
+    });
+  }
+
+  loadUpiConfig(): void {
+    this.api.get<any>('/settings/upi').subscribe({
+      next: (res: any) => {
+        if (res.data) this.upiConfig = { ...this.upiConfig, ...res.data };
+      },
+    });
+  }
+
+  saveUpiConfig(): void {
+    if (this.savingUpiConfig) return;
+    this.savingUpiConfig = true;
+    this.api.put<any>('/settings/upi', this.upiConfig).subscribe({
+      next: () => {
+        this.savingUpiConfig = false;
+        this.notification.success('UPI settings saved');
+      },
+      error: () => {
+        this.savingUpiConfig = false;
       },
     });
   }

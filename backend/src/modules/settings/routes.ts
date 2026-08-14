@@ -243,6 +243,35 @@ router.put(
   }
 );
 
+// UPI "scan to pay" — the store VPA + display name used to print a UPI QR (with
+// the bill amount pre-filled) on receipts. Stored as { vpa, merchantName }.
+const DEFAULT_UPI_CONFIG = { vpa: '', merchantName: '' };
+
+router.get('/upi', async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await getSetting('upiConfig', DEFAULT_UPI_CONFIG) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put(
+  '/upi',
+  authorize('owner', 'manager'),
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const updated = {
+        vpa: String(req.body.vpa ?? '').trim(),
+        merchantName: String(req.body.merchantName ?? '').trim(),
+      };
+      await setSetting('upiConfig', updated);
+      res.json({ success: true, data: updated, message: 'UPI settings saved' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Messaging config (stored in settings table, not env vars — so it's editable at runtime)
 router.get('/messaging', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {

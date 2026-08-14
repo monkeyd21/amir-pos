@@ -5,6 +5,7 @@ import { AuthRequest } from '../../middleware/auth';
 import { salesService } from './service';
 import { buildReceiptPdf } from './receipt-pdf';
 import { getSetting } from '../settings/service';
+import { buildUpiUri, upiQrPng, UpiConfig, DEFAULT_UPI_CONFIG } from '../../utils/upi';
 
 export class SalesController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -116,9 +117,26 @@ export class SalesController {
       }
 
       const showGst = await getSetting<boolean>('gstComplianceEnabled', false);
+
+      // §upi — scan-to-pay QR with the payable amount pre-filled, when a store
+      // VPA is configured. Amount = total less any exchange credit.
+      const upiCfg = await getSetting<UpiConfig>('upiConfig', DEFAULT_UPI_CONFIG);
+      const amountDue = Math.max(0, Number(sale.total) - Number(sale.exchangeCreditAmount || 0));
+      let upi: { qr: Buffer; vpa: string; amount: number } | null = null;
+      if (upiCfg.vpa && amountDue > 0) {
+        const uri = buildUpiUri({
+          vpa: upiCfg.vpa,
+          name: upiCfg.merchantName || sale.branch.name,
+          amount: amountDue,
+          note: sale.saleNumber,
+        });
+        upi = { qr: await upiQrPng(uri), vpa: upiCfg.vpa, amount: amountDue };
+      }
+
       const pdf = await buildReceiptPdf(
         { ...(sale as any), exchangedItems, exchangeOriginalSaleNumber },
-        showGst
+        showGst,
+        upi
       );
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(

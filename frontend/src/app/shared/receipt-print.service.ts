@@ -64,6 +64,11 @@ interface ReceiptData {
   /** §bug13 — items returned/exchanged against this bill, shown alongside the
    *  newly sold items on the same receipt. */
   exchangedItems?: ExchangedItem[];
+  /** §upi — scan-to-pay QR (PNG data URL) with the payable amount pre-filled,
+   *  plus its VPA and amount. Null/absent when no store VPA is configured. */
+  upiQr?: string | null;
+  upiVpa?: string | null;
+  upiAmount?: number;
 }
 
 interface ReceiptResponse {
@@ -428,6 +433,14 @@ ${divider}</div></div>
       ? `Customer: ${this.esc(r.customer.name)}${r.customer.phone ? ' (' + this.esc(r.customer.phone) + ')' : ''}\n`
       : '';
 
+    // §upi — scan-to-pay QR (amount pre-filled). Server sends it as a PNG data
+    // URL only when a store VPA is set, so this block is empty otherwise.
+    const upiBlock = r.upiQr
+      ? `<div class="center upi">SCAN TO PAY · UPI\n<img src="${r.upiQr}" class="upi-qr" alt="UPI QR" />${
+          r.upiVpa ? '\n' + this.esc(r.upiVpa) : ''
+        }\nAmount: ${this.formatCurrency(r.upiAmount || 0)}</div>\n${thinDivider}\n`
+      : '';
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -464,6 +477,8 @@ ${divider}</div></div>
     .discount { color: #888; }
     .flag { font-weight: bold; }
     .saved { text-align: center; font-weight: bold; font-size: 15px; margin: 3px 0 1px; }
+    .upi { font-weight: bold; margin: 4px 0; }
+    .upi-qr { display: block; margin: 4px auto; width: 150px; height: 150px; image-rendering: pixelated; }
     strong { font-weight: bold; }
     /* Return & Exchange policy: heading larger than the fine-print body. */
     .policy-title { font-size: 14px; font-weight: bold; margin-top: 2mm; }
@@ -552,7 +567,7 @@ PAYMENT:
 ${paymentsHtml}${changeLine}
 ${loyaltySection}${policyNote}
 ${thinDivider}
-${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
+${upiBlock}${r.receiptFooter ? '<div class="center">' + this.esc(r.receiptFooter) + '</div>' : ''}
 <div class="center">Thank you for shopping!
 ${divider}</div>
 ${policyBlock}

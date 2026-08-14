@@ -103,7 +103,11 @@ const fmtINR = (v: unknown) =>
  * Generate a thermal-receipt-style PDF on A5 paper (roughly bill-sized).
  * Returns a Buffer suitable for HTTP download or WhatsApp attachment.
  */
-export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buffer> {
+export function buildReceiptPdf(
+  sale: ReceiptSale,
+  showGst = false,
+  upi?: { qr: Buffer; vpa: string; amount: number } | null
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: [226.77, 841.89], // ~80mm wide thermal roll (A5-ish narrow)
@@ -328,6 +332,21 @@ export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buf
     doc.font('Helvetica').fontSize(8);
     for (const p of sale.payments) {
       doc.text(`${p.method.toUpperCase()}: ${fmtINR(p.amount)}`, { align: 'right' });
+    }
+
+    // §upi — scan-to-pay QR (amount pre-filled). Passed in only when a store VPA
+    // is configured; PDFKit doesn't advance the cursor for images, so nudge `y`.
+    if (upi) {
+      doc.moveDown(0.6);
+      doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
+      doc.moveDown(0.4);
+      doc.font('Helvetica-Bold').fontSize(9).text('SCAN TO PAY · UPI', 12, doc.y, { width: W, align: 'center' });
+      doc.moveDown(0.3);
+      const qrSize = 120;
+      doc.image(upi.qr, 12 + (W - qrSize) / 2, doc.y, { width: qrSize, height: qrSize });
+      doc.y += qrSize + 4;
+      doc.font('Helvetica').fontSize(8).text(upi.vpa, 12, doc.y, { width: W, align: 'center' });
+      doc.font('Helvetica').fontSize(8).text(`Amount: ${fmtINR(upi.amount)}`, 12, doc.y, { width: W, align: 'center' });
     }
 
     // Footer — use branch-configured footer if set, otherwise a default line
