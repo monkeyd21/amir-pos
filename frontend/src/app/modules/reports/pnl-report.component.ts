@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { ResizableColumnsDirective } from './resizable-columns.directive';
 
 interface PnlRow {
   sno: number;
@@ -20,8 +21,15 @@ interface PnlRow {
   totalSaleValue: number;
   gst: number;
   profitLoss: number;
-  profitLossPct: number;
+  /** Actual Markup % (post-discount). null when there's no cost (zero-cost ghost). */
+  profitLossPct: number | null;
   landingCost: number;
+  /** Markup % as priced = (MRP − Landing) / Landing × 100. */
+  markupPct: number | null;
+  /** Gross Profit Margin % = (Billed − Landing) / Billed × 100. */
+  grossProfitMarginPct: number | null;
+  /** Discount % = (MRP − Billed) / MRP × 100. */
+  discountPct: number | null;
   isReturn: boolean;
   /** Show the bill number only on the first row of each bill group. */
   showBill?: boolean;
@@ -35,7 +43,11 @@ interface PnlTotals {
   totalSaleValue: number;
   gst: number;
   profitLoss: number;
-  profitLossPct: number;
+  // Weighted (period-aggregate) percentages, shown in the averages footer.
+  profitLossPct: number | null;
+  markupPct: number | null;
+  grossProfitMarginPct: number | null;
+  discountPct: number | null;
 }
 
 interface PnlData {
@@ -57,7 +69,7 @@ type Preset = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 @Component({
   selector: 'app-pnl-report',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PageHeaderComponent, ResizableColumnsDirective],
   templateUrl: './pnl-report.component.html',
 })
 export class PnlReportComponent implements OnInit {
@@ -66,6 +78,8 @@ export class PnlReportComponent implements OnInit {
   preset: Preset = 'today';
   loading = false;
   data: PnlData | null = null;
+  /** Pop-out / fullscreen view of the report table. */
+  fullscreen = false;
 
   readonly presets: { id: Preset; label: string }[] = [
     { id: 'today', label: 'Today' },
@@ -168,5 +182,15 @@ export class PnlReportComponent implements OnInit {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
+  }
+
+  /** Percentage cell — em-dash when undefined (e.g. a zero-cost ghost has no
+   *  defined markup), otherwise the formatted number. */
+  pct(v: number | null | undefined): string {
+    return v === null || v === undefined ? '—' : this.n(v);
+  }
+
+  toggleFullscreen(): void {
+    this.fullscreen = !this.fullscreen;
   }
 }

@@ -36,80 +36,101 @@
 @if (loading) {
   <p class="text-sm text-on-surface-variant/70 py-8 text-center">Loading…</p>
 } @else if (data) {
-  <p class="text-xs text-on-surface-variant/60 mb-2">{{ data.period.startDate }} &rarr; {{ data.period.endDate }}</p>
+  <div [class]="fullscreen ? 'fixed inset-0 z-50 bg-surface p-4 sm:p-6 overflow-auto flex flex-col' : ''">
+    <div class="flex items-center justify-between gap-3 mb-2">
+      <p class="text-xs text-on-surface-variant/60">{{ data.period.startDate }} &rarr; {{ data.period.endDate }}</p>
+      <button (click)="toggleFullscreen()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-on-surface-variant border border-outline-variant/20 rounded-lg hover:bg-surface-container-high/60 transition-colors cursor-pointer">
+        <span class="material-symbols-outlined text-base">{{ fullscreen ? 'close_fullscreen' : 'open_in_full' }}</span>
+        {{ fullscreen ? 'Exit' : 'Fullscreen' }}
+      </button>
+    </div>
 
-  <div class="overflow-x-auto border border-outline-variant/20 rounded-xl">
-    <table class="w-full text-xs whitespace-nowrap">
-      <thead class="bg-surface-container-high/60 text-[10px] uppercase tracking-wider text-on-surface-variant">
-        <tr>
-          <th class="px-3 py-2 text-left">SNo</th>
-          <th class="px-3 py-2 text-left">Bill No</th>
-          <th class="px-3 py-2 text-left">Item Name</th>
-          <th class="px-3 py-2 text-left">Barcode</th>
-          <th class="px-3 py-2 text-left">SKU</th>
-          <th class="px-3 py-2 text-right">Qty</th>
-          <th class="px-3 py-2 text-right">Purchase Rate</th>
-          <th class="px-3 py-2 text-right">Sale Rate</th>
-          <th class="px-3 py-2 text-right">Gross Amount</th>
-          <th class="px-3 py-2 text-right">Net Amount</th>
-          <th class="px-3 py-2 text-right">Total Purchase Value</th>
-          @if (data.showGst) { <th class="px-3 py-2 text-right">Total Sale Value</th> }
-          @if (data.showGst) { <th class="px-3 py-2 text-right">GST</th> }
-          <th class="px-3 py-2 text-right">Profit / Loss</th>
-          <th class="px-3 py-2 text-right">P/L %</th>
-          <th class="px-3 py-2 text-right">Landing Cost</th>
-        </tr>
-      </thead>
-      <tbody class="font-mono">
-        @for (r of data.rows; track r.sno) {
-          <tr class="border-t border-outline-variant/10" [class]="r.isReturn ? 'text-error' : 'text-on-surface'">
-            <td class="px-3 py-1.5 text-left">{{ r.sno }}</td>
-            <td class="px-3 py-1.5 text-left font-semibold">{{ r.showBill ? r.billNo : '' }}</td>
-            <td class="px-3 py-1.5 text-left font-sans">{{ r.itemName }}</td>
-            <td class="px-3 py-1.5 text-left">{{ r.barcode }}</td>
-            <td class="px-3 py-1.5 text-left">{{ r.sku }}</td>
-            <td class="px-3 py-1.5 text-right">{{ r.quantity }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.purchaseRate) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.saleRate, 4) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.grossAmount) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.netAmount) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.totalPurchaseValue) }}</td>
-            @if (data.showGst) { <td class="px-3 py-1.5 text-right">{{ n(r.totalSaleValue) }}</td> }
-            @if (data.showGst) { <td class="px-3 py-1.5 text-right">{{ n(r.gst) }}</td> }
-            <td class="px-3 py-1.5 text-right">{{ n(r.profitLoss) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.profitLossPct) }}</td>
-            <td class="px-3 py-1.5 text-right">{{ n(r.landingCost, 4) }}</td>
-          </tr>
-        } @empty {
-          <tr><td [attr.colspan]="data.showGst ? 16 : 14" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
-        }
-      </tbody>
-      @if (data.rows.length > 0) {
-        <tfoot class="bg-primary text-on-primary font-mono font-bold border-t-2 border-primary">
+    <div class="overflow-auto border border-outline-variant/20 rounded-xl"
+      [class]="fullscreen ? 'max-h-[calc(100vh-6rem)] flex-1' : 'max-h-[70vh]'">
+      <table appResizableCols class="w-full text-xs whitespace-nowrap">
+        <thead class="text-[10px] uppercase tracking-wider text-on-surface-variant [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-surface-container-high">
           <tr>
-            <td class="px-3 py-2 text-left font-sans uppercase tracking-wide" colspan="5">Grand Totals</td>
-            <td class="px-3 py-2 text-right">{{ data.totals.quantity }}</td>
-            <td class="px-3 py-2"></td>
-            <td class="px-3 py-2"></td>
-            <td class="px-3 py-2 text-right">{{ n(data.totals.grossAmount) }}</td>
-            <td class="px-3 py-2 text-right">{{ n(data.totals.netAmount) }}</td>
-            <td class="px-3 py-2 text-right">{{ n(data.totals.totalPurchaseValue) }}</td>
-            @if (data.showGst) { <td class="px-3 py-2 text-right">{{ n(data.totals.totalSaleValue) }}</td> }
-            @if (data.showGst) { <td class="px-3 py-2 text-right">{{ n(data.totals.gst) }}</td> }
-            <td class="px-3 py-2 text-right">{{ n(data.totals.profitLoss) }}</td>
-            <td class="px-3 py-2 text-right">{{ n(data.totals.profitLossPct) }}</td>
-            <td class="px-3 py-2"></td>
+            <th class="px-3 py-2 text-left">SNo</th>
+            <th class="px-3 py-2 text-left">Bill No</th>
+            <th class="px-3 py-2 text-left">Item Name</th>
+            <th class="px-3 py-2 text-left">Barcode</th>
+            <th class="px-3 py-2 text-left">SKU</th>
+            <th class="px-3 py-2 text-right">Qty</th>
+            <th class="px-3 py-2 text-right">Purchase Rate</th>
+            <th class="px-3 py-2 text-right">Sale Rate</th>
+            <th class="px-3 py-2 text-right">Gross Amount</th>
+            <th class="px-3 py-2 text-right">Net Amount</th>
+            <th class="px-3 py-2 text-right">Total Purchase Value</th>
+            @if (data.showGst) { <th class="px-3 py-2 text-right">Total Sale Value</th> }
+            @if (data.showGst) { <th class="px-3 py-2 text-right">GST</th> }
+            <th class="px-3 py-2 text-right">Landing Cost</th>
+            <th class="px-3 py-2 text-right">Gross Profit</th>
+            <th class="px-3 py-2 text-right" title="(MRP − Landing Cost) / Landing Cost × 100">Markup %</th>
+            <th class="px-3 py-2 text-right" title="(Billed − Landing Cost) / Landing Cost × 100">Actual Markup %</th>
+            <th class="px-3 py-2 text-right" title="(Billed − Landing Cost) / Billed × 100">GP Margin %</th>
+            <th class="px-3 py-2 text-right" title="(MRP − Billed) / MRP × 100">Discount %</th>
           </tr>
-        </tfoot>
-      }
-    </table>
-  </div>
+        </thead>
+        <tbody class="font-mono">
+          @for (r of data.rows; track r.sno) {
+            <tr class="border-t border-outline-variant/10" [class]="r.isReturn ? 'text-error' : 'text-on-surface'">
+              <td class="px-3 py-1.5 text-left">{{ r.sno }}</td>
+              <td class="px-3 py-1.5 text-left font-semibold">{{ r.showBill ? r.billNo : '' }}</td>
+              <td class="px-3 py-1.5 text-left font-sans">{{ r.itemName }}</td>
+              <td class="px-3 py-1.5 text-left">{{ r.barcode }}</td>
+              <td class="px-3 py-1.5 text-left">{{ r.sku }}</td>
+              <td class="px-3 py-1.5 text-right">{{ r.quantity }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.purchaseRate) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.saleRate, 4) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.grossAmount) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.netAmount) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.totalPurchaseValue) }}</td>
+              @if (data.showGst) { <td class="px-3 py-1.5 text-right">{{ n(r.totalSaleValue) }}</td> }
+              @if (data.showGst) { <td class="px-3 py-1.5 text-right">{{ n(r.gst) }}</td> }
+              <td class="px-3 py-1.5 text-right">{{ n(r.landingCost, 4) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ n(r.profitLoss) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ pct(r.markupPct) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ pct(r.profitLossPct) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ pct(r.grossProfitMarginPct) }}</td>
+              <td class="px-3 py-1.5 text-right">{{ pct(r.discountPct) }}</td>
+            </tr>
+          } @empty {
+            <tr><td [attr.colspan]="data.showGst ? 19 : 17" class="px-3 py-8 text-center text-on-surface-variant/60 font-sans">No sales in this period.</td></tr>
+          }
+        </tbody>
+        @if (data.rows.length > 0) {
+          <tfoot class="bg-primary text-on-primary font-mono font-bold border-t-2 border-primary [&_td]:sticky [&_td]:bottom-0 [&_td]:z-10 [&_td]:bg-primary">
+            <tr>
+              <td class="px-3 py-2 text-left font-sans uppercase tracking-wide" colspan="5">Grand Totals · Wtd Avg</td>
+              <td class="px-3 py-2 text-right">{{ data.totals.quantity }}</td>
+              <td class="px-3 py-2"></td>
+              <td class="px-3 py-2"></td>
+              <td class="px-3 py-2 text-right">{{ n(data.totals.grossAmount) }}</td>
+              <td class="px-3 py-2 text-right">{{ n(data.totals.netAmount) }}</td>
+              <td class="px-3 py-2 text-right">{{ n(data.totals.totalPurchaseValue) }}</td>
+              @if (data.showGst) { <td class="px-3 py-2 text-right">{{ n(data.totals.totalSaleValue) }}</td> }
+              @if (data.showGst) { <td class="px-3 py-2 text-right">{{ n(data.totals.gst) }}</td> }
+              <td class="px-3 py-2"></td>
+              <td class="px-3 py-2 text-right">{{ n(data.totals.profitLoss) }}</td>
+              <td class="px-3 py-2 text-right">{{ pct(data.totals.markupPct) }}</td>
+              <td class="px-3 py-2 text-right">{{ pct(data.totals.profitLossPct) }}</td>
+              <td class="px-3 py-2 text-right">{{ pct(data.totals.grossProfitMarginPct) }}</td>
+              <td class="px-3 py-2 text-right">{{ pct(data.totals.discountPct) }}</td>
+            </tr>
+          </tfoot>
+        }
+      </table>
+    </div>
 
-  <p class="text-[11px] text-on-surface-variant/50 mt-3">
-    Sale Rate = MRP · Net Amount = charged after discount · Total Sale Value = net excl. GST ·
-    Total Purchase Value = Landing Cost × Qty · Profit/Loss = Net − Landing Value (cost after
-    expenses). Returns show as negative rows.
-  </p>
+    <p class="text-[11px] text-on-surface-variant/50 mt-3">
+      Cost Price = Landing Cost. Sale Rate = MRP · Net Amount / Billed = charged after discount ·
+      Gross Profit = Billed − Landing · Markup % = (MRP − Landing)/Landing · Actual Markup % =
+      (Billed − Landing)/Landing · GP Margin % = (Billed − Landing)/Billed · Discount % =
+      (MRP − Billed)/MRP. Footer %s are period-weighted; “—” = no cost recorded. Drag a column
+      edge to resize. Returns show as negative rows.
+    </p>
+  </div>
 } @else {
   <p class="text-sm text-on-surface-variant/70 py-8 text-center">No data for this period.</p>
 }

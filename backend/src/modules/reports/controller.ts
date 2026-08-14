@@ -139,9 +139,12 @@ export class ReportController {
           netAmount: r.netAmount,
           totalPurchaseValue: r.totalPurchaseValue,
           totalSaleValue: r.totalSaleValue,
-          profitLoss: r.profitLoss,
-          'profitLoss%': r.profitLossPct,
+          grossProfit: r.profitLoss,
           landingCost: r.landingCost,
+          'markup%': r.markupPct,
+          'actualMarkup%': r.profitLossPct,
+          'grossProfitMargin%': r.grossProfitMarginPct,
+          'discount%': r.discountPct,
         }));
         return sendCsvResponse(res, csvData, 'pnl-report.csv');
       }

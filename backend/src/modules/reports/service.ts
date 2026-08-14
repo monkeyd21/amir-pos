@@ -389,8 +389,14 @@ export class ReportService {
         : gstRate
         ? net * (100 / (100 + gstRate))
         : net;
+      // Gross Profit ₹ = Billed (net, post-discount) − Landing cost. (Same value as
+      // the long-standing "profitLoss" column.)
       const profitLoss = net - totalPurchaseValue;
-      const profitLossPct = totalPurchaseValue !== 0 ? (profitLoss / totalPurchaseValue) * 100 : 0;
+      // §pnl-metrics — a ratio is `null` (shown as "—") when its denominator is 0,
+      // NOT 0%: a zero-cost ghost has an undefined markup, not a 0% markup. Cost
+      // Price = Landing Cost throughout (per spec).
+      const pct = (numer: number, denom: number): number | null =>
+        denom !== 0 ? round2((numer / denom) * 100) : null;
       return {
         sno,
         billNo,
@@ -407,8 +413,15 @@ export class ReportService {
         // GST portion of this line (0 when GST display is off).
         gst: round2(net - taxable),
         profitLoss: round2(profitLoss),
-        profitLossPct: round2(profitLossPct),
+        // Actual Markup % (post-discount) = (Billed − Landing) / Landing × 100.
+        profitLossPct: pct(profitLoss, totalPurchaseValue),
         landingCost: round4(landingCost),
+        // Markup % as priced = (MRP − Landing) / Landing × 100.
+        markupPct: pct(grossAmount - totalPurchaseValue, totalPurchaseValue),
+        // Gross Profit Margin % = (Billed − Landing) / Billed × 100.
+        grossProfitMarginPct: pct(profitLoss, net),
+        // Discount % = (MRP − Billed) / MRP × 100.
+        discountPct: pct(grossAmount - net, grossAmount),
         isReturn: qty < 0,
       };
     };
@@ -432,15 +445,25 @@ export class ReportService {
     const sum = (f: (r: (typeof rows)[number]) => number) => round2(rows.reduce((a, r) => a + f(r), 0));
     const totalPurchase = sum((r) => r.totalPurchaseValue);
     const totalProfit = sum((r) => r.profitLoss);
+    const totalGross = sum((r) => r.grossAmount);
+    const totalNet = sum((r) => r.netAmount);
+    // Period averages are WEIGHTED (computed from period aggregates), not a mean of
+    // per-row %s — a ₹10k line counts more than a ₹100 line. `null` → shown as "—".
+    const wpct = (numer: number, denom: number): number | null =>
+      denom !== 0 ? round2((numer / denom) * 100) : null;
     const totals = {
       quantity: rows.reduce((a, r) => a + r.quantity, 0),
-      grossAmount: sum((r) => r.grossAmount),
-      netAmount: sum((r) => r.netAmount),
+      grossAmount: totalGross,
+      netAmount: totalNet,
       totalPurchaseValue: totalPurchase,
       totalSaleValue: sum((r) => r.totalSaleValue),
       gst: sum((r) => r.gst),
       profitLoss: totalProfit,
-      profitLossPct: totalPurchase !== 0 ? round2((totalProfit / totalPurchase) * 100) : 0,
+      // Weighted Actual Markup % across the period.
+      profitLossPct: wpct(totalProfit, totalPurchase),
+      markupPct: wpct(totalGross - totalPurchase, totalPurchase),
+      grossProfitMarginPct: wpct(totalProfit, totalNet),
+      discountPct: wpct(totalGross - totalNet, totalGross),
     };
 
     // §tax — `showGst` lets the UI reveal the GST column only when the switch is on.
