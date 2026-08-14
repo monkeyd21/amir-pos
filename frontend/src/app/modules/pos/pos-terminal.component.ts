@@ -43,6 +43,9 @@ interface ProductVariant {
   size?: string;
   color?: string;
   price: number;
+  /** Tag MRP (final tax-inclusive). Equals `price` on a normal line; higher on a
+   *  clearance line where `price` is the marked-down clearance price. */
+  mrp?: number;
   stock?: number;
   productName?: string;
   brand?: string;
@@ -78,6 +81,10 @@ interface CartItem {
   color: string;
   quantity: number;
   unitPrice: number;
+  /** Tag MRP per unit (final tax-inclusive) — the "was" price. Used for the
+   *  "You Saved" total (Σ mrp×qty − net). Equals unitPrice on a normal line;
+   *  higher on a clearance line. */
+  mrp: number;
   maxStock: number;
   // Offer state (refreshed via /pos/cart/evaluate)
   offer?: CartOffer | null;
@@ -1155,6 +1162,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         color: variant.color || '',
         quantity: 1,
         unitPrice: variant.price,
+        // Tag MRP for the "You Saved" total; fall back to the charged price when
+        // the endpoint didn't send an MRP (then that line simply shows no saving).
+        mrp: variant.mrp ?? variant.price,
         // Oversold lines aren't limited by on-hand stock (topped up on checkout).
         maxStock: oversold ? Number.MAX_SAFE_INTEGER : stock,
         oversold,
@@ -1208,6 +1218,24 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       (sum, item) => sum + item.unitPrice * item.quantity,
       0
     );
+  }
+
+  /** Aggregate tag MRP of everything in the cart (Σ mrp × qty). Differs from
+   *  `subtotal` only for clearance lines (whose charged price is below MRP). */
+  get totalMrp(): number {
+    return this.cart.reduce(
+      // Floor each line's MRP at its charged price so a missing/stale MRP can
+      // never make the saving negative.
+      (sum, item) => sum + Math.max(item.mrp || 0, item.unitPrice) * item.quantity,
+      0
+    );
+  }
+
+  /** "You Saved" = Total MRP − Net Sale Value (the bill total after ALL item- and
+   *  bill-level discounts). Exchange credit is a tender, not a discount, so it is
+   *  excluded. Never negative. */
+  get youSaved(): number {
+    return Math.max(0, Math.round((this.totalMrp - this.total) * 100) / 100);
   }
 
   /** Total pieces across all cart lines (e.g. 2 t-shirts + 1 jeans = 3). */

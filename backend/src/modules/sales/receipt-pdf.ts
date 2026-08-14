@@ -305,6 +305,25 @@ export function buildReceiptPdf(sale: ReceiptSale, showGst = false): Promise<Buf
     doc.moveDown(0.2);
     row('TOTAL', fmtINR(sale.total), true);
 
+    // "You Saved" = aggregate tag MRP (Σ mrp × qty) − the bill total. Each line's
+    // MRP is floored at its charged price so a missing/stale MRP can't go negative.
+    const totalMrp = sale.items.reduce((sum, item) => {
+      const resolvedMrp = n(
+        item.variant.mrpOverride ?? item.variant.product.mrp ?? item.variant.product.basePrice
+      );
+      const perUnitMrp = Math.max(n(item.unitPrice), resolvedMrp);
+      return sum + perUnitMrp * n(item.quantity);
+    }, 0);
+    const saved = Math.max(0, Math.round((totalMrp - n(sale.total)) * 100) / 100);
+    if (saved > 0) {
+      doc.moveDown(0.2);
+      doc.font('Helvetica-Bold').fontSize(10).text(`You Saved ${fmtINR(saved)}`, 12, doc.y, {
+        width: W,
+        align: 'center',
+      });
+      doc.font('Helvetica').fontSize(8);
+    }
+
     doc.moveDown(0.3);
     doc.font('Helvetica').fontSize(8);
     for (const p of sale.payments) {

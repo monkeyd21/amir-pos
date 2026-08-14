@@ -350,6 +350,19 @@ ${divider}</div></div>
     const totalVal = this.formatCurrency(r.total);
     const totalLine = `<strong>${totalLabel}${this.pad(totalLabel, totalVal)}${totalVal}</strong>`;
 
+    // "You Saved" = aggregate tag MRP (Σ mrp × qty) − the bill total (after all
+    // item- and bill-level discounts). Shown prominently when there's a saving.
+    const totalMrpAmt = r.items.reduce(
+      (sum, i) =>
+        sum + Math.max(Number(i.mrp) || 0, Number(i.unitPrice) || 0) * (Number(i.quantity) || 0),
+      0
+    );
+    const savedAmount = Math.max(0, Math.round((totalMrpAmt - r.total) * 100) / 100);
+    const savedLine =
+      savedAmount > 0
+        ? `\n<div class="saved">You Saved ${this.formatCurrency(savedAmount)}</div>`
+        : '';
+
     // Exchange: goods returned and credited against this bill.
     const exchangeCredit = r.exchangeCredit || 0;
     const exchangeRefund = r.exchangeRefund || 0;
@@ -450,6 +463,7 @@ ${divider}</div></div>
     .item { margin: 4px 0; }
     .discount { color: #888; }
     .flag { font-weight: bold; }
+    .saved { text-align: center; font-weight: bold; font-size: 15px; margin: 3px 0 1px; }
     strong { font-weight: bold; }
     /* Return & Exchange policy: heading larger than the fine-print body. */
     .policy-title { font-size: 14px; font-weight: bold; margin-top: 2mm; }
@@ -531,7 +545,7 @@ ${exchangedBlock ? exchangedBlock + '\n' : ''}${thinDivider}
 ${totalQtyLine}
 ${subtotalLine}${discountLine}${taxLine}
 ${thinDivider}
-${totalLine}${exchangeLines}
+${totalLine}${exchangeLines}${savedLine}
 ${thinDivider}
 
 PAYMENT:
