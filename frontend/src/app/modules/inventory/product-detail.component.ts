@@ -47,6 +47,16 @@ interface ApiResponse<T> {
   data: T;
 }
 
+/** One row in the "Add Variant" grid. */
+interface VariantDraft {
+  size: string;
+  color: string;
+  mrpOverride: number | null;
+  priceOverride: number | null;
+  costOverride: number | null;
+  stock: number | null;
+}
+
 @Component({
   selector: 'app-product-detail',
   standalone: true,
@@ -65,10 +75,16 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
   // table all follow this flag). Untick to see every variant.
   showInStockOnly = true;
 
-  // Add variant form
+  // Add-variant form — a multi-row grid. Each row becomes one new variant and
+  // all rows are saved together via the bulk endpoint. Stock defaults to 1
+  // (a freshly received article normally arrives with at least one piece).
   showAddVariant = false;
-  newVariant = { size: '', color: '', priceOverride: null as number | null, costOverride: null as number | null };
+  newVariantRows: VariantDraft[] = [];
   savingVariant = false;
+
+  // Existing color names (from the /colors master) for the color dropdown.
+  // Free text is still allowed — a new name creates a new color on save.
+  existingColors: string[] = [];
 
   // Only owner/manager may override prices (matches the backend authz on
   // PUT /products/:id/variants/:variantId).
@@ -95,6 +111,21 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
     if (id) {
       this.loadProduct(id);
     }
+    this.loadColors();
+  }
+
+  private loadColors(): void {
+    this.api
+      .get<ApiResponse<{ id: number; name: string }[]>>('/colors')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.existingColors = (res.data || []).map((c) => c.name).filter(Boolean);
+        },
+        error: () => {
+          this.existingColors = []; // dropdown just falls back to free text
+        },
+      });
   }
 
   ngOnDestroy(): void {
@@ -254,39 +285,88 @@ export class ProductDetailComponent implements OnInit, OnDestroy {
       });
   }
 
+  private blankVariantRow(): VariantDraft {
+    return { size: '', color: '', mrpOverride: null, priceOverride: null, costOverride: null, stock: 1 };
+  }
+
   toggleAddVariant(): void {
     this.showAddVariant = !this.showAddVariant;
-    this.newVariant = { size: '', color: '', priceOverride: null, costOverride: null };
+    // Start with a single blank row every time the form is opened.
+    this.newVariantRows = this.showAddVariant ? [this.blankVariantRow()] : [];
+  }
+
+  addVariantRow(): void {
+    this.newVariantRows.push(this.blankVariantRow());
+  }
+
+  removeVariantRow(index: number): void {
+    this.newVariantRows.splice(index, 1);
+    // Never leave the grid empty — keep one blank row to type into.
+    if (this.newVariantRows.length === 0) this.newVariantRows.push(this.blankVariantRow());
+  }
+
+  /** A row counts once it has BOTH a size and a color. */
+  private isRowComplete(r: VariantDraft): boolean {
+    return !!r.size.trim() && !!r.color.trim();
+  }
+
+  /** A row the user started but left half-filled (only size OR only color). */
+  private isRowPartial(r: VariantDraft): boolean {
+    const hasSize = !!r.size.trim();
+    const hasColor = !!r.color.trim();
+    return (hasSize || hasColor) && !(hasSize && hasColor);
   }
 
   get canSaveVariant(): boolean {
-    return !!this.newVariant.size.trim() && !!this.newVariant.color.trim();
+    return this.newVariantRows.some((r) => this.isRowComplete(r));
   }
 
   saveVariant(): void {
-    if (!this.canSaveVariant || this.savingVariant || !this.product) return;
+    if (this.savingVariant || !this.product) return;
+
+    // Block save while any started row is missing its size or color.
+    if (this.newVariantRows.some((r) => this.isRowPartial(r))) {
+      this.notify.error('Each row needs both a size and a color');
+      return;
+    }
+
+    const rows = this.newVariantRows.filter((r) => this.isRowComplete(r));
+    if (rows.length === 0) return;
+
     this.savingVariant = true;
 
-    const body: any = {
-      size: this.newVariant.size.trim(),
-      color: this.newVariant.color.trim(),
-    };
-    if (this.newVariant.priceOverride) body.priceOverride = Number(this.newVariant.priceOverride);
-    if (this.newVariant.costOverride) body.costOverride = Number(this.newVariant.costOverride);
+    const variants = rows.map((r) => {
+      const v: any = { size: r.size.trim(), color: r.color.trim() };
+      if (r.mrpOverride) v.mrpOverride = Number(r.mrpOverride);
+      if (r.priceOverride) v.priceOverride = Number(r.priceOverride);
+      if (r.costOverride) v.costOverride = Number(r.costOverride);
+      if (r.stock != null && Number(r.stock) > 0) v.initialStock = Math.floor(Number(r.stock));
+      return v;
+    });
 
+    // Bulk endpoint = create new (size,color) combos + top up any that already
+    // exist. SKUs and barcodes are auto-generated; stock lands in the current branch.
     this.api
-      .post<ApiResponse<any>>(`/products/${this.product.id}/variants`, body)
+      .post<ApiResponse<any>>(`/products/${this.product.id}/variants/bulk`, { variants })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: () => {
-          this.notify.success('Variant added');
+        next: (res: any) => {
+          const created = res.data?.created?.length ?? 0;
+          const incremented = res.data?.incremented?.length ?? 0;
+          const skipped = res.data?.skipped?.length ?? 0;
+          const parts: string[] = [];
+          if (created) parts.push(`${created} added`);
+          if (incremented) parts.push(`${incremented} restocked`);
+          if (skipped) parts.push(`${skipped} skipped`);
+          this.notify.success(parts.length ? `Variants: ${parts.join(' · ')}` : 'No changes');
           this.savingVariant = false;
           this.showAddVariant = false;
+          this.newVariantRows = [];
           this.loadProduct(String(this.product!.id));
         },
-        error: () => {
+        error: (err: any) => {
           this.savingVariant = false;
-          this.notify.error('Failed to add variant');
+          this.notify.error(err?.error?.error || err?.error?.message || 'Failed to add variants');
         },
       });
   }

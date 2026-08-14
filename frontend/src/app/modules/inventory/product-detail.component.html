@@ -142,53 +142,98 @@
     ></app-bulk-variant-generator>
   </div>
 
-  <!-- Add Variant Form -->
+  <!-- Add Variant Form (multi-row) -->
   @if (showAddVariant) {
     <div class="bg-surface-container/60 border border-primary/20 rounded-xl p-5 mb-4">
-      <p class="text-xs text-on-surface-variant mb-3">SKU and barcode will be auto-generated from brand + product + size + color.</p>
-      <div class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
-        <div>
-          <label class="label-upper mb-1 block">Size *</label>
-          <input
-            type="text"
-            [(ngModel)]="newVariant.size"
-            placeholder="e.g. M, L, XL"
-            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-        <div>
-          <label class="label-upper mb-1 block">Color *</label>
-          <input
-            type="text"
-            [(ngModel)]="newVariant.color"
-            placeholder="e.g. Blue"
-            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-        <div>
-          <label class="label-upper mb-1 block">Price Override</label>
-          <input
-            type="number"
-            [(ngModel)]="newVariant.priceOverride"
-            placeholder="Optional"
-            min="0"
-            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-        <div>
-          <label class="label-upper mb-1 block">Cost Override</label>
-          <input
-            type="number"
-            [(ngModel)]="newVariant.costOverride"
-            placeholder="Optional"
-            min="0"
-            class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
+      <p class="text-xs text-on-surface-variant mb-3">SKU and barcode will be auto-generated from brand + product + size + color. Stock is added to the current branch.</p>
+
+      <!-- Column headers -->
+      <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.8fr_auto] gap-3 mb-1.5 px-0.5">
+        <span class="label-upper">Size *</span>
+        <span class="label-upper">Color *</span>
+        <span class="label-upper">MRP Override</span>
+        <span class="label-upper">Price Override</span>
+        <span class="label-upper">Cost Override</span>
+        <span class="label-upper">Stock</span>
+        <span class="w-8"></span>
+      </div>
+
+      <!-- Existing colors for the dropdown (free text still allowed) -->
+      <datalist id="variant-color-options">
+        @for (c of existingColors; track c) {
+          <option [value]="c"></option>
+        }
+      </datalist>
+
+      <!-- Variant rows -->
+      <div class="space-y-2">
+        @for (row of newVariantRows; track $index) {
+          <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.8fr_auto] gap-3 items-center">
+            <input
+              type="text"
+              [(ngModel)]="row.size"
+              placeholder="e.g. M, L, XL"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <input
+              type="text"
+              list="variant-color-options"
+              [(ngModel)]="row.color"
+              placeholder="Select or type"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <input
+              type="number"
+              [(ngModel)]="row.mrpOverride"
+              placeholder="Optional"
+              min="0"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <input
+              type="number"
+              [(ngModel)]="row.priceOverride"
+              placeholder="Optional"
+              min="0"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <input
+              type="number"
+              [(ngModel)]="row.costOverride"
+              placeholder="Optional"
+              min="0"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <input
+              type="number"
+              [(ngModel)]="row.stock"
+              placeholder="1"
+              min="0"
+              class="w-full px-3 py-2 text-sm bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
+            />
+            <button
+              (click)="removeVariantRow($index)"
+              title="Remove row"
+              class="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+            >
+              <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-between mt-4">
+        <button
+          (click)="addVariantRow()"
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-primary hover:bg-primary-container/15 rounded-lg transition-colors cursor-pointer"
+        >
+          <span class="material-symbols-outlined text-base">add</span>
+          Add row
+        </button>
         <button
           (click)="saveVariant()"
           [disabled]="!canSaveVariant || savingVariant"
-          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary-container text-on-primary-container rounded-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold bg-primary-container text-on-primary-container rounded-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           @if (savingVariant) {
             <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
