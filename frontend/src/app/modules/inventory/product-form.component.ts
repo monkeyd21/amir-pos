@@ -192,6 +192,39 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     costOverride: number | null;
   }[] = [];
 
+  /**
+   * §13.3 — the product's EXISTING variants, loaded in edit mode so their
+   * prices can be revised in bulk.
+   *
+   * Since a variant now owns its price outright, editing the product-level
+   * price no longer re-prices anything — which is the point, but it also means
+   * this grid is the only way to reprice a whole article. `orig` keeps the
+   * loaded values so save only PUTs the rows that actually changed.
+   */
+  existingVariants: Array<{
+    id: number;
+    sku: string;
+    barcode: string;
+    size: string;
+    color: string;
+    stock: number;
+    clearanceFlag: boolean;
+    clearancePrice: number | null;
+    mrpOverride: number | null;
+    priceOverride: number | null;
+    costOverride: number | null;
+    orig: {
+      mrpOverride: number | null;
+      priceOverride: number | null;
+      costOverride: number | null;
+    };
+  }> = [];
+
+  // "Apply to all" bar above the existing-variant grid.
+  bulkMrp: number | null = null;
+  bulkSale: number | null = null;
+  bulkCost: number | null = null;
+
   // Variants emitted by the bulk generator (preview, not yet persisted)
   bulkGeneratedVariants: Array<{
     size: string;
@@ -344,6 +377,98 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.priceIncludesTax = p.priceIncludesTax !== false;
     this.nonReturnable = p.nonReturnable === true;
     this.exchangeOnly = p.exchangeOnly === true;
+
+    // §13.3 — load existing variants for bulk price revision.
+    const num = (v: any) => (v == null || v === '' ? null : Number(v));
+    this.existingVariants = (p.variants || [])
+      .filter((v: any) => v.isActive !== false)
+      .map((v: any) => {
+        const mrpOverride = num(v.mrpOverride);
+        const priceOverride = num(v.priceOverride);
+        const costOverride = num(v.costOverride);
+        return {
+          id: v.id,
+          sku: v.sku,
+          barcode: v.barcode,
+          size: v.size,
+          color: v.color,
+          stock: (v.inventory || []).reduce(
+            (s: number, i: any) => s + (Number(i.quantity) || 0),
+            0
+          ),
+          clearanceFlag: v.clearanceFlag === true,
+          clearancePrice: num(v.clearancePrice),
+          mrpOverride,
+          priceOverride,
+          costOverride,
+          orig: { mrpOverride, priceOverride, costOverride },
+        };
+      });
+  }
+
+  // ─── Existing-variant bulk price editing (edit mode) ────────────
+  /** Rows whose price the user actually changed — only these get PUT. */
+  private dirtyExistingVariants() {
+    return this.existingVariants.filter(
+      (v) =>
+        v.mrpOverride !== v.orig.mrpOverride ||
+        v.priceOverride !== v.orig.priceOverride ||
+        v.costOverride !== v.orig.costOverride
+    );
+  }
+
+  get existingVariantChangeCount(): number {
+    return this.dirtyExistingVariants().length;
+  }
+
+  /** §13.3 — Sale follows MRP − 10% on a per-row edit, same as everywhere else. */
+  onExistingMrpChange(
+    row: { mrpOverride: number | null; priceOverride: number | null },
+    value: number
+  ): void {
+    const mrp = value != null && Number(value) > 0 ? Number(value) : null;
+    row.mrpOverride = mrp;
+    if (mrp != null) row.priceOverride = Math.round(mrp * 0.9);
+  }
+
+  onBulkMrpChange(): void {
+    if (this.bulkMrp != null && Number(this.bulkMrp) > 0) {
+      this.bulkSale = Math.round(Number(this.bulkMrp) * 0.9);
+    }
+  }
+
+  /**
+   * Push the "apply to all" values across every existing row. Nothing is saved
+   * here — the grid updates so the whole revision is visible before submitting.
+   */
+  applyToAllVariants(): void {
+    const n = (v: number | null) => (v != null && Number(v) > 0 ? Number(v) : null);
+    const mrp = n(this.bulkMrp);
+    const sale = n(this.bulkSale);
+    const cost = n(this.bulkCost);
+    if (mrp == null && sale == null && cost == null) {
+      this.notification.error('Enter an MRP, Sale or Cost to apply');
+      return;
+    }
+    for (const row of this.existingVariants) {
+      if (mrp != null) row.mrpOverride = mrp;
+      if (sale != null) row.priceOverride = sale;
+      if (cost != null) row.costOverride = cost;
+    }
+    this.notification.success(
+      `Applied to ${this.existingVariants.length} variant(s) — review, then Update Product to save`
+    );
+  }
+
+  resetExistingVariantEdits(): void {
+    for (const row of this.existingVariants) {
+      row.mrpOverride = row.orig.mrpOverride;
+      row.priceOverride = row.orig.priceOverride;
+      row.costOverride = row.orig.costOverride;
+    }
+    this.bulkMrp = null;
+    this.bulkSale = null;
+    this.bulkCost = null;
   }
 
   get isValid(): boolean {
@@ -800,46 +925,51 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Edit flow: PUT the product fields, then if there are any variant
-    // rows entered, POST them to the bulk endpoint which now both
-    // creates new size+color combos AND tops up stock on existing ones.
+    // Edit flow, in order:
+    //   1. PUT the product fields (the price template + taxonomy)
+    //   2. PUT each existing variant whose price the user revised — §13.3, a
+    //      variant owns its price, so a bulk reprice is N explicit writes
+    //   3. POST any newly entered rows to the bulk endpoint, which both creates
+    //      new size+color combos AND tops up stock on existing ones
+    const repriced = this.dirtyExistingVariants();
+    const bulkBody: any = { variants, ...supplierMeta };
+
     this.api
       .put(`/products/${this.productId}`, productPayload)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        switchMap(() =>
+          repriced.length
+            ? forkJoin(
+                repriced.map((v) =>
+                  this.api.put(
+                    `/products/${this.productId}/variants/${v.id}`,
+                    this.existingVariantPayload(v)
+                  )
+                )
+              )
+            : of(null)
+        ),
+        switchMap(() =>
+          variants.length
+            ? this.api.post<any>(
+                `/products/${this.productId}/variants/bulk`,
+                bulkBody
+              )
+            : of(null)
+        ),
+        takeUntil(this.destroy$)
+      )
       .subscribe({
-        next: () => {
-          if (variants.length === 0) {
-            this.saving = false;
-            this.notification.success('Product updated');
-            this.router.navigate(['/inventory/products']);
-            return;
-          }
-
-          const bulkBody: any = {
-            variants,
-            ...supplierMeta,
-          };
-          this.api
-            .post<any>(`/products/${this.productId}/variants/bulk`, bulkBody)
-            .pipe(takeUntil(this.destroy$))
-            .subscribe({
-              next: (bulkRes: any) => {
-                this.saving = false;
-                const created = bulkRes.data?.created?.length || 0;
-                const incremented = bulkRes.data?.incremented?.length || 0;
-                const parts: string[] = ['Product updated'];
-                if (created) parts.push(`${created} new variant(s)`);
-                if (incremented) parts.push(`${incremented} restocked`);
-                this.notification.success(parts.join(' · '));
-                this.router.navigate(['/inventory/products']);
-              },
-              error: () => {
-                this.saving = false;
-                this.notification.error(
-                  'Product saved but failed to add variants — try again.'
-                );
-              },
-            });
+        next: (bulkRes: any) => {
+          this.saving = false;
+          const created = bulkRes?.data?.created?.length || 0;
+          const incremented = bulkRes?.data?.incremented?.length || 0;
+          const parts: string[] = ['Product updated'];
+          if (repriced.length) parts.push(`${repriced.length} price(s) revised`);
+          if (created) parts.push(`${created} new variant(s)`);
+          if (incremented) parts.push(`${incremented} restocked`);
+          this.notification.success(parts.join(' · '));
+          this.router.navigate(['/inventory/products']);
         },
         error: (err: any) => {
           this.saving = false;
@@ -848,6 +978,26 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           );
         },
       });
+  }
+
+  /**
+   * Only send prices the row actually carries — a blank box means "leave as is",
+   * never "clear the price". Nulling a price out would recreate the inheritance
+   * pointer this whole change exists to remove.
+   */
+  private existingVariantPayload(v: {
+    mrpOverride: number | null;
+    priceOverride: number | null;
+    costOverride: number | null;
+  }): Record<string, number> {
+    const out: Record<string, number> = {};
+    const put = (k: string, val: number | null) => {
+      if (val != null && Number(val) > 0) out[k] = Number(val);
+    };
+    put('mrpOverride', v.mrpOverride);
+    put('priceOverride', v.priceOverride);
+    put('costOverride', v.costOverride);
+    return out;
   }
 
   onPrintCopiesChange(variantId: number, value: number): void {

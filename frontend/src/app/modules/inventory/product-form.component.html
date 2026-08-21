@@ -528,6 +528,146 @@
 
     <!-- ─── Right column: variants (always visible) ─────────────── -->
     <div class="xl:col-span-2 space-y-6">
+
+        <!-- §13.3 — EXISTING variants (edit mode). Each variant owns its price,
+             so the product-level boxes no longer re-price anything: this grid is
+             where a whole article gets repriced. Nothing saves until Update. -->
+        @if (isEdit && existingVariants.length > 0) {
+          <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant">
+                Existing Variants ({{ existingVariants.length }})
+              </h3>
+              @if (existingVariantChangeCount > 0) {
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-semibold text-primary">
+                    {{ existingVariantChangeCount }} unsaved change(s)
+                  </span>
+                  <button
+                    type="button"
+                    (click)="resetExistingVariantEdits()"
+                    class="text-[11px] font-semibold text-on-surface-variant hover:text-error transition-colors cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
+              }
+            </div>
+            <p class="text-[11px] text-on-surface-variant/60 mb-4">
+              Each size stores its own price. Edit a row, or set values below and
+              apply them to every row &mdash; then press <b>Update Product</b> to save.
+            </p>
+
+            <!-- Apply-to-all bar -->
+            <div class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end mb-4 p-3 bg-surface-container-lowest/60 rounded-lg border border-outline-variant/15">
+              <div>
+                <label class="label-upper mb-1 block text-[10px]">Set MRP</label>
+                <input
+                  type="number"
+                  [(ngModel)]="bulkMrp"
+                  (ngModelChange)="onBulkMrpChange()"
+                  [ngModelOptions]="{ standalone: true }"
+                  placeholder="MRP"
+                  min="0"
+                  step="1"
+                  class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <div>
+                <label class="label-upper mb-1 block text-[10px]">Set Sale</label>
+                <input
+                  type="number"
+                  [(ngModel)]="bulkSale"
+                  [ngModelOptions]="{ standalone: true }"
+                  placeholder="Sale"
+                  min="0"
+                  step="1"
+                  class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <div>
+                <label class="label-upper mb-1 block text-[10px]">Set Cost</label>
+                <input
+                  type="number"
+                  [(ngModel)]="bulkCost"
+                  [ngModelOptions]="{ standalone: true }"
+                  placeholder="Cost"
+                  min="0"
+                  step="1"
+                  class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <button
+                type="button"
+                (click)="applyToAllVariants()"
+                class="px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-on-primary hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap"
+              >
+                Apply to all
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <div class="min-w-[42rem]">
+                <div class="grid grid-cols-[7rem_1fr_5rem_5rem_5rem_3.5rem] gap-2 px-1 mb-1.5">
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Size / Colour</span>
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60">Barcode</span>
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">MRP</span>
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Sale</span>
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Cost</span>
+                  <span class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/60 text-right">Stock</span>
+                </div>
+                <div class="space-y-1.5">
+                  @for (v of existingVariants; track v.id) {
+                    <div class="grid grid-cols-[7rem_1fr_5rem_5rem_5rem_3.5rem] gap-2 items-center">
+                      <div class="min-w-0">
+                        <p class="text-sm font-semibold text-on-surface truncate">{{ v.size }}</p>
+                        <p class="text-[10px] text-on-surface-variant/70 truncate">{{ v.color }}</p>
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-[11px] font-mono text-on-surface-variant truncate">{{ v.barcode }}</p>
+                        @if (v.clearanceFlag) {
+                          <span class="text-[9px] font-bold uppercase tracking-wider text-error">
+                            Clearance Rs. {{ v.clearancePrice }}
+                          </span>
+                        }
+                      </div>
+                      <input
+                        type="number"
+                        [ngModel]="v.mrpOverride"
+                        (ngModelChange)="onExistingMrpChange(v, $event)"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="1"
+                        title="MRP for this size. Sale auto-fills to MRP − 10%."
+                        class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <input
+                        type="number"
+                        [(ngModel)]="v.priceOverride"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="1"
+                        title="Sale Price for this size."
+                        class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <input
+                        type="number"
+                        [(ngModel)]="v.costOverride"
+                        [ngModelOptions]="{ standalone: true }"
+                        min="0"
+                        step="1"
+                        title="Cost Price for this size."
+                        class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span class="text-sm text-right text-on-surface-variant tabular-nums">{{ v.stock }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
         <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-6">
           <h3 class="text-xs font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">
             Variant Generator
