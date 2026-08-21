@@ -385,21 +385,18 @@ export async function executeImport(
         // Variants
         for (const row of group) {
           try {
-            // A row whose MRP differs from the product's MRP is a per-size price
-            // and is stored as an explicit variant override (even if the sheet
-            // didn't fill the dedicated Override column), so POS charges it.
-            const mrpOverride =
-              row.mrpOverride ?? (row.mrp !== first.mrp ? row.mrp : null);
+            // §13.3 — every variant stores its OWN full price stack, even when
+            // the row matches the product's (first-row) price. Previously an
+            // equal price was stored as NULL, which turned the variant into a
+            // live pointer at product.mrp: a later product edit then silently
+            // re-priced it. See materialiseVariantPrices in products/service.
+            const mrpOverride = row.mrpOverride ?? row.mrp ?? first.mrp ?? null;
             const priceOverride =
-              row.priceOverride ?? (row.basePrice !== first.basePrice ? row.basePrice : null);
-            // Per-size cost / landing also ride on overrides when they differ from
-            // the product's (first-row) values, so profit is measured correctly.
+              row.priceOverride ?? row.basePrice ?? first.basePrice;
             const costOverride =
-              row.costOverride ?? (row.costPrice !== first.costPrice ? row.costPrice : null);
+              row.costOverride ?? row.costPrice ?? first.costPrice;
             const landingOverride =
-              row.landingPrice != null && row.landingPrice !== first.landingPrice
-                ? row.landingPrice
-                : null;
+              row.landingPrice ?? first.landingPrice ?? row.costPrice ?? first.costPrice ?? null;
 
             let variant = await tx.productVariant.findFirst({
               where: {

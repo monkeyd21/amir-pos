@@ -99,8 +99,11 @@ function parse(FILE) {
         sku: String(r['SKU'] || '').trim(), barcode: String(r['BARCODE NUMBER'] || '').trim(),
         size: String(r['PACK/SIZE'] || '').trim(), color: String(r['COLOUR'] || '').trim(),
         lotCode: String(r['LOT CODE'] || '').trim() || null, qty: q,
-        mrpOverride: mrp !== pMrp ? mrp : null, priceOverride: sale !== pSale ? sale : null,
-        costOverride: cost !== pCost ? cost : null, landingOverride: land !== pLand ? land : null,
+        // §13.3 — store the row's OWN price stack unconditionally. Storing NULL
+        // when the price merely matched the product's made the variant a live
+        // pointer at product.mrp, so a later product edit re-priced it silently.
+        mrpOverride: mrp || pMrp || null, priceOverride: sale || pSale,
+        costOverride: cost || pCost, landingOverride: land || pLand,
       };
     });
     products.push({ name: g.name, brand: g.brand, category: g.category, mrp: pMrp, basePrice: pSale || pMrp || 1, costPrice: pCost || 0, landingPrice: pLand, hsn: hsnFor(g.category), cgst: rate / 2, sgst: rate / 2, variants });

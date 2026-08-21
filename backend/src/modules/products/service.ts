@@ -14,6 +14,45 @@ interface ListProductsQuery {
   search?: string;
 }
 
+/**
+ * §13.3 — a variant OWNS its full price stack.
+ *
+ * The product-level mrp/basePrice/costPrice/landingPrice are a **template used
+ * to populate a new variant's prices**, never a live pointer. Historically a
+ * variant whose price matched its product was stored with NULL overrides, which
+ * made `variant.X ?? product.Y` a subscription: editing the product silently
+ * re-priced every such variant. That mis-priced 38 SKUs across two incidents in
+ * Aug 2026 (NEW PKT CORD, FROCK) with no warning and no audit trail.
+ *
+ * So every variant-creation path funnels through here: anything the caller
+ * omits is materialised from the product ONCE, at creation time. A later
+ * product edit then cannot reach existing variants.
+ *
+ * `mrpOverride` stays null only when the product itself has no MRP — that is a
+ * genuine "no MRP set" (POS falls back to the sale price), not a pointer.
+ */
+type VariantPriceInput = {
+  mrpOverride?: number | null;
+  priceOverride?: number | null;
+  costOverride?: number | null;
+  landingOverride?: number | null;
+};
+type ProductPriceTemplate = {
+  mrp?: unknown;
+  basePrice: unknown;
+  costPrice: unknown;
+  landingPrice?: unknown;
+};
+export const materialiseVariantPrices = (
+  v: VariantPriceInput,
+  p: ProductPriceTemplate
+) => ({
+  mrpOverride: (v.mrpOverride ?? p.mrp ?? null) as any,
+  priceOverride: (v.priceOverride ?? p.basePrice) as any,
+  costOverride: (v.costOverride ?? p.costPrice) as any,
+  landingOverride: (v.landingOverride ?? p.landingPrice ?? p.costPrice) as any,
+});
+
 export const listProducts = async (query: ListProductsQuery) => {
   const { page, limit, skip } = getPagination(query);
 
@@ -180,6 +219,7 @@ export const createProduct = async (data: {
     mrpOverride?: number;
     priceOverride?: number;
     costOverride?: number;
+    landingOverride?: number;
     initialStock?: number;
   }>;
 }, userId?: number, branchId?: number) => {
@@ -209,9 +249,9 @@ export const createProduct = async (data: {
     // in EVERY flow — not just the immediate print-after-creation. The Barcode
     // Printing module (search + browse) reads variant.lotCode.
     lotCode: data.lotCode ?? null,
-    mrpOverride: v.mrpOverride ?? null,
-    priceOverride: v.priceOverride ?? null,
-    costOverride: v.costOverride ?? null,
+    // Prices are materialised from the product template — see
+    // materialiseVariantPrices. Never left NULL to "inherit".
+    ...materialiseVariantPrices(v, data),
   }));
 
   const product = await prisma.product.create({
@@ -369,6 +409,7 @@ export const addVariant = async (productId: number, data: {
   mrpOverride?: number;
   priceOverride?: number;
   costOverride?: number;
+  landingOverride?: number;
 }) => {
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -389,9 +430,8 @@ export const addVariant = async (productId: number, data: {
       barcode,
       size: data.size,
       color: data.color,
-      mrpOverride: data.mrpOverride ?? null,
-      priceOverride: data.priceOverride ?? null,
-      costOverride: data.costOverride ?? null,
+      // Materialised from the product template, not left NULL to inherit.
+      ...materialiseVariantPrices(data, product),
     },
   });
 
@@ -418,6 +458,7 @@ export const updateVariant = async (productId: number, variantId: number, data: 
   mrpOverride?: number | null;
   priceOverride?: number | null;
   costOverride?: number | null;
+  landingOverride?: number | null;
   isActive?: boolean;
 }) => {
   const variant = await prisma.productVariant.findFirst({
@@ -446,6 +487,7 @@ export const bulkCreateVariants = async (
       mrpOverride?: number;
       priceOverride?: number;
       costOverride?: number;
+      landingOverride?: number;
       initialStock?: number;
       unitCost?: number | null;
     }>;
@@ -630,9 +672,8 @@ export const bulkCreateVariants = async (
           color: v.color,
           // Carry the lot code so every barcode-label print flow shows it.
           lotCode: data.lotCode ?? null,
-          mrpOverride: v.mrpOverride ?? null,
-          priceOverride: v.priceOverride ?? null,
-          costOverride: v.costOverride ?? null,
+          // Materialised from the product template, not left NULL to inherit.
+          ...materialiseVariantPrices(v, product),
         },
       });
 

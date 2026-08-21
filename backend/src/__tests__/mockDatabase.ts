@@ -30,6 +30,14 @@ const prismaMock = new Proxy({} as any, {
       }
       return target._$transaction;
     }
+    // Client-level helpers ($queryRaw, $queryRawUnsafe, $executeRawUnsafe, …)
+    // are CALLED directly, unlike prisma.<model>.<method>(). Handing back a
+    // model proxy here makes them non-callable, which surfaces as a confusing
+    // 500 from any route that reaches raw SQL (e.g. nextBarcodes).
+    if (typeof prop === 'string' && prop.startsWith('$')) {
+      if (!target[prop]) target[prop] = jest.fn();
+      return target[prop];
+    }
     if (!models[prop as string]) {
       models[prop as string] = buildModelProxy();
     }

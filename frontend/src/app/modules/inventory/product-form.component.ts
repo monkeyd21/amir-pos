@@ -145,13 +145,20 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     if (this.costPrice != null && this.costPrice > 0 && this.marginPercent != null) {
       this.basePrice = Math.round(this.costPrice * (1 + this.marginPercent / 100));
     }
+    this.syncTemplateIntoRows();
   }
 
-  /** §13.1 — keep the displayed margin % in sync when price/cost change directly. */
+  /**
+   * §13.1 — keep the displayed margin % in sync when price/cost change directly.
+   * Every product-level price input funnels through here (MRP via onMrpChange,
+   * Sale and Cost directly), so it is also where the template gets pushed into
+   * the variant rows.
+   */
   recomputeMargin(): void {
     if (this.costPrice != null && this.costPrice > 0 && this.basePrice != null) {
       this.marginPercent = Math.round(((this.basePrice - this.costPrice) / this.costPrice) * 100);
     }
+    this.syncTemplateIntoRows();
   }
   description = '';
   vendorId: number | null = null;
@@ -559,14 +566,57 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   }
 
   // ─── Variant rows ───────────────────────────────────────────────
+  /**
+   * The template values last pushed into the variant rows. A row still holding
+   * the previous template value counts as "untouched", so it is safe to
+   * re-populate when the product price changes; a row the user typed into by
+   * hand keeps its own number.
+   */
+  private lastTemplate: { mrp: number | null; sale: number | null; cost: number | null } = {
+    mrp: null,
+    sale: null,
+    cost: null,
+  };
+
+  private templateNow(): { mrp: number | null; sale: number | null; cost: number | null } {
+    const num = (v: number | null) => (v != null && Number(v) > 0 ? Number(v) : null);
+    return { mrp: num(this.mrp), sale: num(this.basePrice), cost: num(this.costPrice) };
+  }
+
+  /**
+   * §13.3 — seed the new row from the product-level price boxes so the fields
+   * are POPULATED with real, editable numbers. The product price is a template,
+   * never a live pointer: what the row shows is what gets stored on the variant.
+   */
   addVariantRow(): void {
+    const t = this.templateNow();
     this.variants.push({
       size: '',
       color: '',
-      mrp: null,
-      priceOverride: null,
-      costOverride: null,
+      mrp: t.mrp,
+      priceOverride: t.sale,
+      costOverride: t.cost,
     });
+    this.lastTemplate = t;
+  }
+
+  /**
+   * Push a changed product-level price into the rows that still carry the old
+   * template value, so the visible per-variant numbers stay in step while the
+   * user is still filling the form. Hand-edited rows are never overwritten.
+   */
+  private syncTemplateIntoRows(): void {
+    const t = this.templateNow();
+    for (const row of this.variants) {
+      if (row.mrp == null || row.mrp === this.lastTemplate.mrp) row.mrp = t.mrp;
+      if (row.priceOverride == null || row.priceOverride === this.lastTemplate.sale) {
+        row.priceOverride = t.sale;
+      }
+      if (row.costOverride == null || row.costOverride === this.lastTemplate.cost) {
+        row.costOverride = t.cost;
+      }
+    }
+    this.lastTemplate = t;
   }
 
   removeVariantRow(index: number): void {
@@ -610,22 +660,52 @@ export class ProductFormComponent implements OnInit, OnDestroy {
    * manual winning, and stamp the per-variant cost from the form's
    * costPrice unless the row supplied its own override.
    */
+  /**
+   * §13.3 — resolve a row's OWN price stack. The product-level MRP / Sale /
+   * Cost boxes are only a template: anything the row left blank is filled in
+   * here and sent as an EXPLICIT per-variant price. Nothing is left for the
+   * server to infer, so a later product edit can never re-price this variant.
+   */
+  private variantPrices(row: {
+    mrp?: number | null;
+    priceOverride?: number | null;
+    costOverride?: number | null;
+    landingOverride?: number | null;
+  }): Record<string, number> {
+    const pick = (rowVal: number | null | undefined, formVal: number | null) => {
+      if (rowVal != null && Number(rowVal) > 0) return Number(rowVal);
+      if (formVal != null && Number(formVal) > 0) return Number(formVal);
+      return null;
+    };
+    const out: Record<string, number> = {};
+    const mrp = pick(row.mrp, this.mrp);
+    const sale = pick(row.priceOverride, this.basePrice);
+    const cost = pick(row.costOverride, this.costPrice);
+    const landing = pick(row.landingOverride, this.landingPrice) ?? cost;
+    if (mrp != null) out['mrpOverride'] = mrp;
+    if (sale != null) out['priceOverride'] = sale;
+    if (cost != null) out['costOverride'] = cost;
+    if (landing != null) out['landingOverride'] = landing;
+    return out;
+  }
+
   private collectVariantsForSubmit(): any[] {
     const fallbackUnitCost = this.costPrice ? Number(this.costPrice) : null;
     const manual = this.variants
       .filter((v) => v.size.trim() && v.color.trim())
-      .map((v) => ({
-        size: v.size.trim(),
-        color: v.color.trim(),
-        ...(v.mrp ? { mrpOverride: Number(v.mrp) } : {}),
-        ...(v.priceOverride ? { priceOverride: Number(v.priceOverride) } : {}),
-        ...(v.costOverride ? { costOverride: Number(v.costOverride) } : {}),
-        ...(v.costOverride
-          ? { unitCost: Number(v.costOverride) }
-          : fallbackUnitCost !== null
-          ? { unitCost: fallbackUnitCost }
-          : {}),
-      }));
+      .map((v) => {
+        const prices = this.variantPrices(v);
+        return {
+          size: v.size.trim(),
+          color: v.color.trim(),
+          ...prices,
+          ...(prices['costOverride'] != null
+            ? { unitCost: prices['costOverride'] }
+            : fallbackUnitCost !== null
+            ? { unitCost: fallbackUnitCost }
+            : {}),
+        };
+      });
 
     const seen = new Set(
       manual.map((v) => `${v.size.toLowerCase()}|${v.color.toLowerCase()}`)
@@ -637,13 +717,22 @@ export class ProductFormComponent implements OnInit, OnDestroy {
         seen.add(key);
         return true;
       })
-      .map((v) => ({
-        ...v,
-        unitCost:
-          v.priceOverride && fallbackUnitCost === null
-            ? null
-            : fallbackUnitCost,
-      }));
+      .map((v) => {
+        // Bulk-generated rows get the same treatment — their prices are
+        // materialised from the template rather than left for the server.
+        const prices = this.variantPrices({
+          mrp: v.mrpOverride ?? null,
+          priceOverride: v.priceOverride ?? null,
+        });
+        return {
+          ...v,
+          ...prices,
+          unitCost:
+            prices['costOverride'] != null
+              ? prices['costOverride']
+              : fallbackUnitCost,
+        };
+      });
 
     return [...manual, ...bulk];
   }

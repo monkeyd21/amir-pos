@@ -279,6 +279,10 @@
         </div>
 
         <!-- Pricing -->
+        <!-- §13.3 — these boxes are a TEMPLATE. They populate each variant's own
+             price when a row is added and are copied onto the variant on save;
+             they are NOT a live link. Editing them later never re-prices
+             existing variants — change those on the variant itself. -->
         <div class="space-y-4">
           <!-- §13.3 — MRP drives the Sale Price (auto-calc MRP − 10%, rounded). -->
           <div>
@@ -293,7 +297,8 @@
               step="1"
               class="w-full px-4 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors"
             />
-            <p class="text-[11px] text-on-surface-variant/60 mt-1">Sale Price auto-fills to MRP − 10% (editable).</p>
+            <p class="text-[11px] text-on-surface-variant/60 mt-1">Sale Price auto-fills to MRP &minus; 10% (editable).</p>
+            <p class="text-[11px] text-on-surface-variant/60 mt-1">Used to fill in each size&rsquo;s price below. Each size stores its own price &mdash; changing this later won&rsquo;t re-price existing sizes.</p>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -621,7 +626,7 @@
                     min="0"
                     step="1"
                     placeholder="MRP"
-                    title="MRP — leave blank to use the product MRP. Sale auto-fills to MRP − 10%."
+                    title="MRP for this size — pre-filled from the product MRP and stored on this size. Sale auto-fills to MRP − 10%."
                     class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <input
@@ -630,7 +635,7 @@
                     min="0"
                     step="1"
                     placeholder="Sale"
-                    title="Sale Price — leave blank to use the product Sale Price."
+                    title="Sale Price for this size — pre-filled from the product Sale Price and stored on this size."
                     class="w-full px-2 py-2 text-sm text-right font-body bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant/40 border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <button

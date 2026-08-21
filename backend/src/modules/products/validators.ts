@@ -24,6 +24,7 @@ export const createProductSchema = z.object({
       mrpOverride: z.number().positive().optional(),
       priceOverride: z.number().positive().optional(),
       costOverride: z.number().positive().optional(),
+      landingOverride: z.number().positive().optional(),
       initialStock: z.number().int().min(0).optional(),
     })).optional(),
   }),
@@ -80,6 +81,7 @@ export const createVariantSchema = z.object({
     mrpOverride: z.number().positive().optional(),
     priceOverride: z.number().positive().optional(),
     costOverride: z.number().positive().optional(),
+    landingOverride: z.number().positive().optional(),
   }),
 });
 
@@ -94,6 +96,7 @@ export const updateVariantSchema = z.object({
     mrpOverride: z.number().positive().optional().nullable(),
     priceOverride: z.number().positive().optional().nullable(),
     costOverride: z.number().positive().optional().nullable(),
+    landingOverride: z.number().positive().optional().nullable(),
     isActive: z.boolean().optional(),
   }),
 });
@@ -119,6 +122,7 @@ export const bulkCreateVariantsSchema = z.object({
           mrpOverride: z.number().positive().optional(),
           priceOverride: z.number().positive().optional(),
           costOverride: z.number().positive().optional(),
+          landingOverride: z.number().positive().optional(),
           initialStock: z.number().int().nonnegative().optional(),
           unitCost: z.number().nonnegative().optional().nullable(),
         })

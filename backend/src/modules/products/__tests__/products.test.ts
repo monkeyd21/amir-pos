@@ -282,6 +282,8 @@ describe('Products Module', () => {
       }));
       prismaMock.branch.findMany.mockResolvedValue([]);
       prismaMock.inventory.createMany.mockResolvedValue({ count: 0 });
+      // nextBarcodes reads MAX(barcode) over raw SQL; no rows → start at base.
+      prismaMock.$queryRawUnsafe.mockResolvedValue([{ m: null }]);
 
       const res = await request(app)
         .post(`${BASE}/1/variants`)
@@ -293,8 +295,8 @@ describe('Products Module', () => {
       expect(res.body.data.color).toBe('Navy');
       // SKU follows BRA-NAM-SIZE-COL-RAND pattern
       expect(res.body.data.sku).toMatch(/^TES-CLA-L-NAV-[A-F0-9]{4}$/);
-      // Barcode is a 13-digit EAN-13
-      expect(res.body.data.barcode).toMatch(/^\d{13}$/);
+      // Barcode is 9-digit sequential (not EAN-13 — see barcode/SKU scheme)
+      expect(res.body.data.barcode).toMatch(/^\d{9}$/);
     });
 
     it('should return 404 if product does not exist', async () => {
