@@ -505,10 +505,10 @@
                           >
                             <span class="material-symbols-outlined text-sm">do_not_disturb_on</span>
                           </button>
-                          <!-- §2.3 — Owner Discretion Discount % (0–15), Owner-PIN gated. §2.4 locked on clearance lines. -->
+                          <!-- §2.3 — Owner Discretion Discount % (0–100), Owner-PIN gated. §2.4 locked on clearance lines. -->
                           <div class="flex items-center gap-0.5" [title]="item.isClearance ? 'Clearance price is locked — no discounts' : 'Owner Discretion Discount % (requires Owner PIN)'">
                             <input
-                              type="number" min="0" max="15" step="1"
+                              type="number" min="0" max="100" step="1"
                               [(ngModel)]="item.discretionaryPct"
                               [disabled]="!!item.isClearance"
                               data-testid="discretionary-pct"
@@ -649,7 +649,9 @@
                 }
               </div>
 
-              <!-- Special discount: flat ₹ waiver the customer asks for -->
+              <!-- Special discount: flat ₹ adjustment. POSITIVE reduces the bill
+                   (a waiver the customer asks for); NEGATIVE is a surcharge that
+                   raises it (delivery/alteration charge) — hence no `min`. -->
               <div class="flex items-center justify-between gap-3">
                 <span class="text-sm text-on-surface-variant">Special discount</span>
                 <div class="relative w-24">
@@ -659,7 +661,6 @@
                     type="number"
                     [(ngModel)]="specialDiscount"
                     (ngModelChange)="reclampTenders()"
-                    min="0"
                     placeholder="0"
                     class="w-full bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm text-right pl-6 pr-2 py-2 rounded-lg transition-all outline-none"
                   />

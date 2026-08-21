@@ -59,8 +59,10 @@ export const checkoutSchema = z.object({
           // Cashier flags this line as sold as-is (clearance/defective) — blocks returns.
           nonReturnable: z.boolean().optional(),
           // §2.3 — Owner Discretion Discount for this line, as a percent of the
-          // line's gross (0–15). Requires `ownerPin` at the bill level.
-          discretionaryPct: z.number().min(0).max(15).optional(),
+          // line's gross. Bounded only by 0–100% (you cannot discount more than
+          // the line is worth); the old 15% ceiling was removed on request, so
+          // the Owner PIN is now the only gate on how deep an OD can go.
+          discretionaryPct: z.number().min(0).max(100).optional(),
         })
       )
       .min(1, 'At least one item is required'),
@@ -93,12 +95,16 @@ export const checkoutSchema = z.object({
         })
       )
       .optional(),
-    // Negative values are allowed to accommodate round-up surcharges
-    // (the cashier bumps the total to the next ₹10). Capped at ₹10 on
-    // the negative side so a stray sign can't turn into a huge surcharge.
-    discountAmount: z.number().gte(-10).optional(),
+    // Whole-bill discount total (manual + special + round-off). Negative means
+    // a net SURCHARGE: round-up to the next ₹10, or a negative special discount.
+    // Deliberately unbounded on the negative side — `specialDiscount` may itself
+    // be negative, so any fixed floor here would reject a legitimate bill. The
+    // service still refuses to let the payable fall below ₹0.
+    discountAmount: z.number().optional(),
     // §12 — flat special-discount portion, persisted separately for the breakup.
-    specialDiscount: z.number().min(0).optional(),
+    // MAY BE NEGATIVE: a negative special discount is a surcharge that raises
+    // the payable (e.g. a delivery or alteration charge added at the counter).
+    specialDiscount: z.number().optional(),
     loyaltyPointsRedeem: z.number().int().min(0).optional(),
     // §2.3 — Owner PIN, required when any line carries a discretionaryPct.
     ownerPin: z.string().optional(),
@@ -146,7 +152,8 @@ export const createUpiPaymentSchema = z.object({
       quantity: z.number().int().positive(),
     })).min(1),
     customerId: z.number().int().positive().optional(),
-    discountAmount: z.number().min(0).optional(),
+    // May be negative — see checkoutSchema.discountAmount.
+    discountAmount: z.number().optional(),
     notes: z.string().optional(),
   }),
 });

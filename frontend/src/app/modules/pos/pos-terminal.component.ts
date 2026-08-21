@@ -1255,7 +1255,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    *  backend's per-line round(gross × pct/100) so the bill total is exact. */
   get discretionaryDiscountTotal(): number {
     return this.cart.reduce((sum, item) => {
-      const pct = Math.min(15, Math.max(0, item.discretionaryPct ?? 0));
+      const pct = Math.min(100, Math.max(0, item.discretionaryPct ?? 0));
       if (!pct) return sum;
       return sum + Math.round(item.unitPrice * item.quantity * (pct / 100) * 100) / 100;
     }, 0);
@@ -1296,7 +1296,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // totals stays exact against the bill. It's an independent top-up (the bill
     // total subtracts it separately), so it also applies to discount-locked
     // lines — hence it's added before the excludeFromDiscount short-circuit.
-    const pct = Math.min(15, Math.max(0, item.discretionaryPct ?? 0));
+    const pct = Math.min(100, Math.max(0, item.discretionaryPct ?? 0));
     const discretionaryDisc = pct
       ? Math.round(gross * (pct / 100) * 100) / 100
       : 0;

@@ -226,6 +226,12 @@
             <span class="text-on-surface-variant">Special Discount</span>
             <span class="text-error font-mono">&minus;{{ formatCurrency(num(sale.specialDiscountAmount)) }}</span>
           </div>
+        } @else if (num(sale.specialDiscountAmount) < 0) {
+          <!-- Negative special discount = a surcharge that RAISED the payable. -->
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Special Charge</span>
+            <span class="font-mono">+{{ formatCurrency(-num(sale.specialDiscountAmount)) }}</span>
+          </div>
         }
         @if (num(sale.loyaltyDiscountAmount) > 0) {
           <div class="flex justify-between">

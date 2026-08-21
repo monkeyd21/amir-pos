@@ -223,8 +223,7 @@ interface LoyaltyConfigResponse {
               <input
                 type="number"
                 class="mp-input mp-input--numeric"
-                inputmode="numeric"
-                min="0"
+                inputmode="text"
                 placeholder="0"
                 [ngModel]="cart.specialDiscount()"
                 (ngModelChange)="onSpecialDiscountChange($event)"
@@ -362,6 +361,11 @@ interface LoyaltyConfigResponse {
                 <div class="totals__row totals__row--savings">
                   <span>Special discount</span>
                   <span>−{{ formatInr(cart.specialDiscount() ?? 0) }}</span>
+                </div>
+              } @else if ((cart.specialDiscount() ?? 0) < 0) {
+                <div class="totals__row">
+                  <span>Special charge</span>
+                  <span>+{{ formatInr(-(cart.specialDiscount() ?? 0)) }}</span>
                 </div>
               }
               @if (cart.loyaltyDiscount() > 0) {
@@ -1002,7 +1006,9 @@ export class MobileBillScreen implements OnInit, OnDestroy {
 
   onSpecialDiscountChange(value: number | null): void {
     const n = value == null || Number.isNaN(Number(value)) ? null : Number(value);
-    this.cart.specialDiscount.set(n != null && n <= 0 ? null : n);
+    // A NEGATIVE special discount is a surcharge that raises the payable, so
+    // only an exact 0 (or a blank/invalid box) clears the field.
+    this.cart.specialDiscount.set(n === 0 ? null : n);
   }
 
   onLoyaltyChange(value: number | null): void {

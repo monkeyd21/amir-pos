@@ -592,8 +592,10 @@ export class PosService {
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
           // §2.4 — clearance lines are always non-returnable, regardless of input.
           nonReturnable: isClearance ? true : item.nonReturnable === true,
-          // Clamp defensively to the 15% ceiling; clearance locks it to 0.
-          discretionaryPct: isClearance ? 0 : Math.min(15, Math.max(0, item.discretionaryPct ?? 0)),
+          // §2.3 — the 15% ceiling was removed; clamp only to a sane 0–100%
+          // (you cannot discount more than the line is worth). Clearance
+          // locks it to 0, and the Owner PIN still gates any non-zero OD.
+          discretionaryPct: isClearance ? 0 : Math.min(100, Math.max(0, item.discretionaryPct ?? 0)),
           isClearance,
         });
       }
@@ -832,17 +834,15 @@ export class PosService {
       const saleTotal = Math.round((subtotal - totalDiscount) * 100) / 100;
 
       // §bug7 — surface the EXACT reason a discount validation fails instead of a
-      // generic "Discount exceeds sale total". First reject an invalid special
-      // discount specifically (kept ≥ 0), then, if the combined discounts blow
+      // generic "Discount exceeds sale total": if the combined discounts blow
       // past the bill, spell out every component and by how much it overshot.
+      //
+      // A NEGATIVE special discount is legitimate — it is a surcharge that
+      // raises the payable (delivery/alteration charge, or a deliberate round
+      // up). It can never push the payable below ₹0, so the only guard needed
+      // is the saleTotal check below.
       const specialDiscount = Math.round((data.specialDiscount || 0) * 100) / 100;
       const manualDiscount = Math.round((discountAmount - specialDiscount) * 100) / 100;
-      if (specialDiscount < 0) {
-        throw new AppError(
-          `Special discount cannot be negative (got ₹${specialDiscount.toFixed(2)}). Enter 0 or a positive amount.`,
-          400
-        );
-      }
       if (saleTotal < 0) {
         const parts = [
           `manual ₹${manualDiscount.toFixed(2)}`,
