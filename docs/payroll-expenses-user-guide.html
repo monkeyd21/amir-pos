@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payroll &amp; Expenses — User Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+
+  :root {
+    --ink:      #1A1D22;
+    --ink-2:    #40464F;
+    --mute:     #6B7280;
+    --rule:     #D9DDE4;
+    --rule-2:   #EDF0F4;
+    --accent:   #2C4A7C;
+    --accent-bg:#EEF2F9;
+    --warn:     #A8541D;
+    --warn-bg:  #FDF2E9;
+    --good:     #2C6A4E;
+    --good-bg:  #E9F3EE;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    font-size: 10.2pt;
+    line-height: 1.5;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  h1, h2, h3 { font-family: "DejaVu Serif", "Liberation Serif", Georgia, serif; }
+
+  /* ── cover ── */
+  .cover { padding-top: 4mm; border-bottom: 2.5pt solid var(--ink); padding-bottom: 6mm; margin-bottom: 7mm; }
+  .cover .kicker {
+    font-size: 8pt; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 4mm;
+  }
+  .cover h1 { font-size: 25pt; line-height: 1.1; margin: 0 0 3mm; letter-spacing: -.01em; }
+  .cover .sub { font-size: 11.5pt; color: var(--ink-2); margin: 0 0 5mm; max-width: 135mm; }
+  .cover .facts { display: flex; gap: 9mm; font-size: 8.6pt; color: var(--mute); flex-wrap: wrap; }
+  .cover .facts b { color: var(--ink-2); font-weight: bold; }
+
+  h2 {
+    font-size: 15pt; margin: 0 0 1mm; padding-top: 1mm;
+    border-top: 1.5pt solid var(--ink); padding-top: 3mm;
+  }
+  h2 .n { color: var(--accent); font-size: 11pt; margin-right: 2mm; }
+  .lede { color: var(--mute); font-size: 9pt; margin: 0 0 4mm; padding-bottom: 2.5mm; border-bottom: .5pt solid var(--rule); }
+
+  h3 { font-size: 11.5pt; margin: 5mm 0 2mm; }
+
+  p { margin: 0 0 2.6mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1.4mm; }
+
+  section { page-break-inside: auto; margin-bottom: 7mm; }
+  .page-break { page-break-before: always; }
+
+  /* ── path chip ── */
+  .path {
+    display: inline-block; background: var(--accent-bg); color: var(--accent);
+    border: .5pt solid #C6D2E6; border-radius: 2pt;
+    padding: .4mm 1.6mm; font-size: 8.6pt; font-weight: bold; white-space: nowrap;
+  }
+
+  /* ── tables ── */
+  table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.2pt; }
+  th {
+    text-align: left; font-size: 7.6pt; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--mute); font-weight: bold; border-bottom: 1pt solid var(--rule);
+    padding: 1.6mm 2.5mm 1.6mm 0; vertical-align: bottom;
+  }
+  td { padding: 1.8mm 2.5mm 1.8mm 0; border-bottom: .5pt solid var(--rule-2); vertical-align: top; }
+  td.num, th.num { text-align: right; padding-right: 3mm; }
+  tr { page-break-inside: avoid; }
+
+  /* ── callouts ── */
+  .box {
+    border-left: 2.5pt solid var(--accent); background: #F7F9FC;
+    padding: 3mm 4mm; margin: 0 0 4mm; page-break-inside: avoid;
+  }
+  .box.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .box.good { border-left-color: var(--good); background: var(--good-bg); }
+  .box .t {
+    font-size: 7.8pt; letter-spacing: .1em; text-transform: uppercase;
+    font-weight: bold; color: var(--accent); margin-bottom: 1.5mm;
+  }
+  .box.warn .t { color: var(--warn); }
+  .box.good .t { color: var(--good); }
+  .box p:last-child { margin-bottom: 0; }
+
+  /* ── steps ── */
+  ol.steps { counter-reset: s; list-style: none; padding-left: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding-left: 8mm; margin-bottom: 3mm;
+    page-break-inside: avoid;
+  }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 0;
+    width: 5.4mm; height: 5.4mm; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 8pt; font-weight: bold; text-align: center; line-height: 5.4mm;
+  }
+
+  /* ── checklist ── */
+  table.check td:first-child { width: 6mm; }
+  .tick {
+    display: inline-block; width: 3.6mm; height: 3.6mm;
+    border: .8pt solid var(--ink-2); border-radius: 1pt;
+  }
+  .expect { color: var(--good); font-weight: bold; }
+
+  .foot {
+    margin-top: 6mm; padding-top: 2.5mm; border-top: 1pt solid var(--ink);
+    font-size: 8pt; color: var(--mute);
+  }
+  strong { font-weight: bold; }
+  .rupee { white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Sabiha's Ethnic &middot; erp.sabihasethnic.com</div>
+  <h1>Staff Pay &amp; Shop Expenses</h1>
+  <p class="sub">A guide to the three new things in your system — marking attendance, running the month's salary, and keeping track of what the shop owes. Written so you can try each one and check it did the right thing.</p>
+  <div class="facts">
+    <span><b>For</b> the owner and managers</span>
+    <span><b>Live since</b> 28 August 2026</span>
+    <span><b>Time to work through</b> about 30 minutes</span>
+  </div>
+</div>
+
+<section>
+  <h2><span class="n">1</span>What is new</h2>
+  <p class="lede">Three screens, and one rule that ties them together.</p>
+
+  <table>
+    <thead><tr><th style="width:30mm">Screen</th><th style="width:42mm">Where</th><th>What it is for</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Attendance</strong></td>
+        <td><span class="path">Employees &rarr; Attendance</span></td>
+        <td>A grid for the whole month. Mark each person present, absent, half-day, late, or on their weekly off.</td>
+      </tr>
+      <tr>
+        <td><strong>Payroll</strong></td>
+        <td><span class="path">Payroll</span><br><span style="font-size:8.2pt;color:var(--mute)">in the left menu</span></td>
+        <td>Works out each person's salary for the month from that attendance, and lets you mark it paid.</td>
+      </tr>
+      <tr>
+        <td><strong>Expenses</strong></td>
+        <td><span class="path">Expenses</span><br><span style="font-size:8.2pt;color:var(--mute)">in the left menu</span></td>
+        <td>Everything the shop owes and has paid this month — rent, electricity, one-off costs, and salaries.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <div class="t">The rule that ties them together</div>
+    <p><strong>You never type a salary into Expenses.</strong> When you mark a salary paid on the Payroll screen, it appears in Expenses by itself, as <em>Salary &ndash; [Name] &ndash; [Month]</em>. It is locked there on purpose: if the amount is wrong, you fix the attendance and the figure follows. That way the same wage can never be recorded twice.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">2</span>First, set up each person's pay</h2>
+  <p class="lede">Do this once per employee. Until it is done, the Payroll screen will show them as “not set up”.</p>
+
+  <ol class="steps">
+    <li>Go to <span class="path">Employees</span> and click a name, then <strong>Edit</strong>.</li>
+    <li>Fill in the <strong>joining date</strong>. Days before it are never counted against anyone.</li>
+    <li>Choose how they are paid:
+      <ul>
+        <li><strong>Fixed monthly</strong> — they get the same amount each month. Enter the monthly amount, <em>and</em> a per-day rate. The per-day rate is used only to work out what a missed day costs.</li>
+        <li><strong>Daily wage</strong> — they are paid for the days they work. Enter just the per-day rate.</li>
+      </ul>
+    </li>
+    <li>Pick their <strong>weekly off day</strong> (for example Tuesday).</li>
+    <li>Save.</li>
+  </ol>
+
+  <div class="box warn">
+    <div class="t">Why the per-day rate is typed in, not calculated</div>
+    <p>The system does not divide the monthly salary by the number of days in the month. If it did, one absent day would cost more in February than in March. You set the rate, so a missed day always costs the same.</p>
+  </div>
+
+  <h3>While you are there: check the expense categories</h3>
+  <p>Go to <span class="path">Expenses &rarr; Categories</span>. <strong>Rent</strong> and <strong>Utilities</strong> are already set to appear every month, due on the 5th and the 10th. Open each one and put in the usual amount, so it is filled in for you each month. You can still change the amount on the day you pay it.</p>
+  <p><strong>Salaries</strong> is marked system-managed. You cannot enter into it by hand — that is what the Payroll screen is for.</p>
+</section>
+
+<section class="page-break">
+  <h2><span class="n">3</span>Every day: mark attendance</h2>
+  <p class="lede">Employees &rarr; Attendance. Staff down the side, days of the month across the top.</p>
+
+  <p>Click a person's box for a day to change it. Clicking again moves to the next option, so you can tap through to what you want. There is also a <strong>mark everyone present</strong> button for a day — usually faster, because most days only one or two people are exceptions.</p>
+
+  <table>
+    <thead><tr><th style="width:38mm">Mark</th><th>What it means for the pay</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Present</strong></td><td>A normal working day. Full pay.</td></tr>
+      <tr><td><strong>Absent</strong></td><td>One day's pay is deducted, at the per-day rate you set.</td></tr>
+      <tr><td><strong>Half-day</strong></td><td>Half a day's pay is deducted.</td></tr>
+      <tr><td><strong>Late</strong></td><td><strong>Paid in full.</strong> It is recorded so you can see who is repeatedly late, but nothing is deducted automatically.</td></tr>
+      <tr><td><strong>Paid weekly off</strong></td><td>Their rest day, paid.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Docking money for something specific</h3>
+  <p>Any day can carry a <strong>deduction</strong> with a short note — say <span class="rupee">₹100</span> for turning up late three times in a week. It is separate from the day's mark, so you can dock a day the person was fully present. The note is there so that in three months you still know why.</p>
+
+  <div class="box">
+    <div class="t">A day nobody marked</div>
+    <p>For someone on a <strong>fixed monthly</strong> salary, an unmarked day costs them nothing — you only record the exceptions.</p>
+    <p>For someone on a <strong>daily wage</strong>, an unmarked day is not paid, because pay is built up from the days you marked.</p>
+    <p>The Payroll screen warns you <em>“N days unmarked”</em> before you pay anyone, so a forgotten week cannot slip through.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">4</span>End of the month: run the salary</h2>
+  <p class="lede">Payroll in the left menu. Pick the month at the top.</p>
+
+  <ol class="steps">
+    <li>Look down the list. Every active person shows their days and what they are owed. Deal with any <strong>“days unmarked”</strong> warning first.</li>
+    <li>Click a person to see the working: the base, what came off for absences and half-days, any deductions you added, and the final figure.</li>
+    <li>Press <strong>Finalise</strong>. This freezes the month — attendance for that person can no longer be edited, and the salary appears in Expenses as <strong>due</strong>.</li>
+    <li>When you actually hand over the money, press <strong>Pay</strong>, choose how you paid (cash, UPI, card, bank, cheque) and the date.</li>
+  </ol>
+
+  <div class="box">
+    <div class="t">Made a mistake?</div>
+    <p>Before you have paid: the owner can <strong>Reopen</strong> the month, which unlocks attendance and removes the amount from Expenses. After you have paid, reopening is refused — the payment has to be dealt with first, so the books cannot quietly change under a payment that already happened.</p>
+  </div>
+
+  <h3>What the numbers should come to</h3>
+  <table>
+    <thead><tr><th>Person</th><th>Paid</th><th class="num">Rate</th><th>That month</th><th class="num">They get</th></tr></thead>
+    <tbody>
+      <tr><td>Ramesh</td><td>Fixed monthly</td><td class="num"><span class="rupee">₹18,000</span><br><span style="color:var(--mute);font-size:8.4pt">₹700/day</span></td><td>2 days absent, 1 half-day, <span class="rupee">₹100</span> deduction</td><td class="num"><strong><span class="rupee">₹16,150</span></strong></td></tr>
+      <tr><td>Sunita</td><td>Fixed monthly</td><td class="num"><span class="rupee">₹15,000</span><br><span style="color:var(--mute);font-size:8.4pt">₹580/day</span></td><td>A clean month</td><td class="num"><strong><span class="rupee">₹15,000</span></strong></td></tr>
+      <tr><td>Arif</td><td>Daily wage</td><td class="num"><span class="rupee">₹600</span>/day</td><td>24 present, 2 half-days, 4 paid offs</td><td class="num"><strong><span class="rupee">₹17,400</span></strong></td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:8.6pt;color:var(--mute)">Ramesh: 18,000 &minus; (2 &times; 700) &minus; 350 &minus; 100. Sunita gets the full amount whether the month has 28 days or 31. Arif: (24 + 1 + 4) &times; 600.</p>
+
+  <div class="box warn">
+    <div class="t">Pay never goes below zero</div>
+    <p>If deductions somehow come to more than the salary, the amount paid is <span class="rupee">₹0</span> and the screen tells you how much was left un-recovered. Nothing is silently carried into next month — chasing it is your decision, not the system's.</p>
+  </div>
+</section>
+
+<section class="page-break">
+  <h2><span class="n">5</span>Expenses: what the shop owes</h2>
+  <p class="lede">Expenses in the left menu. One month at a time.</p>
+
+  <p>The screen has two halves. <strong>Due</strong> is what is still owed, oldest first. <strong>Paid</strong> is what has been settled, with the method and date. Rent and Utilities appear on their own at the start of each month with the amount you set; you change the figure if this month is different, then mark it paid.</p>
+
+  <ul>
+    <li><strong>A one-off cost</strong> — repairs, courier, tea for the shop — use <strong>Add expense</strong>. Choosing a category is optional.</li>
+    <li><strong>Paying only part of a bill</strong> is fine. Enter what you actually paid; the entry shows what is still outstanding.</li>
+    <li><strong>Salary rows</strong> appear by themselves and cannot be edited here. Correct them on the Payroll screen.</li>
+  </ul>
+
+  <div class="box good">
+    <div class="t">Cash paid from the till</div>
+    <p>If you pay an expense in <strong>cash</strong>, that money left the drawer, so the system now expects that much less when you count the till at closing. Without this, paying the rent in cash would have looked like a shortfall at the end of the day. Cash, UPI and card are still counted separately, as before.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">6</span>Try it and check it</h2>
+  <p class="lede">Work down this list. The right-hand column is what should happen — if it does not, note it and send it back.</p>
+
+  <table class="check">
+    <thead><tr><th></th><th style="width:78mm">Do this</th><th>You should see</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tick"></span></td><td>Set up one employee on <strong>fixed monthly</strong> pay and one on <strong>daily wage</strong>.</td><td>Both save, and stop showing as “not set up” on Payroll.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Open the attendance grid and mark a few days for each of them.</td><td>The grid saves as you click. The month scrolls sideways without the whole page moving.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Mark somebody <strong>Late</strong>.</td><td><span class="expect">Nothing is deducted.</span> The late count goes up by one.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Put a <span class="rupee">₹100</span> deduction with a note on a day they were present.</td><td>Their pay drops by exactly <span class="rupee">₹100</span> and the note is saved.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Try to mark a day <em>before</em> someone's joining date.</td><td>It will not let you.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Leave a few days in the middle of the month unmarked, then open Payroll.</td><td>A clear <strong>“days unmarked”</strong> warning against that person.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Open one person's payroll detail and check the sum by hand.</td><td>The workings add up to the final figure, line by line.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Press <strong>Finalise</strong>, then go to <span class="path">Expenses</span>.</td><td><span class="expect">A “Salary &ndash; [Name] &ndash; [Month]” row sitting in Due,</span> which you cannot edit there.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Go back and try to change that person's attendance for the month.</td><td>It is locked.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Press <strong>Pay</strong>, choose cash.</td><td>The row moves to Paid with the method and date.</td></tr>
+      <tr><td><span class="tick"></span></td><td><strong>Press Pay twice quickly</strong>, or double-click it.</td><td><span class="expect">Only one payment is recorded.</span> Never two.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Add a one-off expense of <span class="rupee">₹500</span> and pay only <span class="rupee">₹200</span> of it.</td><td>It stays in Due showing <span class="rupee">₹300</span> still outstanding.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Open the Expenses screen for the same month twice.</td><td>Rent and Utilities appear <span class="expect">once, not twice.</span></td></tr>
+      <tr><td><span class="tick"></span></td><td>Change the Rent amount, then reload the page.</td><td>Your amount is kept, not reset.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Pay an expense in <strong>cash</strong>, then close the till for the day.</td><td>Expected cash is lower by that amount, so your count still matches.</td></tr>
+      <tr><td><span class="tick"></span></td><td>Log in as a <strong>cashier</strong> and look at the menu.</td><td><span class="expect">No Payroll, no Expenses, no salary figures anywhere.</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="n">7</span>Worth knowing</h2>
+  <p class="lede">Honest notes about what this does and does not do yet.</p>
+
+  <ul>
+    <li><strong>Commission is separate from salary.</strong> You still pay it on the Commissions screen. It now also shows up in Expenses as <em>Commission &ndash; [Name] &ndash; [Month]</em>, so the total staff cost for a month is complete.</li>
+    <li><strong>Nothing was carried over from the old expense screen.</strong> It never actually saved anything — every attempt failed silently — so there was no history to bring across. You are starting clean.</li>
+    <li><strong>Approving expenses is gone.</strong> There is only owed and paid now. The old approve step had no button anywhere, so nothing was ever approved through it.</li>
+    <li><strong>Somebody who leaves</strong> still appears on the payroll list for the months they worked, so their last salary does not get missed.</li>
+    <li><strong>Not built yet:</strong> a single cash-flow screen showing everything owed — expenses, salaries, vendor credit and voucher balances — in one place. The figures are all being recorded correctly for it; only the screen is missing.</li>
+    <li><strong>Also not built yet:</strong> the till-closing screen subtracts cash you paid out, but does not yet show it to you as its own line. The number is right; it is just not itemised on screen.</li>
+  </ul>
+
+  <div class="box">
+    <div class="t">If something looks wrong</div>
+    <p>Note the screen, what you did, what you expected, and what you got — a photo of the screen is ideal. Anything involving an amount is worth reporting straight away, even if it looks small.</p>
+  </div>
+</section>
+
+<div class="foot">
+  Sabiha's Ethnic ERP &middot; Staff pay &amp; shop expenses &middot; Guide prepared 28 August 2026 &middot; Live at erp.sabihasethnic.com
+</div>
+
+</body>
+</html>
