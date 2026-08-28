@@ -180,9 +180,33 @@ export class PosService {
       }
     }
 
+    // Cash paid OUT of this till for expenses and salaries (§4 payables, D4).
+    // Money handed over the counter for rent or a wage leaves the drawer just as
+    // surely as a refund does, so the physical count must be reconciled against
+    // it or every cash payout looks like a shortfall.
+    //
+    // Scoped to payments explicitly tagged with this session, plus untagged ones
+    // made at this branch during the session window — so an overlapping session
+    // at the same branch cannot subtract the same payment twice.
+    const cashPayouts = await prisma.payablePayment.findMany({
+      where: {
+        method: 'cash',
+        paidAt: { gte: session.openedAt },
+        OR: [
+          { sessionId: session.id },
+          { sessionId: null, payable: { branchId: session.branchId } },
+        ],
+        payable: { status: { not: 'void' } },
+      },
+      select: { amount: true },
+    });
+
     const round2 = (n: number) => Math.round(n * 100) / 100;
-    // §8.1a-2 — cash: opening + cash sales − cash refunds (petty/drop are entered
-    // at close and folded in there, not in this live preview).
+    const cashExpenses = round2(
+      cashPayouts.reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+    );
+    // §8.1a-2 — cash: opening + cash sales − cash refunds (petty/drop/expenses are
+    // entered or folded in at close, not in this live preview).
     const expectedAmount = round2(Number(session.openingAmount) + salesByMethod.cash - refundsByMethod.cash);
     // §8.1b — UPI: UPI sales − UPI refunds.
     const expectedUpi = round2(salesByMethod.upi - refundsByMethod.upi);
@@ -190,7 +214,7 @@ export class PosService {
     // refund subtraction and no card-refund field exists anywhere.
     const expectedCard = round2(salesByMethod.card);
 
-    return { session, expectedAmount, expectedUpi, expectedCard };
+    return { session, expectedAmount, expectedUpi, expectedCard, cashExpenses };
   }
 
   async finalizeCloseSession(
@@ -214,7 +238,8 @@ export class PosService {
     },
     branchId: number
   ) {
-    const { session, expectedAmount, expectedUpi, expectedCard } = await this.closeSession(userId);
+    const { session, expectedAmount, expectedUpi, expectedCard, cashExpenses } =
+      await this.closeSession(userId);
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const pettyCash = round2(data.pettyCash || 0);
@@ -224,9 +249,11 @@ export class PosService {
     const upiReceived = round2(data.upiReceived || 0);
     const cardReceived = round2(data.cardReceived || 0);
 
-    // §8.1a — System Expected Cash folds in petty + drop outflows; physical is
-    // reconciled against that. Variance is signed: + short (missing), − over.
-    const expectedCashNet = round2(expectedAmount - pettyCash - cashDrop);
+    // §8.1a — System Expected Cash folds in petty + drop + cash payouts; physical
+    // is reconciled against that. Variance is signed: + short (missing), − over.
+    // Each outflow stays a separate visible component — cash, UPI and card
+    // reconcile INDEPENDENTLY and there is never a combined variance total.
+    const expectedCashNet = round2(expectedAmount - pettyCash - cashDrop - cashExpenses);
     const cashVariance = round2(expectedCashNet - physical);
     const upiVariance = round2(expectedUpi - upiReceived);
     const cardVariance = round2(expectedCard - cardReceived);
