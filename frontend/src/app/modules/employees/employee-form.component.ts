@@ -114,6 +114,57 @@ interface ApiResponse<T> {
             </label>
           </div>
 
+          <!-- Payroll: drives the attendance grid + monthly salary run -->
+          <div class="pt-4 border-t border-outline-variant/10 space-y-4">
+            <p class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Payroll</p>
+
+            <div class="grid grid-cols-2 gap-4">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Joining Date</span>
+                <input type="date" [(ngModel)]="form.joiningDate"
+                  class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+                <p class="text-[10px] text-on-surface-variant/60">Days before this are never markable and count as absent for a fixed monthly salary.</p>
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Salary Type</span>
+                <select [(ngModel)]="form.salaryType"
+                  class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none cursor-pointer">
+                  <option [ngValue]="null">Not on payroll</option>
+                  <option value="fixed_monthly">Fixed Monthly</option>
+                  <option value="daily_wage">Daily Wage</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              @if (form.salaryType === 'fixed_monthly') {
+                <label class="flex flex-col gap-1.5">
+                  <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Monthly Salary (₹)</span>
+                  <input type="number" min="0" step="100" [(ngModel)]="form.monthlySalary" placeholder="0"
+                    class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+                </label>
+              }
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Per Day Rate (₹)</span>
+                <input type="number" min="0" step="10" [(ngModel)]="form.perDayRate" placeholder="0"
+                  class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+                <p class="text-[10px] text-on-surface-variant/60">
+                  {{ form.salaryType === 'daily_wage' ? 'Paid per day worked.' : 'Used to deduct absences and half days.' }}
+                </p>
+              </label>
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Weekly Off Day</span>
+                <select [(ngModel)]="form.weeklyOffDay"
+                  class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none cursor-pointer">
+                  <option [ngValue]="null">None</option>
+                  @for (d of weekDays; track d.value) {
+                    <option [ngValue]="d.value">{{ d.label }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </div>
+
           @if (isEdit) {
             <label class="flex flex-col gap-1.5">
               <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Status</span>
@@ -156,9 +207,24 @@ export class EmployeeFormComponent implements OnInit {
     branchId: null as number | null,
     commissionRate: 0,
     commissionThreshold: 0,
+    joiningDate: '' as string,
+    salaryType: null as 'fixed_monthly' | 'daily_wage' | null,
+    monthlySalary: null as number | null,
+    perDayRate: null as number | null,
+    weeklyOffDay: null as number | null,
     isActive: true,
     password: '',
   };
+
+  weekDays = [
+    { value: 0, label: 'Sunday' },
+    { value: 1, label: 'Monday' },
+    { value: 2, label: 'Tuesday' },
+    { value: 3, label: 'Wednesday' },
+    { value: 4, label: 'Thursday' },
+    { value: 5, label: 'Friday' },
+    { value: 6, label: 'Saturday' },
+  ];
 
   roles = [
     { value: 'owner', label: 'Owner' },
@@ -203,6 +269,13 @@ export class EmployeeFormComponent implements OnInit {
             branchId: emp.branch?.id ?? emp.branchId ?? null,
             commissionRate: Number(emp.commissionRate ?? 0),
             commissionThreshold: Number(emp.commissionThreshold ?? 0),
+            // Prisma @db.Date serialises as an ISO datetime — the date half is
+            // already the intended IST day, so slice rather than re-parse.
+            joiningDate: emp.joiningDate ? String(emp.joiningDate).slice(0, 10) : '',
+            salaryType: emp.salaryType ?? null,
+            monthlySalary: emp.monthlySalary != null ? Number(emp.monthlySalary) : null,
+            perDayRate: emp.perDayRate != null ? Number(emp.perDayRate) : null,
+            weeklyOffDay: emp.weeklyOffDay ?? null,
             isActive: emp.isActive ?? true,
             password: '',
           };
@@ -222,6 +295,9 @@ export class EmployeeFormComponent implements OnInit {
 
     const body: any = { ...this.form };
     if (!body.phone) body.phone = null;
+    if (!body.joiningDate) body.joiningDate = null;
+    if (body.monthlySalary === '' ) body.monthlySalary = null;
+    if (body.perDayRate === '') body.perDayRate = null;
 
     const req$ = this.isEdit
       ? this.api.put<ApiResponse<any>>(`/employees/${this.employeeId}`, body)

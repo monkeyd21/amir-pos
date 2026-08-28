@@ -1,9 +1,8 @@
-<!-- Loading State -->
 @if (loading) {
   <div class="flex items-center justify-center h-[60vh]">
     <div class="flex flex-col items-center gap-4">
       <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-      <p class="text-sm text-on-surface-variant">Loading expense...</p>
+      <p class="text-sm text-on-surface-variant">Loading expense…</p>
     </div>
   </div>
 }
@@ -22,26 +21,35 @@
         </h1>
       </div>
       <p class="mt-1 text-sm text-on-surface-variant ml-9">
-        {{ isEdit ? 'Update expense details.' : 'Record a new business expense.' }}
+        {{ isEdit ? 'Update this payable.' : 'A one-off bill or payment for ' + branchName + '.' }}
       </p>
     </div>
+
+    @if (isEdit && paidSoFar > 0) {
+      <div class="flex items-center gap-3 px-5 py-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+        <span class="material-symbols-outlined text-amber-400">info</span>
+        <p class="text-sm text-amber-200">
+          {{ formatCurrency(paidSoFar) }} has already been paid against this. The amount cannot go below that.
+        </p>
+      </div>
+    }
 
     <!-- Form Card -->
     <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="p-8 space-y-6">
 
-        <!-- Description -->
+        <!-- Title -->
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Description</label>
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Title</label>
           <input
-            formControlName="description"
+            formControlName="title"
             class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm"
-            placeholder="What was this expense for?"
+            placeholder="What is this payment for?"
           />
         </div>
 
-        <!-- Amount & Category Row -->
-        <div class="grid grid-cols-2 gap-4">
+        <!-- Amount & Category -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-2">
             <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Amount</label>
             <div class="relative">
@@ -51,18 +59,20 @@
                 type="number"
                 min="0"
                 step="0.01"
-                class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface pl-8 pr-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm"
+                class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface pl-8 pr-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm tabular-nums"
                 placeholder="0.00"
               />
             </div>
           </div>
           <div class="flex flex-col gap-2">
-            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Category</label>
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              Category <span class="text-on-surface-variant/50 normal-case tracking-normal font-normal">· optional</span>
+            </label>
             <select
               formControlName="categoryId"
               class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm appearance-none cursor-pointer"
             >
-              <option [ngValue]="null">Select category...</option>
+              <option [ngValue]="null">No category</option>
               @for (cat of categories; track cat.id) {
                 <option [ngValue]="cat.id">{{ cat.name }}</option>
               }
@@ -70,26 +80,42 @@
           </div>
         </div>
 
-        <!-- Date -->
-        <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Date</label>
-          <input
-            formControlName="date"
-            type="date"
-            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm max-w-xs"
-          />
+        <!-- Due date & period -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Due date</label>
+            <input
+              formControlName="dueDate"
+              type="date"
+              class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Month</label>
+            <input
+              formControlName="periodMonth"
+              type="month"
+              class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm"
+            />
+            <p class="text-[11px] text-on-surface-variant/60">Which month this belongs to on the expenses page.</p>
+          </div>
         </div>
 
-        <!-- Notes -->
+        <!-- Description -->
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Notes</label>
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Description</label>
           <textarea
-            formControlName="notes"
+            formControlName="description"
             rows="3"
             class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm resize-none"
-            placeholder="Additional notes (optional)"
+            placeholder="Additional detail (optional)"
           ></textarea>
         </div>
+
+        <p class="text-[11px] text-on-surface-variant/60">
+          Recorded against <span class="text-on-surface-variant font-medium">{{ branchName }}</span>.
+          It lands in the Due list until you pay it.
+        </p>
 
         <!-- Actions -->
         <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
@@ -109,7 +135,7 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Saving...
+              Saving…
             } @else {
               <span class="material-symbols-outlined text-lg">check</span>
               {{ isEdit ? 'Update Expense' : 'Add Expense' }}

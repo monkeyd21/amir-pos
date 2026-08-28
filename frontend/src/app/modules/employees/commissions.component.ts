@@ -8,7 +8,9 @@ import { NotificationService } from '../../core/services/notification.service';
 
 interface CommissionRecord {
   id: number;
-  user: {
+  // The API only embeds `user` when the relation is included — every consumer
+  // already guards with `?.`, so the type says so too (kills NG8107 warnings).
+  user?: {
     id: number;
     firstName: string;
     lastName: string;

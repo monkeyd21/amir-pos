@@ -282,7 +282,7 @@
                 </span>
               </td>
               <td class="px-6 py-5 text-center">
-                @if (record.status?.toLowerCase() === 'pending') {
+                @if (record.status.toLowerCase() === 'pending') {
                   <button
                     (click)="markAsPaid(record)"
                     [disabled]="payingId === record.id"

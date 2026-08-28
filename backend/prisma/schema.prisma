@@ -46,6 +46,8 @@ model Branch {
   journalEntries     JournalEntry[]
   expenses           Expense[]
   attendance         Attendance[]
+  salaryPeriods      SalaryPeriod[]
+  payables           Payable[]
   upiPaymentIntents  UpiPaymentIntent[]
   printerProfiles    PrinterProfile[]
   auditLogs          AuditLog[]
@@ -134,22 +136,32 @@ enum UserRole {
 }
 
 model User {
-  id             Int      @id @default(autoincrement())
-  branchId       Int
-  email          String?  @unique
-  passwordHash   String
-  firstName      String
-  lastName       String?
-  phone          String?
-  role           UserRole @default(staff)
-  commissionRate Decimal  @default(0) @db.Decimal(5, 2)
+  id                  Int         @id @default(autoincrement())
+  branchId            Int
+  email               String?     @unique
+  passwordHash        String
+  firstName           String
+  lastName            String?
+  phone               String?
+  role                UserRole    @default(staff)
+  commissionRate      Decimal     @default(0) @db.Decimal(5, 2)
   // Per-employee minimum daily-sales target: commission is earned only on the
   // portion of THIS employee's own daily sales above this ₹ figure. 0 = no
   // target (every rupee earns commission). Replaces the old store-wide setting.
-  commissionThreshold Decimal @default(0) @db.Decimal(10, 2)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  commissionThreshold Decimal     @default(0) @db.Decimal(10, 2)
+  // ─── Payroll config (spec §3.1) ───
+  // joiningDate gates the attendance grid: days before it are never markable
+  // and count as absent for a fixed-monthly first month (D9).
+  joiningDate         DateTime?   @db.Date
+  salaryType          SalaryType?
+  monthlySalary       Decimal?    @db.Decimal(10, 2) // fixed_monthly only
+  // Entered independently for BOTH salary types — never derived from
+  // days-in-month, so February doesn't change what an absence costs (§3.1).
+  perDayRate          Decimal?    @db.Decimal(10, 2)
+  weeklyOffDay        Int? // 0 = Sunday … 6 = Saturday
+  isActive            Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   branch             Branch              @relation(fields: [branchId], references: [id])
   sales              Sale[]
@@ -163,7 +175,14 @@ model User {
   expensesCreated    Expense[]           @relation("ExpenseCreator")
   expensesApproved   Expense[]           @relation("ExpenseApprover")
   attendance         Attendance[]
+  attendanceMarked   Attendance[]        @relation("AttendanceMarker")
+  salaryPeriods      SalaryPeriod[]      @relation("SalaryPeriodEmployee")
+  salaryPeriodsPaid  SalaryPeriod[]      @relation("SalaryPeriodPayer")
+  payablesSubject    Payable[]           @relation("PayableSubject")
+  payablesCreated    Payable[]           @relation("PayableCreator")
+  payablePayments    PayablePayment[]    @relation("PayablePaymentCreator")
   commissions        Commission[]
+  commissionsPaid    Commission[]        @relation("CommissionPayer")
   upiPaymentIntents  UpiPaymentIntent[]
   agentSaleItems     SaleItem[]          @relation("SaleItemAgent")
   vendorPayments     VendorPayment[]
@@ -283,41 +302,41 @@ model Product {
 }
 
 model ProductVariant {
-  id             Int      @id @default(autoincrement())
-  productId      Int
-  sku            String   @unique
-  size           String
-  color          String
-  barcode        String   @unique
+  id              Int      @id @default(autoincrement())
+  productId       Int
+  sku             String   @unique
+  size            String
+  color           String
+  barcode         String   @unique
   // Supplier lot / batch code carried over from the source stock sheet (LOT CODE).
-  lotCode        String?
+  lotCode         String?
   // §13.3 — per-variant MRP override. Falls back to the product's MRP when null.
   // Sale Price (priceOverride) auto-fills to mrpOverride − 10% at entry, editable.
-  mrpOverride    Decimal? @db.Decimal(10, 2)
-  priceOverride  Decimal? @db.Decimal(10, 2)
-  costOverride   Decimal? @db.Decimal(10, 2)
+  mrpOverride     Decimal? @db.Decimal(10, 2)
+  priceOverride   Decimal? @db.Decimal(10, 2)
+  costOverride    Decimal? @db.Decimal(10, 2)
   // Per-variant landing cost (cost after freight/expenses). Falls back to the
   // product's landingPrice, then the cost, in the P&L.
   landingOverride Decimal? @db.Decimal(10, 2)
-  isActive       Boolean  @default(true)
+  isActive        Boolean  @default(true)
   // §2.4 — Clearance (dead-stock liquidation). When flagged, clearancePrice is
   // the fixed selling price and ALL counter discounts lock to zero; managed
   // backend-only, never at POS.
-  clearanceFlag  Boolean  @default(false)
-  clearancePrice Decimal? @db.Decimal(10, 2)
-  createdAt      DateTime @default(now())
+  clearanceFlag   Boolean  @default(false)
+  clearancePrice  Decimal? @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
   // Bumped on every variant update (incl. setting clearanceFlag). Drives the
   // "recent first" ordering of the clearance list so freshly-flagged articles
   // surface at the top instead of sorting by variant id.
-  updatedAt      DateTime @updatedAt @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
 
-  product            Product             @relation(fields: [productId], references: [id])
-  inventory          Inventory[]
-  inventoryMovements InventoryMovement[]
-  saleItems          SaleItem[]
-  returnItems        ReturnItem[]
-  stockTransferItems StockTransferItem[]
-  offers             OfferVariant[]
+  product             Product              @relation(fields: [productId], references: [id])
+  inventory           Inventory[]
+  inventoryMovements  InventoryMovement[]
+  saleItems           SaleItem[]
+  returnItems         ReturnItem[]
+  stockTransferItems  StockTransferItem[]
+  offers              OfferVariant[]
   historicalBillItems HistoricalBillItem[]
 
   @@map("product_variants")
@@ -821,9 +840,10 @@ model PosSession {
   closedAt           DateTime?
   notes              String?
 
-  branch       Branch        @relation(fields: [branchId], references: [id])
-  user         User          @relation(fields: [userId], references: [id])
-  varianceLogs VarianceLog[]
+  branch          Branch           @relation(fields: [branchId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+  varianceLogs    VarianceLog[]
+  payablePayments PayablePayment[]
 
   @@index([branchId, status])
   @@map("pos_sessions")
@@ -1052,35 +1072,224 @@ model Expense {
 }
 
 model ExpenseCategory {
-  id        Int      @id @default(autoincrement())
-  name      String
-  accountId Int?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  accountId     Int?
+  isActive      Boolean  @default(true)
+  // ─── Recurring master (spec §4.1) ───
+  // isRecurring + defaultAmount + dueDay drive POST /payables/ensure-month,
+  // which materialises one pending payable per category per month.
+  isRecurring   Boolean  @default(false)
+  defaultAmount Decimal? @db.Decimal(12, 2)
+  dueDay        Int? // 1–31, day of month
+  // System categories (Salaries) are fed by the payroll module and refuse
+  // manual entry in the expense UI — that is what makes "no duplicate salary
+  // entry" enforceable rather than merely intended (spec §4.1).
+  isSystem      Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
 
   account  Account?  @relation(fields: [accountId], references: [id])
   expenses Expense[]
+  payables Payable[]
 
   @@map("expense_categories")
 }
 
 // ─── Employee Management ─────────────────────────────
 
+// Daily attendance. Status is the record; the clock in/out columns are legacy
+// (the table used to measure hours) and are no longer written by the UI.
+// All dates are resolved in Asia/Kolkata — the server runs UTC (spec §3.2).
+enum AttendanceStatus {
+  present
+  absent
+  half_day
+  late // counted for the record; a full PAID day, no auto-deduction (D5)
+  paid_weekly_off
+}
+
 model Attendance {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  branchId    Int
-  clockIn     DateTime
-  clockOut    DateTime?
-  hoursWorked Decimal?  @db.Decimal(5, 2)
-  date        DateTime  @db.Date
-  createdAt   DateTime  @default(now())
+  id              Int              @id @default(autoincrement())
+  userId          Int
+  branchId        Int
+  date            DateTime         @db.Date
+  status          AttendanceStatus
+  // Owner-discretionary, independent of status — a present day can carry ₹100.
+  manualDeduction Decimal          @default(0) @db.Decimal(10, 2)
+  note            String? // why the deduction
+  markedBy        Int?
+  clockIn         DateTime? // legacy — was required before the status rework
+  clockOut        DateTime?
+  hoursWorked     Decimal?         @db.Decimal(5, 2)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
+  marker User?  @relation("AttendanceMarker", fields: [markedBy], references: [id])
 
   @@unique([userId, date])
+  @@index([branchId, date])
   @@map("attendance")
+}
+
+// ─── Payroll ─────────────────────────────────────────
+enum SalaryType {
+  fixed_monthly
+  daily_wage
+}
+
+enum SalaryPeriodStatus {
+  open // attendance still editable, net recalculates on view
+  finalised // rates snapshotted, attendance frozen, payable raised as pending
+  paid // payable settled
+}
+
+// One row per employee-month. Snapshots the rates at finalise time so a later
+// pay rise can never rewrite a settled month (D10), and stands as the permanent
+// record of how the figure was reached. The employee module is the sole
+// authority on the calculation; the payables table only receives it (§6).
+model SalaryPeriod {
+  id       Int    @id @default(autoincrement())
+  userId   Int
+  branchId Int
+  month    String // "2026-08" — IST calendar month
+
+  // ── snapshotted at finalise ──
+  salaryType SalaryType
+  baseAmount Decimal    @db.Decimal(10, 2) // 0 for daily_wage
+  perDayRate Decimal    @db.Decimal(10, 2)
+
+  // ── day counts ──
+  presentDays  Int @default(0)
+  absentDays   Int @default(0)
+  halfDays     Int @default(0)
+  lateDays     Int @default(0)
+  paidOffDays  Int @default(0)
+  unmarkedDays Int @default(0) // surfaced as a warning before Paid (D2)
+
+  manualDeductionTotal Decimal @default(0) @db.Decimal(10, 2)
+  attendanceDeduction  Decimal @default(0) @db.Decimal(10, 2)
+  // Clamped at 0; any un-recovered excess is named on screen, never carried (D8).
+  netAmount            Decimal @default(0) @db.Decimal(10, 2)
+
+  status      SalaryPeriodStatus @default(open)
+  payableId   Int?               @unique
+  finalisedAt DateTime?
+  paidAt      DateTime?
+  paidBy      Int?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user    User     @relation("SalaryPeriodEmployee", fields: [userId], references: [id])
+  branch  Branch   @relation(fields: [branchId], references: [id])
+  payer   User?    @relation("SalaryPeriodPayer", fields: [paidBy], references: [id])
+  payable Payable? @relation(fields: [payableId], references: [id])
+
+  @@unique([userId, month])
+  @@index([month, status])
+  @@map("salary_periods")
+}
+
+// ─── Payables (spec §4) ──────────────────────────────
+// The single pending-vs-paid model. The expense module is a view over this
+// table; the cash-flow module reads the same rows. Vendor credit stays in the
+// vendor ledger (balance-forward by design) and voucher liability stays
+// computed from GiftVoucher — both join at the read layer in
+// GET /payables/outstanding, so nothing has to be kept in sync by hand (D1).
+enum PayableSource {
+  recurring_expense
+  adhoc_expense
+  payroll
+  commission
+}
+
+enum PayableStatus {
+  pending
+  part_paid
+  paid
+  void
+}
+
+// Deliberately NOT the checkout PaymentMethod enum — money going out never
+// settles in `voucher`, and money coming in never settles by cheque.
+enum PayMethod {
+  cash
+  upi
+  card
+  bank
+  cheque
+}
+
+model Payable {
+  id          Int           @id @default(autoincrement())
+  branchId    Int
+  source      PayableSource
+  categoryId  Int?
+  userId      Int? // payroll / commission subject
+  periodMonth String? // "2026-08" — the accrual period
+  title       String // "Salary – Ramesh Kumar – Aug 2026"
+  description String?
+  amount      Decimal       @db.Decimal(12, 2)
+  paidAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  dueDate     DateTime?     @db.Date
+  status      PayableStatus @default(pending)
+  // Auto-created rows are read-only in the expense UI: corrections happen at
+  // the source screen and flow down (§6).
+  isSystem    Boolean       @default(false)
+
+  sourceRefType String? // 'salary_period' | 'commission_batch'
+  sourceRefId   Int?
+  // Idempotency key for auto-push and month materialisation. A composite
+  // unique over the natural key would not work: Postgres treats NULLs as
+  // distinct, so nullable columns can't enforce it. One computed string does.
+  //   recurring:{branchId}:{categoryId}:{month}
+  //   payroll:{salaryPeriodId}
+  //   commission:{userId}:{month}
+  //   legacy-expense:{oldExpenseId}
+  // Ad-hoc entries leave it NULL — duplicates there are legitimate.
+  dedupeKey     String?  @unique
+  receiptUrl    String?
+  createdBy     Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch       Branch           @relation(fields: [branchId], references: [id])
+  category     ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  subject      User?            @relation("PayableSubject", fields: [userId], references: [id])
+  creator      User             @relation("PayableCreator", fields: [createdBy], references: [id])
+  payments     PayablePayment[]
+  salaryPeriod SalaryPeriod?
+  commissions  Commission[]     @relation("CommissionPayable")
+
+  @@index([branchId, status, dueDate])
+  @@index([periodMonth, source])
+  @@map("payables")
+}
+
+// Splitting payments out is what makes partial settlement possible (D12) and
+// gives the daily cash-out figure a truthful source: the moment money left, by
+// method. sessionId links a cash payout to the till so EOD still reconciles.
+model PayablePayment {
+  id        Int       @id @default(autoincrement())
+  payableId Int
+  amount    Decimal   @db.Decimal(12, 2)
+  method    PayMethod
+  paidAt    DateTime
+  sessionId Int?
+  reference String? // UPI ref / cheque no.
+  notes     String?
+  createdBy Int
+  createdAt DateTime  @default(now())
+
+  payable Payable     @relation(fields: [payableId], references: [id])
+  session PosSession? @relation(fields: [sessionId], references: [id])
+  creator User        @relation("PayablePaymentCreator", fields: [createdBy], references: [id])
+
+  @@index([payableId])
+  @@index([paidAt])
+  @@map("payable_payments")
 }
 
 enum CommStatus {
@@ -1097,11 +1306,21 @@ model Commission {
   status         CommStatus @default(pending)
   payPeriodStart DateTime   @db.Date
   payPeriodEnd   DateTime   @db.Date
+  // ─── Settlement metadata (§6, D3) ───
+  // Paying commission auto-pushes a "Commission – [Name] – [Month]" payable,
+  // the same treatment salary gets. Many commissions settle against one
+  // payable, so payableId is a plain FK, not unique.
+  paidAt         DateTime?
+  paidBy         Int?
+  payableId      Int?
   createdAt      DateTime   @default(now())
 
-  user User @relation(fields: [userId], references: [id])
-  sale Sale @relation(fields: [saleId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  sale    Sale     @relation(fields: [saleId], references: [id])
+  payer   User?    @relation("CommissionPayer", fields: [paidBy], references: [id])
+  payable Payable? @relation("CommissionPayable", fields: [payableId], references: [id])
 
+  @@index([userId, status])
   @@map("commissions")
 }
 

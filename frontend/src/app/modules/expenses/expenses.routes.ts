@@ -1,11 +1,16 @@
 import { Routes } from '@angular/router';
-import { ExpenseListComponent } from './expense-list.component';
-import { ExpenseFormComponent } from './expense-form.component';
-import { CategoryManagementComponent } from './category-management.component';
+import { PayablesMonthComponent } from './payables-month.component';
+import { PayableFormComponent } from './payable-form.component';
+import { CategoryListComponent } from './category-list.component';
+import { CategoryFormComponent } from './category-form.component';
 
+// Static segments must be registered before the parameterised ':id', or
+// '/expenses/categories' matches as an id.
 export const EXPENSES_ROUTES: Routes = [
-  { path: '', component: ExpenseListComponent },
-  { path: 'add', component: ExpenseFormComponent },
-  { path: 'edit/:id', component: ExpenseFormComponent },
-  { path: 'categories', component: CategoryManagementComponent },
+  { path: '', component: PayablesMonthComponent },
+  { path: 'new', component: PayableFormComponent },
+  { path: 'categories', component: CategoryListComponent },
+  { path: 'categories/new', component: CategoryFormComponent },
+  { path: 'categories/:id/edit', component: CategoryFormComponent },
+  { path: ':id', component: PayableFormComponent },
 ];

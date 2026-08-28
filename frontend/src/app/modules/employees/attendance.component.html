@@ -1,154 +1,229 @@
-<!-- Loading State -->
-@if (loading) {
-  <div class="flex items-center justify-center h-[60vh]">
-    <div class="flex flex-col items-center gap-4">
-      <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-      <p class="text-sm text-on-surface-variant">Loading attendance...</p>
+<div class="space-y-6 min-w-0">
+
+  <!-- Page Header -->
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <a routerLink="/employees" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-xl">arrow_back</span>
+        </a>
+        <h1 class="text-3xl font-headline font-bold text-on-surface">Attendance</h1>
+      </div>
+      <p class="mt-1 text-sm text-on-surface-variant ml-9">
+        {{ monthLabel(month) }} &middot; click a cell to cycle Present &rarr; Absent &rarr; Half &rarr; Late &rarr; Paid Off &rarr; clear
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <a routerLink="/employees/payroll"
+        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-surface-container-highest/60 text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors">
+        <span class="material-symbols-outlined text-lg">account_balance_wallet</span> Payroll
+      </a>
+      <button (click)="stepMonth(-1)" class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container-highest/60 text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+        <span class="material-symbols-outlined text-lg">chevron_left</span>
+      </button>
+      <input type="month" [(ngModel)]="month" (change)="onMonthChange()"
+        class="bg-surface-container border border-outline-variant/20 focus:border-primary text-on-surface px-3 py-2.5 rounded-lg outline-none text-sm" />
+      <button (click)="stepMonth(1)" class="w-10 h-10 flex items-center justify-center rounded-lg bg-surface-container-highest/60 text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+        <span class="material-symbols-outlined text-lg">chevron_right</span>
+      </button>
     </div>
   </div>
-}
 
-@if (!loading) {
-  <div class="space-y-8">
-
-    <!-- Page Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="flex items-center gap-3 mb-1">
-          <a routerLink="/employees" class="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span class="material-symbols-outlined text-xl">arrow_back</span>
-          </a>
-          <h1 class="text-3xl font-headline font-bold text-on-surface">Attendance</h1>
-        </div>
-        <p class="mt-1 text-sm text-on-surface-variant ml-9">{{ formatDate(selectedDate) }}</p>
-      </div>
-
-      <!-- Date Picker & Clock Actions -->
-      <div class="flex items-center gap-3">
-        <button
-          (click)="clockIn()"
-          [disabled]="clockingIn"
-          class="flex items-center gap-2 px-5 py-3 rounded-xl bg-green-500/15 text-green-400 font-medium text-sm hover:bg-green-500/25 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          @if (clockingIn) {
-            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-          } @else {
-            <span class="material-symbols-outlined text-lg">login</span>
-          }
-          Clock In
-        </button>
-        <button
-          (click)="clockOut()"
-          [disabled]="clockingOut"
-          class="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500/15 text-amber-400 font-medium text-sm hover:bg-amber-500/25 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          @if (clockingOut) {
-            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-          } @else {
-            <span class="material-symbols-outlined text-lg">logout</span>
-          }
-          Clock Out
-        </button>
-        <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Date</label>
-        <input
-          type="date"
-          [(ngModel)]="selectedDate"
-          (change)="onDateChange()"
-          class="bg-surface-container border border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-xl transition-all outline-none text-sm"
-        />
-      </div>
+  <!-- Mark-all-present bar + legend -->
+  <div class="flex flex-wrap items-center justify-between gap-4 bg-surface-container/60 border border-outline-variant/10 rounded-xl px-4 py-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mark all present</span>
+      <input type="date" [(ngModel)]="bulkDate" [max]="today"
+        class="bg-surface-container-lowest border border-outline-variant/15 focus:border-primary text-on-surface px-3 py-2 rounded-lg outline-none text-sm" />
+      <button (click)="markAllPresent()" [disabled]="bulkSaving || !bulkDate"
+        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-green-500/15 text-green-400 rounded-lg hover:bg-green-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+        @if (bulkSaving) {
+          <div class="w-4 h-4 border-2 border-green-400/40 border-t-green-400 rounded-full animate-spin"></div>
+        } @else {
+          <span class="material-symbols-outlined text-lg">done_all</span>
+        }
+        Apply
+      </button>
+      <span class="text-[11px] text-on-surface-variant/60">then flip the exceptions</span>
     </div>
 
-    <!-- Attendance Table -->
-    <div class="bg-surface-container rounded-xl overflow-hidden">
-      <table class="w-full text-left">
-        <thead>
-          <tr class="bg-surface-container-low/50">
-            <th class="th-label">Employee</th>
-            <th class="th-label">Role</th>
-            <th class="th-label">Check In</th>
-            <th class="th-label">Check Out</th>
-            <th class="th-label text-center">Hours</th>
-            <th class="th-label">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-outline-variant/10">
-          @for (record of records; track record.id) {
-            <tr class="hover:bg-surface-container-high/40 transition-colors">
-              <td class="px-6 py-5">
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 rounded-full bg-primary-container/15 flex items-center justify-center shrink-0">
-                    <span class="text-xs font-bold text-primary">
-                      {{ (record.employee?.firstName || '?')[0] }}{{ (record.employee?.lastName || '?')[0] }}
-                    </span>
-                  </div>
-                  <p class="text-sm font-medium text-on-surface">
-                    {{ record.employee?.firstName }} {{ record.employee?.lastName }}
-                  </p>
-                </div>
-              </td>
-              <td class="px-6 py-5 text-sm text-on-surface-variant capitalize">
-                {{ record.employee?.role || '---' }}
-              </td>
-              <td class="px-6 py-5 text-sm text-on-surface-variant font-mono">
-                {{ formatTime(record.checkIn) }}
-              </td>
-              <td class="px-6 py-5 text-sm text-on-surface-variant font-mono">
-                {{ formatTime(record.checkOut) }}
-              </td>
-              <td class="px-6 py-5 text-sm text-on-surface text-center font-medium">
-                {{ record.hoursWorked != null ? record.hoursWorked + 'h' : '---' }}
-              </td>
-              <td class="px-6 py-5">
-                <span class="status-pill" [ngClass]="getStatusClasses(record.status)">
-                  {{ formatStatus(record.status) }}
-                </span>
-              </td>
-            </tr>
-          }
-
-          @if (records.length === 0) {
-            <tr>
-              <td colspan="6" class="px-8 py-16 text-center">
-                <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2 block">event_busy</span>
-                <p class="text-sm text-on-surface-variant">No attendance records for this date</p>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div class="flex flex-wrap items-center gap-3 text-[11px]">
+      @for (s of statusOptions; track s.value) {
+        <span class="inline-flex items-center gap-1.5 text-on-surface-variant">
+          <span class="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
+            [class]="s.value === 'present' ? 'bg-green-500/15 text-green-400'
+                   : s.value === 'absent' ? 'bg-red-500/15 text-red-400'
+                   : s.value === 'half_day' ? 'bg-orange-500/15 text-orange-400'
+                   : s.value === 'late' ? 'bg-yellow-500/15 text-yellow-400'
+                   : 'bg-sky-500/15 text-sky-400'">{{ s.glyph }}</span>
+          {{ s.label }}
+        </span>
+      }
+      <span class="inline-flex items-center gap-1.5 text-on-surface-variant/60">
+        <span class="w-5 h-5 rounded bg-surface-container-lowest flex items-center justify-center text-[10px]">&middot;</span>
+        Unmarked
+      </span>
     </div>
-
-    <!-- Summary Cards -->
-    @if (records.length > 0) {
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
-          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-on-surface-variant"></div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total</p>
-          <p class="text-2xl font-headline font-bold text-on-surface">{{ records.length }}</p>
-        </div>
-        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
-          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-green-400"></div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Present</p>
-          <p class="text-2xl font-headline font-bold text-green-400">{{ countByStatus('present') }}</p>
-        </div>
-        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
-          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-red-400"></div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Absent</p>
-          <p class="text-2xl font-headline font-bold text-red-400">{{ countByStatus('absent') }}</p>
-        </div>
-        <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
-          <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-yellow-400"></div>
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Late</p>
-          <p class="text-2xl font-headline font-bold text-yellow-400">{{ countByStatus('late') }}</p>
-        </div>
-      </div>
-    }
   </div>
-}
+
+  @if (unmarkedEmployeeCount > 0 && !loading) {
+    <div class="flex items-center gap-3 bg-amber-500/10 border border-amber-500/25 text-amber-300 rounded-xl px-4 py-3 text-sm">
+      <span class="material-symbols-outlined text-lg">warning</span>
+      <span><span class="font-bold">{{ unmarkedEmployeeCount }}</span> employee(s) have unmarked days this month. Fixed-salary staff are not deducted for them and daily-wage staff are not paid for them.</span>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="flex items-center justify-center h-[40vh]">
+      <div class="flex flex-col items-center gap-4">
+        <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+        <p class="text-sm text-on-surface-variant">Loading attendance...</p>
+      </div>
+    </div>
+  } @else {
+
+    <div class="flex flex-col xl:flex-row gap-6 min-w-0">
+
+      <!-- Grid: the ONLY horizontally scrolling element on the page -->
+      <div class="flex-1 min-w-0">
+        <div class="bg-surface-container rounded-xl overflow-x-auto overflow-y-visible max-w-full">
+          <table class="border-separate border-spacing-0 text-left">
+            <thead>
+              <tr>
+                <th class="sticky left-0 z-20 bg-surface-container px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant min-w-[11rem] border-b border-outline-variant/10">
+                  Employee
+                </th>
+                @for (day of days; track day) {
+                  <th class="px-0 py-2 text-center w-9 border-b border-outline-variant/10">
+                    <div class="text-[9px] uppercase tracking-wide" [class]="dayHeaderClass(day)">{{ weekdayInitial(day) }}</div>
+                    <div class="text-[11px] font-semibold" [class]="dayHeaderClass(day)">{{ dayNumber(day) }}</div>
+                  </th>
+                }
+                @for (h of ['P','A','H','L','W','?','Ded']; track h) {
+                  <th class="px-2 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/10"
+                    [class.border-l]="h === 'P'" [class.border-outline-variant]="h === 'P'">{{ h }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (emp of employees; track emp.id) {
+                <tr class="hover:bg-surface-container-high/30 transition-colors">
+                  <td class="sticky left-0 z-10 bg-surface-container px-4 py-1.5 border-b border-outline-variant/5">
+                    <p class="text-sm font-medium text-on-surface whitespace-nowrap">{{ employeeName(emp) }}</p>
+                    <p class="text-[10px] text-on-surface-variant/60 capitalize whitespace-nowrap">
+                      {{ emp.salaryType === 'daily_wage' ? 'Daily wage' : emp.salaryType === 'fixed_monthly' ? 'Fixed monthly' : emp.role }}
+                    </p>
+                  </td>
+                  @for (day of days; track day) {
+                    <td class="p-0.5 text-center border-b border-outline-variant/5">
+                      <button type="button" (click)="cycle(emp, day)"
+                        [disabled]="!isMarkable(emp, day)"
+                        [title]="employeeName(emp) + ' · ' + dayLabel(day) + (isWeeklyOff(emp, day) ? ' · weekly off' : '')"
+                        [class]="cellClass(emp, day)">
+                        {{ glyph(emp.id, day) }}
+                        @if (hasNote(emp.id, day)) {
+                          <span class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-primary"></span>
+                        }
+                      </button>
+                    </td>
+                  }
+                  @if (totalsFor(emp); as t) {
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-green-400 border-b border-outline-variant/5 border-l border-outline-variant">{{ t.present }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-red-400 border-b border-outline-variant/5">{{ t.absent }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-orange-400 border-b border-outline-variant/5">{{ t.half }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-yellow-400 border-b border-outline-variant/5">{{ t.late }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-sky-400 border-b border-outline-variant/5">{{ t.paidOff }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums border-b border-outline-variant/5"
+                      [class]="t.unmarked > 0 ? 'text-amber-400 font-bold' : 'text-on-surface-variant/40'">{{ t.unmarked }}</td>
+                    <td class="px-2 py-1.5 text-center text-xs tabular-nums text-on-surface-variant border-b border-outline-variant/5 whitespace-nowrap">
+                      {{ t.deduction > 0 ? '−' + t.deduction.toLocaleString('en-IN') : '—' }}
+                    </td>
+                  }
+                </tr>
+              }
+              @if (employees.length === 0) {
+                <tr>
+                  <td colspan="40" class="px-8 py-16 text-center">
+                    <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2 block">event_busy</span>
+                    <p class="text-sm text-on-surface-variant">No active employees</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-2 text-[11px] text-on-surface-variant/50">
+          Scroll the grid sideways to reach the rest of the month. A blue outline marks the employee's weekly off day; greyed cells are before joining or in the future.
+        </p>
+      </div>
+
+      <!-- Inline side panel (never a modal) -->
+      <aside class="w-full xl:w-80 shrink-0">
+        @if (panelEmployee) {
+          <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5 space-y-4 xl:sticky xl:top-4">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <p class="text-sm font-semibold text-on-surface">{{ employeeName(panelEmployee) }}</p>
+                <p class="text-[11px] text-on-surface-variant">{{ dayLabel(panelDate) }}</p>
+              </div>
+              <button (click)="closePanel()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+                <span class="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            @if (isWeeklyOff(panelEmployee, panelDate)) {
+              <p class="text-[11px] text-sky-400">This is {{ panelEmployee.firstName }}'s designated weekly off day.</p>
+            }
+
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Status</p>
+              <div class="grid grid-cols-2 gap-2">
+                @for (s of statusOptions; track s.value) {
+                  <button type="button" (click)="setPanelStatus(s.value)"
+                    class="px-3 py-2 text-xs font-semibold rounded-lg border transition-colors text-left"
+                    [class]="panelStatus === s.value ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/15 hover:bg-surface-container-high'">
+                    {{ s.label }}
+                  </button>
+                }
+                <button type="button" (click)="setPanelStatus(null)"
+                  class="px-3 py-2 text-xs font-semibold rounded-lg border transition-colors text-left"
+                  [class]="panelStatus === null ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/15 hover:bg-surface-container-high'">
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Manual Deduction (₹)</span>
+              <input type="number" min="0" step="10" [(ngModel)]="panelDeduction" placeholder="0"
+                class="px-3 py-2.5 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+              <span class="text-[10px] text-on-surface-variant/60">Subtracted from this month's net salary.</span>
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Note</span>
+              <textarea rows="3" [(ngModel)]="panelNote" placeholder="Reason / context"
+                class="px-3 py-2.5 text-sm bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none resize-none"></textarea>
+            </label>
+
+            <button (click)="savePanel()" [disabled]="saving || !isMarkable(panelEmployee, panelDate)"
+              class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              @if (saving) {
+                <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+              } @else {
+                <span class="material-symbols-outlined text-lg">save</span>
+              }
+              Save Day
+            </button>
+          </div>
+        } @else {
+          <div class="bg-surface-container/40 border border-dashed border-outline-variant/20 rounded-2xl p-6 text-center">
+            <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">edit_note</span>
+            <p class="text-sm text-on-surface-variant">Select a cell to add a deduction or note for that day.</p>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+</div>

@@ -27,6 +27,7 @@ export class SidebarComponent {
     { icon: 'group', label: 'Customers', path: '/customers' },
     { icon: 'store', label: 'Vendors', path: '/vendors' },
     { icon: 'badge', label: 'Employees', path: '/employees' },
+    { icon: 'account_balance_wallet', label: 'Payroll', path: '/employees/payroll' },
     { icon: 'receipt_long', label: 'Expenses', path: '/expenses' },
     { icon: 'account_balance', label: 'Accounting', path: '/accounting' },
     { icon: 'analytics', label: 'Reports', path: '/reports' },

@@ -81,102 +81,44 @@ describe('Expenses Module', () => {
   });
 
   // ─── POST / (create expense) ─────────────────────────
-  describe('POST / (create expense)', () => {
-    it('should create an expense', async () => {
-      prismaMock.expense.create.mockResolvedValue(fakeExpense);
+  // ─── Retired write surface (spec §4.2 / §5, decision D13) ───────────────
+  // Spend is recorded as payables now, and the reports read money-out from
+  // payable_payments. A write that still landed in the legacy `expenses` table
+  // would be counted nowhere — not in the daily summary, not in netRevenue,
+  // not in /payables/outstanding — so the writes are closed rather than left
+  // as a silent money leak. The approve/reject workflow is dropped with them:
+  // it never had a UI, so nothing was ever approved through it.
+  describe('retired write endpoints', () => {
+    const retired: Array<[string, string, string]> = [
+      ['post', `${BASE}`, 'POST /api/v1/payables'],
+      ['put', `${BASE}/1`, 'PUT /api/v1/payables/:id'],
+      ['put', `${BASE}/1/approve`, 'POST /api/v1/payables/:id/pay'],
+      ['put', `${BASE}/1/reject`, 'DELETE /api/v1/payables/:id'],
+      ['post', `${BASE}/categories`, 'POST /api/v1/payables/categories'],
+      ['put', `${BASE}/categories/1`, 'PUT /api/v1/payables/categories/:id'],
+    ];
 
-      const res = await request(app)
+    it.each(retired)('%s %s is gone, and says where to go instead', async (method, url, replacement) => {
+      const res = await (request(app) as any)
+        [method](url)
+        .set('Authorization', authHeader(testUsers.owner))
+        .send({});
+
+      expect(res.status).toBe(410);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toContain(replacement);
+    });
+
+    it('does not write to the legacy expenses table', async () => {
+      await request(app)
         .post(BASE)
-        .set('Authorization', authHeader(testUsers.manager))
-        .send({
-          branchId: 1,
-          categoryId: 1,
-          amount: 50000,
-          description: 'March rent',
-          date: '2025-03-01',
-          paymentMethod: 'bank_transfer',
-        });
+        .set('Authorization', authHeader(testUsers.owner))
+        .send({ branchId: 1, categoryId: 1, amount: 500, description: 'x', date: '2026-08-01', paymentMethod: 'cash' });
 
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.amount).toBe(50000);
-    });
-
-    it('should return 400 for missing required fields', async () => {
-      const res = await request(app)
-        .post(BASE)
-        .set('Authorization', authHeader(testUsers.manager))
-        .send({ description: 'Incomplete' });
-
-      expect(res.status).toBe(400);
+      expect(prismaMock.expense.create).not.toHaveBeenCalled();
     });
   });
 
-  // ─── PUT /:id/approve ────────────────────────────────
-  describe('PUT /:id/approve', () => {
-    it('should approve an expense (owner)', async () => {
-      prismaMock.expense.findUnique.mockResolvedValue(fakeExpense);
-      prismaMock.expense.update.mockResolvedValue({
-        ...fakeExpense,
-        status: 'approved',
-        approvedBy: 1,
-      });
-
-      const res = await request(app)
-        .put(`${BASE}/1/approve`)
-        .set('Authorization', authHeader(testUsers.owner));
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('approved');
-    });
-
-    it('should return 404 for non-existent expense', async () => {
-      prismaMock.expense.findUnique.mockResolvedValue(null);
-
-      const res = await request(app)
-        .put(`${BASE}/999/approve`)
-        .set('Authorization', authHeader(testUsers.owner));
-
-      expect(res.status).toBe(404);
-    });
-
-    it('should return 403 if cashier tries to approve', async () => {
-      const res = await request(app)
-        .put(`${BASE}/1/approve`)
-        .set('Authorization', authHeader(testUsers.cashier));
-
-      expect(res.status).toBe(403);
-    });
-  });
-
-  // ─── PUT /:id/reject ─────────────────────────────────
-  describe('PUT /:id/reject', () => {
-    it('should reject an expense (manager)', async () => {
-      prismaMock.expense.findUnique.mockResolvedValue(fakeExpense);
-      prismaMock.expense.update.mockResolvedValue({
-        ...fakeExpense,
-        status: 'rejected',
-        approvedBy: 2,
-      });
-
-      const res = await request(app)
-        .put(`${BASE}/1/reject`)
-        .set('Authorization', authHeader(testUsers.manager));
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe('rejected');
-    });
-
-    it('should return 403 if cashier tries to reject', async () => {
-      const res = await request(app)
-        .put(`${BASE}/1/reject`)
-        .set('Authorization', authHeader(testUsers.cashier));
-
-      expect(res.status).toBe(403);
-    });
-  });
-
-  // ─── Expense Categories ──────────────────────────────
   describe('GET /categories', () => {
     it('should list expense categories', async () => {
       prismaMock.expenseCategory.findMany.mockResolvedValue([fakeCategory]);
@@ -191,17 +133,4 @@ describe('Expenses Module', () => {
     });
   });
 
-  describe('POST /categories', () => {
-    it('should create an expense category', async () => {
-      prismaMock.expenseCategory.create.mockResolvedValue(fakeCategory);
-
-      const res = await request(app)
-        .post(`${BASE}/categories`)
-        .set('Authorization', authHeader(testUsers.manager))
-        .send({ name: 'Rent', description: 'Monthly rent' });
-
-      expect(res.status).toBe(201);
-      expect(res.body.data.name).toBe('Rent');
-    });
-  });
 });

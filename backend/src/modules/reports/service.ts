@@ -1,5 +1,20 @@
 import prisma from '../../config/database';
 import { getSetting } from '../settings/service';
+import { dateOnly, isYmd, toIstYmd, Ymd } from '../../utils/ist';
+
+/**
+ * §4.2 — "expenses" in the reports now means PayablePayment rows: money that
+ * actually left the till, on the IST day it left, rather than an approval flag
+ * on the legacy expenses table. `paidAt` is an instant, so the window is the
+ * UTC span of an IST calendar day (IST is a fixed +05:30, no DST). Never use
+ * local-time getters here — the server runs UTC.
+ */
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const istDayWindow = (ymd: Ymd): { start: Date; end: Date } => {
+  const start = new Date(dateOnly(ymd).getTime() - IST_OFFSET_MS);
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+};
 
 export class ReportService {
   // ─── Sales Report ───────────────────────────────────
@@ -495,16 +510,23 @@ export class ReportService {
       createdAt: { gte: startOfDay, lte: endOfDay },
       status: 'completed',
     };
-    const expensesWhere: any = {
-      date: { gte: startOfDay, lte: endOfDay },
-      status: 'approved',
+    // §4.2 — expenses come from actual payable payments on this IST day, not
+    // from the legacy approved-expense rule. `totalExpenses` therefore means
+    // CASH OUT on the day, not accrued-and-approved spend; the field name is
+    // kept so every downstream reader (EOD screen, CSV export) still works.
+    const summaryYmd: Ymd = query.date && isYmd(query.date) ? query.date : toIstYmd(targetDate);
+    const payWindow = istDayWindow(summaryYmd);
+    const paymentsWhere: any = {
+      paidAt: { gte: payWindow.start, lt: payWindow.end },
+      // A voided payable's payments never left the business.
+      payable: { status: { not: 'void' } },
     };
 
     if (query.branchId) {
       const branchId = parseInt(query.branchId);
       salesWhere.branchId = branchId;
       returnsWhere.branchId = branchId;
-      expensesWhere.branchId = branchId;
+      paymentsWhere.payable = { ...paymentsWhere.payable, branchId };
     }
 
     const [salesAgg, returnsAgg, expensesAgg, salesCount, returnsCount] = await Promise.all([
@@ -516,8 +538,8 @@ export class ReportService {
         where: returnsWhere,
         _sum: { total: true },
       }),
-      prisma.expense.aggregate({
-        where: expensesWhere,
+      prisma.payablePayment.aggregate({
+        where: paymentsWhere,
         _sum: { amount: true },
       }),
       prisma.sale.count({ where: salesWhere }),
@@ -543,8 +565,8 @@ export class ReportService {
             where: { ...returnsWhere, branchId: branch.id },
             _sum: { total: true },
           });
-          const branchExpenses = await prisma.expense.aggregate({
-            where: { ...expensesWhere, branchId: branch.id },
+          const branchExpenses = await prisma.payablePayment.aggregate({
+            where: { ...paymentsWhere, payable: { ...paymentsWhere.payable, branchId: branch.id } },
             _sum: { amount: true },
           });
 

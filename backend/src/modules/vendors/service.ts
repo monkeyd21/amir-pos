@@ -135,6 +135,98 @@ export const deleteVendor = async (id: number) => {
 // Cash purchases never enter AP — they're "settled" at the moment of receipt
 // — so totalPurchased is interesting for spend reporting but balanceOwed
 // is what the user actually has to pay.
+// ─── Vendor credit balance — ONE definition ──────────────────────────────
+// Vendor credit is balance-forward: we never allocate a payment to a specific
+// purchase, so the balance is simply (credit purchases − payments), floored at
+// zero. Both the per-vendor ledger and the cash-flow "money owed out" read
+// model (payables §7) go through this, so the two can never drift apart.
+
+interface LedgerMovement {
+  unitCost: Prisma.Decimal | number | null;
+  quantity: number;
+  paymentMode: string | null;
+}
+
+interface LedgerPayment {
+  amount: Prisma.Decimal | number;
+}
+
+export const vendorBalance = (
+  movements: LedgerMovement[],
+  payments: LedgerPayment[]
+): {
+  totalPurchased: number;
+  totalCreditPurchased: number;
+  totalPaid: number;
+  balanceOwed: number;
+} => {
+  const r = (x: number) => Math.round(x * 100) / 100;
+
+  let totalPurchased = 0;
+  let totalCreditPurchased = 0;
+  for (const m of movements) {
+    if (!m.unitCost) continue;
+    const lineCost = Number(m.unitCost) * m.quantity;
+    totalPurchased += lineCost;
+    if (m.paymentMode === 'credit') totalCreditPurchased += lineCost;
+  }
+
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
+
+  return {
+    totalPurchased: r(totalPurchased),
+    totalCreditPurchased: r(totalCreditPurchased),
+    totalPaid: r(totalPaid),
+    balanceOwed: r(Math.max(0, totalCreditPurchased - totalPaid)),
+  };
+};
+
+/**
+ * Total vendor credit owed across every vendor, for the cash-flow read model.
+ * The floor-at-zero is applied PER VENDOR before summing — an overpaid vendor
+ * must not silently cancel out another vendor's genuine debt.
+ */
+export const vendorOutstandingTotal = async (): Promise<{
+  totalOwed: number;
+  vendorCount: number;
+}> => {
+  const [movements, payments] = await Promise.all([
+    prisma.inventoryMovement.findMany({
+      where: { type: 'purchase', vendorId: { not: null } },
+      select: { vendorId: true, unitCost: true, quantity: true, paymentMode: true },
+    }),
+    prisma.vendorPayment.findMany({ select: { vendorId: true, amount: true } }),
+  ]);
+
+  const byVendor = new Map<number, { movements: LedgerMovement[]; payments: LedgerPayment[] }>();
+  const bucket = (vendorId: number) => {
+    let b = byVendor.get(vendorId);
+    if (!b) {
+      b = { movements: [], payments: [] };
+      byVendor.set(vendorId, b);
+    }
+    return b;
+  };
+
+  for (const m of movements) {
+    if (m.vendorId == null) continue;
+    bucket(m.vendorId).movements.push(m);
+  }
+  for (const p of payments) bucket(p.vendorId).payments.push(p);
+
+  let totalOwed = 0;
+  let vendorCount = 0;
+  for (const b of byVendor.values()) {
+    const { balanceOwed } = vendorBalance(b.movements, b.payments);
+    if (balanceOwed > 0) {
+      totalOwed += balanceOwed;
+      vendorCount += 1;
+    }
+  }
+
+  return { totalOwed: Math.round(totalOwed * 100) / 100, vendorCount };
+};
+
 export const getVendorLedger = async (vendorId: number) => {
   const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
   if (!vendor) throw new AppError('Vendor not found', 404);
@@ -158,17 +250,7 @@ export const getVendorLedger = async (vendorId: number) => {
     }),
   ]);
 
-  let totalPurchased = 0;
-  let totalCreditPurchased = 0;
-  for (const m of movements) {
-    if (!m.unitCost) continue;
-    const lineCost = Number(m.unitCost) * m.quantity;
-    totalPurchased += lineCost;
-    if (m.paymentMode === 'credit') totalCreditPurchased += lineCost;
-  }
-
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0);
-  const balanceOwed = Math.max(0, totalCreditPurchased - totalPaid);
+  const summary = vendorBalance(movements, payments);
 
   // Round to paise
   const r = (x: number) => Math.round(x * 100) / 100;
@@ -176,10 +258,7 @@ export const getVendorLedger = async (vendorId: number) => {
   return {
     vendor,
     summary: {
-      totalPurchased: r(totalPurchased),
-      totalCreditPurchased: r(totalCreditPurchased),
-      totalPaid: r(totalPaid),
-      balanceOwed: r(balanceOwed),
+      ...summary,
       purchaseCount: movements.length,
       paymentCount: payments.length,
     },

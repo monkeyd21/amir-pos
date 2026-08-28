@@ -35,6 +35,7 @@ import vendorRoutes from './modules/vendors/routes';
 import auditRoutes from './modules/audit/routes';
 import voucherRoutes from './modules/vouchers/routes';
 import historicalRoutes from './modules/historical/routes';
+import payableRoutes from './modules/payables/routes';
 import { posController } from './modules/pos/controller';
 
 const app = express();
@@ -89,6 +90,7 @@ app.use('/api/v1/vendors', vendorRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/vouchers', voucherRoutes);
 app.use('/api/v1/historical', historicalRoutes);
+app.use('/api/v1/payables', payableRoutes);
 
 // Serve Angular frontend in production
 if (config.nodeEnv === 'production') {

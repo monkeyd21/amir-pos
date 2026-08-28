@@ -1,0 +1,158 @@
+@if (loading) {
+  <div class="flex items-center justify-center h-[60vh]">
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      <p class="text-sm text-on-surface-variant">Loading category…</p>
+    </div>
+  </div>
+}
+
+@if (!loading) {
+  <div class="space-y-8 max-w-2xl">
+
+    <!-- Page Header -->
+    <div>
+      <div class="flex items-center gap-3 mb-1">
+        <a routerLink="/expenses/categories" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined text-xl">arrow_back</span>
+        </a>
+        <h1 class="text-3xl font-headline font-bold text-on-surface">
+          {{ isEdit ? 'Edit Category' : 'Add Category' }}
+        </h1>
+      </div>
+      <p class="mt-1 text-sm text-on-surface-variant ml-9">
+        A recurring category raises one pending payable per month, automatically.
+      </p>
+    </div>
+
+    @if (isSystem) {
+      <div class="flex items-start gap-3 px-5 py-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
+        <span class="material-symbols-outlined text-purple-300">lock</span>
+        <div>
+          <p class="text-sm font-medium text-purple-200">System-managed category</p>
+          <p class="mt-0.5 text-[12px] text-purple-200/80">
+            Payroll feeds this one. It can't be deleted, deactivated, or turned into an ordinary
+            category — that is what stops salaries being entered twice.
+          </p>
+        </div>
+      </div>
+    }
+
+    <!-- Form Card -->
+    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="p-8 space-y-6">
+
+        <!-- Name -->
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Name</label>
+          <input
+            formControlName="name"
+            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm"
+            placeholder="Rent, Electricity, Internet…"
+          />
+        </div>
+
+        <!-- Recurring toggle -->
+        <label class="flex items-start gap-3 p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/10 cursor-pointer">
+          <input
+            type="checkbox"
+            formControlName="isRecurring"
+            class="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+          />
+          <span>
+            <span class="block text-sm font-medium text-on-surface">Raise this every month</span>
+            <span class="block text-[11px] text-on-surface-variant mt-0.5">
+              A pending payable appears on the expenses page at the start of each month, ready to pay.
+            </span>
+          </span>
+        </label>
+
+        @if (isRecurring) {
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Default amount</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm font-bold">&#8377;</span>
+                <input
+                  formControlName="defaultAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface pl-8 pr-4 py-3 rounded-lg transition-all outline-none placeholder:text-outline/50 text-sm tabular-nums"
+                  placeholder="0.00"
+                />
+              </div>
+              <p class="text-[11px] text-on-surface-variant/60">Editable on the month page whenever the bill differs.</p>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Due day</label>
+              <select
+                formControlName="dueDay"
+                class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm appearance-none cursor-pointer"
+              >
+                <option [ngValue]="null">Select a day…</option>
+                @for (d of dueDays; track d) {
+                  <option [ngValue]="d">{{ ordinal(d) }} of the month</option>
+                }
+              </select>
+              <p class="text-[11px] text-on-surface-variant/60">Short months clamp to the last day.</p>
+            </div>
+          </div>
+        }
+
+        <!-- Sort order & active -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex flex-col gap-2">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Sort order</label>
+            <input
+              formControlName="sortOrder"
+              type="number"
+              min="0"
+              step="1"
+              class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary-container text-on-surface px-4 py-3 rounded-lg transition-all outline-none text-sm tabular-nums"
+            />
+            <p class="text-[11px] text-on-surface-variant/60">Lower numbers list first.</p>
+          </div>
+          @if (!isSystem) {
+            <div class="flex flex-col gap-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Status</label>
+              <label class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-lowest border border-outline-variant/10 cursor-pointer">
+                <input type="checkbox" formControlName="isActive" class="w-4 h-4 accent-primary cursor-pointer" />
+                <span class="text-sm text-on-surface">Active</span>
+              </label>
+              <p class="text-[11px] text-on-surface-variant/60">
+                Inactive categories are hidden from new expenses; history keeps them.
+              </p>
+            </div>
+          }
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/10">
+          <a
+            routerLink="/expenses/categories"
+            class="px-6 py-3 rounded-xl bg-surface-container-high border border-outline-variant/20 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            Cancel
+          </a>
+          <button
+            type="submit"
+            [disabled]="form.invalid || saving"
+            class="gradient-cta text-on-primary-container font-bold px-6 py-3 rounded-xl shadow-glow-sm hover:shadow-glow active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+          >
+            @if (saving) {
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Saving…
+            } @else {
+              <span class="material-symbols-outlined text-lg">check</span>
+              {{ isEdit ? 'Update Category' : 'Create Category' }}
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

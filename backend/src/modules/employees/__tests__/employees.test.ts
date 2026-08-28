@@ -14,14 +14,17 @@ beforeEach(() => {
 
 const BASE = '/api/v1/employees';
 
+// Attendance is status-based now (§3.2) — clockIn/clockOut are dead legacy
+// columns. The full attendance + payroll suite lives in payroll.test.ts.
 const fakeAttendance = {
   id: 1,
   userId: 1,
   branchId: 1,
-  clockIn: new Date(),
-  clockOut: null,
-  hoursWorked: null,
-  date: new Date(),
+  date: new Date(Date.UTC(2026, 5, 8)),
+  status: 'present',
+  manualDeduction: '0',
+  note: null,
+  markedBy: 2,
   user: { id: 1, firstName: 'Admin', lastName: 'User' },
   branch: { id: 1, name: 'Main Branch' },
 };
@@ -41,86 +44,6 @@ const fakeCommission = {
 };
 
 describe('Employees Module', () => {
-  // ─── POST /attendance/clock-in ────────────────────────
-  describe('POST /attendance/clock-in', () => {
-    it('should clock in successfully', async () => {
-      prismaMock.attendance.findUnique.mockResolvedValue(null);
-      prismaMock.attendance.create.mockResolvedValue(fakeAttendance);
-
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-in`)
-        .set('Authorization', authHeader(testUsers.cashier))
-        .send({ branchId: 1 });
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty('clockIn');
-    });
-
-    it('should return 400 if already clocked in today', async () => {
-      prismaMock.attendance.findUnique.mockResolvedValue(fakeAttendance);
-
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-in`)
-        .set('Authorization', authHeader(testUsers.cashier))
-        .send({ branchId: 1 });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/already clocked in/i);
-    });
-
-    it('should return 401 without auth', async () => {
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-in`)
-        .send({ branchId: 1 });
-
-      expect(res.status).toBe(401);
-    });
-  });
-
-  // ─── POST /attendance/clock-out ───────────────────────
-  describe('POST /attendance/clock-out', () => {
-    it('should clock out successfully', async () => {
-      prismaMock.attendance.findUnique.mockResolvedValue(fakeAttendance);
-      prismaMock.attendance.update.mockResolvedValue({
-        ...fakeAttendance,
-        clockOut: new Date(),
-        hoursWorked: 8.5,
-      });
-
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-out`)
-        .set('Authorization', authHeader(testUsers.cashier));
-
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-    });
-
-    it('should return 400 if no clock-in record found', async () => {
-      prismaMock.attendance.findUnique.mockResolvedValue(null);
-
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-out`)
-        .set('Authorization', authHeader(testUsers.cashier));
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should return 400 if already clocked out', async () => {
-      prismaMock.attendance.findUnique.mockResolvedValue({
-        ...fakeAttendance,
-        clockOut: new Date(),
-      });
-
-      const res = await request(app)
-        .post(`${BASE}/attendance/clock-out`)
-        .set('Authorization', authHeader(testUsers.cashier));
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/already clocked out/i);
-    });
-  });
-
   // ─── GET /attendance ──────────────────────────────────
   describe('GET /attendance', () => {
     it('should list attendance records', async () => {
@@ -135,13 +58,22 @@ describe('Employees Module', () => {
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
     });
+
+    it('should return 403 for a cashier (attendance is owner/manager only)', async () => {
+      const res = await request(app)
+        .get(`${BASE}/attendance`)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(403);
+    });
   });
 
   // ─── GET /attendance/summary ──────────────────────────
   describe('GET /attendance/summary', () => {
     it('should return attendance summary for a month', async () => {
       prismaMock.attendance.groupBy.mockResolvedValue([
-        { userId: 1, _count: { id: 22 }, _sum: { hoursWorked: 176 } },
+        { userId: 1, status: 'present', _count: { id: 22 }, _sum: { manualDeduction: '0' } },
+        { userId: 1, status: 'absent', _count: { id: 2 }, _sum: { manualDeduction: '150' } },
       ]);
       prismaMock.user.findMany.mockResolvedValue([
         { id: 1, firstName: 'Admin', lastName: 'User', branchId: 1 },
@@ -153,7 +85,9 @@ describe('Employees Module', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.summary).toHaveLength(1);
-      expect(res.body.data.summary[0].daysPresent).toBe(22);
+      expect(res.body.data.summary[0].presentDays).toBe(22);
+      expect(res.body.data.summary[0].absentDays).toBe(2);
+      expect(res.body.data.summary[0].manualDeductionTotal).toBe(150);
     });
 
     it('should return 400 without month parameter', async () => {
@@ -189,6 +123,9 @@ describe('Employees Module', () => {
   describe('PUT /commissions/:id/pay', () => {
     it('should mark commission as paid', async () => {
       prismaMock.commission.findUnique.mockResolvedValue(fakeCommission);
+      // The row is CLAIMED with a `status: 'pending'` precondition before the
+      // payable is pushed, so a double-click claims 0 rows and is refused.
+      prismaMock.commission.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.commission.update.mockResolvedValue({ ...fakeCommission, status: 'paid' });
 
       const res = await request(app)

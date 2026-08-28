@@ -263,13 +263,37 @@ async function main() {
     await prisma.account.create({ data: acc });
   }
 
-  // Create expense categories
-  await prisma.expenseCategory.create({ data: { name: 'Rent' } });
-  await prisma.expenseCategory.create({ data: { name: 'Salaries' } });
-  await prisma.expenseCategory.create({ data: { name: 'Utilities' } });
-  await prisma.expenseCategory.create({ data: { name: 'Marketing' } });
-  await prisma.expenseCategory.create({ data: { name: 'Office Supplies' } });
-  await prisma.expenseCategory.create({ data: { name: 'Miscellaneous' } });
+  // Create expense categories.
+  // isRecurring drives POST /payables/ensure-month, which materialises one
+  // pending payable per recurring category per month (spec §4.1). Salaries is
+  // isSystem instead: payroll pushes those rows, so materialising it here too
+  // would double-count every salary.
+  const expenseCategories = [
+    { name: 'Rent', isRecurring: true, dueDay: 5, sortOrder: 1 },
+    { name: 'Utilities', isRecurring: true, dueDay: 10, sortOrder: 2 },
+    { name: 'Salaries', isSystem: true, isRecurring: false, sortOrder: 3 },
+    { name: 'Marketing', sortOrder: 4 },
+    { name: 'Office Supplies', sortOrder: 5 },
+    { name: 'Miscellaneous', sortOrder: 6 },
+  ];
+  for (const c of expenseCategories) {
+    await prisma.expenseCategory.upsert({
+      where: { name: c.name },
+      update: {
+        isRecurring: c.isRecurring ?? false,
+        dueDay: c.dueDay ?? null,
+        isSystem: c.isSystem ?? false,
+        sortOrder: c.sortOrder,
+      },
+      create: {
+        name: c.name,
+        isRecurring: c.isRecurring ?? false,
+        dueDay: c.dueDay ?? null,
+        isSystem: c.isSystem ?? false,
+        sortOrder: c.sortOrder,
+      },
+    });
+  }
 
   console.log('Seed completed successfully!');
   console.log('Default login: admin@clothingerp.com / admin123');
