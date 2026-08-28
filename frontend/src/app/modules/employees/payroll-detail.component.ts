@@ -17,26 +17,48 @@ interface PayrollDay {
   note?: string | null;
 }
 
-interface PayrollDetail {
-  userId: number;
-  month: string;
-  status: PeriodStatus;
-  user?: { id: number; firstName: string; lastName?: string | null; role?: string };
-  salaryType: 'fixed_monthly' | 'daily_wage';
-  /** Decimals — STRINGS over JSON. */
-  baseAmount?: string | number | null;
-  perDayRate?: string | number | null;
+/** Day counts arrive NESTED under `counts` — they are not flattened. */
+interface PayrollCounts {
   presentDays: number;
   absentDays: number;
   halfDays: number;
   lateDays: number;
   paidOffDays: number;
   unmarkedDays: number;
+}
+
+interface PayrollDetail {
+  month: string;
+  status: PeriodStatus;
+  /** The employee block is `employee`, and the name is already joined. */
+  employee: {
+    id: number;
+    name: string;
+    role?: string;
+    branchId?: number;
+    joiningDate?: string | null;
+    salaryType: 'fixed_monthly' | 'daily_wage' | null;
+    monthlySalary?: string | number | null;
+    perDayRate?: string | number | null;
+    weeklyOffDay?: number | null;
+    configured: boolean;
+  };
+  counts: PayrollCounts;
+  salaryType: 'fixed_monthly' | 'daily_wage' | null;
+  /** Decimals — STRINGS over JSON. */
+  baseAmount?: string | number | null;
+  perDayRate?: string | number | null;
+  earnedDays?: number;
+  grossAmount?: string | number | null;
   manualDeductionTotal?: string | number | null;
   attendanceDeduction?: string | number | null;
   netAmount?: string | number | null;
+  unrecoveredExcess?: string | number | null;
+  preJoiningDays?: number;
+  futureDays?: number;
   finalisedAt?: string | null;
   paidAt?: string | null;
+  salaryPeriodId?: number | null;
   payableId?: number | null;
   days?: PayrollDay[];
 }
@@ -79,11 +101,11 @@ interface ApiResponse<T> {
         </div>
       } @else {
 
-        @if (detail.unmarkedDays > 0) {
+        @if (detail.counts.unmarkedDays > 0) {
           <div class="flex items-start gap-3 bg-amber-500/10 border border-amber-500/25 text-amber-300 rounded-xl px-4 py-3 text-sm">
             <span class="material-symbols-outlined text-lg">warning</span>
             <span>
-              <span class="font-bold">{{ detail.unmarkedDays }} days unmarked.</span>
+              <span class="font-bold">{{ detail.counts.unmarkedDays }} days unmarked.</span>
               {{ detail.salaryType === 'daily_wage'
                   ? 'Nothing is paid for those days.'
                   : 'Nothing is deducted for those days.' }}
@@ -147,21 +169,21 @@ interface ApiResponse<T> {
                   </div>
                   <div class="flex items-baseline justify-between gap-4">
                     <dt class="text-on-surface-variant">
-                      Absent &mdash; {{ detail.absentDays }} &times; {{ money(perDay) }}
+                      Absent &mdash; {{ detail.counts.absentDays }} &times; {{ money(perDay) }}
                     </dt>
                     <dd class="tabular-nums text-red-400 whitespace-nowrap">−{{ money(absentDeduction) }}</dd>
                   </div>
                   <div class="flex items-baseline justify-between gap-4">
                     <dt class="text-on-surface-variant">
-                      Half days &mdash; {{ detail.halfDays }} &times; &frac12; &times; {{ money(perDay) }}
+                      Half days &mdash; {{ detail.counts.halfDays }} &times; &frac12; &times; {{ money(perDay) }}
                     </dt>
                     <dd class="tabular-nums text-red-400 whitespace-nowrap">−{{ money(halfDeduction) }}</dd>
                   </div>
                 } @else {
                   <div class="flex items-baseline justify-between gap-4">
                     <dt class="text-on-surface-variant">
-                      Payable days &mdash; {{ detail.presentDays }} present + {{ detail.lateDays }} late
-                      + {{ detail.halfDays }} half (&frac12;) + {{ detail.paidOffDays }} paid off
+                      Payable days &mdash; {{ detail.counts.presentDays }} present + {{ detail.counts.lateDays }} late
+                      + {{ detail.counts.halfDays }} half (&frac12;) + {{ detail.counts.paidOffDays }} paid off
                     </dt>
                     <dd class="tabular-nums text-on-surface font-medium whitespace-nowrap">{{ payableDays }}</dd>
                   </div>
@@ -329,9 +351,7 @@ export class PayrollDetailComponent implements OnInit, OnDestroy {
   }
 
   get employeeName(): string {
-    const u = this.detail?.user;
-    if (!u) return 'Salary';
-    return [u.firstName, u.lastName].filter(Boolean).join(' ');
+    return this.detail?.employee?.name?.trim() || 'Salary';
   }
 
   get days(): PayrollDay[] {
@@ -383,21 +403,21 @@ export class PayrollDetailComponent implements OnInit, OnDestroy {
   }
 
   get absentDeduction(): number {
-    return this.round2(this.num(this.detail?.absentDays) * this.perDay);
+    return this.round2(this.num(this.detail?.counts?.absentDays) * this.perDay);
   }
 
   get halfDeduction(): number {
-    return this.round2(this.num(this.detail?.halfDays) * 0.5 * this.perDay);
+    return this.round2(this.num(this.detail?.counts?.halfDays) * 0.5 * this.perDay);
   }
 
   /** Late counts as a full paid day (D5). */
   get payableDays(): number {
     if (!this.detail) return 0;
     return (
-      this.num(this.detail.presentDays) +
-      this.num(this.detail.lateDays) +
-      this.num(this.detail.halfDays) * 0.5 +
-      this.num(this.detail.paidOffDays)
+      this.num(this.detail.counts.presentDays) +
+      this.num(this.detail.counts.lateDays) +
+      this.num(this.detail.counts.halfDays) * 0.5 +
+      this.num(this.detail.counts.paidOffDays)
     );
   }
 

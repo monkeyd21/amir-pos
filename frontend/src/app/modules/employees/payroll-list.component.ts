@@ -9,26 +9,59 @@ import { istThisMonth, monthLabel, money, shiftMonth } from './payroll-date.util
 
 export type PeriodStatus = 'open' | 'finalised' | 'paid';
 
-export interface PayrollRow {
-  userId: number;
-  user?: { id: number; firstName: string; lastName?: string | null; role?: string };
-  firstName?: string;
-  lastName?: string | null;
-  month: string;
-  salaryType: 'fixed_monthly' | 'daily_wage';
-  /** Decimal — arrives as a STRING over JSON. */
-  baseAmount?: string | number | null;
-  perDayRate?: string | number | null;
+/** The day counts arrive NESTED under `counts`, not flattened onto the row. */
+export interface PayrollCounts {
   presentDays: number;
   absentDays: number;
   halfDays: number;
   lateDays: number;
   paidOffDays: number;
   unmarkedDays: number;
-  manualDeductionTotal?: string | number | null;
+}
+
+export interface PayrollRow {
+  userId: number;
+  /** Already joined server-side — there is no firstName/lastName on this row. */
+  name: string;
+  role?: string;
+  branchId?: number;
+  joiningDate?: string | null;
+  weeklyOffDay?: number | null;
+  /** false until the employee has a salary type and a per-day rate. */
+  configured: boolean;
+  counts: PayrollCounts;
+  salaryType: 'fixed_monthly' | 'daily_wage' | null;
+  /** Decimal — arrives as a STRING over JSON. */
+  monthlySalary?: string | number | null;
+  baseAmount?: string | number | null;
+  perDayRate?: string | number | null;
+  earnedDays?: number;
+  grossAmount?: string | number | null;
   attendanceDeduction?: string | number | null;
+  manualDeductionTotal?: string | number | null;
   netAmount?: string | number | null;
+  unrecoveredExcess?: string | number | null;
+  /** Mirrored out of `counts` by the API for the D2 warning. */
+  unmarkedDays: number;
   status: PeriodStatus;
+  salaryPeriodId?: number | null;
+  payableId?: number | null;
+  finalisedAt?: string | null;
+  paidAt?: string | null;
+}
+
+/** GET /employees/payroll answers with this envelope, not a bare array. */
+export interface PayrollMonth {
+  month: string;
+  branchId: number;
+  rows: PayrollRow[];
+  totals: {
+    employees: number;
+    net: number;
+    pending: number;
+    paid: number;
+    unmarkedDays: number;
+  };
 }
 
 interface ApiResponse<T> {
@@ -116,16 +149,24 @@ interface ApiResponse<T> {
                     <p class="text-sm font-medium text-on-surface whitespace-nowrap">{{ nameOf(row) }}</p>
                   </td>
                   <td class="px-6 py-4 text-sm text-on-surface-variant whitespace-nowrap">
-                    {{ row.salaryType === 'daily_wage' ? 'Daily wage' : 'Fixed monthly' }}
-                    <span class="block text-[10px] text-on-surface-variant/60">
-                      {{ row.salaryType === 'daily_wage' ? money(row.perDayRate) + ' / day' : money(row.baseAmount) + ' / month' }}
-                    </span>
+                    @if (row.configured) {
+                      {{ row.salaryType === 'daily_wage' ? 'Daily wage' : 'Fixed monthly' }}
+                      <span class="block text-[10px] text-on-surface-variant/60">
+                        {{ row.salaryType === 'daily_wage' ? money(row.perDayRate) + ' / day' : money(row.baseAmount) + ' / month' }}
+                      </span>
+                    } @else {
+                      <!-- Showing "Fixed monthly ₹0.00" for someone with no pay set up
+                           reads as a real salary of zero. Say what is actually true. -->
+                      <span class="italic text-on-surface-variant/70">Not set up</span>
+                      <a [routerLink]="['/employees', row.userId, 'edit']"
+                         class="block text-[10px] text-primary hover:underline">Set their pay</a>
+                    }
                   </td>
-                  <td class="px-6 py-4 text-center text-sm tabular-nums text-green-400">{{ row.presentDays }}</td>
-                  <td class="px-6 py-4 text-center text-sm tabular-nums text-red-400">{{ row.absentDays }}</td>
-                  <td class="px-6 py-4 text-center text-sm tabular-nums text-orange-400">{{ row.halfDays }}</td>
-                  <td class="px-6 py-4 text-center text-sm tabular-nums text-yellow-400">{{ row.lateDays }}</td>
-                  <td class="px-6 py-4 text-center text-sm tabular-nums text-sky-400">{{ row.paidOffDays }}</td>
+                  <td class="px-6 py-4 text-center text-sm tabular-nums text-green-400">{{ row.counts.presentDays }}</td>
+                  <td class="px-6 py-4 text-center text-sm tabular-nums text-red-400">{{ row.counts.absentDays }}</td>
+                  <td class="px-6 py-4 text-center text-sm tabular-nums text-orange-400">{{ row.counts.halfDays }}</td>
+                  <td class="px-6 py-4 text-center text-sm tabular-nums text-yellow-400">{{ row.counts.lateDays }}</td>
+                  <td class="px-6 py-4 text-center text-sm tabular-nums text-sky-400">{{ row.counts.paidOffDays }}</td>
                   <td class="px-6 py-4 text-center">
                     @if (row.unmarkedDays > 0) {
                       <span class="status-pill bg-amber-500/15 text-amber-300">{{ row.unmarkedDays }} unmarked</span>
@@ -205,11 +246,13 @@ export class PayrollListComponent implements OnInit, OnDestroy {
   load(): void {
     this.loading = true;
     this.api
-      .get<ApiResponse<PayrollRow[]>>('/employees/payroll', { month: this.month })
+      .get<ApiResponse<PayrollMonth>>('/employees/payroll', { month: this.month })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
-          this.rows = res.data || [];
+          // GET /employees/payroll answers { month, branchId, rows } — assigning
+          // res.data straight to rows made every total call .reduce on an object.
+          this.rows = res.data?.rows ?? [];
           this.loading = false;
         },
         error: (err) => {
@@ -231,9 +274,7 @@ export class PayrollListComponent implements OnInit, OnDestroy {
   }
 
   nameOf(row: PayrollRow): string {
-    const first = row.user?.firstName ?? row.firstName ?? '';
-    const last = row.user?.lastName ?? row.lastName ?? '';
-    return [first, last].filter(Boolean).join(' ') || `#${row.userId}`;
+    return row.name?.trim() || `#${row.userId}`;
   }
 
   /** Decimal arrives as a string — Number() or the total string-concatenates. */
