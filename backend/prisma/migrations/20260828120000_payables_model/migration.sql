@@ -170,3 +170,7 @@ SELECT
 FROM "expenses" e
 JOIN "payables" p ON p."dedupeKey" = 'legacy-expense:' || e."id"
 WHERE e."status" <> 'rejected';
+
+-- Prisma's @updatedAt expects no database default. Dropped after the backfill
+-- inserts above, which supply the column explicitly.
+ALTER TABLE "payables" ALTER COLUMN "updatedAt" DROP DEFAULT;

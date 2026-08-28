@@ -87,3 +87,8 @@ ALTER TABLE "salary_periods" ADD CONSTRAINT "salary_periods_paidBy_fkey"
   FOREIGN KEY ("paidBy") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "salary_periods" ADD CONSTRAINT "salary_periods_payableId_fkey"
   FOREIGN KEY ("payableId") REFERENCES "payables"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Prisma's @updatedAt expects no database default; the default above existed
+-- only so ADD COLUMN could run against existing rows.
+ALTER TABLE "attendance"     ALTER COLUMN "updatedAt" DROP DEFAULT;
+ALTER TABLE "salary_periods" ALTER COLUMN "updatedAt" DROP DEFAULT;
