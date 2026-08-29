@@ -21,3 +21,6 @@ deploy-secrets.local
 
 # Agent scratchpad (SSH helper, build tarballs, ad-hoc SQL) — never commit
 scratchpad/
+
+# local deploy venv (paramiko helper)
+deploy/.venv/
