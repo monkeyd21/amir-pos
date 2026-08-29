@@ -5,6 +5,14 @@ import { getSetting, setSetting } from './service';
 import { isOwnerPinSet, setOwnerPin } from '../../services/owner-pin';
 import { recordAudit } from '../../services/audit';
 import prisma from '../../config/database';
+import {
+  DEFAULT_UPI_CONFIG,
+  UpiAccount,
+  UpiConfig,
+  ensureSingleDefault,
+  normaliseUpiConfig,
+  slugifyAccountId,
+} from '../../utils/upi';
 
 const router = Router();
 
@@ -243,13 +251,15 @@ router.put(
   }
 );
 
-// UPI "scan to pay" — the store VPA + display name used to print a UPI QR (with
-// the bill amount pre-filled) on receipts. Stored as { vpa, merchantName }.
-const DEFAULT_UPI_CONFIG = { vpa: '', merchantName: '' };
-
+// bug3 — UPI "scan to pay". The store can hold several collection accounts;
+// one is the default used by receipts and by a fresh payment screen, and the
+// cashier may pick a different one per bill at the counter. Reads go through
+// normaliseUpiConfig so the legacy single { vpa, merchantName } blob still in
+// the settings table keeps working until it is next saved.
 router.get('/upi', async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    res.json({ success: true, data: await getSetting('upiConfig', DEFAULT_UPI_CONFIG) });
+    const raw = await getSetting<unknown>('upiConfig', DEFAULT_UPI_CONFIG);
+    res.json({ success: true, data: normaliseUpiConfig(raw) });
   } catch (error) {
     next(error);
   }
@@ -260,10 +270,38 @@ router.put(
   authorize('owner', 'manager'),
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const updated = {
-        vpa: String(req.body.vpa ?? '').trim(),
-        merchantName: String(req.body.merchantName ?? '').trim(),
-      };
+      const incoming = Array.isArray(req.body?.accounts)
+        ? req.body.accounts
+        : // Tolerate the old single-account payload so an older client (or a
+          // script) does not wipe the list by posting the legacy shape.
+          [{ label: 'Primary', vpa: req.body?.vpa, merchantName: req.body?.merchantName, isDefault: true }];
+
+      const seen = new Set<string>();
+      const accounts: UpiAccount[] = [];
+      for (const [i, a] of (incoming as any[]).entries()) {
+        const vpa = String(a?.vpa ?? '').trim();
+        if (!vpa) continue; // an empty row is a removal, not an error
+        if (!/^[^@\s]+@[^@\s]+$/.test(vpa)) {
+          return res.status(400).json({
+            success: false,
+            error: `"${vpa}" is not a valid UPI ID — it should look like name@bank.`,
+          });
+        }
+        const label = String(a?.label ?? '').trim() || `UPI ${i + 1}`;
+        let id = String(a?.id ?? '').trim() || slugifyAccountId(label, `upi-${i + 1}`);
+        while (seen.has(id)) id = `${id}-${i + 1}`;
+        seen.add(id);
+        accounts.push({
+          id,
+          label,
+          vpa,
+          merchantName: String(a?.merchantName ?? '').trim(),
+          isDefault: Boolean(a?.isDefault),
+          active: a?.active !== false,
+        });
+      }
+
+      const updated: UpiConfig = { accounts: ensureSingleDefault(accounts) };
       await setSetting('upiConfig', updated);
       res.json({ success: true, data: updated, message: 'UPI settings saved' });
     } catch (error) {

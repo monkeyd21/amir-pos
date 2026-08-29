@@ -45,16 +45,40 @@ Angular's template parser breaks on `[class.bg-primary/5]` because `/` is interp
 - `[class]="cond ? 'bg-primary/5 text-white' : 'bg-gray-200'"` (full class string binding)
 - Separate non-slash fallback: `[class.bg-blue-50]="cond"`
 
-### 3. Prisma Decimal fields arrive as STRINGS over JSON
+### 3. The POS charges the SALE PRICE, not the MRP
+Scanning an article prices the line at the stored Sale Price
+(`variant.priceOverride ?? product.basePrice`), resolved by
+`nonClearanceChargePrice()` in `pos/service.ts`. It used to charge the MRP,
+which forced the cashier to key a discount on every line. The MRP still travels
+on the cart line and is snapshotted onto `SaleItem.mrp` so the receipt prints it
+struck through as the "was" price — it just no longer decides what is charged.
+Clearance lines are separate again: they charge the fixed `clearancePrice`.
+
+Since `7066a04` every variant owns a materialised price stack
+(`mrpOverride` / `priceOverride` / `costOverride` / `landingOverride`), and the
+product-level `mrp` / `basePrice` is only a creation-time template. **Never read
+the product price where a variant price exists** — that was the clearance-MRP
+bug.
+
+### 4. Clearance is "no refund, exchange yes"
+A clearance line sets `SaleItem.nonReturnable` at checkout to block refunds, but
+it IS exchangeable. The split lives in `pos/exchange-policy.ts`
+(`canExchangeLine` / `canRefundLine` / `clearanceCashOutBlocked`). Because an
+exchange nets returned value against the new purchase, a clearance-backed
+exchange must not settle as cash out — the replacement has to be worth at least
+the clearance credit (equal-or-greater-value). Product-level `nonReturnable`
+still blocks both paths.
+
+### 5. Prisma Decimal fields arrive as STRINGS over JSON
 `sale.total`, `commission.amount`, `product.basePrice`, etc. are Prisma `Decimal` type. They come across the wire as strings like `"237"`. Always wrap with `Number(value)` before math — otherwise `reduce` concatenates strings → `NaN`.
 
-### 4. Zod `.optional()` does NOT accept `null`
+### 6. Zod `.optional()` does NOT accept `null`
 Frontend dropdowns with default "Select..." option send `null`. Zod `.optional()` accepts `undefined` but rejects `null`. Use `.optional().nullable()` for any field that might come from a dropdown.
 
-### 5. Static Express routes MUST come before parameterized routes
+### 7. Static Express routes MUST come before parameterized routes
 `/customers/top` must be registered before `/customers/:id` or Express matches "top" as the `:id` param. Same for `/commissions/pay-bulk` before `/commissions/:id/pay`.
 
-### 6. ts-node-dev sometimes misses file changes
+### 8. ts-node-dev sometimes misses file changes
 If you edit a file and don't see `[INFO] Restarting` in the backend log, force a restart. The `--respawn` flag isn't perfectly reliable. `touch` doesn't always work; you may need to modify file content (add/remove a blank line).
 
 ## Field mapping gotchas
@@ -133,38 +157,32 @@ Native Android app wraps the same Angular frontend. Route: `/mobile-pos` (full-s
 
 **Build native APK:**
 ```bash
-cd frontend
-npx ng build --configuration=development
-npx cap sync android
-cd android && ./gradlew assembleDebug
-# APK lands at: android/app/build/outputs/apk/debug/app-debug.apk
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+./deploy/build-apk.sh            # debug  -> dist-apk/amir-pos-debug.apk
+./deploy/build-apk.sh --release  # unsigned release
+adb install -r dist-apk/amir-pos-debug.apk
 ```
 
-Requires the Android SDK (not installed yet on this machine — `/usr/lib/android-sdk` only has `platform-tools`/ADB). To install the full SDK without Android Studio:
-```bash
-# Download command-line tools, then:
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-# And add to frontend/android/local.properties:
-# sdk.dir=/home/imran/Android/Sdk
-```
+The Android SDK **is now installed** at `~/Android/Sdk` (cmdline-tools +
+platform-tools + `platforms;android-36` + `build-tools;36.0.0`, ~462 MB) and
+`frontend/android/local.properties` is written by the build script. Java 21 and
+Gradle 8.14.3 / AGP 8.13 are what the project expects.
 
-**Live reload during dev:**
+**The APK talks to `https://erp.sabihasethnic.com/api/v1`** — the real prod
+domain with a real certificate. No Pinggy tunnel and no laptop are involved.
+The host is resolved in `frontend/src/environments/api-url.ts`, which is a
+separate module on purpose: a production build REPLACES `environment.ts` with
+`environment.prod.ts` (`angular.json` → `fileReplacements`), so a prod file
+importing `./environment` would import itself.
+
+Previously this pointed at `https://amir-pos.up.railway.app`, a Railway
+deployment that never existed — an APK built before that fix could not reach a
+backend at all.
+
+**Live reload during dev** (optional, points the native app at the dev server):
 ```bash
-# Point the native app at the laptop dev server so code changes hot-reload on the phone.
 CAP_SERVER_URL=http://192.168.148.129:4200 npx cap sync android
-cd android && ./gradlew installDebug
+cd frontend/android && ./gradlew installDebug
 ```
-
-**Pinggy tunnel for backend (dev machine is a VMware VM — LAN-direct doesn't work to phone):**
-```bash
-# Token in ~/.claude notes. Opens https://ccc.a.pinggy.link → localhost:3000
-ssh -p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=60 \
-  -R 0:localhost:3000 4zVN14zozRh@a.pinggy.io
-```
-The native APK's `environment.ts` hardcodes `https://ccc.a.pinggy.link/api/v1` for
-Capacitor builds. Tunnel must be running for the mobile app to reach the backend.
-Browser/desktop use keeps hitting `localhost:3000` directly (tunnel not needed there).
 
 ## Bold / Underline on labels
 - **Bold**: simulated via double-strike (text printed twice, 1-dot offset)

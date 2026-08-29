@@ -357,7 +357,17 @@
 
   <!-- Customer Info -->
   <div class="mb-8">
-    <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight mb-4">Customer Information</h2>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight">Customer Information</h2>
+      <!-- bug5 — limited bill editing: name/contact only, on its own page. -->
+      @if (sale.status !== 'void') {
+        <a [routerLink]="['/sales', sale.id, 'edit-customer']"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold font-body text-on-surface-variant bg-surface-container-highest/60 rounded-lg hover:bg-surface-container-highest hover:text-on-surface transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-sm">edit</span>
+          {{ sale.customer ? 'Correct details' : 'Add customer' }}
+        </a>
+      }
+    </div>
     <div class="p-5 bg-surface-container/40 border border-outline-variant/10 rounded-2xl">
       @if (sale.customer) {
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">

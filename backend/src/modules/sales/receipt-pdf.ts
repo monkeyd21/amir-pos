@@ -180,11 +180,24 @@ export function buildReceiptPdf(
       const hsn = item.variant.product.hsnCode || '';
 
       // §1.2 — per-line sale-policy marker.
-      const nonReturnable = Boolean(item.nonReturnable) || Boolean(item.variant.product.nonReturnable);
-      const exchangeOnly = !nonReturnable && Boolean(item.variant.product.exchangeOnly);
+      // §2.4/bug2 — a clearance line carries nonReturnable at the line level but
+      // IS exchangeable, so it must not print the blanket NON-RETURNABLE marker
+      // that tells the customer (and the cashier) no swap is possible. It gets
+      // its own wording: not returnable for cash, exchange still available.
+      const clearanceLine = Boolean(item.isClearance);
+      const nonReturnable =
+        !clearanceLine && (Boolean(item.nonReturnable) || Boolean(item.variant.product.nonReturnable));
+      const exchangeOnly =
+        !nonReturnable && (clearanceLine || Boolean(item.variant.product.exchangeOnly));
       if (nonReturnable) anyNonReturnable = true;
       if (exchangeOnly) anyExchangeOnly = true;
-      const flagText = nonReturnable ? '** NON-RETURNABLE' : exchangeOnly ? '** EXCHANGE ONLY' : '';
+      const flagText = nonReturnable
+        ? '** NON-RETURNABLE'
+        : clearanceLine
+        ? '** NOT RETURNABLE - EXCHANGE ONLY'
+        : exchangeOnly
+        ? '** EXCHANGE ONLY'
+        : '';
 
       // Anchor Qty + Total + HSN to the top of the row
       doc.font('Helvetica').fontSize(8);
@@ -265,7 +278,7 @@ export function buildReceiptPdf(
         doc.text('** NON-RETURNABLE items cannot be returned or exchanged.', 12, doc.y, { width: W });
       }
       if (anyExchangeOnly) {
-        doc.text('** EXCHANGE ONLY items can be exchanged but not refunded.', 12, doc.y, { width: W });
+        doc.text('** Items marked EXCHANGE ONLY / NOT RETURNABLE can be exchanged for equal or greater value, but never refunded in cash.', 12, doc.y, { width: W });
       }
       doc.font('Helvetica').fontSize(8);
       doc.moveDown(0.2);

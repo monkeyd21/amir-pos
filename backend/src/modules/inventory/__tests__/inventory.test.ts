@@ -341,4 +341,56 @@ describe('Inventory Module', () => {
       expect(res.body.meta.total).toBe(1);
     });
   });
+  // ─── GET /clearance (bug1 — MRP must come from the variant) ──────────
+  describe('GET /clearance', () => {
+    // Since 7066a04 every variant carries its own materialised price stack and
+    // the product-level mrp/basePrice is only a creation-time template. The list
+    // used to read `product.mrp ?? product.basePrice`, so a size whose own MRP
+    // had been stepped to a different tier was shown at its original entry price
+    // — the discrepancy reported against /inventory/clearance.
+    const variantOnClearance = {
+      id: 7,
+      sku: 'FRK-32-RED',
+      barcode: '890000000007',
+      size: '32',
+      color: 'Red',
+      mrpOverride: 1490,      // this size's own, stepped MRP
+      costOverride: 620,
+      clearancePrice: 700,
+      clearanceFlag: true,
+      product: { name: 'Frock', mrp: 1000, basePrice: 900, costPrice: 500 },
+      inventory: [{ quantity: 3 }],
+    };
+
+    it('reports the variant MRP, not the product template price', async () => {
+      prismaMock.productVariant.findMany.mockResolvedValue([variantOnClearance]);
+      prismaMock.saleItem.findMany.mockResolvedValue([]);
+
+      const res = await request(app)
+        .get(`${BASE}/clearance`)
+        .set('Authorization', authHeader(testUsers.owner));
+
+      expect(res.status).toBe(200);
+      const row = res.body.data[0];
+      expect(Number(row.mrp)).toBe(1490);
+      expect(Number(row.mrp)).not.toBe(1000); // product.mrp
+      expect(Number(row.mrp)).not.toBe(900);  // product.basePrice
+      expect(Number(row.purchasePrice)).toBe(620);
+      expect(Number(row.clearancePrice)).toBe(700);
+    });
+
+    it('falls back to the product MRP only when the variant has no override', async () => {
+      prismaMock.productVariant.findMany.mockResolvedValue([
+        { ...variantOnClearance, mrpOverride: null },
+      ]);
+      prismaMock.saleItem.findMany.mockResolvedValue([]);
+
+      const res = await request(app)
+        .get(`${BASE}/clearance`)
+        .set('Authorization', authHeader(testUsers.owner));
+
+      expect(res.status).toBe(200);
+      expect(Number(res.body.data[0].mrp)).toBe(1000);
+    });
+  });
 });

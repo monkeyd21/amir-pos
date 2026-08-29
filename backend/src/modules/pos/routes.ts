@@ -57,6 +57,13 @@ router.post(
   posController.checkout
 );
 
+// bug3 — UPI collection at the counter. The QR used to exist only on the
+// printed receipt, i.e. after the customer had already paid; the cashier needs
+// it during the payment step. `accounts` lists what the store can collect into
+// so the cashier can pick, `qr` renders the deep link for the amount due.
+router.get('/upi/accounts', posController.upiAccounts);
+router.post('/upi/qr', posController.upiQr);
+
 // Hold/Resume
 router.post('/hold', validate(holdCartSchema), posController.holdCart);
 router.get('/held', posController.listHeld);

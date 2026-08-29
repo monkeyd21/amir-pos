@@ -13,6 +13,7 @@ import { verifyOwnerPin } from '../../services/owner-pin';
 import { gstRateForPrice } from '../../utils/tax';
 import { createProduct as createProductService } from '../products/service';
 import { slugify } from '../../utils/helpers';
+import { canExchangeLine, clearanceCashOutBlocked } from './exchange-policy';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -892,6 +893,9 @@ export class PosService {
       let exchangeCredit = 0;
       let exchangeReturnId: number | null = null;
       let exchangeOriginalNumber: string | null = null;
+      // §2.4/bug2 — how much of the exchange credit came from clearance lines,
+      // which may be swapped but must never turn into cash back.
+      let nonRefundableCredit = 0;
 
       if (data.exchange && !data.offline) {
         const orig = await tx.sale.findUnique({
@@ -925,12 +929,29 @@ export class PosService {
           if (!si) {
             throw new AppError(`Return item ${ri.saleItemId} is not part of sale ${orig.saleNumber}`, 400);
           }
-          // A line marked non-returnable at billing (or a non-returnable product)
-          // can't come back through an exchange either — an exchange can net a
-          // cash refund, which would bypass the block.
-          if ((si as any).nonReturnable || si.variant?.product?.nonReturnable) {
+          // §2.4/bug2 — a CLEARANCE line is not refundable but IS exchangeable:
+          // the customer may swap a size/colour, they just never get cash back.
+          // Everything else marked non-returnable (a non-returnable product, or
+          // a line the cashier flagged at checkout) still blocks both paths.
+          //
+          // The old blanket block existed because an exchange can net a cash
+          // refund and so bypass the no-refund rule. That escape is closed below
+          // instead, by requiring the replacement to be worth at least the
+          // credit — the equal-or-greater-value policy — rather than by
+          // refusing the exchange outright.
+          const clearanceLine = Boolean((si as any).isClearance);
+          if (
+            !canExchangeLine({
+              isClearance: clearanceLine,
+              lineNonReturnable: Boolean((si as any).nonReturnable),
+              productNonReturnable: Boolean(si.variant?.product?.nonReturnable),
+            })
+          ) {
             const nm = si.variant?.product?.name ?? `item ${si.id}`;
             throw new AppError(`${nm} is marked non-returnable and cannot be exchanged`, 400);
+          }
+          if (clearanceLine) {
+            nonRefundableCredit += (Number(si.total) / si.quantity) * ri.quantity;
           }
           const available = si.quantity - si.returnedQuantity;
           if (ri.quantity > available) {
@@ -1029,6 +1050,22 @@ export class PosService {
       const netPayable = Math.round((saleTotal - exchangeCredit) * 100) / 100;
       const amountDue = Math.max(0, netPayable);
       const refundDue = Math.max(0, Math.round(-netPayable * 100) / 100);
+
+      // §2.4/bug2 — clearance goods are exchangeable but never refundable, so a
+      // clearance-backed exchange may not settle as cash out. Requiring the new
+      // items to cover at least the clearance portion of the credit is the
+      // equal-or-greater-value policy, and it is what lets the exchange be
+      // allowed at all without reopening a refund route on a non-refundable
+      // line. Only the clearance share is protected: a bill mixing clearance
+      // and normal goods can still refund down to the normal goods' value.
+      if (clearanceCashOutBlocked(nonRefundableCredit, refundDue)) {
+        const spendShortfall = Math.round(refundDue * 100) / 100;
+        throw new AppError(
+          `Clearance items can be exchanged but never refunded. This exchange would pay out ₹${spendShortfall.toFixed(2)}. ` +
+            `Add ₹${spendShortfall.toFixed(2)} more to the new items so the exchange is equal or greater in value.`,
+          400
+        );
+      }
 
       // 5. Validate tenders cover what the customer owes. Gift vouchers are a
       // tender too: they cover part of amountDue, so the cash/card/UPI only
@@ -1520,9 +1557,11 @@ export class PosService {
       productName: variant.product.name,
       brand: variant.product.brand?.name,
       category: variant.product.category?.name,
-      // §5/§13.3 — `price` is what the POS charges: MRP on a normal line, the
-      // fixed clearancePrice on a clearance line. `salePrice` is the display-only
-      // Sale Price printed on the barcode (never charged).
+      // §13.3/bug6 — `price` is what the POS charges: the stored Sale Price on
+      // a normal line, the fixed clearancePrice on a clearance line. `mrp` is
+      // carried alongside purely so the cart and receipt can show it struck
+      // through as the "was" price. `salePrice` is the same figure as `price`
+      // on a normal line and is kept for the barcode-label callers.
       price: isClearance ? Number(variant.clearancePrice) : this.nonClearanceChargePrice(variant),
       salePrice: this.computeInclusivePrice(variant),
       mrp:
@@ -1547,9 +1586,11 @@ export class PosService {
    * number as the customer pays. Tax is extracted from this on checkout.
    */
   /**
-   * §13.3 — the tax-inclusive **Sale Price** (basePrice, or a variant override).
-   * This is a DISPLAY value only — printed on the barcode label. It is NOT what
-   * the customer is charged at the counter (that is the MRP, see below).
+   * §13.3 — the tax-inclusive **Sale Price** (basePrice, or a variant override),
+   * as printed on the barcode label. Since bug6 this is also what the counter
+   * charges on a normal line (see nonClearanceChargePrice below), so the label
+   * and the till now agree instead of differing by the manual discount the
+   * cashier used to key in.
    */
   private computeInclusivePrice(variant: {
     priceOverride: { toString(): string } | null;
@@ -1568,12 +1609,22 @@ export class PosService {
   }
 
   /**
-   * §5/§13.3 — the price a customer is actually CHARGED at the POS for a
-   * non-clearance line: the **MRP** (per-variant `mrpOverride`, else the
-   * product MRP), which by Indian retail convention is already the final
-   * tax-inclusive price — so no tax uplift is applied. Falls back to the Sale
-   * Price only for legacy products that have no MRP set (with a tax uplift if
-   * that product is priced tax-exclusive). Clearance is handled by callers.
+   * §13.3/bug6 — the price a customer is actually CHARGED at the POS for a
+   * non-clearance line: the pre-stored **Sale Price** (per-variant
+   * `priceOverride`, else the product `basePrice`).
+   *
+   * This used to charge the MRP, which meant the cashier had to key a discount
+   * by hand on every single line just to reach the price the article was
+   * actually being sold at — the shelf price was already known and stored, so
+   * that was avoidable work on every scan and a standing source of counter
+   * error. The MRP is still carried on the cart line and snapshotted onto the
+   * SaleItem, so the receipt keeps printing it struck through as the "was"
+   * price; it just no longer decides what is charged.
+   *
+   * MRP remains the fallback for legacy variants with no Sale Price stored.
+   * Since 7066a04 every variant carries a materialised `priceOverride`, so that
+   * path is only for rows predating it. Clearance is handled by callers, which
+   * use the fixed `clearancePrice` instead.
    */
   private nonClearanceChargePrice(variant: {
     mrpOverride?: { toString(): string } | null;
@@ -1586,13 +1637,16 @@ export class PosService {
       priceIncludesTax: boolean;
     };
   }): number {
+    const salePrice = variant.priceOverride ?? variant.product.basePrice;
+    if (salePrice != null) {
+      const raw = Number(salePrice);
+      if (variant.product.priceIncludesTax) return raw;
+      const rate = Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
+      return Math.round(raw * (1 + rate / 100) * 100) / 100;
+    }
+    // Legacy fallback only: no Sale Price stored. MRP is final tax-inclusive.
     const mrp = variant.mrpOverride ?? variant.product.mrp;
-    if (mrp != null) return Number(mrp); // MRP is final tax-inclusive.
-    const raw = Number(variant.priceOverride ?? variant.product.basePrice);
-    if (variant.product.priceIncludesTax) return raw;
-    const rate =
-      Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
-    return Math.round(raw * (1 + rate / 100) * 100) / 100;
+    return mrp != null ? Number(mrp) : 0;
   }
 
   async searchProducts(query: string, branchId: number) {

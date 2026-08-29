@@ -931,7 +931,16 @@
                     <span class="text-on-surface-variant">Return credit</span>
                     <span class="text-amber-400 font-medium">&minus;{{ formatCurrency(exchangeCredit) }}</span>
                   </div>
-                  @if (exchangeRefundOwed) {
+                  @if (clearanceRefundBlocked) {
+                    <div class="flex justify-between pt-1 border-t border-error/30">
+                      <span class="text-error font-bold font-headline">Add {{ formatCurrency(refundDue) }} more</span>
+                      <span class="text-error font-headline font-extrabold text-xl">{{ formatCurrency(refundDue) }}</span>
+                    </div>
+                    <p class="text-[11px] text-error/90 leading-snug">
+                      A clearance item is being exchanged. Clearance goods can be swapped but never refunded in cash —
+                      add {{ formatCurrency(refundDue) }} more to the new items so the exchange is equal or greater in value.
+                    </p>
+                  } @else if (exchangeRefundOwed) {
                     <div class="flex justify-between pt-1 border-t border-amber-500/20">
                       <span class="text-on-surface font-bold font-headline">Refund to customer</span>
                       <span class="text-green-400 font-headline font-extrabold text-xl">{{ formatCurrency(refundDue) }}</span>
@@ -1119,6 +1128,61 @@
                       class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm pl-4 pr-4 py-2 rounded-lg transition-all outline-none placeholder:text-outline/40"
                     />
                   }
+                }
+
+                <!-- bug3 — UPI scan-to-pay, in the Payments step where it is
+                     actually used. Previously the QR only existed on the
+                     printed bill, i.e. after the customer had already paid. -->
+                @if (pendingMethod === 'upi' && upiVpaAccounts.length > 0) {
+                  <div class="rounded-lg border border-outline-variant/20 bg-surface-container-lowest p-3 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Collect into</span>
+                      @if (upiQr) {
+                        <button (click)="hideUpiQr()" type="button"
+                          class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/60 hover:text-on-surface">Hide QR</button>
+                      }
+                    </div>
+
+                    @if (upiVpaAccounts.length > 1) {
+                      <select
+                        [(ngModel)]="selectedUpiAccountId"
+                        (ngModelChange)="onUpiAccountChange()"
+                        data-testid="upi-vpa-select"
+                        class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary-container text-on-surface text-sm px-4 py-2 rounded-lg outline-none"
+                      >
+                        @for (a of upiVpaAccounts; track a.id) {
+                          <option [value]="a.id">{{ a.label }} · {{ a.vpa }}{{ a.isDefault ? ' (default)' : '' }}</option>
+                        }
+                      </select>
+                    } @else {
+                      <p class="text-xs text-on-surface-variant">
+                        {{ upiVpaAccounts[0].label }} <span class="text-on-surface-variant/60">· {{ upiVpaAccounts[0].vpa }}</span>
+                      </p>
+                    }
+
+                    @if (!upiQr) {
+                      <button
+                        (click)="showUpiQr()"
+                        [disabled]="upiQrLoading || upiQrAmount <= 0"
+                        type="button"
+                        data-testid="upi-show-qr"
+                        class="w-full py-2 rounded-lg bg-surface-container-high border border-outline-variant/20 text-on-surface text-xs font-bold uppercase tracking-wider hover:bg-surface-container-highest transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                      >
+                        <span class="material-symbols-outlined text-base">qr_code_2</span>
+                        {{ upiQrLoading ? 'Building QR…' : 'Show QR for ' + formatCurrency(upiQrAmount) }}
+                      </button>
+                    } @else {
+                      <div class="flex flex-col items-center gap-1.5 pt-1">
+                        <img [src]="upiQr.qr" alt="UPI scan to pay QR" class="w-40 h-40 rounded-lg bg-white p-2" />
+                        <p class="text-sm font-headline font-bold text-on-surface">{{ formatCurrency(upiQr.amount) }}</p>
+                        <p class="text-[10px] text-on-surface-variant/70">{{ upiQr.label }} · {{ upiQr.vpa }}</p>
+                        <p class="text-[10px] text-on-surface-variant/50 text-center leading-snug">
+                          Amount is pre-filled — the customer scans in any UPI app and pays.
+                          Add the tender below once the payment confirms on their phone.
+                        </p>
+                      </div>
+                    }
+                  </div>
                 }
 
                 <!-- Quick amounts (cash only) -->

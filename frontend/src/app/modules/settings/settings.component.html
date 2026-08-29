@@ -499,33 +499,63 @@
       </div>
     </div>
 
-    <!-- UPI "scan to pay" QR on bills -->
+    <!-- bug3 — UPI collection accounts (multiple VPAs, one default) -->
     <div class="bg-surface-container rounded-xl p-6 mt-4">
       <div class="flex items-center gap-3 mb-2">
         <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-container/20">
           <span class="material-symbols-outlined text-lg text-primary">qr_code_2</span>
         </div>
-        <h3 class="text-base font-headline font-bold text-on-surface">UPI Pay QR on Bills</h3>
+        <h3 class="text-base font-headline font-bold text-on-surface">UPI Collection Accounts</h3>
       </div>
       <p class="text-xs text-on-surface-variant/70 mb-6">
-        When a UPI ID is set, every printed bill shows a “Scan to Pay” QR with that bill’s amount
-        pre-filled — the customer scans in any UPI app and pays instantly. Leave blank to hide it.
+        The UPI IDs the store collects into. At the counter the cashier picks one on the Payments
+        step and shows the customer a Scan&nbsp;to&nbsp;Pay QR with the amount pre-filled. The
+        <strong>default</strong> is what a fresh payment screen and every printed bill use.
       </p>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
-        <label class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">UPI ID (VPA)</span>
-          <input type="text" [(ngModel)]="upiConfig.vpa" placeholder="e.g. yourname@ybl or 9123456789@upi"
-            class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
-          <span class="text-[10px] text-on-surface-variant/60">Your Virtual Payment Address — where customer payments land.</span>
-        </label>
+      <div class="space-y-3 max-w-4xl">
+        @for (acc of upiAccounts; track acc; let i = $index) {
+          <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr_1fr_auto] gap-3 items-end p-3 rounded-xl border"
+            [class]="acc.isDefault ? 'border-primary/40 bg-primary/5' : 'border-outline-variant/15 bg-surface-container-high/30'">
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Label</span>
+              <input type="text" [(ngModel)]="acc.label" placeholder="e.g. Shop HDFC"
+                class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">UPI ID (VPA)</span>
+              <input type="text" [(ngModel)]="acc.vpa" placeholder="yourname@ybl or 9123456789@upi"
+                class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Merchant Name</span>
+              <input type="text" [(ngModel)]="acc.merchantName" placeholder="Defaults to store name"
+                class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+            </label>
+            <div class="flex items-center gap-2 pb-1">
+              @if (acc.isDefault) {
+                <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary">Default</span>
+              } @else {
+                <button (click)="setDefaultUpiAccount(i)" type="button"
+                  class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-on-surface-variant hover:text-primary">Set default</button>
+              }
+              <button (click)="removeUpiAccount(i)" type="button" title="Remove"
+                class="text-on-surface-variant/50 hover:text-error"><span class="material-symbols-outlined text-base">close</span></button>
+            </div>
+          </div>
+        }
+        @if (upiAccounts.length === 0) {
+          <p class="text-xs text-on-surface-variant/60">
+            No UPI accounts yet — add one and the Scan to Pay QR appears at the counter and on bills.
+          </p>
+        }
+      </div>
 
-        <label class="flex flex-col gap-1.5">
-          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Merchant Name (optional)</span>
-          <input type="text" [(ngModel)]="upiConfig.merchantName" placeholder="Defaults to the store name"
-            class="px-3 py-2 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
-          <span class="text-[10px] text-on-surface-variant/60">Name the customer sees in their UPI app while paying.</span>
-        </label>
+      <div class="mt-4">
+        <button (click)="addUpiAccount()" type="button"
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant bg-surface-container-high rounded-lg hover:text-on-surface">
+          <span class="material-symbols-outlined text-base">add</span> Add UPI account
+        </button>
       </div>
 
       <div class="mt-6 pt-5 border-t border-outline-variant/10">

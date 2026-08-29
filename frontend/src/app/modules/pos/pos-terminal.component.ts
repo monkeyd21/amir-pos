@@ -231,6 +231,15 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   pendingAmount: number | null = null;
   // Bank/account name entered alongside a card/UPI tender (reconciliation aid).
   pendingIdentifier = '';
+
+  // ─── bug3 — UPI scan-to-pay at the counter ──────────────────────
+  // The QR used to exist only on the printed bill, i.e. after the customer had
+  // already paid, which is the wrong moment. These drive the QR inside the
+  // Payments step, against whichever configured VPA the cashier selects.
+  upiVpaAccounts: { id: string; label: string; vpa: string; isDefault: boolean }[] = [];
+  selectedUpiAccountId = '';
+  upiQr: { qr: string; vpa: string; label: string; amount: number } | null = null;
+  upiQrLoading = false;
   /** §2.1/2.2/2.4 — configured Card/UPI accounts (with a default per mode). */
   paymentAccounts: { card: { name: string; isDefault: boolean }[]; upi: { name: string; isDefault: boolean }[] } = { card: [], upi: [] };
 
@@ -425,6 +434,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     condition: 'resellable' | 'damaged';
     unitPrice: number;
     selected: boolean;
+    /** §2.4/bug2 — a clearance line may be exchanged but never refunded, so it
+     *  cannot settle as cash out. Drives the guard below. */
+    isClearance: boolean;
   }> = [];
   showExchangePanel = false;
   exchangeLookupQuery = '';
@@ -468,6 +480,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.setupCustomerSearch();
     this.setupCartEvaluation();
     this.loadAgents();
+    // bug3 — the store's UPI collection VPAs, for the scan-to-pay QR shown
+    // during the payment step.
+    this.loadUpiVpaAccounts();
     // §2.1/2.2 — load configured Card/UPI accounts for auto-populate + override.
     this.api
       .get<ApiResponse<{ card: any[]; upi: any[] }>>('/settings/payment-accounts')
@@ -1592,6 +1607,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     return Math.max(0, Math.round((this.exchangeCredit - this.total) * 100) / 100);
   }
 
+  /** §2.4/bug2 — clearance goods can be swapped but never turned into cash.
+   *  When a clearance line is being returned and the new items are worth less
+   *  than the credit, the exchange would settle as a payout. The backend
+   *  rejects that; surface it here so the cashier sees it while they can still
+   *  add an item, not as a failure at the end of checkout. */
+  get exchangeHasClearanceLine(): boolean {
+    return this.exchangeItems.some((i) => i.selected && i.quantity > 0 && i.isClearance);
+  }
+
+  get clearanceRefundBlocked(): boolean {
+    return this.exchangeHasClearanceLine && this.refundDue > 0.0001;
+  }
+
   /** What the customer actually pays = bill total minus the exchange credit
    *  (never below zero — any excess credit becomes a refund instead). */
   get netPayable(): number {
@@ -1627,6 +1655,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   get canCheckout(): boolean {
     if (this.cart.length === 0) return false;
     if (this.checkoutLoading) return false;
+    // §2.4/bug2 — a clearance-backed exchange must not settle as cash out.
+    if (this.clearanceRefundBlocked) return false;
     // When a refund is owed netPayable is 0, so no tender is required — the
     // cashier hands the difference back after completing.
     return this.amountPaid + 0.0001 >= this.netPayable;
@@ -1636,6 +1666,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   selectPendingMethod(method: 'cash' | 'card' | 'upi'): void {
     this.pendingMethod = method;
+    // A QR is only meaningful for the amount and account it was generated for.
+    this.upiQr = null;
     // Reset the typed amount so the default (= remaining) kicks in again.
     this.pendingAmount = null;
     // The bank/account identifier only applies to card/UPI — clear it on cash.
@@ -1653,6 +1685,62 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   get pendingAccounts(): { name: string; isDefault: boolean }[] {
     if (this.pendingMethod === 'cash') return [];
     return this.paymentAccounts[this.pendingMethod] || [];
+  }
+
+  /**
+   * bug3 — the store's UPI collection accounts (VPAs). Distinct from
+   * `pendingAccounts` above, which is just a reconciliation label for which
+   * bank/gateway a tender landed in and carries no payment address.
+   */
+  loadUpiVpaAccounts(): void {
+    this.api.get<ApiResponse<any[]>>('/pos/upi/accounts').subscribe({
+      next: (res) => {
+        this.upiVpaAccounts = res.data || [];
+        const def = this.upiVpaAccounts.find((a) => a.isDefault) || this.upiVpaAccounts[0];
+        this.selectedUpiAccountId = def ? def.id : '';
+      },
+      error: () => {
+        this.upiVpaAccounts = [];
+      },
+    });
+  }
+
+  /** Amount the QR should ask for — what the cashier typed, else what is left. */
+  get upiQrAmount(): number {
+    return Math.max(0, this.effectivePendingAmount);
+  }
+
+  showUpiQr(): void {
+    const amount = this.upiQrAmount;
+    if (amount <= 0 || this.upiQrLoading) return;
+    this.upiQrLoading = true;
+    this.api
+      .post<ApiResponse<any>>('/pos/upi/qr', {
+        amount,
+        accountId: this.selectedUpiAccountId || undefined,
+        note: this.exchangeSale ? `Exchange vs ${this.exchangeSale.saleNumber}` : undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          this.upiQr = res.data;
+          this.upiQrLoading = false;
+        },
+        error: (err) => {
+          this.upiQr = null;
+          this.upiQrLoading = false;
+          this.notify.error(err?.message || 'Could not build the UPI QR');
+        },
+      });
+  }
+
+  /** Regenerate when the cashier switches account, so the QR never lags the
+   *  selection and collect into the wrong place. */
+  onUpiAccountChange(): void {
+    if (this.upiQr) this.showUpiQr();
+  }
+
+  hideUpiQr(): void {
+    this.upiQr = null;
   }
 
   /**
@@ -2108,6 +2196,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
                   ? Number(it.total) / it.quantity
                   : Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
               selected: preselected,
+              isClearance: Boolean(it.isClearance),
             };
           })
           .filter((i: any) => i.available > 0);

@@ -5,7 +5,13 @@ import { AuthRequest } from '../../middleware/auth';
 import { salesService } from './service';
 import { buildReceiptPdf } from './receipt-pdf';
 import { getSetting } from '../settings/service';
-import { buildUpiUri, upiQrPng, UpiConfig, DEFAULT_UPI_CONFIG } from '../../utils/upi';
+import {
+  buildUpiUri,
+  upiQrPng,
+  DEFAULT_UPI_CONFIG,
+  normaliseUpiConfig,
+  defaultUpiAccount,
+} from '../../utils/upi';
 
 export class SalesController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
@@ -120,17 +126,19 @@ export class SalesController {
 
       // §upi — scan-to-pay QR with the payable amount pre-filled, when a store
       // VPA is configured. Amount = total less any exchange credit.
-      const upiCfg = await getSetting<UpiConfig>('upiConfig', DEFAULT_UPI_CONFIG);
+      // bug3 — the printed QR uses the store's DEFAULT collection account.
+      const upiCfg = normaliseUpiConfig(await getSetting<unknown>('upiConfig', DEFAULT_UPI_CONFIG));
+      const upiAccount = defaultUpiAccount(upiCfg);
       const amountDue = Math.max(0, Number(sale.total) - Number(sale.exchangeCreditAmount || 0));
       let upi: { qr: Buffer; vpa: string; amount: number } | null = null;
-      if (upiCfg.vpa && amountDue > 0) {
+      if (upiAccount && amountDue > 0) {
         const uri = buildUpiUri({
-          vpa: upiCfg.vpa,
-          name: upiCfg.merchantName || sale.branch.name,
+          vpa: upiAccount.vpa,
+          name: upiAccount.merchantName || sale.branch.name,
           amount: amountDue,
           note: sale.saleNumber,
         });
-        upi = { qr: await upiQrPng(uri), vpa: upiCfg.vpa, amount: amountDue };
+        upi = { qr: await upiQrPng(uri), vpa: upiAccount.vpa, amount: amountDue };
       }
 
       const pdf = await buildReceiptPdf(
@@ -208,6 +216,26 @@ export class SalesController {
       const saleId = parseInt(req.params.saleId, 10);
       const result = await salesService.assignAgents(saleId, req.body);
       res.json({ success: true, data: result, message: 'Agents assigned' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // bug5 — correct the customer name/contact on a closed bill.
+  async updateBillCustomer(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const saleId = parseInt(req.params.saleId, 10);
+      const result = await salesService.updateBillCustomer(
+        saleId,
+        req.body,
+        req.user!.userId,
+        req.user!.branchId
+      );
+      res.json({
+        success: true,
+        data: result,
+        message: result.attached ? 'Customer attached to bill' : 'Customer details corrected',
+      });
     } catch (error) {
       next(error);
     }

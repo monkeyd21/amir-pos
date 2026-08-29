@@ -9,6 +9,7 @@ import {
   processExchangeSchema,
   returnableByBarcodeSchema,
   rejectInspectionSchema,
+  updateBillCustomerSchema,
 } from './validators';
 
 const router = Router();
@@ -49,6 +50,16 @@ router.post(
   authorize('owner', 'manager', 'cashier', 'staff'),
   validate(rejectInspectionSchema),
   salesController.rejectInspection
+);
+
+// bug5 — limited bill editing. Customer name/contact only; a closed bill's
+// money (lines, prices, totals, payments) stays immutable. Owner/manager only,
+// and every edit is audited with before/after.
+router.put(
+  '/:saleId/customer',
+  authorize('owner', 'manager'),
+  validate(updateBillCustomerSchema),
+  salesController.updateBillCustomer
 );
 
 // Agent assignment (retroactive and current)

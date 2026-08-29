@@ -3,7 +3,13 @@ import { AppError } from '../../middleware/errorHandler';
 import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
 import { getSetting } from '../settings/service';
-import { buildUpiUri, upiQrDataUrl, UpiConfig, DEFAULT_UPI_CONFIG } from '../../utils/upi';
+import {
+  buildUpiUri,
+  upiQrDataUrl,
+  DEFAULT_UPI_CONFIG,
+  normaliseUpiConfig,
+  defaultUpiAccount,
+} from '../../utils/upi';
 
 // §1.5 / Bug#2 — return/exchange policy windows. The refund/return window is
 // Settings-configurable (`returnWindowDays`, default 15); exchanges stay at 15.
@@ -376,16 +382,20 @@ export class SalesService {
     // the bill when a store VPA is configured. Amount = what's actually due
     // (total less any exchange credit); skipped when nothing is payable.
     const amountDue = Math.max(0, Number(sale.total) - exchangeCredit);
-    const upiCfg = await getSetting<UpiConfig>('upiConfig', DEFAULT_UPI_CONFIG);
+    // bug3 — receipts print the DEFAULT collection account. Which account was
+    // actually used at the counter is a payment-time choice; the receipt QR is
+    // a convenience for paying afterwards, so it uses the store's default.
+    const upiCfg = normaliseUpiConfig(await getSetting<unknown>('upiConfig', DEFAULT_UPI_CONFIG));
+    const upiAccount = defaultUpiAccount(upiCfg);
     let upiQr: string | null = null;
     let upiVpa: string | null = null;
     let upiAmount = 0;
-    if (upiCfg.vpa && amountDue > 0) {
-      upiVpa = upiCfg.vpa;
+    if (upiAccount && amountDue > 0) {
+      upiVpa = upiAccount.vpa;
       upiAmount = amountDue;
       const uri = buildUpiUri({
-        vpa: upiCfg.vpa,
-        name: upiCfg.merchantName || sale.branch.name,
+        vpa: upiAccount.vpa,
+        name: upiAccount.merchantName || sale.branch.name,
         amount: amountDue,
         note: sale.saleNumber,
       });
@@ -1276,6 +1286,116 @@ export class SalesService {
         },
       },
     });
+  }
+
+  /**
+   * bug5 — limited bill editing: correct the customer name / contact on an
+   * already-closed bill.
+   *
+   * Deliberately narrow. Closed bills are immutable for anything that touches
+   * money — no line items, no quantities, no prices, no totals, no payments —
+   * because those feed GST, commission and the day's reconciliation. The only
+   * thing correctable here is who the bill belongs to, which is exactly the
+   * mistake that actually happens at the counter (a misheard name, a digit
+   * wrong in the phone number) and which currently forces a void-and-rebill.
+   *
+   * Two shapes, chosen by whether the bill already has a customer:
+   *   - attached    → the customer record itself is corrected in place, so the
+   *                   fix follows their loyalty balance and purchase history
+   *                   instead of stranding it under a misspelling.
+   *   - walk-in     → find-or-create by phone and attach, which is how a
+   *                   forgotten customer gets added after the fact.
+   *
+   * Every edit is audited with before/after, since it rewrites a closed bill.
+   */
+  async updateBillCustomer(
+    saleId: number,
+    data: { firstName: string; lastName?: string | null; phone: string },
+    userId: number,
+    branchId: number
+  ) {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      include: { customer: true },
+    });
+    if (!sale) throw new AppError('Sale not found', 404);
+    if (sale.status === 'void') {
+      throw new AppError('This bill is void — its customer cannot be edited', 400);
+    }
+
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName?.trim() || null;
+    const phone = data.phone.trim();
+    if (!firstName) throw new AppError('Customer name is required', 400);
+    if (!phone) throw new AppError('Customer phone is required', 400);
+
+    // Phone is unique across customers, so a correction that collides with a
+    // DIFFERENT customer is a merge, not a rename — refuse it rather than
+    // silently moving history between two real people.
+    const holder = await prisma.customer.findUnique({ where: { phone } });
+    if (holder && holder.id !== sale.customerId) {
+      throw new AppError(
+        `${phone} already belongs to another customer (${[holder.firstName, holder.lastName]
+          .filter(Boolean)
+          .join(' ')}). Use that number's existing record instead.`,
+        409
+      );
+    }
+
+    const before = sale.customer
+      ? {
+          customerId: sale.customer.id,
+          firstName: sale.customer.firstName,
+          lastName: sale.customer.lastName,
+          phone: sale.customer.phone,
+        }
+      : null;
+
+    const customer = sale.customerId
+      ? await prisma.customer.update({
+          where: { id: sale.customerId },
+          data: { firstName, lastName, phone },
+        })
+      : holder ??
+        (await prisma.customer.create({
+          data: { firstName, lastName, phone },
+        }));
+
+    if (!sale.customerId) {
+      await prisma.sale.update({
+        where: { id: saleId },
+        data: { customerId: customer.id },
+      });
+    }
+
+    await recordAudit(prisma, {
+      action: 'sale.customerEdited',
+      entityType: 'sale',
+      entityId: saleId,
+      userId,
+      branchId,
+      data: {
+        saleNumber: sale.saleNumber,
+        original: before,
+        updated: {
+          customerId: customer.id,
+          firstName: customer.firstName,
+          lastName: customer.lastName,
+          phone: customer.phone,
+        },
+      },
+    });
+
+    return {
+      saleId,
+      customer: {
+        id: customer.id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phone: customer.phone,
+      },
+      attached: !sale.customerId,
+    };
   }
 }
 

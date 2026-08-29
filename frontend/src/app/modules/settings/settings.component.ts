@@ -137,8 +137,11 @@ export class SettingsComponent implements OnInit {
   };
   savingMessaging = false;
 
-  // UPI "scan to pay" QR on bills.
-  upiConfig = { vpa: '', merchantName: '' };
+  // bug3 — UPI collection accounts. The store may hold several VPAs (shop
+  // account, owner's personal, a second bank); one is the default used by
+  // receipts and by a fresh payment screen, and the cashier can pick a
+  // different one per bill at the counter.
+  upiAccounts: { id: string; label: string; vpa: string; merchantName: string; isDefault: boolean; active: boolean }[] = [];
   savingUpiConfig = false;
 
   // Branches
@@ -319,16 +322,54 @@ export class SettingsComponent implements OnInit {
   loadUpiConfig(): void {
     this.api.get<any>('/settings/upi').subscribe({
       next: (res: any) => {
-        if (res.data) this.upiConfig = { ...this.upiConfig, ...res.data };
+        // The API always answers in the list shape, converting the legacy
+        // single-VPA blob on the way out, so there is nothing to migrate here.
+        this.upiAccounts = res?.data?.accounts ?? [];
       },
     });
   }
 
+  addUpiAccount(): void {
+    this.upiAccounts = [
+      ...this.upiAccounts,
+      {
+        id: '',
+        label: '',
+        vpa: '',
+        merchantName: '',
+        // First one added becomes the default, so a single-account store never
+        // has to think about the concept at all.
+        isDefault: this.upiAccounts.length === 0,
+        active: true,
+      },
+    ];
+  }
+
+  removeUpiAccount(i: number): void {
+    const removed = this.upiAccounts[i];
+    this.upiAccounts = this.upiAccounts.filter((_, idx) => idx !== i);
+    // Never leave the list with no default — the receipt QR needs one.
+    if (removed?.isDefault && this.upiAccounts.length) {
+      this.upiAccounts[0].isDefault = true;
+    }
+  }
+
+  setDefaultUpiAccount(i: number): void {
+    this.upiAccounts = this.upiAccounts.map((a, idx) => ({ ...a, isDefault: idx === i }));
+  }
+
   saveUpiConfig(): void {
     if (this.savingUpiConfig) return;
+    const filled = this.upiAccounts.filter((a) => a.vpa.trim());
+    const bad = filled.find((a) => !/^[^@\s]+@[^@\s]+$/.test(a.vpa.trim()));
+    if (bad) {
+      this.notification.error(`"${bad.vpa}" is not a valid UPI ID — it should look like name@bank.`);
+      return;
+    }
     this.savingUpiConfig = true;
-    this.api.put<any>('/settings/upi', this.upiConfig).subscribe({
-      next: () => {
+    this.api.put<any>('/settings/upi', { accounts: filled }).subscribe({
+      next: (res: any) => {
+        this.upiAccounts = res?.data?.accounts ?? filled;
         this.savingUpiConfig = false;
         this.notification.success('UPI settings saved');
       },

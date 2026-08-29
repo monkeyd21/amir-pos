@@ -225,6 +225,23 @@
               </tr>
             }
           </tbody>
+          @if (items.length) {
+            <tfoot class="border-t-2 border-outline-variant/20 bg-surface-container-high/30">
+              <tr class="text-sm font-bold">
+                <td class="px-3 py-2.5"></td>
+                <td class="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" colspan="3">
+                  Totals · {{ activeTotals.count }} article{{ activeTotals.count === 1 ? '' : 's' }} on clearance
+                </td>
+                <td class="px-3 py-2.5 text-right font-mono text-on-surface">₹{{ activeTotals.purchase | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right font-mono text-on-surface">₹{{ activeTotals.mrp | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right font-mono text-error">₹{{ activeTotals.clearance | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right text-xs text-green-500">
+                  @if (activeTotals.mrp > 0) { {{ (100 - (activeTotals.clearance / activeTotals.mrp) * 100) | number:'1.0-0' }}% }
+                </td>
+                <td class="px-3 py-2.5"></td>
+              </tr>
+            </tfoot>
+          }
         </table>
       </div>
     }
@@ -258,6 +275,7 @@
               <th class="px-3 py-2">SKU</th>
               <th class="px-3 py-2">Barcode</th>
               <th class="px-3 py-2">Article</th>
+              <th class="px-3 py-2 text-right">Purchase</th>
               <th class="px-3 py-2 text-right">MRP</th>
               <th class="px-3 py-2 text-right">Clearance</th>
               <th class="px-3 py-2 text-right">Qty sold</th>
@@ -275,6 +293,7 @@
                     <span class="ml-1 inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-surface-container-high text-on-surface-variant/70">off clearance</span>
                   }
                 </td>
+                <td class="px-3 py-2 text-right font-mono text-on-surface-variant align-top">₹{{ num(item.purchasePrice) }}</td>
                 <td class="px-3 py-2 text-right font-mono text-on-surface-variant line-through align-top">₹{{ num(item.mrp) }}</td>
                 <td class="px-3 py-2 text-right font-mono font-bold text-error align-top">₹{{ num(item.clearancePrice) }}</td>
                 <td class="px-3 py-2 text-right font-mono font-semibold text-on-surface align-top">{{ item.quantitySold }}</td>
@@ -289,6 +308,27 @@
               </tr>
             }
           </tbody>
+          @if (soldItems.length) {
+            <tfoot class="border-t-2 border-outline-variant/20 bg-surface-container-high/30">
+              <tr class="text-sm font-bold">
+                <td class="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant" colspan="3">
+                  Totals · {{ soldTotals.count }} article{{ soldTotals.count === 1 ? '' : 's' }} ×
+                  {{ soldTotals.units }} unit{{ soldTotals.units === 1 ? '' : 's' }} sold
+                </td>
+                <td class="px-3 py-2.5 text-right font-mono text-on-surface">₹{{ soldTotals.purchase | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right font-mono text-on-surface">₹{{ soldTotals.mrp | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right font-mono text-error">₹{{ soldTotals.clearance | number:'1.0-2' }}</td>
+                <td class="px-3 py-2.5 text-right font-mono text-on-surface">{{ soldTotals.units }}</td>
+                <td class="px-3 py-2.5"></td>
+              </tr>
+              <tr>
+                <td class="px-3 pb-2.5 text-[10px] text-on-surface-variant/60" colspan="8">
+                  Sold totals are value actually transacted — each article's price × units sold — not a sum of unit prices.
+                  Margin left after clearance: ₹{{ (soldTotals.clearance - soldTotals.purchase) | number:'1.0-2' }}.
+                </td>
+              </tr>
+            </tfoot>
+          }
         </table>
       </div>
     }

@@ -100,3 +100,23 @@ export const processExchangeSchema = z.object({
     reason: z.string().optional(),
   }),
 });
+
+/**
+ * bug5 — limited bill editing. Only the customer's identity is editable on a
+ * closed bill; nothing that affects money is accepted here by design, so the
+ * schema has no line-item, price or total fields to accidentally honour.
+ */
+export const updateBillCustomerSchema = z.object({
+  params: z.object({
+    saleId: z.string().regex(/^\d+$/, 'saleId must be numeric'),
+  }),
+  body: z.object({
+    firstName: z.string().trim().min(1, 'Customer name is required'),
+    // Dropdowns and cleared inputs send null — .optional() alone rejects it.
+    lastName: z.string().trim().optional().nullable(),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^[0-9+\-\s()]{6,20}$/, 'Enter a valid phone number'),
+  }),
+});

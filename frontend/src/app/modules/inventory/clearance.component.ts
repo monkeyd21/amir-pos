@@ -424,4 +424,43 @@ export class ClearanceComponent implements OnInit, OnDestroy {
   num(v: number | string | null): number {
     return v != null ? Number(v) : 0;
   }
+
+  /**
+   * §Clearance/bug1 — column totals for purchase / MRP / clearance price.
+   *
+   * The two tabs total different things on purpose. An ACTIVE row is one
+   * article carrying one set of prices, so its totals are straight sums of the
+   * listed prices. A SOLD row carries a quantity, so summing unit prices there
+   * would understate a size that sold five times — those totals are weighted by
+   * quantitySold and are therefore money that actually moved. The templates
+   * label each footer accordingly so the two are never read as the same figure.
+   */
+  private sum<T>(rows: T[], pick: (r: T) => number): number {
+    return rows.reduce((s, r) => s + pick(r), 0);
+  }
+
+  get activeTotals(): { count: number; purchase: number; mrp: number; clearance: number } {
+    return {
+      count: this.items.length,
+      purchase: this.sum(this.items, (i) => this.num(i.purchasePrice)),
+      mrp: this.sum(this.items, (i) => this.num(i.mrp)),
+      clearance: this.sum(this.items, (i) => this.num(i.clearancePrice)),
+    };
+  }
+
+  get soldTotals(): {
+    count: number;
+    units: number;
+    purchase: number;
+    mrp: number;
+    clearance: number;
+  } {
+    return {
+      count: this.soldItems.length,
+      units: this.sum(this.soldItems, (i) => i.quantitySold ?? 0),
+      purchase: this.sum(this.soldItems, (i) => this.num(i.purchasePrice) * (i.quantitySold ?? 0)),
+      mrp: this.sum(this.soldItems, (i) => this.num(i.mrp) * (i.quantitySold ?? 0)),
+      clearance: this.sum(this.soldItems, (i) => this.num(i.clearancePrice) * (i.quantitySold ?? 0)),
+    };
+  }
 }

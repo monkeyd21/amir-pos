@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { posService } from './service';
+import { getSetting } from '../settings/service';
+import {
+  DEFAULT_UPI_CONFIG,
+  buildUpiUri,
+  normaliseUpiConfig,
+  resolveUpiAccount,
+  upiQrDataUrl,
+} from '../../utils/upi';
 
 export class PosController {
   async openSession(req: AuthRequest, res: Response, next: NextFunction) {
@@ -214,6 +222,69 @@ export class PosController {
       );
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
+  }
+
+  /**
+   * bug3 — the UPI accounts the cashier may collect into. Inactive accounts are
+   * withheld: they are kept in config for history, not offered at the counter.
+   */
+  async upiAccounts(_req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const cfg = normaliseUpiConfig(await getSetting<unknown>('upiConfig', DEFAULT_UPI_CONFIG));
+      res.json({
+        success: true,
+        data: cfg.accounts
+          .filter((a) => a.active)
+          .map((a) => ({ id: a.id, label: a.label, vpa: a.vpa, isDefault: a.isDefault })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * bug3 — render a scan-to-pay QR for the amount currently due, against the
+   * chosen account (or the store default). Generated server-side because the QR
+   * encoder lives here, and returned as a data URL the payment panel can show
+   * inline without a second round trip for the image.
+   */
+  async upiQr(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const amount = Number(req.body?.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'A positive amount is required' });
+      }
+
+      const cfg = normaliseUpiConfig(await getSetting<unknown>('upiConfig', DEFAULT_UPI_CONFIG));
+      const account = resolveUpiAccount(cfg, req.body?.accountId);
+      if (!account) {
+        return res.status(400).json({
+          success: false,
+          error: 'No UPI account is configured. Add one under Settings → UPI.',
+        });
+      }
+
+      const uri = buildUpiUri({
+        vpa: account.vpa,
+        name: account.merchantName || undefined,
+        amount,
+        note: typeof req.body?.note === 'string' ? req.body.note : undefined,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          accountId: account.id,
+          label: account.label,
+          vpa: account.vpa,
+          amount,
+          uri,
+          qr: await upiQrDataUrl(uri),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   async handlePaymentWebhook(req: Request, res: Response) {

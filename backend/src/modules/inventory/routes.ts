@@ -76,7 +76,13 @@ router.get('/clearance', authorize('owner'), async (_req: AuthRequest, res: Resp
           size: v.size,
           color: v.color,
           productName: v.product.name,
-          mrp: v.product.mrp ?? v.product.basePrice,
+          // §Clearance/bug1 — the variant owns its price stack (see 7066a04);
+          // the product-level mrp/basePrice is only a creation-time template.
+          // Reading the product first showed the ORIGINAL entry price and so
+          // disagreed with the marked-down MRP whenever stepped pricing had
+          // moved that size's own tier. Per-variant override wins, exactly as
+          // the Sold tab and the receipt already resolve it.
+          mrp: v.mrpOverride ?? v.product.mrp ?? v.product.basePrice,
           // §Clearance — surface the purchase (cost) price so the owner can see
           // the margin left after clearance. Per-variant override wins over the
           // product-level cost.
