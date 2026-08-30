@@ -458,10 +458,10 @@
       <h1>An online store on the shop's own till</h1>
       <p class="standfirst">
         A public e-commerce site for Sabiha's Ethnic, sharing one database with the
-        existing POS and ERP. The catalogue is the shop floor: roughly 99% of stock
-        is a single physical garment, visible to a website visitor and a walk-in
-        customer at the same instant. That constraint, not the shopfront, is what
-        this document is mostly about.
+        existing POS and ERP. The catalogue is the shop floor: the same stock room
+        serves a website visitor and a walk-in customer at the same instant. Keeping
+        those two channels honest with each other, not the shopfront, is what this
+        document is mostly about.
       </p>
       <dl class="meta">
         <div><dt>Status</dt><dd>Draft — pre-implementation</dd></div>
@@ -499,7 +499,7 @@
             <tr>
               <td class="mono">D3</td><td>Stock model</td>
               <td><strong>Live shared stock, cart reservation</strong></td>
-              <td>Single-piece inventory sold through two channels at once. A soft hold with expiry is the only model that neither lies about stock nor shrinks the catalogue.</td>
+              <td>One stock room, two channels selling from it simultaneously. A soft hold with expiry is what stops the site and the counter contradicting each other.</td>
             </tr>
             <tr>
               <td class="mono">D4</td><td>v1 scope</td>
@@ -684,7 +684,7 @@
           </thead>
           <tbody>
             <tr><td class="mono">products</td><td class="mono">onlineVisible · onlineDescription · metaTitle · metaDescription</td><td>Listing is opt-in per product; the counter catalogue is not the web catalogue. SEO copy is written for the web, not the till.</td></tr>
-            <tr><td class="mono">product_variants</td><td class="mono">onlineSellable</td><td>Lets a specific piece be held back for the shop floor without delisting the product.</td></tr>
+            <tr><td class="mono">product_variants</td><td class="mono">onlineSellable</td><td>Lets a specific size or colour be held back for the shop floor without delisting the product.</td></tr>
             <tr><td class="mono">offers</td><td class="mono">onlineEligible</td><td>Counter-only promotions must not leak onto the website.</td></tr>
           </tbody>
         </table>
@@ -723,9 +723,12 @@
       <h2><span class="num">4</span><span>Availability &amp; reservations</span></h2>
 
       <p>
-        Article #4821 is one garment. It is on the website and on the POS at the same
-        instant, and two people can want it in the same second. This section is the
-        answer to that.
+        The site and the counter draw on the same stock. A cashier can scan the last
+        of something in the same second a shopper online is paying for it. Stock is
+        thin today — the schema notes <code>minStockLevel</code> defaults to 0 because
+        most articles are currently single-piece — so collisions are frequent now and
+        merely occasional once buying moves to depth. This section is the answer either
+        way.
       </p>
 
       <div class="note">
@@ -822,8 +825,8 @@
       </p>
 
       <ul>
-        <li><strong>Unpaid web hold, cashier scans it.</strong> Warning banner: <em>"1 piece held online until 14:32."</em> The cashier may sell it. The customer in the shop is real and present; the web shopper has not paid.</li>
-        <li><strong>Paid web order, cashier scans it.</strong> Hard block, owner-PIN override only. That garment is owed to someone who has already paid for it.</li>
+        <li><strong>Unpaid web hold, cashier scans it.</strong> Warning banner: <em>"1 unit held online until 14:32."</em> The cashier may sell it. The customer in the shop is real and present; the web shopper has not paid.</li>
+        <li><strong>Paid web order, cashier scans it.</strong> Hard block, owner-PIN override only when stock cannot cover both. That garment is owed to someone who has already paid for it.</li>
       </ul>
 
       <h3>4.5 When the piece vanishes after payment</h3>
@@ -852,7 +855,7 @@
           </thead>
           <tbody>
             <tr>
-              <td>Two shoppers add the last piece simultaneously</td>
+              <td>Two shoppers add the last unit simultaneously</td>
               <td><code>FOR UPDATE</code> on the inventory row serialises them</td>
               <td>First gets the hold; second gets <code>409 SOLD_OUT</code> before ever seeing a cart</td>
             </tr>
@@ -862,14 +865,14 @@
               <td>Web payment fails the §4.5 re-check and auto-refunds</td>
             </tr>
             <tr>
-              <td>Web order paid, cashier then scans the piece</td>
+              <td>Web order paid, cashier then scans that item</td>
               <td>Paid-order lookup on barcode scan</td>
               <td>Hard block with owner-PIN override</td>
             </tr>
             <tr>
               <td>Shopper abandons the cart</td>
               <td>Lazy expiry at 15 minutes</td>
-              <td>Piece is sellable again with no job having to run</td>
+              <td>The unit is sellable again with no job having to run</td>
             </tr>
             <tr>
               <td>Payment webhook delivered twice</td>
@@ -1021,21 +1024,19 @@
       <p>
         Product pages carry <code>schema.org/Product</code> JSON-LD with live
         <code>availability</code>, canonical URLs, Open Graph images and a generated
-        <code>sitemap.xml</code>. Because nearly every piece is unique, a sold item's
-        URL must not 404 — it returns 200 with an out-of-stock state and links to
-        similar pieces, which preserves accumulated search equity instead of
-        discarding it every time something sells.
+        <code>sitemap.xml</code>. A sold-out item's URL must not 404 — it returns 200
+        with an out-of-stock state and links to similar products, which preserves
+        accumulated search equity instead of discarding it whenever a size runs out.
       </p>
 
       <div class="note warn">
         <span class="tag">Images</span>
         <p>
-          Photography is the real bottleneck, and it is a content operation rather
-          than an engineering one. The schema has no image concept at all today, and
-          single-piece stock means every SKU needs its own shots — there is no
-          shared catalogue photograph to fall back on. Images are served from object
-          storage behind a CDN, never from the application box. Launch curated: a
-          hundred well-shot pieces convert, three thousand placeholders do not.
+          The schema has no image concept at all today, so every product needs shots
+          before it can be listed — a content operation that will outlast the code.
+          Buying in depth helps sharply: one shoot covers a product and every size
+          variant inherits it. Images are served from object storage behind a CDN,
+          never from the application box. Launch curated rather than exhaustive.
         </p>
       </div>
     </section>
@@ -1072,7 +1073,7 @@
       </p>
 
       <ul>
-        <li>Parallel add-to-cart on a single-piece variant: exactly one hold is granted.</li>
+        <li>Parallel add-to-cart on a variant with one unit left: exactly one hold is granted.</li>
         <li>Counter sale during a live web hold: the payment refunds, no <code>Sale</code> row is written, no stock goes negative.</li>
         <li><strong>Guard test:</strong> an online checkout short of stock throws, and <code>topUpShortfall</code> is never reached. This test failing means someone has reintroduced double-selling.</li>
         <li>Duplicate webhook delivery produces one sale, via the existing <code>clientRef</code> path.</li>

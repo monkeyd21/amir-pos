@@ -17,7 +17,7 @@ companion `tech-spec.html` holds the detailed technical design; this file holds
 |---|---|---|---|
 | D1 | Codebase topology | **New workspace in this monorepo** — `storefront/` + `backend/src/modules/shop/` | One Prisma schema, one migration history, one `deploy.sh`. The offers/loyalty/GST/checkout engines are imported directly instead of being reimplemented or proxied over HTTP. |
 | D2 | Storefront stack | **Next.js (App Router) + React + Tailwind** | Retail discovery is organic search. Server-rendered product pages are indexable; an SPA effectively is not. Cost accepted: two frameworks in the house. |
-| D3 | Stock model | **Live shared stock + cart reservation** | ~99% of articles are single-piece. Web and counter sell the same physical garment, so a soft-hold with expiry is the only model that doesn't either lie about stock or shrink the catalogue. |
+| D3 | Stock model | **Live shared stock + cart reservation** | The shop and the site sell from one stock room. A soft hold with expiry is what keeps the two channels honest with each other — necessary at today's thin stock, still correct as quantities grow. |
 | D4 | v1 scope | **Browse → pay online → ship** | Full transactional store. Click-and-collect and WhatsApp ordering are additive later, not v1 blockers. |
 | D5 | Visual direction | **Conventional Indian D2C**, per the houseofiqf.com reference | The reference is a stock Shopify Dawn 15.3.0 theme: announcement bar, MRP struck through on every card, trust strip, category tiles, reviews, dark footer. Familiar beats distinctive for a shop whose customers already buy this way. |
 
@@ -28,29 +28,36 @@ subscription or loyalty-tier-gated pricing online.
 
 ---
 
-## 2. The one hard problem
+## 2. The problem the shop actually has
 
-> Article #4821 is a single physical garment. It is visible on the website and
-> on the POS at the same instant. Two people can want it in the same second.
+The site and the shop floor sell from one stock room. A cashier can scan the
+last of something at the same moment a shopper online is paying for it.
 
-Everything difficult about this project descends from that sentence. The full
-mechanism is specified in `tech-spec.html` §4; the policy in one line:
+Stock levels today are thin — the schema notes `minStockLevel` defaults to 0
+because most articles are currently single-piece — so the two channels collide
+often. As buying moves to depth, collisions get rarer, but they never reach
+zero, and one oversold order costs more than the engineering to prevent it.
 
-**An in-store scan beats an unpaid web hold. A paid web order beats an in-store scan.**
-Money settled wins. Unsettled intent loses.
+The policy, in one line:
 
-Three concrete consequences that must be built, not assumed:
+**An in-store scan beats an unpaid web hold. A paid web order beats an in-store
+scan.** Settled money wins; unsettled intent loses.
+
+Three consequences that must be built, not assumed:
 
 - **`topUpShortfall()` must be disabled for `channel: 'online'`.** Today
   `pos/service.ts` silently manufactures an `adjustment` stock-in when a scan
   exceeds on-hand, so a counter sale never dead-ends (`§ghost-inventory`). That
-  is right for a cashier holding the garment and *wrong* for a web order — it
-  would mint phantom stock for a piece already sold and ship nothing. Online
-  checkout must fail loudly and auto-refund instead.
+  is right for a cashier holding the garment and wrong for a web order — it
+  would mint phantom stock and ship nothing. Online checkout must fail loudly
+  and auto-refund.
 - **Availability is `inventory.quantity − active reservations`, never the raw
-  quantity.** Any shop query reading `inventory.quantity` directly is a bug.
+  quantity.** Any shop query reading the raw quantity is a bug.
 - **Reservations expire lazily** (`expiresAt > now()` in the availability
   query), so correctness never depends on a cron job firing on a 1 GB box.
+
+None of this is customer-facing. Shoppers see ordinary stock and ordinary sizes;
+the only timer they ever meet is the one on their own held cart.
 
 ---
 
@@ -74,7 +81,7 @@ Reuse is the whole point of D1. Concretely:
 | Addresses | **NEW** | `Customer.address` is a single free-text line. Shipping needs structured, multiple, validated addresses. |
 | Cart + reservation | **NEW** | `HeldTransaction` is a counter park-a-sale, not a web cart, and holds no stock. |
 | Order lifecycle | **NEW** | A `Sale` means *money taken, stock gone*. An order that is placed-but-unpaid is not a Sale. |
-| Product images | **NEW — and the real bottleneck** | The schema has **zero** image fields anywhere. See §6. |
+| Product images | **NEW** | The schema has **zero** image fields anywhere. See §6. |
 | Shipping / tracking | **NEW** | No carrier, no AWB, no serviceable-pincode concept exists. |
 
 ### The Order/Sale boundary (important)
@@ -175,23 +182,28 @@ the main operational risk in this project. Positions to decide in Phase 3:
 
 ---
 
-## 6. The actual bottleneck: photography
+## 6. Photography
 
 There are no images in the database. Not a missing column — the concept does
-not exist in the schema. For a clothing store where ~99% of stock is a single
-unique piece, **every SKU needs its own photographs**; there is no shared
-catalogue shot to fall back on.
+not exist in the schema. Every product needs shots before it can be listed, and
+that is a content operation that will outlast the code.
 
-This is a content operation, not an engineering one, and it will outlast the
-code. It needs a decision before Phase 1 closes:
+Buying in depth changes the arithmetic here, decisively and in our favour. One
+shoot covers a *product*, and all its size variants inherit it. At single-piece
+stock, a hundred garments meant a hundred shoots; at six sizes a style, the same
+hundred garments are seventeen shoots. Photography stops being the thing that
+gates the catalogue.
 
-- Who shoots? In-house on a phone, or a photographer?
-- How many angles per piece? (3 is the realistic minimum: front, detail, fabric)
-- What is the per-piece turnaround, and does it gate listing new arrivals?
-- Do we launch with a curated ~100 pieces rather than the full catalogue?
+Still needs deciding before Phase 1 closes:
 
-**Recommendation:** launch curated. A hundred well-shot pieces convert; three
-thousand grey placeholders do not.
+- Who shoots — in-house on a phone, or a photographer?
+- How many angles per product? Three is the realistic minimum: front, detail,
+  fabric.
+- What is the turnaround, and does it gate listing new arrivals?
+- Which styles make the launch catalogue?
+
+**Recommendation:** launch curated rather than exhaustive. Well-shot products
+convert; grey placeholders do not.
 
 ---
 
@@ -207,44 +219,32 @@ thousand grey placeholders do not.
 | Q6 | Can loyalty points be redeemed online in v1? Proposal: yes, OTP-verified only. | Phase 5 | PROPOSED: yes |
 | Q7 | Domain: `shop.sabihasethnic.com` or the apex, with the ERP staying on `erp.`? | Phase 8 | OPEN |
 | Q8 | Return window and who pays return shipping? | Phase 9 | OPEN |
-| Q9 | Photography ownership and cadence (see §6). | Phase 1 | OPEN |
-| Q10 | **Cash on delivery.** The reference site offers it and most Indian D2C does. With single-piece stock it is expensive — see §8. Options: no COD; COD above a deposit; COD on clearance only. | Phase 5 | OPEN |
-| Q11 | Headline discount depth. The reference runs 30–50% off MRP. Our schema auto-sets sale price at MRP − 10%, so every piece shows a genuine 10% off. Deeper discounts, or stand behind the 10%? | Phase 3 | OPEN |
+| Q9 | Photography ownership, cadence and launch catalogue (see §6). | Phase 1 | OPEN |
+| Q10 | **Cash on delivery** — offer it globally, or gate it per product so thin lines stay prepaid-only? See §8. | Phase 5 | PROPOSED: offer, gated per product |
+| Q11 | Headline discount depth. The reference runs 30–50% off MRP. Our schema auto-sets sale price at MRP − 10%, so every item shows a genuine 10% off. Deeper discounts, or stand behind the 10%? | Phase 3 | OPEN |
+| Q12 | The real size grid. The designs assume S–XXL runs; what is actually bought and in what depth? | Phase 3 | OPEN |
 
 ---
 
-## 8. Why cash on delivery is a real decision here
+## 8. Cash on delivery
 
-COD is close to table stakes in Indian D2C — the reference site offers it — but
-it interacts badly with single-piece stock, and the interaction is worth
-understanding before it gets promised on a banner.
+COD is close to table stakes in Indian D2C and the reference site offers it.
+Buying in depth makes it a far easier yes than it would have been: a refused
+COD order on a restockable style is ordinary reverse logistics — the item goes
+back into stock alongside its siblings and nothing else is affected.
 
-For a shop selling *styles*, a refused COD order is a logistics cost: the parcel
-comes back, the item returns to a pile of identical items, nothing else was
-affected. For a shop selling *pieces*, the same refusal means the only copy of
-that garment was:
+Two things still worth pricing in:
 
-- reserved at checkout, so nobody else could buy it online;
-- physically pulled off the rail, so nobody could buy it in the shop either;
-- in transit for several days each way;
-- and then returned, possibly handled, to be re-listed and re-photographed.
+- Refusal rates in this segment run roughly 20–40%, so COD orders are worth
+  materially less per order than prepaid ones. The reference already answers
+  this with a 5% prepaid discount, which is the cheapest available lever.
+- Whatever thin, one-off stock remains is still exposed: a COD round trip on
+  the last of something takes it out of circulation for a week. If depth is
+  uneven across the catalogue, COD can be enabled per product rather than
+  globally.
 
-Industry COD refusal rates in this segment run roughly 20–40%. Applied to unique
-stock, that is not a shipping cost — it is a week of a garment's sellable life
-lost, repeatedly, on the pieces customers most wanted.
-
-Three workable positions, in order of how much they protect the stock:
-
-1. **Prepaid only.** Cleanest. Pair it with the 5% prepaid incentive the
-   reference already uses, so it reads as a discount rather than a restriction.
-2. **COD above a token prepaid deposit** (say ₹200–500, adjusted at delivery).
-   Kills casual refusals while keeping the option open.
-3. **COD on clearance pieces only** — the stock where a slow round trip costs
-   least, and which is already flagged in the schema.
-
-Recommendation: launch prepaid-only with the 5% incentive, and revisit once
-there is real conversion data. Adding COD later is easy; withdrawing it after
-customers expect it is not.
+**Recommendation:** offer COD, keep the 5% prepaid incentive, and gate it per
+product so genuinely scarce stock can be prepaid-only.
 
 ---
 
@@ -252,14 +252,14 @@ customers expect it is not.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Overselling a single-piece garment | Refunds, bad reviews, chargebacks | Reservation model (§2); paid-beats-unpaid rule; auto-refund path |
+| Overselling stock shared with the counter | Refunds, bad reviews, chargebacks | Reservation model (§2); paid-beats-unpaid rule; auto-refund path |
 | `topUpShortfall` reached from the web path | Phantom stock, orders that can never ship | Explicit guard + a regression test that fails if the guard is removed |
-| Photography never happens | The site launches empty and stays empty | Treat as a tracked workstream with an owner, not a side task |
+| Photography never happens | The site launches empty and stays empty | Tracked workstream with a named owner. Depth buying cuts the volume sharply (§6) |
 | 1 GB box under crawler + shopper load | Site down, POS down *with it* | Images off-box; separate service; migration budget agreed in advance |
 | Two frameworks to maintain | Slower iteration, context switching | Keep shared logic in `backend`/`shared`; the storefront stays a thin view layer |
 | One repo = one blast radius | A shop bug takes down the till | Shop code confined to its own module; POS paths untouched except where explicitly listed |
 | Migration drift against a live production DB | Data loss on a running shop | Same discipline already used for payroll: reviewed SQL in `deploy/sql/` |
-| COD refusals against single-piece stock | The only copy of a garment is off the rail and off the site for a week, then comes back | Decide Q10 before Phase 5. A refused COD on a unique piece costs the sale twice over |
+| COD refusals | Order value materially below prepaid; thin stock tied up in transit | 5% prepaid incentive; per-product COD gate for scarce lines (§8) |
 
 ---
 
@@ -267,5 +267,6 @@ customers expect it is not.
 
 | Date | Entry |
 |---|---|
+| 2026-08-30 | Buying moves to depth — quantity per style will grow, so one-of-a-kind is dropped as a customer-facing idea. Scarcity messaging removed from the designs; the reservation engine stays, since the shop and the site still share one stock room. Photography (§6) and COD (§8) both get substantially cheaper as a result. |
 | 2026-08-30 | Visual direction set from the houseofiqf.com reference (D5). Reference audited: stock Shopify Dawn 15.3.0, `Assistant` type, square corners — the look is the standard D2C register, not a bespoke design. Storefront screens redrawn to match. COD raised as a first-class decision (§8, Q10) because it collides with single-piece stock. |
 | 2026-08-30 | Document created. D1–D4 decided. Schema audited; `SaleChannel.online`, `clientRef` idempotency and `BillSequence` online-prefix support found already present. `topUpShortfall` identified as the primary hazard. Zero image fields confirmed. |

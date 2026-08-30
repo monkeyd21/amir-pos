@@ -63,9 +63,9 @@
   <!-- hero -->
   <section style="position: relative; height: 460px; background: linear-gradient(101deg, #f2e6dc 0%, #e3cfc2 55%, #d8bcae 100%); display: flex; align-items: center; padding: 0 40px;">
     <div style="max-width: 480px; display: flex; flex-direction: column; align-items: flex-start; gap: 18px;">
-      <span style="font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: #7c2d4a;">This week's arrivals</span>
-      <h1 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 46px; line-height: 1.18; margin: 0; text-wrap: balance;">Forty-one new pieces, none of them repeated</h1>
-      <p style="margin: 0; font-size: 16px; color: #4a423b; max-width: 40ch;">Handpicked from Bagru, Maheshwar and Bhuj. Every piece in the shop is a single garment — what you see is the whole of it.</p>
+      <span style="font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: #7c2d4a;">New arrivals every Friday</span>
+      <h1 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 46px; line-height: 1.18; margin: 0; text-wrap: balance;">Handloom, straight from the weavers</h1>
+      <p style="margin: 0; font-size: 16px; color: #4a423b; max-width: 40ch;">Block-printed kurtas from Bagru, Maheshwari sarees, Ajrakh from Bhuj. Forty-one new arrivals this week, in sizes S to XXL.</p>
       <a href="#" style="background: #1c1a19; color: #fff; padding: 15px 34px; font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase;">Shop new in</a>
     </div>
     <div style="position: absolute; right: 40px; top: 0; bottom: 0; width: 520px; background: rgba(255,255,255,0.28); display: flex; align-items: center; justify-content: center;">
@@ -78,8 +78,8 @@
     <div style="display: flex; align-items: center; gap: 12px; padding: 20px 24px; border-right: 1px solid #ece6df;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c2d4a" stroke-width="1.3" style="flex: 0 0 auto;"><path d="M12 3.5 14.6 9l6 .8-4.4 4.2 1.1 6-5.3-2.9L6.7 20l1.1-6L3.4 9.8 9.4 9 12 3.5Z"></path></svg>
       <div style="display: flex; flex-direction: column;">
-        <span style="font-size: 13.5px; font-weight: 500;">Every piece is unique</span>
-        <span style="font-size: 12.5px; color: #8c8279;">We never stock two of the same</span>
+        <span style="font-size: 13.5px; font-weight: 500;">Straight from the weavers</span>
+        <span style="font-size: 12.5px; color: #8c8279;">Bagru, Maheshwar and Bhuj</span>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 12px; padding: 20px 24px; border-right: 1px solid #ece6df;">
@@ -116,9 +116,8 @@
         <div style="display: flex; flex-direction: column; gap: 11px;">
           <div style="position: relative; aspect-ratio: 4 / 5; background: #f2ece5; display: flex; align-items: center; justify-content: center;">
             <span style="font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #b8aa9c;">Photograph</span>
-            <span style="position: absolute; top: 11px; left: 11px; background: #fff; border: 1px solid #b98c3f; color: #8a6520; font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 9px;">1 piece only</span>
             <sc-if value="{{p.sold}}" hint-placeholder-val="{{false}}">
-              <span style="position: absolute; inset: 0; background: rgba(255,255,255,0.72); display: flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #6b625a;">Sold</span>
+              <span style="position: absolute; inset: 0; background: rgba(255,255,255,0.72); display: flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #6b625a;">Out of stock</span>
             </sc-if>
           </div>
           <div style="font-size: 14px; line-height: 1.4; min-height: 40px;">{{p.name}}</div>
@@ -152,9 +151,9 @@
   <!-- brand band -->
   <section style="background: #faf6f2; padding: 52px 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;">
     <div style="display: flex; flex-direction: column; gap: 16px;">
-      <h2 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 30px; line-height: 1.25; margin: 0; text-wrap: balance;">We buy in ones, not in dozens</h2>
-      <p style="margin: 0; font-size: 15.5px; color: #4a423b; max-width: 46ch;">Most shops order a style in six sizes and reorder when it sells. We buy single pieces from weavers and block-printers, which is why our rails never look like anyone else's — and why a piece you like today may not be here on Friday.</p>
-      <p style="margin: 0; font-size: 15.5px; color: #4a423b; max-width: 46ch;">Everything on this website is the same stock sitting in the shop on Dharampeth Road. When one sells over the counter, it comes off the site within the minute.</p>
+      <h2 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 30px; line-height: 1.25; margin: 0; text-wrap: balance;">One rail, two ways to buy it</h2>
+      <p style="margin: 0; font-size: 15.5px; color: #4a423b; max-width: 46ch;">We buy direct from weavers and block-printers in Rajasthan, Madhya Pradesh and Kutch, so the rails here do not look like everyone else's. New arrivals land every Friday and go up on the site the same day.</p>
+      <p style="margin: 0; font-size: 15.5px; color: #4a423b; max-width: 46ch;">This website and the shop on Dharampeth Road share one stock room. When something sells over the counter, the site knows within the minute — so what you see here is what is actually on the rail.</p>
       <a href="#" style="align-self: flex-start; border: 1px solid #1c1a19; padding: 13px 30px; font-size: 12.5px; letter-spacing: 0.16em; text-transform: uppercase; margin-top: 6px;">About the shop</a>
     </div>
     <div style="aspect-ratio: 4 / 3; background: #ece2d8; display: flex; align-items: center; justify-content: center;">
@@ -232,27 +231,27 @@ class Component extends DCLogic {
   renderVals() {
     return {
       products: [
-        { name: 'Indigo block-print Chanderi kurta', price: '₹4,850', mrp: '₹5,400', off: '10% off', size: 'Size M only', sold: false },
+        { name: 'Indigo block-print Chanderi kurta', price: '₹4,850', mrp: '₹5,400', off: '10% off', size: 'S · M · L · XL', sold: false },
         { name: 'Maheshwari cotton-silk saree, ochre', price: '₹6,900', mrp: '₹7,650', off: '10% off', size: '6.3 m', sold: false },
-        { name: 'Ajrakh print kurta, madder red', price: '₹4,200', mrp: '₹4,650', off: '10% off', size: 'Size L only', sold: false },
+        { name: 'Ajrakh print kurta, madder red', price: '₹4,200', mrp: '₹4,650', off: '10% off', size: 'M · L · XL', sold: false },
         { name: 'Kota doria dupatta, gold zari border', price: '₹2,100', mrp: '₹2,350', off: '11% off', size: 'One size', sold: false },
         { name: 'Banarasi brocade lehenga, unstitched', price: '₹12,500', mrp: '₹13,900', off: '10% off', size: '2.5 m', sold: false },
         { name: 'Bandhani silk dupatta, rani pink', price: '₹3,400', mrp: '₹3,800', off: '10% off', size: 'One size', sold: true },
-        { name: 'Kalamkari cotton kurta, mustard', price: '₹3,150', mrp: '₹3,500', off: '10% off', size: 'Size S only', sold: false },
+        { name: 'Kalamkari cotton kurta, mustard', price: '₹3,150', mrp: '₹3,500', off: '10% off', size: 'S · M · L', sold: false },
         { name: 'Ilkal saree with kasuti border', price: '₹5,600', mrp: '₹6,200', off: '10% off', size: '5.5 m', sold: false },
       ],
       cats: [
-        { name: 'Kurtas', count: '86 pieces' },
-        { name: 'Sarees', count: '112 pieces' },
-        { name: 'Lehengas', count: '24 pieces' },
-        { name: 'Dupattas', count: '58 pieces' },
-        { name: 'Unstitched', count: '19 pieces' },
-        { name: 'Clearance', count: '13 pieces' },
+        { name: 'Kurtas', count: '86 styles' },
+        { name: 'Sarees', count: '112 styles' },
+        { name: 'Lehengas', count: '24 styles' },
+        { name: 'Dupattas', count: '58 styles' },
+        { name: 'Unstitched', count: '19 styles' },
+        { name: 'Clearance', count: '13 styles' },
       ],
       reviews: [
         { text: 'Ordered a Maheshwari saree on Sunday, had it by Wednesday in Pune. The colour is exactly as photographed, which almost never happens.', who: 'Sneha K. · Pune' },
         { text: 'I asked for the blouse measurements on WhatsApp and they replied with a photo of the tape on the fabric. That is service.', who: 'Ritu M. · Nagpur' },
-        { text: 'Bought a kurta my sister then wanted too — there was only the one. Annoying, but at least the site said so up front.', who: 'Farah S. · Hyderabad' },
+        { text: 'Rang the shop about a size, they checked the rail and put it aside for me the same evening. Simple.', who: 'Farah S. · Hyderabad' },
       ],
     };
   }
