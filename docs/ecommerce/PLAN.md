@@ -20,6 +20,7 @@ companion `tech-spec.html` holds the detailed technical design; this file holds
 | D3 | Stock model | **Live shared stock + cart reservation** | The shop and the site sell from one stock room. A soft hold with expiry is what keeps the two channels honest with each other — necessary at today's thin stock, still correct as quantities grow. |
 | D4 | v1 scope | **Browse → pay online → ship** | Full transactional store. Click-and-collect and WhatsApp ordering are additive later, not v1 blockers. |
 | D5 | Visual direction | **Conventional Indian D2C**, per the houseofiqf.com reference | The reference is a stock Shopify Dawn 15.3.0 theme: announcement bar, MRP struck through on every card, trust strip, category tiles, reviews, dark footer. Familiar beats distinctive for a shop whose customers already buy this way. |
+| D6 | Catalogue | **Kids ethnic wear**, sizes 12–36 mapped to ages 6 months–16 years | Numeric Indian kidswear sizing. The size number is not self-explanatory to a parent, so age travels with it everywhere in the UI. |
 
 ### Deliberately *not* in v1
 Wishlist · product reviews · multi-currency · guest checkout without OTP ·
@@ -58,6 +59,50 @@ Three consequences that must be built, not assumed:
 
 None of this is customer-facing. Shoppers see ordinary stock and ordinary sizes;
 the only timer they ever meet is the one on their own held cart.
+
+---
+
+## 2a. Sizing — kids ethnic wear
+
+The catalogue is children's ethnic wear and sizes are numeric, 12 to 36, mapped
+to age:
+
+| Size | Age | Size | Age | Size | Age |
+|---|---|---|---|---|---|
+| 12 | 6 months | 22 | 4 years | 32 | 11–12 years |
+| 14 | 9 months | 24 | 5 years | 34 | 13–14 years |
+| 16 | 1 year | 26 | 6 years | 36 | 15–16 years |
+| 18 | 2 years | 28 | 7–8 years | | |
+| 20 | 3 years | 30 | 9–10 years | | |
+
+Four consequences that touch code, not just design:
+
+- **`Size` has no age field.** The model is `{ name, sortOrder, isActive }`.
+  Add `ageLabel` (e.g. `"4 years"`), plus `chestInches` and `lengthInches` for
+  the size guide. Everything customer-facing shows the number and the age
+  together — `22 · 4 years` — because a parent does not carry the mapping in
+  their head. The barcode label keeps printing just the number.
+- **The real size grid is not seeded.** `backend/prisma/seed.ts` has demo data
+  (Levi's 28–36, Nike S–XXL). The thirteen real sizes need seeding before any
+  catalogue work.
+- **"Shop by age" is a primary browse axis**, alongside category. Parents
+  arrive knowing an age, not a size. It needs to be a filter on listing pages
+  and a navigation entry, not just a line in a size chart.
+- **Thirteen sizes per style is a lot of variants.** A 300-style catalogue is
+  ~3,900 variants. Fine for Postgres, but it makes the listing-page availability
+  query (§4) hot, and it means "in stock" on a card means *some* size is
+  available — the card must not imply the size a shopper wants is there.
+
+### Size exchanges are the main support flow
+
+In kidswear the commonest reason a parcel comes back is that the size was wrong,
+not that the garment was. The original plan pushed reverse logistics to Phase 9;
+that is probably wrong here. A same-product, different-size exchange should be
+a first-class flow, and the ERP already has the machinery — `Return`,
+`ReturnItem`, and `pos/exchange-policy.ts` with `canExchangeLine`.
+
+Worth deciding early: does v1 ship a self-serve "wrong size, send me the next
+one up" flow, or is that handled over WhatsApp at launch?
 
 ---
 
@@ -107,6 +152,8 @@ correct.
 ### Phase 1 — Data model & the image pipeline
 - [ ] Migration: `ProductImage`, `Address`, `ShopCart`(+items), `StockReservation`, `ShopOrder`(+items), `Shipment`, `CustomerAuth`, `CustomerOtp`
 - [ ] Migration: `Product.onlineVisible` / SEO content fields; `ProductVariant.onlineSellable`; `Offer.onlineEligible`
+- [ ] Migration: `Size.ageLabel`, `Size.chestInches`, `Size.lengthInches`
+- [ ] Seed the real size grid — 12 to 36, with age labels (replaces the demo Levi's/Nike sizes)
 - [ ] Seed the system "Online Store" user + confirm which branch fulfils web orders
 - [ ] Choose and wire object storage for images (Cloudflare R2 preferred — free egress)
 - [ ] Bulk photo-upload tool in the ERP admin: scan barcode → shoot → upload → crop
@@ -115,6 +162,7 @@ correct.
 ### Phase 2 — Shop API (`backend/src/modules/shop/`)
 - [ ] Availability service — the single source of truth for "can this be sold online"
 - [ ] Catalogue endpoints: list, filter, facets, search, single product
+- [ ] Age/size filter — the primary browse axis for kidswear
 - [ ] Cart: create, add (reserve), update, remove (release), extend hold
 - [ ] Reservation sweeper + lazy expiry in every availability read
 - [ ] Unit tests covering the concurrency cases in tech-spec §4.6
@@ -123,6 +171,7 @@ correct.
 - [ ] Scaffold `storefront/` as an npm workspace (Next.js + Tailwind)
 - [ ] Add it to root `package.json` scripts and `deploy/deploy.sh`
 - [ ] Home, category/listing, product detail, cart — server-rendered
+- [ ] Size guide page (age → size → measurements) — high-traffic help page, linked from nav, footer and every product page
 - [ ] Responsive pass (mobile is the majority of Indian retail traffic)
 
 ### Phase 4 — Customer identity
@@ -222,7 +271,12 @@ convert; grey placeholders do not.
 | Q9 | Photography ownership, cadence and launch catalogue (see §6). | Phase 1 | OPEN |
 | Q10 | **Cash on delivery** — offer it globally, or gate it per product so thin lines stay prepaid-only? See §8. | Phase 5 | PROPOSED: offer, gated per product |
 | Q11 | Headline discount depth. The reference runs 30–50% off MRP. Our schema auto-sets sale price at MRP − 10%, so every item shows a genuine 10% off. Deeper discounts, or stand behind the 10%? | Phase 3 | OPEN |
-| Q12 | The real size grid. The designs assume S–XXL runs; what is actually bought and in what depth? | Phase 3 | OPEN |
+| Q12 | The real size grid. | Phase 3 | **ANSWERED** — 12 to 36, age-mapped. See §2a |
+| Q13 | Real chest and length measurements per size. The size-guide design carries my estimates and must not ship with them. | Phase 3 | OPEN |
+| Q14 | Does every style run the full 12–36, or do ranges vary per style? The designs assume ranges vary. | Phase 2 | OPEN |
+| Q15 | Navigation — lead with Girls/Boys or with category? Designs assume both, Girls/Boys first. | Phase 3 | OPEN |
+| Q16 | Self-serve size exchange in v1, or handle it over WhatsApp at launch? See §2a. | Phase 6 | OPEN |
+| Q17 | Free-delivery threshold. Designs use ₹1,500 to suit kidswear baskets. | Phase 5 | OPEN |
 
 ---
 
@@ -256,6 +310,7 @@ product so genuinely scarce stock can be prepaid-only.
 | `topUpShortfall` reached from the web path | Phantom stock, orders that can never ship | Explicit guard + a regression test that fails if the guard is removed |
 | Photography never happens | The site launches empty and stays empty | Tracked workstream with a named owner. Depth buying cuts the volume sharply (§6) |
 | 1 GB box under crawler + shopper load | Site down, POS down *with it* | Images off-box; separate service; migration budget agreed in advance |
+| Size-exchange volume underestimated | Support load and reverse-shipping cost swamp a launch built without a size-exchange flow | Decide Q16 before Phase 6; the `Return` / `exchange-policy` machinery already exists |
 | Two frameworks to maintain | Slower iteration, context switching | Keep shared logic in `backend`/`shared`; the storefront stays a thin view layer |
 | One repo = one blast radius | A shop bug takes down the till | Shop code confined to its own module; POS paths untouched except where explicitly listed |
 | Migration drift against a live production DB | Data loss on a running shop | Same discipline already used for payroll: reviewed SQL in `deploy/sql/` |
@@ -267,6 +322,7 @@ product so genuinely scarce stock can be prepaid-only.
 
 | Date | Entry |
 |---|---|
+| 2026-08-30 | Catalogue confirmed as **kids ethnic wear**, sizes 12–36 age-mapped (D6, §2a). Storefront redrawn: age travels with every size, shop-by-age added as a browse axis, size guide promoted to its own page. Found `Size` has no age field and the real grid is not seeded — both added to Phase 1. Size exchanges flagged as likely the main support flow, which may pull reverse logistics forward from Phase 9. |
 | 2026-08-30 | Buying moves to depth — quantity per style will grow, so one-of-a-kind is dropped as a customer-facing idea. Scarcity messaging removed from the designs; the reservation engine stays, since the shop and the site still share one stock room. Photography (§6) and COD (§8) both get substantially cheaper as a result. |
 | 2026-08-30 | Visual direction set from the houseofiqf.com reference (D5). Reference audited: stock Shopify Dawn 15.3.0, `Assistant` type, square corners — the look is the standard D2C register, not a bespoke design. Storefront screens redrawn to match. COD raised as a first-class decision (§8, Q10) because it collides with single-piece stock. |
 | 2026-08-30 | Document created. D1–D4 decided. Schema audited; `SaleChannel.online`, `clientRef` idempotency and `BillSequence` online-prefix support found already present. `topUpShortfall` identified as the primary hazard. Zero image fields confirmed. |

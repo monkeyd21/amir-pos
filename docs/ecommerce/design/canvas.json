@@ -1,106 +1,43 @@
 {
   "pages": [
-    {
-      "id": "reference-match",
-      "name": "Direction D — matched to your reference"
-    },
-    {
-      "id": "earlier",
-      "name": "Earlier directions A–C"
-    }
+    { "id": "reference-match", "name": "Direction D — kids ethnic wear" },
+    { "id": "earlier", "name": "Earlier directions A–C (superseded)" }
   ],
   "artboards": [
-    {
-      "file": "HighStreet.dc.html",
-      "title": "D — Home",
-      "page": "reference-match",
-      "x": 0,
-      "y": 0,
-      "w": 1280,
-      "h": 3200
-    },
-    {
-      "file": "HighStreetProduct.dc.html",
-      "title": "D — Product page",
-      "page": "reference-match",
-      "x": 1400,
-      "y": 0,
-      "w": 1280,
-      "h": 1960
-    },
-    {
-      "file": "HighStreetMobile.dc.html",
-      "title": "D — Mobile product",
-      "page": "reference-match",
-      "x": 2800,
-      "y": 0,
-      "w": 390,
-      "h": 1500
-    },
-    {
-      "file": "Main.dc.html",
-      "title": "A — Atelier",
-      "page": "earlier",
-      "x": 0,
-      "y": 0,
-      "w": 1280,
-      "h": 1500
-    },
-    {
-      "file": "Bazaar.dc.html",
-      "title": "B — Bazaar",
-      "page": "earlier",
-      "x": 1380,
-      "y": 0,
-      "w": 1280,
-      "h": 1500
-    },
-    {
-      "file": "Register.dc.html",
-      "title": "C — Register",
-      "page": "earlier",
-      "x": 2760,
-      "y": 0,
-      "w": 1280,
-      "h": 1500
-    }
+    { "file": "HighStreet.dc.html",        "title": "D — Home",           "page": "reference-match", "x": 0,    "y": 0, "w": 1280, "h": 3400 },
+    { "file": "HighStreetProduct.dc.html", "title": "D — Product page",   "page": "reference-match", "x": 1400, "y": 0, "w": 1280, "h": 2300 },
+    { "file": "SizeGuide.dc.html",         "title": "D — Size guide",     "page": "reference-match", "x": 2800, "y": 0, "w": 1280, "h": 1350 },
+    { "file": "HighStreetMobile.dc.html",  "title": "D — Mobile product", "page": "reference-match", "x": 4200, "y": 0, "w": 390,  "h": 1900 },
+
+    { "file": "Main.dc.html",     "title": "A — Atelier",  "page": "earlier", "x": 0,    "y": 0, "w": 1280, "h": 1500 },
+    { "file": "Bazaar.dc.html",   "title": "B — Bazaar",   "page": "earlier", "x": 1380, "y": 0, "w": 1280, "h": 1500 },
+    { "file": "Register.dc.html", "title": "C — Register", "page": "earlier", "x": 2760, "y": 0, "w": 1280, "h": 1500 }
   ],
   "annotations": [
     {
       "id": "d-brief",
       "page": "reference-match",
-      "x": 0,
-      "y": -320,
-      "w": 660,
-      "text": "DIRECTION D — matched to houseofiqf.com\n\nThat site is a stock Shopify Dawn theme with photos swapped in. So the target isn't a bespoke look — it's the standard Indian D2C register: announcement bar, MRP struck through on every card, trust strip, category tiles, reviews, dark footer.\n\nThis is that register, for womenswear. No scarcity messaging: normal size runs, normal stock, cards that carry price and MRP and nothing else.\n\nEarlier directions A–C are on the second page."
+      "x": 0, "y": -360, "w": 640,
+      "text": "KIDS ETHNIC WEAR — redrawn\n\nEverything before this was womenswear. Wrong customer. Redrawn for children's ethnic wear: frocks, lehenga cholis, kurta sets, cord sets, sherwanis.\n\nThat also explains the reference — House of IQF is a kidswear store too.\n\nStill the same D2C register: announcement bar, MRP struck through, trust strip, category tiles, reviews, dark footer."
     },
     {
-      "id": "d-hold",
+      "id": "d-sizes",
       "page": "reference-match",
-      "x": 1400,
-      "y": -320,
-      "w": 420,
-      "text": "THE ONLY TIMER LEFT\n\n14:38 on the product page and in the mobile buy bar. It appears ONLY once the item is actually held in that shopper's bag — it is information about their own cart, not a nudge, and a shopper who hasn't added anything never sees it.\n\nIt exists because the shop and the site sell from one stock room. That stays true at any quantity; it just stops being something customers need told."
+      "x": 1400, "y": -360, "w": 460,
+      "text": "SIZES CARRY THE AGE\n\nThe single most important change. Your chart exists because 22 does not obviously mean \"4 years\" — so every size chip shows BOTH:\n\n     22\n   4 years\n\nA parent never has to hold the chart in their head. The same pairing appears in the buy bar (\"Size 24 · held 14:38\"), on the listing filters, and in the shop-by-age tiles on the home page.\n\nA sold-out size is struck through and stays visible, with a restock note — parents will often size up rather than leave."
     },
     {
-      "id": "d-mobile",
+      "id": "d-guide",
       "page": "reference-match",
-      "x": 2800,
-      "y": -320,
-      "w": 400,
-      "text": "MOBILE\n\nMajority of your traffic. Sticky buy bar carries price and the hold timer, so it stays visible while they scroll.\n\nNo fake status bar drawn — the real one renders on top.\n\nAll tap targets 44px or larger."
+      "x": 2800, "y": -360, "w": 460,
+      "text": "SIZE GUIDE — its own page\n\nOn a kidswear site this is one of the most visited pages, so it is a real page, not a popup: linked from the nav, the footer, and every product page.\n\nYour chart gave age → size. CHEST AND LENGTH IN THIS TABLE ARE MY ESTIMATES and need your real numbers before this ships — chest follows the usual convention that the size number is the chest in inches, but the lengths are guesses.\n\nThe \"measure a garment that already fits\" instruction is there because measuring an actual child rarely goes well."
     },
     {
       "id": "d-open",
       "page": "reference-match",
-      "x": 700,
-      "y": -320,
-      "w": 640,
-      "text": "STILL TO DECIDE\n\n1. Cash on delivery. The reference offers it and most Indian D2C does. Now that stock will carry real quantity, a refused COD is ordinary logistics rather than a lost week on your only copy — so this gets much easier to say yes to. Still worth deciding deliberately.\n\n2. Discount depth. The reference runs 30–50% off MRP on everything. Your schema auto-sets sale price at MRP − 10%, so every item shows a genuine 10% off. Deeper headline discounts, or stand behind the 10%?\n\n3. Sizes. These boards assume S–XXL runs. Tell me the real size grid and I'll fix the selectors."
+      "x": 700, "y": -360, "w": 640,
+      "text": "WHAT I NEED FROM YOU\n\n1. Real chest and length figures per size, to replace my estimates in the size guide.\n\n2. Do you split Girls / Boys in the nav, or lead with category (Frocks, Kurta sets)? I have assumed both, with Girls/Boys first.\n\n3. Does every style run the full 12–36, or do ranges vary by style as I have shown (this frock runs 16–30)?\n\n4. Free-delivery threshold — I dropped it to ₹1,500 to suit kidswear basket sizes. Right number?\n\nSTILL OPEN from before: cash on delivery, and how deep the headline discounts go."
     }
   ],
-  "launch": {
-    "view": "canvas",
-    "page": "reference-match"
-  }
+  "launch": { "view": "canvas", "page": "reference-match" }
 }

@@ -457,11 +457,12 @@
       <p class="eyebrow">Technical Specification · Draft 1</p>
       <h1>An online store on the shop's own till</h1>
       <p class="standfirst">
-        A public e-commerce site for Sabiha's Ethnic, sharing one database with the
-        existing POS and ERP. The catalogue is the shop floor: the same stock room
-        serves a website visitor and a walk-in customer at the same instant. Keeping
-        those two channels honest with each other, not the shopfront, is what this
-        document is mostly about.
+        A public e-commerce site for Sabiha's Ethnic — children's ethnic wear,
+        sizes 12 to 36 — sharing one database with the existing POS and ERP. The
+        catalogue is the shop floor: the same stock room serves a website visitor
+        and a walk-in customer at the same instant. Keeping those two channels
+        honest with each other, not the shopfront, is what this document is mostly
+        about.
       </p>
       <dl class="meta">
         <div><dt>Status</dt><dd>Draft — pre-implementation</dd></div>
@@ -505,6 +506,11 @@
               <td class="mono">D4</td><td>v1 scope</td>
               <td><strong>Browse → pay → ship</strong></td>
               <td>Fully transactional. Click-and-collect and WhatsApp ordering are additive, not blockers.</td>
+            </tr>
+            <tr>
+              <td class="mono">D6</td><td>Catalogue</td>
+              <td><strong>Kids ethnic wear, sizes 12–36</strong></td>
+              <td>Numeric Indian kidswear sizing mapped to ages 6 months to 16 years. The number does not explain itself to a parent, so age travels with it everywhere. See §3.4.</td>
             </tr>
           </tbody>
         </table>
@@ -686,6 +692,7 @@
             <tr><td class="mono">products</td><td class="mono">onlineVisible · onlineDescription · metaTitle · metaDescription</td><td>Listing is opt-in per product; the counter catalogue is not the web catalogue. SEO copy is written for the web, not the till.</td></tr>
             <tr><td class="mono">product_variants</td><td class="mono">onlineSellable</td><td>Lets a specific size or colour be held back for the shop floor without delisting the product.</td></tr>
             <tr><td class="mono">offers</td><td class="mono">onlineEligible</td><td>Counter-only promotions must not leak onto the website.</td></tr>
+            <tr><td class="mono">sizes</td><td class="mono">ageLabel · chestInches · lengthInches</td><td>Kidswear sizes are numbers a parent cannot decode. Age and measurements have to live with the size, not only in a chart image. See §3.4.</td></tr>
           </tbody>
         </table>
       </div>
@@ -716,6 +723,49 @@
         the books, and the accounting, reporting and P&amp;L code needs no changes
         at all to stay correct.
       </p>
+
+      <h3>3.4 Sizing</h3>
+
+      <p>
+        Sizes are numeric, 12 to 36, mapped to age. The number is roughly the chest
+        in inches; the mapping is not obvious to a shopper, which is exactly why the
+        shop hands out a size chart.
+      </p>
+
+      <div class="scroller">
+        <table>
+          <thead><tr><th class="mono">Size</th><th>Age</th><th class="mono">Size</th><th>Age</th><th class="mono">Size</th><th>Age</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">12</td><td>6 months</td><td class="mono">22</td><td>4 years</td><td class="mono">32</td><td>11–12 years</td></tr>
+            <tr><td class="mono">14</td><td>9 months</td><td class="mono">24</td><td>5 years</td><td class="mono">34</td><td>13–14 years</td></tr>
+            <tr><td class="mono">16</td><td>1 year</td><td class="mono">26</td><td>6 years</td><td class="mono">36</td><td>15–16 years</td></tr>
+            <tr><td class="mono">18</td><td>2 years</td><td class="mono">28</td><td>7–8 years</td><td></td><td></td></tr>
+            <tr><td class="mono">20</td><td>3 years</td><td class="mono">30</td><td>9–10 years</td><td></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>What this costs in code:</p>
+
+      <ul>
+        <li><strong><code>Size</code> gains <code>ageLabel</code>, <code>chestInches</code> and <code>lengthInches</code>.</strong> The model today is <code>{ name, sortOrder, isActive }</code> with nowhere to put an age. Every customer-facing surface renders the pair — <code>22 · 4 years</code> — while the barcode label keeps printing the bare number.</li>
+        <li><strong>The real grid must be seeded.</strong> <code>backend/prisma/seed.ts</code> currently carries demo sizes (Levi's 28–36, Nike S–XXL). Thirteen real sizes replace them before any catalogue work starts.</li>
+        <li><strong>Age is a browse axis, not a footnote.</strong> Parents arrive knowing an age, not a size, so it belongs in navigation and in the listing filters beside category.</li>
+        <li><strong>Thirteen variants per style adds up.</strong> A 300-style catalogue is roughly 3,900 variants, which makes the listing availability query (§4) the hottest read on the site. A card showing "in stock" means <em>some</em> size is available — it must never imply the shopper's size is.</li>
+      </ul>
+
+      <div class="note warn">
+        <span class="tag">Scope pressure</span>
+        <p>
+          In kidswear the commonest reason a parcel comes back is the wrong size,
+          not a faulty garment. Reverse logistics currently sits in Phase 9, which
+          is probably too late — a same-product, different-size exchange is likely
+          the main support flow from day one. The machinery exists already
+          (<code>Return</code>, <code>ReturnItem</code>,
+          <code>pos/exchange-policy.ts</code>); what is missing is a customer-facing
+          path into it.
+        </p>
+      </div>
     </section>
 
     <!-- ─────────────────────────── 4 -->
@@ -976,9 +1026,9 @@
             <tr><th class="mono">Method</th><th>Path</th><th>Notes</th></tr>
           </thead>
           <tbody>
-            <tr><td class="mono">GET</td><td class="mono">/catalog/products</td><td>Filter, facet, sort, paginate. Online-visible and available-to-sell only.</td></tr>
+            <tr><td class="mono">GET</td><td class="mono">/catalog/products</td><td>Filter, facet, sort, paginate. Online-visible and available-to-sell only. Age and size are first-class facets.</td></tr>
             <tr><td class="mono">GET</td><td class="mono">/catalog/products/:slug</td><td>Product detail with images, variants and live availability.</td></tr>
-            <tr><td class="mono">GET</td><td class="mono">/catalog/search</td><td>Name, brand, category, colour, size.</td></tr>
+            <tr><td class="mono">GET</td><td class="mono">/catalog/search</td><td>Name, brand, category, colour, size, age.</td></tr>
             <tr><td class="mono">POST</td><td class="mono">/cart/items</td><td><span class="pill risk">reserves stock</span> <code>409</code> when the piece is gone.</td></tr>
             <tr><td class="mono">PATCH</td><td class="mono">/cart/items/:id</td><td>Quantity change re-checks availability.</td></tr>
             <tr><td class="mono">DELETE</td><td class="mono">/cart/items/:id</td><td>Releases the hold immediately.</td></tr>
@@ -1016,6 +1066,7 @@
             <tr><td class="mono">/cart · /checkout</td><td>Client</td><td>Never indexed; <code>noindex</code></td></tr>
             <tr><td class="mono">/order/[orderNumber]</td><td>SSR, authenticated</td><td>Confirmation and tracking</td></tr>
             <tr><td class="mono">/account/*</td><td>SSR, authenticated</td><td>Orders, addresses, loyalty balance</td></tr>
+            <tr><td class="mono">/size-guide</td><td>SSG</td><td>Age → size → measurements. One of the most visited pages on a kidswear site</td></tr>
             <tr><td class="mono">/policies/*</td><td>SSG</td><td>Returns, shipping, privacy, terms</td></tr>
           </tbody>
         </table>

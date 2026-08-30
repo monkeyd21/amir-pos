@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prata&family=Jost:wght@300;400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #1c1a19; text-decoration: none; }
+    a:hover { color: #7c2d4a; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; background: #ffffff; color: #1c1a19; font-family: Jost, 'Helvetica Neue', sans-serif; font-size: 15px; line-height: 1.6; display: flex; flex-direction: column;">
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 13px 40px; background: #1c1a19; color: #f7f2ec; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;">
+    <span>Direction D — High Street</span>
+    <span style="opacity: 0.65;">Size guide · the highest-traffic help page on a kidswear site</span>
+  </div>
+
+  <header style="display: flex; align-items: center; gap: 28px; padding: 18px 40px; border-bottom: 1px solid #ece6df;">
+    <div style="flex: 0 0 auto; display: flex; flex-direction: column; line-height: 1;">
+      <span style="font-family: Prata, Georgia, serif; font-size: 24px;">Sabiha's Ethnic</span>
+      <span style="font-size: 9.5px; letter-spacing: 0.26em; text-transform: uppercase; color: #8c8279; margin-top: 5px;">Kidswear · Nagpur</span>
+    </div>
+    <div style="flex: 1 1 auto;"></div>
+    <a href="#" style="font-size: 14px;">Back to shopping</a>
+  </header>
+
+  <div style="padding: 34px 40px 0; max-width: 1280px;">
+    <span style="font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: #7c2d4a;">Help</span>
+    <h1 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 40px; line-height: 1.16; margin: 12px 0 14px; text-wrap: balance;">Which size for which age</h1>
+    <p style="margin: 0 0 8px; font-size: 16.5px; color: #4a423b; max-width: 62ch;">
+      Indian kidswear sizes are numbers, not letters, and the number is roughly the chest measurement in inches. Size 24 fits a typical five year old. If your child is between two sizes, or on the taller side, take the larger one — ethnic wear is worn a few times a year and a little room is better than none.
+    </p>
+  </div>
+
+  <main style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 48px; padding: 28px 40px 56px; align-items: start;">
+
+    <!-- the chart -->
+    <div>
+      <div style="overflow-x: auto; border: 1px solid #ddd4ca;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 15px;">
+          <thead>
+            <tr style="background: #7c2d4a; color: #fff;">
+              <th style="text-align: left; padding: 13px 18px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12.5px;">Age</th>
+              <th style="text-align: left; padding: 13px 18px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12.5px;">Size</th>
+              <th style="text-align: right; padding: 13px 18px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12.5px;">Chest</th>
+              <th style="text-align: right; padding: 13px 18px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12.5px;">Length</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="13">
+              <tr style="border-bottom: 1px solid #ece6df;">
+                <td style="padding: 11px 18px;">{{r.age}}</td>
+                <td style="padding: 11px 18px; font-weight: 500; font-variant-numeric: tabular-nums;">{{r.size}}</td>
+                <td style="padding: 11px 18px; text-align: right; color: #6b625a; font-variant-numeric: tabular-nums;">{{r.chest}}</td>
+                <td style="padding: 11px 18px; text-align: right; color: #6b625a; font-variant-numeric: tabular-nums;">{{r.length}}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin: 14px 0 0; font-size: 13px; color: #8c8279; max-width: 60ch;">
+        Chest and length are garment measurements in inches, taken flat and doubled. Lengths vary a little by style — each product page lists its own.
+      </p>
+    </div>
+
+    <!-- how to measure + help -->
+    <aside style="display: flex; flex-direction: column; gap: 26px;">
+
+      <div style="border: 1px solid #ddd4ca; padding: 22px;">
+        <h2 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 14px;">If you'd rather measure</h2>
+        <ol style="margin: 0; padding-left: 18px; font-size: 14.5px; color: #4a423b; display: flex; flex-direction: column; gap: 9px;">
+          <li>Take a garment that already fits her well and lay it flat.</li>
+          <li>Measure straight across the chest, just under the arms, and double it.</li>
+          <li>Match that number to the chest column. That is the size.</li>
+        </ol>
+        <p style="margin: 14px 0 0; font-size: 13.5px; color: #8c8279;">Measuring a garment is far more reliable than measuring a child who does not want to be measured.</p>
+      </div>
+
+      <div style="background: #faf6f2; border: 1px solid #ece6df; padding: 22px; display: flex; flex-direction: column; gap: 13px;">
+        <h2 style="font-family: Prata, Georgia, serif; font-weight: 400; font-size: 21px; margin: 0;">Still not sure?</h2>
+        <p style="margin: 0; font-size: 14.5px; color: #4a423b;">Send us your child's age and height on WhatsApp and we will tell you which size to order. We do this all day in the shop.</p>
+        <a href="#" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 9px; border: 1px solid #1f7a5c; color: #1f7a5c; padding: 12px 20px; font-size: 13.5px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 11.5a8 8 0 0 1-11.9 7L4 20l1.6-4A8 8 0 1 1 20 11.5Z"></path></svg>
+          Ask on WhatsApp
+        </a>
+      </div>
+
+      <div style="border: 1px solid #ddd4ca; padding: 22px; display: flex; flex-direction: column; gap: 11px;">
+        <div style="display: flex; align-items: center; gap: 11px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c2d4a" stroke-width="1.4"><path d="M4 10a8 8 0 0 1 13.6-4.4L20 8"></path><path d="M20 14a8 8 0 0 1-13.6 4.4L4 16"></path><path d="M20 4v4h-4"></path><path d="M4 20v-4h4"></path></svg>
+          <span style="font-size: 15.5px; font-weight: 500;">Wrong size? Exchange is free</span>
+        </div>
+        <p style="margin: 0; font-size: 14px; color: #4a423b;">Seven days from delivery, unworn and with tags on. We collect from your door in most cities.</p>
+      </div>
+
+    </aside>
+  </main>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      rows: [
+        { age: '6 months',    size: '12', chest: '12 in', length: '17 in' },
+        { age: '9 months',    size: '14', chest: '14 in', length: '19 in' },
+        { age: '1 year',      size: '16', chest: '16 in', length: '21 in' },
+        { age: '2 years',     size: '18', chest: '18 in', length: '24 in' },
+        { age: '3 years',     size: '20', chest: '20 in', length: '26 in' },
+        { age: '4 years',     size: '22', chest: '22 in', length: '28 in' },
+        { age: '5 years',     size: '24', chest: '24 in', length: '30 in' },
+        { age: '6 years',     size: '26', chest: '26 in', length: '32 in' },
+        { age: '7–8 years',   size: '28', chest: '28 in', length: '34 in' },
+        { age: '9–10 years',  size: '30', chest: '30 in', length: '37 in' },
+        { age: '11–12 years', size: '32', chest: '32 in', length: '40 in' },
+        { age: '13–14 years', size: '34', chest: '34 in', length: '43 in' },
+        { age: '15–16 years', size: '36', chest: '36 in', length: '45 in' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>
