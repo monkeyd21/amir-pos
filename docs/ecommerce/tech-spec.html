@@ -1,0 +1,1115 @@
+<title>Sabiha's Ethnic Storefront</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --ground:    #f4f4f8;
+    --surface:   #ffffff;
+    --surface-2: #eeeef4;
+    --ink:       #17171f;
+    --ink-2:     #3c3c4c;
+    --muted:     #63637a;
+    --line:      #dcdce6;
+    --line-soft: #e9e9f0;
+    --accent:    #34379a;
+    --accent-2:  #5b5fc4;
+    --accent-wash: #eaeaf7;
+    --warn:      #9a6006;
+    --warn-wash: #f8efdd;
+    --danger:    #a33227;
+    --danger-wash: #f8e7e4;
+    --ok:        #24664e;
+    --ok-wash:   #e2f0ea;
+
+    --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --sans:  "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 68ch;
+    --rail: 15rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #101015;
+      --surface:   #191920;
+      --surface-2: #21212b;
+      --ink:       #e9e9f1;
+      --ink-2:     #c2c2d2;
+      --muted:     #9494ac;
+      --line:      #2e2e3a;
+      --line-soft: #26262f;
+      --accent:    #9497ec;
+      --accent-2:  #b0b2f2;
+      --accent-wash: #22223a;
+      --warn:      #e0a445;
+      --warn-wash: #2e2618;
+      --danger:    #ea8175;
+      --danger-wash: #33201d;
+      --ok:        #5fbc97;
+      --ok-wash:   #162b24;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #101015;
+    --surface:   #191920;
+    --surface-2: #21212b;
+    --ink:       #e9e9f1;
+    --ink-2:     #c2c2d2;
+    --muted:     #9494ac;
+    --line:      #2e2e3a;
+    --line-soft: #26262f;
+    --accent:    #9497ec;
+    --accent-2:  #b0b2f2;
+    --accent-wash: #22223a;
+    --warn:      #e0a445;
+    --warn-wash: #2e2618;
+    --danger:    #ea8175;
+    --danger-wash: #33201d;
+    --ok:        #5fbc97;
+    --ok-wash:   #162b24;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    gap: 0;
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  /* ── Contents rail ───────────────────────────── */
+  .rail { position: relative; }
+  .rail-inner {
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 3rem 1.75rem 3rem 0;
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 .9rem;
+  }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .1rem; }
+  .rail a {
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    gap: .35rem;
+    padding: .28rem .4rem .28rem 0;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: .8125rem;
+    line-height: 1.35;
+    border-radius: 3px;
+  }
+  .rail a span:first-child { font-family: var(--mono); color: var(--muted); font-size: .75rem; }
+  .rail a:hover { color: var(--accent); }
+  .rail a:hover span:first-child { color: var(--accent); }
+  .rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ── Main column ─────────────────────────────── */
+  main {
+    border-left: 1px solid var(--line);
+    padding: 3rem 0 6rem 2.75rem;
+    min-width: 0;
+  }
+
+  /* ── Masthead ────────────────────────────────── */
+  .masthead { margin-bottom: 3.5rem; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.2rem, 5vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  .standfirst {
+    font-size: 1.0625rem;
+    color: var(--ink-2);
+    max-width: var(--measure);
+    margin: 0 0 2rem;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: .75rem;
+  }
+  .meta div { display: flex; flex-direction: column; gap: .15rem; padding: .35rem 0; }
+  .meta dt { color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: .6875rem; }
+  .meta dd { margin: 0; color: var(--ink); }
+
+  /* ── Sections ────────────────────────────────── */
+  section { margin-bottom: 3.75rem; scroll-margin-top: 1.5rem; }
+  section > h2 {
+    font-family: var(--serif);
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 1.25rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 2.4rem 1fr;
+    align-items: baseline;
+  }
+  section > h2 > .num {
+    font-family: var(--mono);
+    font-size: .8125rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    margin: 2rem 0 .65rem;
+  }
+  h4 {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.75rem 0 .6rem;
+  }
+  p { max-width: var(--measure); margin: 0 0 1rem; }
+  ul, ol.body { max-width: var(--measure); padding-left: 1.15rem; margin: 0 0 1rem; }
+  li { margin-bottom: .4rem; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; color: var(--ink); }
+  code {
+    font-family: var(--mono);
+    font-size: .855em;
+    background: var(--surface-2);
+    padding: .1em .35em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* ── Callouts ────────────────────────────────── */
+  .note {
+    max-width: var(--measure);
+    border-left: 3px solid var(--accent);
+    background: var(--accent-wash);
+    padding: .9rem 1.1rem;
+    margin: 1.25rem 0 1.5rem;
+    border-radius: 0 4px 4px 0;
+  }
+  .note.danger { border-left-color: var(--danger); background: var(--danger-wash); }
+  .note.warn   { border-left-color: var(--warn);   background: var(--warn-wash); }
+  .note p:last-child { margin-bottom: 0; }
+  .note .tag {
+    display: block;
+    font-family: var(--mono);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: .35rem;
+    color: var(--accent);
+  }
+  .note.danger .tag { color: var(--danger); }
+  .note.warn   .tag { color: var(--warn); }
+
+  /* ── Tables ──────────────────────────────────── */
+  .scroller { overflow-x: auto; margin: 1rem 0 1.5rem; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .8125rem; }
+  th, td { text-align: left; padding: .6rem .85rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mono, th.mono, td code { font-variant-numeric: tabular-nums; }
+  td.mono { font-family: var(--mono); font-size: .78125rem; white-space: nowrap; }
+
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    padding: .1rem .45rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .pill.new  { background: var(--accent-wash); color: var(--accent); }
+  .pill.mod  { background: var(--warn-wash);   color: var(--warn); }
+  .pill.keep { background: var(--ok-wash);     color: var(--ok); }
+  .pill.risk { background: var(--danger-wash); color: var(--danger); }
+
+  /* ── Code blocks ─────────────────────────────── */
+  pre {
+    font-family: var(--mono);
+    font-size: .78125rem;
+    line-height: 1.6;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: .95rem 1.1rem;
+    overflow-x: auto;
+    margin: 1rem 0 1.5rem;
+    color: var(--ink-2);
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre .c { color: var(--muted); font-style: italic; }
+  pre .k { color: var(--accent); font-weight: 500; }
+  pre .s { color: var(--ok); }
+
+  /* ── Diagrams ────────────────────────────────── */
+  .fig { margin: 1.5rem 0 1.75rem; }
+  .fig figcaption {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: .7rem;
+  }
+  .fig figcaption b { color: var(--ink-2); font-weight: 600; }
+
+  .stack { display: flex; flex-direction: column; gap: .5rem; }
+  .tier {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 4px;
+    padding: .8rem .95rem;
+  }
+  .tier-label {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .55rem;
+  }
+  .boxes { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .box {
+    flex: 1 1 9rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: .55rem .7rem;
+    background: var(--surface-2);
+    font-size: .8125rem;
+    line-height: 1.35;
+  }
+  .box b { display: block; font-weight: 600; font-size: .84rem; }
+  .box small { color: var(--muted); font-family: var(--mono); font-size: .6875rem; }
+  .box.is-new { background: var(--accent-wash); border-color: var(--accent); }
+  .box.is-new small { color: var(--accent); }
+  .arrow {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--muted);
+    line-height: 1;
+  }
+
+  /* state machine */
+  .states { display: flex; flex-wrap: wrap; align-items: stretch; gap: .4rem; }
+  .state {
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface);
+    padding: .5rem .7rem;
+    min-width: 7.5rem;
+    font-family: var(--mono);
+    font-size: .75rem;
+  }
+  .state b { display: block; font-size: .8125rem; letter-spacing: .02em; }
+  .state small { color: var(--muted); font-size: .6875rem; }
+  .state.ok   { border-color: var(--ok);     background: var(--ok-wash); }
+  .state.warn { border-color: var(--warn);   background: var(--warn-wash); }
+  .state.bad  { border-color: var(--danger); background: var(--danger-wash); }
+  .edge { display: flex; align-items: center; color: var(--muted); font-family: var(--mono); font-size: .6875rem; padding: 0 .1rem; }
+
+  /* numbered sequence */
+  ol.seq { list-style: none; padding: 0; margin: 1rem 0 1.5rem; max-width: none; counter-reset: s; }
+  ol.seq > li {
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: .75rem;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    margin: 0;
+    counter-increment: s;
+    align-items: start;
+  }
+  ol.seq > li:last-child { border-bottom: 0; }
+  ol.seq > li::before {
+    content: counter(s);
+    font-family: var(--mono);
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    text-align: center;
+    line-height: 1.55;
+    background: var(--surface);
+  }
+  ol.seq .who {
+    font-family: var(--mono);
+    font-size: .6875rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+  }
+  ol.seq p { margin: .1rem 0 0; font-size: .875rem; max-width: var(--measure); }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; padding: 0 1.1rem; }
+    .rail { display: none; }
+    main { border-left: 0; padding: 2.25rem 0 4rem; }
+    section > h2 { grid-template-columns: 1fr; gap: .2rem; }
+    section > h2 > .num { display: block; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+
+  <nav class="rail" aria-label="Contents">
+    <div class="rail-inner">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#s1"><span>1</span><span>Scope &amp; decisions</span></a></li>
+        <li><a href="#s2"><span>2</span><span>Architecture</span></a></li>
+        <li><a href="#s3"><span>3</span><span>Data model</span></a></li>
+        <li><a href="#s4"><span>4</span><span>Availability &amp; reservations</span></a></li>
+        <li><a href="#s5"><span>5</span><span>Order &amp; payment flow</span></a></li>
+        <li><a href="#s6"><span>6</span><span>Guard rails on the POS</span></a></li>
+        <li><a href="#s7"><span>7</span><span>API surface</span></a></li>
+        <li><a href="#s8"><span>8</span><span>Storefront &amp; SEO</span></a></li>
+        <li><a href="#s9"><span>9</span><span>Deployment</span></a></li>
+        <li><a href="#s10"><span>10</span><span>Test plan</span></a></li>
+        <li><a href="#s11"><span>11</span><span>Open questions</span></a></li>
+      </ol>
+    </div>
+  </nav>
+
+  <main>
+
+    <header class="masthead">
+      <p class="eyebrow">Technical Specification · Draft 1</p>
+      <h1>An online store on the shop's own till</h1>
+      <p class="standfirst">
+        A public e-commerce site for Sabiha's Ethnic, sharing one database with the
+        existing POS and ERP. The catalogue is the shop floor: roughly 99% of stock
+        is a single physical garment, visible to a website visitor and a walk-in
+        customer at the same instant. That constraint, not the shopfront, is what
+        this document is mostly about.
+      </p>
+      <dl class="meta">
+        <div><dt>Status</dt><dd>Draft — pre-implementation</dd></div>
+        <div><dt>Date</dt><dd>30 Aug 2026</dd></div>
+        <div><dt>Tracking</dt><dd>docs/ecommerce/PLAN.md</dd></div>
+        <div><dt>Codebase</dt><dd>amir-pos monorepo</dd></div>
+      </dl>
+    </header>
+
+    <!-- ─────────────────────────── 1 -->
+    <section id="s1">
+      <h2><span class="num">1</span><span>Scope &amp; decisions</span></h2>
+
+      <p>
+        Four decisions were taken before this spec was written. Everything below
+        follows from them.
+      </p>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th class="mono">ID</th><th>Decision</th><th>Choice</th><th>Rationale</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">D1</td><td>Topology</td>
+              <td><strong>New workspace, same monorepo</strong></td>
+              <td>One Prisma schema, one migration history, one deploy. Offers, loyalty, GST and checkout are imported, not reimplemented or proxied.</td>
+            </tr>
+            <tr>
+              <td class="mono">D2</td><td>Storefront stack</td>
+              <td><strong>Next.js App Router + Tailwind</strong></td>
+              <td>Retail discovery is organic search. Server-rendered product pages are indexable; a client-rendered SPA effectively is not.</td>
+            </tr>
+            <tr>
+              <td class="mono">D3</td><td>Stock model</td>
+              <td><strong>Live shared stock, cart reservation</strong></td>
+              <td>Single-piece inventory sold through two channels at once. A soft hold with expiry is the only model that neither lies about stock nor shrinks the catalogue.</td>
+            </tr>
+            <tr>
+              <td class="mono">D4</td><td>v1 scope</td>
+              <td><strong>Browse → pay → ship</strong></td>
+              <td>Fully transactional. Click-and-collect and WhatsApp ordering are additive, not blockers.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Out of scope for v1</h3>
+      <p>
+        Wishlist, reviews, guest checkout without OTP, multi-currency, abandoned-cart
+        automation, click-and-collect, reverse-pickup returns, and any
+        loyalty-tier-gated online pricing.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────── 2 -->
+    <section id="s2">
+      <h2><span class="num">2</span><span>Architecture</span></h2>
+
+      <p>
+        The storefront is a separate process with a separate domain, but not a
+        separate database and not a separate source of truth. All pricing, tax,
+        offer and loyalty logic stays in the Express backend and is called by the
+        shop module directly — a Next.js route handler never computes a price.
+      </p>
+
+      <figure class="fig">
+        <div class="stack">
+
+          <div class="tier">
+            <div class="tier-label">Clients</div>
+            <div class="boxes">
+              <div class="box is-new"><b>Storefront</b><small>Next.js · shop.*</small></div>
+              <div class="box"><b>ERP admin + POS</b><small>Angular 17 · erp.*</small></div>
+              <div class="box"><b>Mobile POS</b><small>Capacitor · Android</small></div>
+            </div>
+          </div>
+
+          <div class="arrow">↓ &nbsp; HTTPS &nbsp; ↓</div>
+
+          <div class="tier">
+            <div class="tier-label">Edge — nginx, routed by hostname</div>
+            <div class="boxes">
+              <div class="box is-new"><b>shop.sabihasethnic.com</b><small>→ 127.0.0.1:3001</small></div>
+              <div class="box"><b>erp.sabihasethnic.com</b><small>→ 127.0.0.1:3000</small></div>
+            </div>
+          </div>
+
+          <div class="arrow">↓</div>
+
+          <div class="tier">
+            <div class="tier-label">Services</div>
+            <div class="boxes">
+              <div class="box is-new"><b>amir-shop</b><small>node :3001 · SSR only</small></div>
+              <div class="box"><b>amir-pos</b><small>node :3000 · Express + Prisma</small></div>
+            </div>
+          </div>
+
+          <div class="arrow">↓ &nbsp; the shop's server components call the shop API &nbsp; ↓</div>
+
+          <div class="tier">
+            <div class="tier-label">Backend modules — backend/src/modules</div>
+            <div class="boxes">
+              <div class="box is-new"><b>shop/</b><small>NEW · catalogue, cart, orders</small></div>
+              <div class="box"><b>pos/</b><small>checkout, sessions</small></div>
+              <div class="box"><b>offers/</b><small>discount engine</small></div>
+              <div class="box"><b>loyalty/</b><small>earn · redeem</small></div>
+              <div class="box"><b>payments/</b><small>Cashfree</small></div>
+              <div class="box"><b>messaging/</b><small>WhatsApp Graph API</small></div>
+            </div>
+          </div>
+
+          <div class="arrow">↓</div>
+
+          <div class="tier">
+            <div class="tier-label">State</div>
+            <div class="boxes">
+              <div class="box"><b>PostgreSQL</b><small>one schema · one migration history</small></div>
+              <div class="box is-new"><b>Object storage</b><small>NEW · product imagery + CDN</small></div>
+            </div>
+          </div>
+
+        </div>
+        <figcaption><b>Fig 1</b> — Two processes, one database. Blue marks what this project adds.</figcaption>
+      </figure>
+
+      <div class="note">
+        <span class="tag">Boundary rule</span>
+        <p>
+          The storefront owns presentation and nothing else. Any money figure it
+          renders came from the backend. This keeps a single implementation of the
+          MRP → sale-price → offer → loyalty → GST chain, which is the part of the
+          system most expensive to get subtly wrong in two places.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 3 -->
+    <section id="s3">
+      <h2><span class="num">3</span><span>Data model</span></h2>
+
+      <p>
+        The existing schema already anticipated this project in three places:
+        <code>SaleChannel.online</code> exists, <code>Sale.clientRef</code> gives
+        idempotent checkout, and <code>BillSequence</code> is documented as
+        supporting a separate online bill prefix. What it does not have is any
+        notion of an image, a customer login, a structured address, a cart that
+        holds stock, or an order that is not yet a sale.
+      </p>
+
+      <h3>3.1 New tables</h3>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Table</th><th>Purpose</th><th>Key columns</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">product_images</td>
+              <td>Catalogue photography. Attaches to a product, optionally narrowed to one variant.</td>
+              <td class="mono">productId · variantId? · url · alt · width · height · sortOrder · isPrimary</td>
+            </tr>
+            <tr>
+              <td class="mono">addresses</td>
+              <td>Structured, multiple shipping addresses per customer. <code>Customer.address</code> is one free-text line and is not usable for despatch.</td>
+              <td class="mono">customerId · name · phone · line1 · line2 · city · state · pincode · isDefault</td>
+            </tr>
+            <tr>
+              <td class="mono">customer_otps</td>
+              <td>Phone login codes, delivered over the existing WhatsApp integration.</td>
+              <td class="mono">phone · codeHash · expiresAt · attempts · consumedAt</td>
+            </tr>
+            <tr>
+              <td class="mono">customer_sessions</td>
+              <td>Shopper refresh tokens. Deliberately separate from staff JWTs — different audience, different lifetime, different revocation.</td>
+              <td class="mono">customerId · refreshTokenHash · userAgent · expiresAt · revokedAt</td>
+            </tr>
+            <tr>
+              <td class="mono">shop_carts</td>
+              <td>Server-side cart keyed by an httpOnly cookie token, so a cart survives before login and merges after it.</td>
+              <td class="mono">token · customerId? · branchId · expiresAt</td>
+            </tr>
+            <tr>
+              <td class="mono">shop_cart_items</td>
+              <td>Cart lines, each pointing at the reservation that holds its stock.</td>
+              <td class="mono">cartId · variantId · quantity · reservationId</td>
+            </tr>
+            <tr>
+              <td class="mono">stock_reservations</td>
+              <td><strong>The core of the design.</strong> A time-boxed soft hold on physical stock. See §4.</td>
+              <td class="mono">variantId · branchId · quantity · status · expiresAt · cartId? · orderId?</td>
+            </tr>
+            <tr>
+              <td class="mono">shop_orders</td>
+              <td>The fulfilment lifecycle. Points at a <code>Sale</code> once — and only once — money has settled.</td>
+              <td class="mono">orderNumber · customerId · saleId? · status · ship* snapshot · totals · paidAt</td>
+            </tr>
+            <tr>
+              <td class="mono">shop_order_items</td>
+              <td>Pre-payment line snapshot. Becomes <code>SaleItem</code> rows at confirmation.</td>
+              <td class="mono">orderId · variantId · quantity · unitPrice · mrp · offerId?</td>
+            </tr>
+            <tr>
+              <td class="mono">shipments</td>
+              <td>Courier leg. Manual AWB entry in v1; carrier API later.</td>
+              <td class="mono">orderId · carrier · awb · trackingUrl · status · shippedAt · deliveredAt</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>3.2 Columns added to existing tables</h3>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Table</th><th>Column</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">products</td><td class="mono">onlineVisible · onlineDescription · metaTitle · metaDescription</td><td>Listing is opt-in per product; the counter catalogue is not the web catalogue. SEO copy is written for the web, not the till.</td></tr>
+            <tr><td class="mono">product_variants</td><td class="mono">onlineSellable</td><td>Lets a specific piece be held back for the shop floor without delisting the product.</td></tr>
+            <tr><td class="mono">offers</td><td class="mono">onlineEligible</td><td>Counter-only promotions must not leak onto the website.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <span class="tag">Migration discipline</span>
+        <p>
+          Every column above is nullable or defaulted, and every new table is
+          additive. No existing column changes type or nullability, so the POS can
+          keep running against the same database throughout the build. Follow the
+          reviewed-SQL practice already used for the payroll release
+          (<code>deploy/sql/</code>).
+        </p>
+      </div>
+
+      <h3>3.3 Why an order is not a sale</h3>
+
+      <p>
+        In this system a <code>Sale</code> means something precise: money was taken,
+        stock left the building, GST was recorded, loyalty accrued, the day's
+        rollup moved. An online order that has been placed but not paid satisfies
+        none of that.
+      </p>
+      <p>
+        So <code>ShopOrder</code> carries the lifecycle, and the <code>Sale</code>
+        row is written exactly once, at payment confirmation, with
+        <code>channel: 'online'</code>. A cancelled unpaid order leaves no trace in
+        the books, and the accounting, reporting and P&amp;L code needs no changes
+        at all to stay correct.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────── 4 -->
+    <section id="s4">
+      <h2><span class="num">4</span><span>Availability &amp; reservations</span></h2>
+
+      <p>
+        Article #4821 is one garment. It is on the website and on the POS at the same
+        instant, and two people can want it in the same second. This section is the
+        answer to that.
+      </p>
+
+      <div class="note">
+        <span class="tag">The policy, in one line</span>
+        <p>
+          <strong>An in-store scan beats an unpaid web hold. A paid web order beats
+          an in-store scan.</strong> Settled money wins; unsettled intent loses.
+          Every rule below is a mechanical consequence of that sentence.
+        </p>
+      </div>
+
+      <h3>4.1 Available to sell</h3>
+
+      <p>
+        Online availability is never <code>inventory.quantity</code>. It is that
+        quantity minus every live hold. Any shop query reading the raw quantity is
+        a defect.
+      </p>
+
+<pre><code><span class="c">-- Available-to-sell for one variant at one branch.
+-- Expiry is evaluated in the query, so correctness never
+-- depends on a sweeper job having run.</span>
+<span class="k">SELECT</span> i.quantity - <span class="k">COALESCE</span>(r.held, 0) <span class="k">AS</span> ats
+<span class="k">FROM</span> inventory i
+<span class="k">LEFT JOIN</span> (
+  <span class="k">SELECT</span> variant_id, branch_id, <span class="k">SUM</span>(quantity) <span class="k">AS</span> held
+  <span class="k">FROM</span> stock_reservations
+  <span class="k">WHERE</span> status = <span class="s">'held'</span> <span class="k">AND</span> expires_at &gt; <span class="k">now</span>()
+  <span class="k">GROUP BY</span> variant_id, branch_id
+) r <span class="k">ON</span> r.variant_id = i.variant_id <span class="k">AND</span> r.branch_id = i.branch_id
+<span class="k">WHERE</span> i.variant_id = $1 <span class="k">AND</span> i.branch_id = $2;</code></pre>
+
+      <h3>4.2 Taking a hold</h3>
+
+      <p>
+        Add-to-cart is the moment stock is committed. The inventory row is locked
+        first, which serialises every concurrent attempt on that variant and makes
+        the check-then-insert safe without relying on a transaction isolation level.
+      </p>
+
+<pre><code><span class="k">BEGIN</span>;
+
+<span class="c">-- Serialise all contenders for this piece.</span>
+<span class="k">SELECT</span> quantity <span class="k">FROM</span> inventory
+ <span class="k">WHERE</span> variant_id = $1 <span class="k">AND</span> branch_id = $2
+ <span class="k">FOR UPDATE</span>;
+
+<span class="c">-- Recompute ATS under the lock. If it cannot cover the
+-- request, roll back and return 409 SOLD_OUT.</span>
+
+<span class="k">INSERT INTO</span> stock_reservations
+  (variant_id, branch_id, quantity, cart_id, status, expires_at)
+<span class="k">VALUES</span> ($1, $2, $3, $4, <span class="s">'held'</span>, <span class="k">now</span>() + <span class="k">interval</span> <span class="s">'15 minutes'</span>);
+
+<span class="k">COMMIT</span>;</code></pre>
+
+      <h3>4.3 Reservation lifecycle</h3>
+
+      <figure class="fig">
+        <div class="states">
+          <div class="state ok"><b>available</b><small>no hold</small></div>
+          <div class="edge">→ add to cart</div>
+          <div class="state warn"><b>held</b><small>15 min</small></div>
+          <div class="edge">→ checkout</div>
+          <div class="state warn"><b>held</b><small>extended · 20 min</small></div>
+          <div class="edge">→ paid</div>
+          <div class="state ok"><b>consumed</b><small>stock decremented</small></div>
+        </div>
+        <div class="states" style="margin-top:.5rem">
+          <div class="state warn"><b>held</b><small>any point</small></div>
+          <div class="edge">→ timer runs out</div>
+          <div class="state bad"><b>expired</b><small>lazy · in-query</small></div>
+          <div class="edge">or → removed from cart</div>
+          <div class="state bad"><b>released</b><small>explicit</small></div>
+        </div>
+        <figcaption><b>Fig 2</b> — A hold has exactly one terminal state: consumed, expired, or released.</figcaption>
+      </figure>
+
+      <p>
+        Expiry is <em>lazy</em>: the availability query filters on
+        <code>expires_at &gt; now()</code>, so an expired hold stops blocking a sale
+        the instant it lapses, with no scheduled job in the loop. A periodic sweeper
+        exists only to flip stale rows to <code>expired</code> for tidiness and
+        reporting — if it never runs, the system is still correct. On a 1 GB box
+        that distinction matters.
+      </p>
+
+      <h3>4.4 The other side: the shop floor</h3>
+
+      <p>
+        A hold is invisible to the customer standing at the counter, so the cashier
+        needs to see it. Scanning a barcode with a live web hold shows a warning —
+        not a block:
+      </p>
+
+      <ul>
+        <li><strong>Unpaid web hold, cashier scans it.</strong> Warning banner: <em>"1 piece held online until 14:32."</em> The cashier may sell it. The customer in the shop is real and present; the web shopper has not paid.</li>
+        <li><strong>Paid web order, cashier scans it.</strong> Hard block, owner-PIN override only. That garment is owed to someone who has already paid for it.</li>
+      </ul>
+
+      <h3>4.5 When the piece vanishes after payment</h3>
+
+      <p>
+        The window between a shopper paying and the webhook confirming is small but
+        not zero, and a counter sale can land inside it. The confirmation
+        transaction therefore re-checks raw on-hand stock, and failing that check is
+        an expected outcome with a defined path, not an error:
+      </p>
+
+      <ol class="seq">
+        <li><span class="who">Webhook</span><p>Cashfree confirms payment. Signature verified against the raw body, exactly as the existing POS webhook does.</p></li>
+        <li><span class="who">Backend</span><p>Open a transaction. Re-check <code>inventory.quantity</code> for every line, ignoring the order's own hold.</p></li>
+        <li><span class="who">Backend</span><p>If every line is covered: create the <code>Sale</code>, decrement stock, mark reservations <code>consumed</code>, move the order to <code>paid</code>.</p></li>
+        <li><span class="who">Backend</span><p>If any line is short: the order becomes <code>failed</code>, an automatic refund is issued, and no <code>Sale</code> is ever written.</p></li>
+        <li><span class="who">Customer</span><p>WhatsApp message — either the order confirmation, or an apology naming the piece that sold, with the refund reference.</p></li>
+      </ol>
+
+      <h3>4.6 Race matrix</h3>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Scenario</th><th>Mechanism</th><th>Outcome</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Two shoppers add the last piece simultaneously</td>
+              <td><code>FOR UPDATE</code> on the inventory row serialises them</td>
+              <td>First gets the hold; second gets <code>409 SOLD_OUT</code> before ever seeing a cart</td>
+            </tr>
+            <tr>
+              <td>Web hold live, cashier sells at the counter</td>
+              <td>Warning shown, sale allowed, stock → 0</td>
+              <td>Web payment fails the §4.5 re-check and auto-refunds</td>
+            </tr>
+            <tr>
+              <td>Web order paid, cashier then scans the piece</td>
+              <td>Paid-order lookup on barcode scan</td>
+              <td>Hard block with owner-PIN override</td>
+            </tr>
+            <tr>
+              <td>Shopper abandons the cart</td>
+              <td>Lazy expiry at 15 minutes</td>
+              <td>Piece is sellable again with no job having to run</td>
+            </tr>
+            <tr>
+              <td>Payment webhook delivered twice</td>
+              <td>Existing <code>Sale.clientRef</code> idempotency</td>
+              <td>Second delivery returns the original sale; no double bill</td>
+            </tr>
+            <tr>
+              <td>Shopper pays, webhook never arrives</td>
+              <td>Reconciliation poll against the gateway</td>
+              <td>Order settles late, or refunds after the hold lapses</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 5 -->
+    <section id="s5">
+      <h2><span class="num">5</span><span>Order &amp; payment flow</span></h2>
+
+      <ol class="seq">
+        <li><span class="who">Storefront</span><p>Shopper adds a piece. The backend takes a 15-minute hold and returns the cart with a countdown.</p></li>
+        <li><span class="who">Storefront</span><p>Checkout begins. Login by phone OTP over WhatsApp; the account is matched to an existing <code>Customer</code> by phone so the CRM record is never duplicated.</p></li>
+        <li><span class="who">Backend</span><p>Quote: offers re-evaluated through the existing engine (online-eligible only), loyalty redemption applied, shipping added, GST resolved. Holds extended to 20 minutes.</p></li>
+        <li><span class="who">Backend</span><p><code>ShopOrder</code> written as <code>pending_payment</code>. A Cashfree intent is created — through a session-free path, since there is no cashier and no open till.</p></li>
+        <li><span class="who">Gateway</span><p>Shopper pays. The webhook arrives on the existing raw-body verified endpoint.</p></li>
+        <li><span class="who">Backend</span><p>Stock re-checked (§4.5). On success: <code>Sale(channel: 'online')</code> created via the shared checkout core, bill numbered <code>O-0001</code>, loyalty accrued, holds consumed.</p></li>
+        <li><span class="who">ERP</span><p>The order appears on the fulfilment screen. Staff pick, pack, print the slip through the existing printing module, enter the AWB and ship.</p></li>
+        <li><span class="who">Customer</span><p>WhatsApp at each transition: confirmed, shipped with tracking, delivered.</p></li>
+      </ol>
+
+      <div class="note">
+        <span class="tag">Reuse, not reimplementation</span>
+        <p>
+          Step 6 calls the same <code>checkout()</code> the till calls. It already
+          accepts <code>channel: 'online'</code> and a <code>clientRef</code>
+          idempotency key. What the online path needs is not new checkout logic but
+          the four guards in §6.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 6 -->
+    <section id="s6">
+      <h2><span class="num">6</span><span>Guard rails on the POS</span></h2>
+
+      <div class="note danger">
+        <span class="tag">Primary hazard</span>
+        <p>
+          <code>pos/service.ts</code> contains <code>topUpShortfall()</code>, which
+          silently manufactures an <code>adjustment</code> stock-in whenever a scan
+          exceeds recorded stock, so that a counter sale never dead-ends. For a
+          cashier holding the garment that is exactly right — the piece plainly
+          exists, the records were wrong.
+        </p>
+        <p>
+          Reached from the web it is the worst possible behaviour: it would invent
+          stock for a garment that has already been sold, accept the money, and
+          leave nothing to ship. <strong>The online path must fail loudly
+          instead.</strong>
+        </p>
+      </div>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th>Guard</th><th>Where</th><th>Behaviour on the online path</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>No shortfall top-up</td><td class="mono">pos/service.ts → _checkoutTxn</td><td><span class="pill risk">critical</span> Throw <code>INSUFFICIENT_STOCK</code>; never adjust stock upward</td></tr>
+            <tr><td>No open till required</td><td class="mono">shop/payment intent</td><td>Skip the <code>PosSession</code> check that <code>createUpiPayment()</code> enforces</td></tr>
+            <tr><td>System actor</td><td class="mono">Sale.userId</td><td><code>Sale.userId</code> is non-null; online sales are attributed to a seeded "Online Store" user</td></tr>
+            <tr><td>No commission</td><td class="mono">commission calculation</td><td>No agent served the sale, so no commission row is written</td></tr>
+            <tr><td>Online bill prefix</td><td class="mono">BillSequence</td><td>Separate sequence — <code>O-0001</code>, never interleaved with counter bills</td></tr>
+            <tr><td>Drawer untouched</td><td class="mono">closeSession</td><td>Expected-cash math must exclude online sales entirely — to be verified, not assumed</td></tr>
+            <tr><td>Scan of a paid piece</td><td class="mono">pos lookupBarcode</td><td>Hard block with owner-PIN override when an unfulfilled paid order claims it</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Each guard gets a regression test that fails if the guard is removed. These
+        are the places where a future refactor could quietly reintroduce
+        double-selling, and a comment is not sufficient protection.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────── 7 -->
+    <section id="s7">
+      <h2><span class="num">7</span><span>API surface</span></h2>
+
+      <p>
+        A separate public namespace, <code>/api/shop/v1</code>, with its own
+        authentication (customer tokens, not staff JWTs) and its own rate limits.
+        Nothing under <code>/api/v1</code> becomes publicly reachable.
+      </p>
+
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr><th class="mono">Method</th><th>Path</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">GET</td><td class="mono">/catalog/products</td><td>Filter, facet, sort, paginate. Online-visible and available-to-sell only.</td></tr>
+            <tr><td class="mono">GET</td><td class="mono">/catalog/products/:slug</td><td>Product detail with images, variants and live availability.</td></tr>
+            <tr><td class="mono">GET</td><td class="mono">/catalog/search</td><td>Name, brand, category, colour, size.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/cart/items</td><td><span class="pill risk">reserves stock</span> <code>409</code> when the piece is gone.</td></tr>
+            <tr><td class="mono">PATCH</td><td class="mono">/cart/items/:id</td><td>Quantity change re-checks availability.</td></tr>
+            <tr><td class="mono">DELETE</td><td class="mono">/cart/items/:id</td><td>Releases the hold immediately.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/cart/extend</td><td>Extends holds when checkout is entered.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/auth/otp/request</td><td>Rate-limited per phone and per IP.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/auth/otp/verify</td><td>Issues customer tokens; merges the anonymous cart.</td></tr>
+            <tr><td class="mono">GET POST PUT DELETE</td><td class="mono">/addresses</td><td>Address book with pincode serviceability.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/checkout/quote</td><td>Offers, loyalty, shipping, GST. The only place totals are computed.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/checkout/pay</td><td>Creates the order and the payment intent.</td></tr>
+            <tr><td class="mono">POST</td><td class="mono">/webhooks/shop-payment</td><td>Raw body, signature verified. Registered before the JSON parser.</td></tr>
+            <tr><td class="mono">GET</td><td class="mono">/orders · /orders/:orderNumber</td><td>Customer's own orders and tracking.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Responses follow the house convention already in use —
+        <code>{ success, data, meta }</code> on success and
+        <code>{ success: false, error }</code> on failure, with <code>error</code>
+        as the message field.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────── 8 -->
+    <section id="s8">
+      <h2><span class="num">8</span><span>Storefront &amp; SEO</span></h2>
+
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Route</th><th>Rendering</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">/</td><td>SSG + revalidate</td><td>New arrivals, categories, editorial</td></tr>
+            <tr><td class="mono">/c/[category]</td><td>SSR</td><td>Listing with filters and facets</td></tr>
+            <tr><td class="mono">/p/[slug]</td><td>SSR</td><td>Product detail — the page that has to rank</td></tr>
+            <tr><td class="mono">/cart · /checkout</td><td>Client</td><td>Never indexed; <code>noindex</code></td></tr>
+            <tr><td class="mono">/order/[orderNumber]</td><td>SSR, authenticated</td><td>Confirmation and tracking</td></tr>
+            <tr><td class="mono">/account/*</td><td>SSR, authenticated</td><td>Orders, addresses, loyalty balance</td></tr>
+            <tr><td class="mono">/policies/*</td><td>SSG</td><td>Returns, shipping, privacy, terms</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Product pages carry <code>schema.org/Product</code> JSON-LD with live
+        <code>availability</code>, canonical URLs, Open Graph images and a generated
+        <code>sitemap.xml</code>. Because nearly every piece is unique, a sold item's
+        URL must not 404 — it returns 200 with an out-of-stock state and links to
+        similar pieces, which preserves accumulated search equity instead of
+        discarding it every time something sells.
+      </p>
+
+      <div class="note warn">
+        <span class="tag">Images</span>
+        <p>
+          Photography is the real bottleneck, and it is a content operation rather
+          than an engineering one. The schema has no image concept at all today, and
+          single-piece stock means every SKU needs its own shots — there is no
+          shared catalogue photograph to fall back on. Images are served from object
+          storage behind a CDN, never from the application box. Launch curated: a
+          hundred well-shot pieces convert, three thousand placeholders do not.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────── 9 -->
+    <section id="s9">
+      <h2><span class="num">9</span><span>Deployment</span></h2>
+
+      <p>
+        The whole ERP currently runs on one free Oracle ARM VM with Node capped at a
+        1 GB heap, nginx in front, and the Angular build served out of
+        <code>backend/public</code>. Adding a public, image-heavy, crawler-visible
+        Next.js app to that box is the main operational risk in this project.
+      </p>
+
+      <ul>
+        <li>The storefront runs as a <strong>second systemd unit</strong> on <code>:3001</code>. It is not merged into the Express process — a memory spike from a crawler must not be able to take the till offline.</li>
+        <li>nginx routes by hostname: <code>shop.</code> → 3001, <code>erp.</code> → 3000.</li>
+        <li><code>deploy/deploy.sh</code> gains a storefront build step and a second <code>systemctl restart</code>.</li>
+        <li>Images never touch the box. Object storage plus CDN from day one.</li>
+        <li>Budget for moving off the free tier once real traffic and crawlers arrive. Plan the migration rather than discovering it during a sale.</li>
+      </ul>
+    </section>
+
+    <!-- ─────────────────────────── 10 -->
+    <section id="s10">
+      <h2><span class="num">10</span><span>Test plan</span></h2>
+
+      <p>
+        The correctness of this system is almost entirely about concurrency, so the
+        tests that matter are the ones that are awkward to write. Each row of the
+        §4.6 race matrix becomes an integration test against a real Postgres, not a
+        mocked client — the locking behaviour <em>is</em> the thing under test.
+      </p>
+
+      <ul>
+        <li>Parallel add-to-cart on a single-piece variant: exactly one hold is granted.</li>
+        <li>Counter sale during a live web hold: the payment refunds, no <code>Sale</code> row is written, no stock goes negative.</li>
+        <li><strong>Guard test:</strong> an online checkout short of stock throws, and <code>topUpShortfall</code> is never reached. This test failing means someone has reintroduced double-selling.</li>
+        <li>Duplicate webhook delivery produces one sale, via the existing <code>clientRef</code> path.</li>
+        <li>Expired hold releases stock with the sweeper deliberately disabled — proving lazy expiry stands alone.</li>
+        <li>Online sale leaves drawer expectation, commission and daily rollups untouched.</li>
+        <li>Counter-only offers do not appear in an online quote.</li>
+      </ul>
+    </section>
+
+    <!-- ─────────────────────────── 11 -->
+    <section id="s11">
+      <h2><span class="num">11</span><span>Open questions</span></h2>
+
+      <div class="scroller">
+        <table>
+          <thead><tr><th class="mono">ID</th><th>Question</th><th>Blocks</th><th>Position</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">Q1</td><td>Which branch fulfils web orders — a real store, or a dedicated online branch row?</td><td>Phase 1</td><td><span class="pill mod">open</span></td></tr>
+            <tr><td class="mono">Q2</td><td>Shipping charges — flat, weight-based, or free above a threshold? And the GST treatment of the shipping line as composite supply?</td><td>Phase 5</td><td><span class="pill mod">open</span></td></tr>
+            <tr><td class="mono">Q3</td><td>Courier integration, or manual AWB entry for v1?</td><td>Phase 6</td><td><span class="pill mod">open</span></td></tr>
+            <tr><td class="mono">Q4</td><td>Hold duration. Too short frustrates shoppers; too long hides stock from the counter.</td><td>Phase 2</td><td><span class="pill keep">15 min / 20 at checkout</span></td></tr>
+            <tr><td class="mono">Q5</td><td>Do online sales earn staff commission?</td><td>Phase 5</td><td><span class="pill keep">proposed: no</span></td></tr>
+            <tr><td class="mono">Q6</td><td>Loyalty redemption online in v1?</td><td>Phase 5</td><td><span class="pill keep">proposed: yes, OTP-verified</span></td></tr>
+            <tr><td class="mono">Q7</td><td>Domain layout — <code>shop.</code> subdomain, or the apex with the ERP on <code>erp.</code>?</td><td>Phase 8</td><td><span class="pill mod">open</span></td></tr>
+            <tr><td class="mono">Q8</td><td>Return window, and who pays return shipping?</td><td>Phase 9</td><td><span class="pill mod">open</span></td></tr>
+            <tr><td class="mono">Q9</td><td>Photography — owner, cadence, angles per piece, launch catalogue size.</td><td>Phase 1</td><td><span class="pill risk">open · bottleneck</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr>
+
+    <footer>
+      Draft 1 · 30 August 2026 · Nothing here is built yet. Tracking and phase
+      checklist live in <code>docs/ecommerce/PLAN.md</code>.
+    </footer>
+
+  </main>
+</div>

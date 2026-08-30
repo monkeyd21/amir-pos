@@ -1,0 +1,38 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",     "title": "A — Atelier",  "x": 0,    "y": 0, "w": 1280, "h": 1500 },
+    { "file": "Bazaar.dc.html",   "title": "B — Bazaar",   "x": 1380, "y": 0, "w": 1280, "h": 1500 },
+    { "file": "Register.dc.html", "title": "C — Register", "x": 2760, "y": 0, "w": 1280, "h": 1500 }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -300,
+      "w": 620,
+      "text": "Pick a direction before we build the rest.\n\nEach board is the same product page — the screen that carries the hardest job on this site: telling someone a garment is genuinely one-of-a-kind without turning it into a pressure tactic.\n\nSame product, same price, same 15-minute hold, same facts. Only the voice changes."
+    },
+    {
+      "id": "note-a",
+      "x": 700,
+      "y": -300,
+      "w": 380,
+      "text": "A — ATELIER\n\nGallery hush. Big uninterrupted imagery, Bodoni display, cool paper neutrals. The piece is treated as a catalogued object.\n\nFor: makes ordinary stock look considered; ages well.\nAgainst: slower to scan; can read as expensive and standoffish."
+    },
+    {
+      "id": "note-b",
+      "x": 1380,
+      "y": -300,
+      "w": 380,
+      "text": "B — BAZAAR\n\nAubergine and gold, full-bleed imagery, a struck seal for the one-of-one. Closest to the feeling of the shop itself.\n\nFor: warm, unmistakably Indian, memorable.\nAgainst: a strong ground competes with the garments — needs disciplined photography to work."
+    },
+    {
+      "id": "note-c",
+      "x": 2760,
+      "y": -300,
+      "w": 400,
+      "text": "C — REGISTER\n\nThe catalogue as an archive. Hairline rules, tabular data, piece and lot numbers on show. Stock reads \"1 — the only one\" as a plain record line.\n\nFor: the honest one; scarcity is a fact in a table, never a nudge. Fast to scan, and it is literally true to how the stock is held.\nAgainst: unromantic; risks underselling the clothes."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

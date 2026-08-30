@@ -28,3 +28,6 @@ deploy/.venv/
 # built mobile APKs (binary, rebuild with ./deploy/build-apk.sh)
 dist-apk/
 *.apk
+
+# Design canvas bundle — generated, ~2MB of editor payload
+docs/ecommerce/design/sabihas-ethnic-storefront-directions.html
