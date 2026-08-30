@@ -98,3 +98,56 @@ decision, not a coding one. Set `SHOP_COD_ENABLED=true` once it is made.
 - **Size exchange flow.** The `Return` machinery exists; the customer-facing
   path into it does not. PLAN.md Q16 — likely the main support flow for
   kidswear.
+
+---
+
+## Live production state (30 Aug 2026)
+
+**https://shop.sabihasethnic.com** — browse-only, reading the live database.
+
+| | |
+|---|---|
+| Products listed | 57 (everything with 3+ sizes in stock) |
+| Checkout | **CLOSED** — `SHOP_CHECKOUT_ENABLED=false` |
+| Photographs | none — `SHOP_HIDE_IMAGELESS=false` so products still show |
+| Fulfilling branch | 1 (`SABIHA'S ETHNIC / MAIN`) — the only branch |
+| Apex `sabihasethnic.com` | untouched, still the coming-soon page |
+
+### What Amir does day to day
+
+**List a product:** set `products.onlineVisible = true`. Nothing appears on the
+website until someone does this — the counter catalogue is deliberately not the
+web catalogue. (An ERP screen for this is Phase 6; today it is a SQL update.)
+
+**Unlist everything, if ever needed:**
+```sql
+UPDATE products SET "onlineVisible" = false;
+```
+
+### Two things that need his hands, not code
+
+1. **Product names are internal.** `SAIYYARA`, `CUT EMB 1X4Y`, `RED EMB 36X40`,
+   `EMB DRS DNO. 40.04 FRZ` — these are stockroom names, not something a parent
+   searches for. `products.onlineDescription`, `metaTitle` and `metaDescription`
+   exist for web copy, but the displayed name is `products.name`. Either rename
+   them or we add an `onlineTitle` column.
+
+2. **Four size strings cannot be resolved** and show bare on the site:
+   `18, 20, 22` · `18/20` · `24, 26, 28, 30, 32, 34` · `24/26`.
+   These are one variant carrying several sizes, which the shop cannot really
+   sell online — each size needs its own variant with its own stock. 8 units.
+
+### Turning checkout on
+
+Three prerequisites, then `SHOP_CHECKOUT_ENABLED=true` in
+`/opt/amir-pos/backend/.env` and restart `amir-pos`:
+
+1. `PAYMENT_PROVIDER=cashfree` + production credentials. **The service refuses
+   to start as `mock` in production**, so this cannot be got wrong silently.
+2. `WHATSAPP_ACCESS_TOKEN` — it is empty, so sign-in codes cannot be delivered
+   and nobody can complete an order.
+3. Enough photographed products to be worth buying from.
+
+The refund gap still stands: the gateway driver has no refund call, so a payment
+that fails the post-payment stock re-check logs the obligation rather than
+refunding automatically. Fix that before taking money.

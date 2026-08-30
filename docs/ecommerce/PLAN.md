@@ -1,6 +1,6 @@
 # Sabiha's Ethnic — Online Store (`storefront`)
 
-**Status:** v1 built · pre-launch (see `ASSUMPTIONS.md` for every guess made)
+**Status:** LIVE at https://shop.sabihasethnic.com — browse-only, 57 products, checkout closed
 **Owner:** Imran
 **Created:** 2026-08-30
 **Tracks:** the build of a public e-commerce website on the same database as the existing POS/ERP.
@@ -322,6 +322,7 @@ product so genuinely scarce stock can be prepaid-only.
 
 | Date | Entry |
 |---|---|
+| 2026-08-30 | **Deployed to production.** Migration hand-applied to the live database after a full backup and three rehearsals on a restored copy. The rehearsal caught that the shop runs two size vocabularies that never met — the `sizes` master holds only age forms while 79% of variants are plain numbers — so the first version of the migration matched zero rows. The supplied chart is now encoded as the map between them: 775 of 783 units resolve to an age. Live at shop.sabihasethnic.com with 57 products; the apex is untouched. Checkout is closed behind `SHOP_CHECKOUT_ENABLED` and the gateway refuses to run as mock in production — prod had `PAYMENT_PROVIDER` unset, which would have settled real orders for money nobody paid. |
 | 2026-08-30 | **v1 built.** Migration applies clean with zero drift; 15 reservation tests and 6 guard tests pass against real Postgres; backend suite 325/325; storefront builds to 18 routes. End-to-end run verified: browse → hold → OTP → address → quote → pay → `Sale O0004`, with order total, sale total and quote agreeing exactly at ₹1,377.50 and stock decremented once. Ten simultaneous shoppers racing for one unit over HTTP produced exactly one winner. Assumptions parametrised in `shared/src/shop-config.ts`, documented in `ASSUMPTIONS.md`. |
 | 2026-08-30 | Catalogue confirmed as **kids ethnic wear**, sizes 12–36 age-mapped (D6, §2a). Storefront redrawn: age travels with every size, shop-by-age added as a browse axis, size guide promoted to its own page. Found `Size` has no age field and the real grid is not seeded — both added to Phase 1. Size exchanges flagged as likely the main support flow, which may pull reverse logistics forward from Phase 9. |
 | 2026-08-30 | Buying moves to depth — quantity per style will grow, so one-of-a-kind is dropped as a customer-facing idea. Scarcity messaging removed from the designs; the reservation engine stays, since the shop and the site still share one stock room. Photography (§6) and COD (§8) both get substantially cheaper as a result. |
