@@ -76,6 +76,13 @@ STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/release/backend"
 cp -a backend/dist "$STAGE/release/backend/dist"
+# The box resolves @clothing-erp/shared through a symlink to /opt/amir-pos/shared,
+# so its dist must ship too. This is not optional: since the shop module, the
+# backend imports real VALUES from shared at runtime (not just types), and a
+# stale shared/dist crash-loops the service on boot. Learned the hard way.
+[ -d shared/dist ] || { echo "✗ shared/dist missing — build shared first" >&2; exit 1; }
+mkdir -p "$STAGE/release/shared"
+cp -a shared/dist "$STAGE/release/shared/dist"
 mkdir -p "$STAGE/release/backend/public"
 cp -a frontend/dist/frontend/browser/. "$STAGE/release/backend/public/"
 echo "$SHA" > "$STAGE/release/.release-commit"
@@ -109,6 +116,7 @@ tar -xzf /tmp/amir-pos-release.tar.gz -C /tmp/amir-pos-staging
 S=/tmp/amir-pos-staging/release
 test -d \$S/backend/dist
 test -d \$S/backend/public
+test -d \$S/shared/dist
 
 if [ '$SEND_SCHEMA' = '1' ]; then
   echo '▶ Updating schema.prisma + regenerating client (no DDL)'
@@ -118,17 +126,39 @@ if [ '$SEND_SCHEMA' = '1' ]; then
 fi
 
 echo '▶ Swapping in the new build (previous kept as .prev)'
-rm -rf backend/dist.prev backend/public.prev
+rm -rf backend/dist.prev backend/public.prev shared/dist.prev
 if [ -d backend/dist   ]; then mv backend/dist   backend/dist.prev;   fi
 if [ -d backend/public ]; then mv backend/public backend/public.prev; fi
+if [ -d shared/dist    ]; then mv shared/dist    shared/dist.prev;    fi
 mv \$S/backend/dist   backend/dist
 mv \$S/backend/public backend/public
+mv \$S/shared/dist    shared/dist
 cp \$S/.release-commit .release-commit
-chown -R amir:amir backend/dist backend/public backend/prisma .release-commit
+chown -R amir:amir backend/dist backend/public backend/prisma shared/dist .release-commit
 
 echo '▶ Restarting amir-pos'
 systemctl restart amir-pos
-sleep 4
+sleep 6
+
+# AUTO-ROLLBACK. A bad build used to leave the till crash-looping until a human
+# noticed and ran the rollback by hand. The shop is open while we deploy; it
+# restores itself in seconds instead.
+if ! systemctl is-active --quiet amir-pos; then
+  echo '✗ Service did not come up — ROLLING BACK automatically'
+  journalctl -u amir-pos -n 15 --no-pager | tail -15
+  rm -rf backend/dist backend/public shared/dist
+  mv backend/dist.prev backend/dist
+  mv backend/public.prev backend/public
+  mv shared/dist.prev shared/dist
+  if [ -f backend/prisma/schema.prisma.prev ]; then
+    mv backend/prisma/schema.prisma.prev backend/prisma/schema.prisma
+    ( cd backend && npx prisma generate >/dev/null 2>&1 )
+  fi
+  systemctl restart amir-pos
+  sleep 5
+  echo \"  rolled back; service is now: \$(systemctl is-active amir-pos)\"
+  exit 1
+fi
 systemctl is-active amir-pos
 rm -rf /tmp/amir-pos-release.tar.gz /tmp/amir-pos-staging"
 
