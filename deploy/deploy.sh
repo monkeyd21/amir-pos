@@ -25,12 +25,22 @@ npm run build --workspace=backend
 echo "▶ Building Angular frontend (production)"
 npm run build --workspace=frontend
 
+echo "▶ Building storefront (Next.js)"
+# SHOP_SITE_URL is baked into robots.txt and canonical URLs at build time, so
+# it must be set HERE, not only in the systemd unit.
+SHOP_SITE_URL="${SHOP_SITE_URL:-https://shop.sabihasethnic.com}" \
+  npm run build --workspace=storefront
+
 echo "▶ Publishing frontend into backend/public"
 rm -rf backend/public
 mkdir -p backend/public
 cp -r frontend/dist/frontend/browser/. backend/public/
 
-echo "▶ Restarting service"
+echo "▶ Restarting services"
 sudo systemctl restart amir-pos
+# Separate unit on :3001 — the storefront must not be able to take the till down.
+sudo systemctl restart amir-shop
 
-echo "✓ Deploy complete. Tail logs with:  journalctl -u amir-pos -f"
+echo "✓ Deploy complete."
+echo "  Till     : journalctl -u amir-pos -f"
+echo "  Storefront: journalctl -u amir-shop -f"

@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-white text-ink font-sans;
+  }
+  h1, h2, h3 {
+    @apply font-display font-normal;
+    text-wrap: balance;
+  }
+  /* Numbers that line up in columns — prices, sizes, measurements. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply w-full bg-ink text-white py-4 text-[13px] tracking-[0.16em] uppercase
+           transition-colors hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-brand {
+    @apply w-full bg-brand text-white py-4 text-[13px] tracking-[0.16em] uppercase
+           transition-colors hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply w-full bg-white text-ink border border-rule py-[15px] text-[13.5px]
+           transition-colors hover:border-ink disabled:opacity-40;
+  }
+  .field {
+    @apply w-full border border-rule px-3.5 py-3 text-[15px]
+           placeholder:text-muted focus:border-ink outline-none;
+  }
+  .shell {
+    @apply mx-auto max-w-shell px-4 sm:px-6 lg:px-10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

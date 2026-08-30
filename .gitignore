@@ -31,3 +31,7 @@ dist-apk/
 
 # Design canvas bundle — generated, ~2MB of editor payload
 docs/ecommerce/design/sabihas-ethnic-storefront-directions.html
+
+# Next.js storefront build output
+storefront/.next/
+storefront/next-env.d.ts

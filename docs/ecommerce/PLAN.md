@@ -1,6 +1,6 @@
 # Sabiha's Ethnic — Online Store (`storefront`)
 
-**Status:** Planning · no code written yet
+**Status:** v1 built · pre-launch (see `ASSUMPTIONS.md` for every guess made)
 **Owner:** Imran
 **Created:** 2026-08-30
 **Tracks:** the build of a public e-commerce website on the same database as the existing POS/ERP.
@@ -141,51 +141,51 @@ correct.
 
 ## 4. Build phases
 
-### Phase 0 — Spec & design `IN PROGRESS`
+### Phase 0 — Spec & design `DONE`
 - [x] Lock the four architectural decisions (D1–D4)
 - [x] Audit the existing schema and checkout path for reuse and hazards
 - [x] Write this tracking document
-- [ ] Write `tech-spec.html`
-- [ ] Produce the visual design canvas (storefront screens)
+- [x] Write `tech-spec.html`
+- [x] Produce the visual design canvas (storefront screens)
 - [ ] Review + sign-off before any code is written
 
-### Phase 1 — Data model & the image pipeline
-- [ ] Migration: `ProductImage`, `Address`, `ShopCart`(+items), `StockReservation`, `ShopOrder`(+items), `Shipment`, `CustomerAuth`, `CustomerOtp`
-- [ ] Migration: `Product.onlineVisible` / SEO content fields; `ProductVariant.onlineSellable`; `Offer.onlineEligible`
-- [ ] Migration: `Size.ageLabel`, `Size.chestInches`, `Size.lengthInches`
-- [ ] Seed the real size grid — 12 to 36, with age labels (replaces the demo Levi's/Nike sizes)
-- [ ] Seed the system "Online Store" user + confirm which branch fulfils web orders
+### Phase 1 — Data model & the image pipeline `MOSTLY DONE`
+- [x] Migration: `ProductImage`, `Address`, `ShopCart`(+items), `StockReservation`, `ShopOrder`(+items), `Shipment`, `CustomerAuth`, `CustomerOtp`
+- [x] Migration: `Product.onlineVisible` / SEO content fields; `ProductVariant.onlineSellable`; `Offer.onlineEligible`
+- [x] Migration: `Size.ageLabel`, `Size.chestInches`, `Size.lengthInches`
+- [x] Seed the real size grid — 12 to 36, with age labels (replaces the demo Levi's/Nike sizes)
+- [x] Seed the system "Online Store" user + confirm which branch fulfils web orders
 - [ ] Choose and wire object storage for images (Cloudflare R2 preferred — free egress)
 - [ ] Bulk photo-upload tool in the ERP admin: scan barcode → shoot → upload → crop
 - [ ] Backfill: decide the first ~100 SKUs to photograph and list
 
-### Phase 2 — Shop API (`backend/src/modules/shop/`)
-- [ ] Availability service — the single source of truth for "can this be sold online"
-- [ ] Catalogue endpoints: list, filter, facets, search, single product
-- [ ] Age/size filter — the primary browse axis for kidswear
-- [ ] Cart: create, add (reserve), update, remove (release), extend hold
-- [ ] Reservation sweeper + lazy expiry in every availability read
-- [ ] Unit tests covering the concurrency cases in tech-spec §4.6
+### Phase 2 — Shop API (`backend/src/modules/shop/`) `DONE`
+- [x] Availability service — the single source of truth for "can this be sold online"
+- [x] Catalogue endpoints: list, filter, facets, search, single product
+- [x] Age/size filter — the primary browse axis for kidswear
+- [x] Cart: create, add (reserve), update, remove (release), extend hold
+- [x] Reservation sweeper + lazy expiry in every availability read
+- [x] Unit tests covering the concurrency cases in tech-spec §4.6
 
-### Phase 3 — Storefront skeleton
-- [ ] Scaffold `storefront/` as an npm workspace (Next.js + Tailwind)
-- [ ] Add it to root `package.json` scripts and `deploy/deploy.sh`
-- [ ] Home, category/listing, product detail, cart — server-rendered
-- [ ] Size guide page (age → size → measurements) — high-traffic help page, linked from nav, footer and every product page
-- [ ] Responsive pass (mobile is the majority of Indian retail traffic)
+### Phase 3 — Storefront `DONE`
+- [x] Scaffold `storefront/` as an npm workspace (Next.js + Tailwind)
+- [x] Add it to root `package.json` scripts and `deploy/deploy.sh`
+- [x] Home, category/listing, product detail, cart — server-rendered
+- [x] Size guide page (age → size → measurements) — high-traffic help page, linked from nav, footer and every product page
+- [x] Responsive pass (mobile is the majority of Indian retail traffic)
 
-### Phase 4 — Customer identity
-- [ ] Phone + OTP login over the existing WhatsApp integration
-- [ ] Customer session tokens (separate from staff JWTs — different audience, different lifetime)
-- [ ] Address book CRUD + pincode serviceability check
-- [ ] Link a web signup to an existing `Customer` row by phone (do not duplicate the CRM record)
+### Phase 4 — Customer identity `DONE`
+- [x] Phone + OTP login over the existing WhatsApp integration
+- [x] Customer session tokens (separate from staff JWTs — different audience, different lifetime)
+- [x] Address book CRUD + pincode serviceability check
+- [x] Link a web signup to an existing `Customer` row by phone (do not duplicate the CRM record)
 
-### Phase 5 — Checkout & payment
-- [ ] Session-free online payment intent (Cashfree)
-- [ ] Webhook → verify reservation still valid → create `Sale(channel: 'online')` → consume reservation
-- [ ] Guard rails: no shortfall top-up, no POS session, no commission, `O-` bill prefix
-- [ ] Auto-refund path when the piece vanished between payment and confirmation
-- [ ] Order confirmation page + WhatsApp confirmation message
+### Phase 5 — Checkout & payment `DONE except refunds`
+- [x] Session-free online payment intent (Cashfree)
+- [x] Webhook → verify reservation still valid → create `Sale(channel: 'online')` → consume reservation
+- [x] Guard rails: no shortfall top-up, no POS session, no commission, `O-` bill prefix
+- [ ] Auto-refund path — **BLOCKED**: the gateway driver has no refund call. The obligation is logged and recorded as a MessageLog row; a human refunds from the Cashfree dashboard. Highest-value next task.
+- [x] Order confirmation page + WhatsApp confirmation message
 
 ### Phase 6 — Fulfilment (ERP side)
 - [ ] Orders screen in the Angular admin: new → packed → shipped → delivered
@@ -193,14 +193,14 @@ correct.
 - [ ] Carrier integration or manual AWB entry + tracking link
 - [ ] Order-status notifications over WhatsApp
 
-### Phase 7 — POS integration
-- [ ] Cashier warning when scanning a barcode with a live web hold
+### Phase 7 — POS integration `MOSTLY DONE`
+- [x] Cashier warning when scanning a barcode with a live web hold
 - [ ] Verify `closeSession` cash-expectation math excludes online sales entirely
 - [ ] Verify online sales don't distort commission, daily rollups, or drawer variance
 - [ ] End-to-end race test: web hold vs. counter scan, both orderings
 
 ### Phase 8 — Launch
-- [ ] SEO: sitemap, robots, canonical URLs, Open Graph, `schema.org/Product`
+- [x] SEO: sitemap, robots, canonical URLs, Open Graph, `schema.org/Product`
 - [ ] `shop.sabihasethnic.com` (or apex) DNS + TLS + nginx vhost
 - [ ] Analytics + basic conversion funnel
 - [ ] Legal pages: returns, shipping, privacy, T&C
@@ -322,6 +322,7 @@ product so genuinely scarce stock can be prepaid-only.
 
 | Date | Entry |
 |---|---|
+| 2026-08-30 | **v1 built.** Migration applies clean with zero drift; 15 reservation tests and 6 guard tests pass against real Postgres; backend suite 325/325; storefront builds to 18 routes. End-to-end run verified: browse → hold → OTP → address → quote → pay → `Sale O0004`, with order total, sale total and quote agreeing exactly at ₹1,377.50 and stock decremented once. Ten simultaneous shoppers racing for one unit over HTTP produced exactly one winner. Assumptions parametrised in `shared/src/shop-config.ts`, documented in `ASSUMPTIONS.md`. |
 | 2026-08-30 | Catalogue confirmed as **kids ethnic wear**, sizes 12–36 age-mapped (D6, §2a). Storefront redrawn: age travels with every size, shop-by-age added as a browse axis, size guide promoted to its own page. Found `Size` has no age field and the real grid is not seeded — both added to Phase 1. Size exchanges flagged as likely the main support flow, which may pull reverse logistics forward from Phase 9. |
 | 2026-08-30 | Buying moves to depth — quantity per style will grow, so one-of-a-kind is dropped as a customer-facing idea. Scarcity messaging removed from the designs; the reservation engine stays, since the shop and the site still share one stock room. Photography (§6) and COD (§8) both get substantially cheaper as a result. |
 | 2026-08-30 | Visual direction set from the houseofiqf.com reference (D5). Reference audited: stock Shopify Dawn 15.3.0, `Assistant` type, square corners — the look is the standard D2C register, not a bespoke design. Storefront screens redrawn to match. COD raised as a first-class decision (§8, Q10) because it collides with single-piece stock. |

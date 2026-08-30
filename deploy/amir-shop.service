@@ -1,0 +1,34 @@
+# systemd unit for the public storefront (Next.js).
+#
+# Deliberately a SEPARATE process from amir-pos. The till and the shop share a
+# database, not a runtime: a crawler or a traffic spike on the website must
+# never be able to take the point of sale offline.
+#
+# Install:  sudo cp deploy/amir-shop.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now amir-shop
+[Unit]
+Description=Sabiha's Ethnic storefront (Next.js)
+After=network.target amir-pos.service
+Wants=amir-pos.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/amir-pos/storefront
+Environment=NODE_ENV=production
+Environment=PORT=3001
+# Same box, so the storefront talks to the API over loopback — no public hop.
+Environment=SHOP_API_BASE=http://127.0.0.1:3000/api/shop/v1
+Environment=SHOP_SITE_URL=https://shop.sabihasethnic.com
+ExecStart=/usr/bin/npx next start -p 3001
+Restart=always
+RestartSec=3
+# The free ARM box has 1 GB to share between two Node processes. The storefront
+# gets the smaller half: the till matters more.
+Environment=NODE_OPTIONS=--max-old-space-size=512
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=amir-shop
+
+[Install]
+WantedBy=multi-user.target

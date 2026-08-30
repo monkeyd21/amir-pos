@@ -6,7 +6,8 @@
   "workspaces": [
     "shared",
     "backend",
-    "frontend"
+    "frontend",
+    "storefront"
   ],
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
@@ -17,7 +18,9 @@
     "db:seed": "npm run db:seed --workspace=backend",
     "db:generate": "npm run db:generate --workspace=backend",
     "test:e2e": "playwright test",
-    "test:e2e:system": "playwright test e2e/smoke-api.spec.ts e2e/journeys.spec.ts e2e/changes-new.spec.ts"
+    "test:e2e:system": "playwright test e2e/smoke-api.spec.ts e2e/journeys.spec.ts e2e/changes-new.spec.ts",
+    "dev:storefront": "npm run dev --workspace=storefront",
+    "dev:shop": "concurrently \"npm run dev:backend\" \"npm run dev:storefront\""
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
