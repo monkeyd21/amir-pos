@@ -233,7 +233,9 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
       id: v.id,
       size: v.size,
       ageLabel: ages.get(sizeKey(v.size)) ?? null,
-      sortOrder: order.get(sizeKey(v.size)) ?? 0,
+      // A size the master does not know (a typo like "18/20") sorts to the
+      // END rather than the front, where it would be the first thing read.
+      sortOrder: order.get(sizeKey(v.size)) ?? 9999,
       price: chargePrice(v),
       mrp: mrpFor(v),
       available: stock.get(v.id)?.available ?? 0,
@@ -320,7 +322,7 @@ export async function getProductBySlug(slug: string, branchId = shopConfig.branc
         color: v.color,
         // The age is the point. A parent reads "5 years", not "24".
         ageLabel: meta?.ageLabel ?? null,
-        sortOrder: meta?.sortOrder ?? 0,
+        sortOrder: meta?.sortOrder ?? 9999,
         chestInches: meta?.chestInches === undefined || meta?.chestInches === null ? null : Number(meta.chestInches),
         lengthInches: meta?.lengthInches === undefined || meta?.lengthInches === null ? null : Number(meta.lengthInches),
         price: chargePrice(v),

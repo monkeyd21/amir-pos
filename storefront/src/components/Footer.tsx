@@ -26,10 +26,9 @@ export default function Footer() {
           <FooterColumn
             title="Shop"
             links={[
-              ['New in', '/c/new-in'],
-              ['Girls', '/c/girls'],
-              ['Boys', '/c/boys'],
-              ['Festive', '/c/festive'],
+              ['New in', '/c/all?sort=new'],
+              ['Everything', '/c/all'],
+              ['Shop by age', '/age'],
             ]}
           />
           <FooterColumn

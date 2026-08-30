@@ -206,7 +206,12 @@ export const CATEGORY_HSN = {
   'ONE PIECE': '6204',
 } as const;
 
-/** ASSUMED — top-level navigation. PLAN.md Q15 (girls/boys first vs category first). */
+/**
+ * SUPERSEDED — the storefront builds its nav from the categories that actually
+ * exist in the database (see storefront/src/components/Header.tsx). This shop's
+ * catalogue is cord sets, dresses and one-pieces; a Girls/Boys split would have
+ * rendered a permanently empty link. Kept only so nothing that imports it breaks.
+ */
 export const NAV = [
   { label: 'New in', href: '/c/new-in' },
   { label: 'Girls', href: '/c/girls' },

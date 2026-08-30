@@ -1,11 +1,24 @@
 import Link from 'next/link';
-import { NAV, SHOP_IDENTITY, COMMERCE } from '@clothing-erp/shared';
+import { SHOP_IDENTITY, COMMERCE } from '@clothing-erp/shared';
 import CartBadge from './CartBadge';
-import { getShopConfig } from '@/lib/api';
+import { getShopConfig, getFacets } from '@/lib/api';
 
 export default async function Header() {
-  const cfg = await getShopConfig();
+  const [cfg, facets] = await Promise.all([getShopConfig(), getFacets()]);
   const checkoutEnabled = Boolean(cfg.success && cfg.data.checkoutEnabled);
+
+  // The categories come from the database rather than a hardcoded list. This
+  // shop's real catalogue is cord sets, dresses and one-pieces — a Girls/Boys
+  // split would have shown two links, one of them permanently empty.
+  const categories: { name: string; slug: string }[] =
+    facets.success ? facets.data.categories : [];
+
+  const nav = [
+    { label: 'New in', href: '/c/all?sort=new' },
+    ...categories.map((c) => ({ label: c.name, href: `/c/${c.slug}` })),
+    { label: 'Shop by age', href: '/age' },
+    { label: 'Size guide', href: '/size-guide' },
+  ];
 
   return (
     <header>
@@ -68,14 +81,8 @@ export default async function Header() {
 
       <nav aria-label="Categories" className="border-b border-line">
         <div className="shell flex justify-start gap-6 overflow-x-auto py-3.5 text-[13.5px] uppercase tracking-[0.1em] sm:justify-center sm:gap-8">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`whitespace-nowrap hover:text-brand ${
-                'accent' in item && item.accent ? 'text-brand' : ''
-              }`}
-            >
+          {nav.map((item) => (
+            <Link key={item.href} href={item.href} className="whitespace-nowrap hover:text-brand">
               {item.label}
             </Link>
           ))}
