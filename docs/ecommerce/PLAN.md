@@ -19,6 +19,7 @@ companion `tech-spec.html` holds the detailed technical design; this file holds
 | D2 | Storefront stack | **Next.js (App Router) + React + Tailwind** | Retail discovery is organic search. Server-rendered product pages are indexable; an SPA effectively is not. Cost accepted: two frameworks in the house. |
 | D3 | Stock model | **Live shared stock + cart reservation** | ~99% of articles are single-piece. Web and counter sell the same physical garment, so a soft-hold with expiry is the only model that doesn't either lie about stock or shrink the catalogue. |
 | D4 | v1 scope | **Browse → pay online → ship** | Full transactional store. Click-and-collect and WhatsApp ordering are additive later, not v1 blockers. |
+| D5 | Visual direction | **Conventional Indian D2C**, per the houseofiqf.com reference | The reference is a stock Shopify Dawn 15.3.0 theme: announcement bar, MRP struck through on every card, trust strip, category tiles, reviews, dark footer. Familiar beats distinctive for a shop whose customers already buy this way. |
 
 ### Deliberately *not* in v1
 Wishlist · product reviews · multi-currency · guest checkout without OTP ·
@@ -207,10 +208,47 @@ thousand grey placeholders do not.
 | Q7 | Domain: `shop.sabihasethnic.com` or the apex, with the ERP staying on `erp.`? | Phase 8 | OPEN |
 | Q8 | Return window and who pays return shipping? | Phase 9 | OPEN |
 | Q9 | Photography ownership and cadence (see §6). | Phase 1 | OPEN |
+| Q10 | **Cash on delivery.** The reference site offers it and most Indian D2C does. With single-piece stock it is expensive — see §8. Options: no COD; COD above a deposit; COD on clearance only. | Phase 5 | OPEN |
+| Q11 | Headline discount depth. The reference runs 30–50% off MRP. Our schema auto-sets sale price at MRP − 10%, so every piece shows a genuine 10% off. Deeper discounts, or stand behind the 10%? | Phase 3 | OPEN |
 
 ---
 
-## 8. Risk register
+## 8. Why cash on delivery is a real decision here
+
+COD is close to table stakes in Indian D2C — the reference site offers it — but
+it interacts badly with single-piece stock, and the interaction is worth
+understanding before it gets promised on a banner.
+
+For a shop selling *styles*, a refused COD order is a logistics cost: the parcel
+comes back, the item returns to a pile of identical items, nothing else was
+affected. For a shop selling *pieces*, the same refusal means the only copy of
+that garment was:
+
+- reserved at checkout, so nobody else could buy it online;
+- physically pulled off the rail, so nobody could buy it in the shop either;
+- in transit for several days each way;
+- and then returned, possibly handled, to be re-listed and re-photographed.
+
+Industry COD refusal rates in this segment run roughly 20–40%. Applied to unique
+stock, that is not a shipping cost — it is a week of a garment's sellable life
+lost, repeatedly, on the pieces customers most wanted.
+
+Three workable positions, in order of how much they protect the stock:
+
+1. **Prepaid only.** Cleanest. Pair it with the 5% prepaid incentive the
+   reference already uses, so it reads as a discount rather than a restriction.
+2. **COD above a token prepaid deposit** (say ₹200–500, adjusted at delivery).
+   Kills casual refusals while keeping the option open.
+3. **COD on clearance pieces only** — the stock where a slow round trip costs
+   least, and which is already flagged in the schema.
+
+Recommendation: launch prepaid-only with the 5% incentive, and revisit once
+there is real conversion data. Adding COD later is easy; withdrawing it after
+customers expect it is not.
+
+---
+
+## 9. Risk register
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -221,11 +259,13 @@ thousand grey placeholders do not.
 | Two frameworks to maintain | Slower iteration, context switching | Keep shared logic in `backend`/`shared`; the storefront stays a thin view layer |
 | One repo = one blast radius | A shop bug takes down the till | Shop code confined to its own module; POS paths untouched except where explicitly listed |
 | Migration drift against a live production DB | Data loss on a running shop | Same discipline already used for payroll: reviewed SQL in `deploy/sql/` |
+| COD refusals against single-piece stock | The only copy of a garment is off the rail and off the site for a week, then comes back | Decide Q10 before Phase 5. A refused COD on a unique piece costs the sale twice over |
 
 ---
 
-## 9. Changelog
+## 10. Changelog
 
 | Date | Entry |
 |---|---|
+| 2026-08-30 | Visual direction set from the houseofiqf.com reference (D5). Reference audited: stock Shopify Dawn 15.3.0, `Assistant` type, square corners — the look is the standard D2C register, not a bespoke design. Storefront screens redrawn to match. COD raised as a first-class decision (§8, Q10) because it collides with single-piece stock. |
 | 2026-08-30 | Document created. D1–D4 decided. Schema audited; `SaleChannel.online`, `clientRef` idempotency and `BillSequence` online-prefix support found already present. `topUpShortfall` identified as the primary hazard. Zero image fields confirmed. |
