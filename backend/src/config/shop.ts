@@ -58,6 +58,7 @@ export const shopConfig = {
     flatShippingFee: num(process.env.SHOP_FLAT_SHIPPING_FEE, COMMERCE.flatShippingFee),
     prepaidDiscountPercent: num(process.env.SHOP_PREPAID_DISCOUNT_PCT, COMMERCE.prepaidDiscountPercent),
     codEnabled: bool(process.env.SHOP_COD_ENABLED, COMMERCE.codEnabled),
+    checkoutEnabled: bool(process.env.SHOP_CHECKOUT_ENABLED, COMMERCE.checkoutEnabled),
     codMinOrderValue: num(process.env.SHOP_COD_MIN, COMMERCE.codMinOrderValue),
     codMaxOrderValue: num(process.env.SHOP_COD_MAX, COMMERCE.codMaxOrderValue),
     codFee: num(process.env.SHOP_COD_FEE, COMMERCE.codFee),

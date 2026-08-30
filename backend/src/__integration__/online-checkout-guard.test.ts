@@ -217,3 +217,39 @@ describeDb('online checkout guard', () => {
     expect(inv?.quantity).toBe(1);
   });
 });
+
+/**
+ * §safety — the checkout kill-switch.
+ *
+ * A browse-only storefront is a useful thing while photography and payment
+ * credentials are still being sorted. A storefront that accepts orders it
+ * cannot collect on or fulfil is not.
+ */
+describeDb('checkout kill-switch', () => {
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('refuses to place an order while ordering is closed', async () => {
+    // The module reads the flag at call time, so it can be flipped per test.
+    const { shopConfig } = await import('../config/shop');
+    const orders = await import('../modules/shop/orders');
+
+    const original = shopConfig.commerce.checkoutEnabled;
+    Object.defineProperty(shopConfig.commerce, 'checkoutEnabled', {
+      value: false,
+      configurable: true,
+    });
+
+    try {
+      await expect(
+        orders.placeOrder({ cartId: 1, customerId: 1, addressId: 1 })
+      ).rejects.toThrow(/not open yet/i);
+    } finally {
+      Object.defineProperty(shopConfig.commerce, 'checkoutEnabled', {
+        value: original,
+        configurable: true,
+      });
+    }
+  });
+});

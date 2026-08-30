@@ -1,19 +1,33 @@
 import Link from 'next/link';
 import { NAV, SHOP_IDENTITY, COMMERCE } from '@clothing-erp/shared';
 import CartBadge from './CartBadge';
+import { getShopConfig } from '@/lib/api';
 
-export default function Header() {
+export default async function Header() {
+  const cfg = await getShopConfig();
+  const checkoutEnabled = Boolean(cfg.success && cfg.data.checkoutEnabled);
+
   return (
     <header>
       {/* The announcement bar the register expects. Free delivery is a real
           promise here — v1 charges nothing for it. See shop-config.ts. */}
       <div className="bg-brand text-center text-[13px] text-white">
         <div className="shell py-2.5">
-          Flat {COMMERCE.prepaidDiscountPercent}% off on prepaid orders
-          <span className="mx-2 opacity-50">·</span>
-          Free delivery on every order
-          <span className="mx-2 opacity-50">·</span>
-          Exchange within {COMMERCE.exchangeWindowDays} days
+          {checkoutEnabled ? (
+            <>
+              Flat {COMMERCE.prepaidDiscountPercent}% off on prepaid orders
+              <span className="mx-2 opacity-50">·</span>
+              Free delivery on every order
+              <span className="mx-2 opacity-50">·</span>
+              Exchange within {COMMERCE.exchangeWindowDays} days
+            </>
+          ) : (
+            <>
+              Free delivery on every order
+              <span className="mx-2 opacity-50">·</span>
+              Order on WhatsApp — online payment opening soon
+            </>
+          )}
         </div>
       </div>
 
@@ -47,7 +61,7 @@ export default function Header() {
               </svg>
               <span className="hidden sm:inline">Account</span>
             </Link>
-            <CartBadge />
+            {checkoutEnabled && <CartBadge />}
           </div>
         </div>
       </div>

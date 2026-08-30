@@ -21,6 +21,18 @@ export function getPaymentGateway(): PaymentGatewayProvider {
       });
       break;
     case 'mock':
+      // §safety — the mock provider marks payments COMPLETE without any money
+      // moving. In production that would settle real orders, decrement real
+      // stock and write real Sale rows for cash nobody ever paid. It must never
+      // run there, and defaulting to it (PAYMENT_PROVIDER unset) is the most
+      // likely way that happens by accident.
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'Refusing to start: PAYMENT_PROVIDER is "mock" in production. ' +
+            'The mock gateway completes payments without collecting money. ' +
+            'Set PAYMENT_PROVIDER=cashfree with real credentials.'
+        );
+      }
       instance = new MockProvider(
         parseInt(process.env.MOCK_PAYMENT_DELAY_MS || '8000', 10)
       );

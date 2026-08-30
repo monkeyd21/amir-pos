@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { getCart } from '@/lib/api';
+import { redirect } from 'next/navigation';
+import { getCart, getShopConfig } from '@/lib/api';
 import CartView from '@/components/CartView';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default async function CartPage() {
+  // Nothing can be in a bag while ordering is closed — don't show an empty one.
+  const cfg = await getShopConfig();
+  if (!cfg.success || !cfg.data.checkoutEnabled) redirect('/');
+
   const res = await getCart();
   const cart = res.success
     ? res.data

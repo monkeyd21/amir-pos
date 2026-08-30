@@ -67,6 +67,9 @@ export const shopController = {
         flatShippingFee: shopConfig.commerce.flatShippingFee,
         prepaidDiscountPercent: shopConfig.commerce.prepaidDiscountPercent,
         codEnabled: shopConfig.commerce.codEnabled,
+        // When false the site is browse-only: no bag, no checkout, and
+        // 'Ask on WhatsApp' takes the place of 'Add to bag'.
+        checkoutEnabled: shopConfig.commerce.checkoutEnabled,
         exchangeWindowDays: shopConfig.commerce.exchangeWindowDays,
         cartHoldMinutes: shopConfig.reservation.cartHoldMinutes,
         dispatchDays: shopConfig.delivery.dispatchDays,

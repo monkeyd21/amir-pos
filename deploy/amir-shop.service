@@ -13,14 +13,15 @@ Wants=amir-pos.service
 
 [Service]
 Type=simple
-User=ubuntu
-WorkingDirectory=/opt/amir-pos/storefront
+User=amir
+WorkingDirectory=/opt/amir-shop/app/storefront
 Environment=NODE_ENV=production
 Environment=PORT=3001
+Environment=HOSTNAME=127.0.0.1
 # Same box, so the storefront talks to the API over loopback — no public hop.
 Environment=SHOP_API_BASE=http://127.0.0.1:3000/api/shop/v1
 Environment=SHOP_SITE_URL=https://shop.sabihasethnic.com
-ExecStart=/usr/bin/npx next start -p 3001
+ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
 # The free ARM box has 1 GB to share between two Node processes. The storefront

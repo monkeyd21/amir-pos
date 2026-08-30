@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getProduct } from '@/lib/api';
+import { getProduct, getShopConfig } from '@/lib/api';
 import BuyPanel from '@/components/BuyPanel';
 import ProductCard from '@/components/ProductCard';
 import { rupees, percentOff } from '@/lib/format';
@@ -31,9 +31,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params }: Params) {
-  const res = await getProduct(params.slug);
+  const [res, cfg] = await Promise.all([getProduct(params.slug), getShopConfig()]);
   if (!res.success) notFound();
   const p = res.data;
+  const checkoutEnabled = Boolean(cfg.success && cfg.data.checkoutEnabled);
 
   const off = percentOff(p.mrpFrom, p.priceFrom);
 
@@ -137,6 +138,7 @@ export default async function ProductPage({ params }: Params) {
               productName={p.name}
               variants={p.variants}
               codBlocked={p.codBlocked}
+              checkoutEnabled={checkoutEnabled}
             />
 
             {p.description && (

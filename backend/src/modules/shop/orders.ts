@@ -64,6 +64,15 @@ export interface PlaceOrderInput {
  * can never drop the stock a pending order is relying on.
  */
 export async function placeOrder(input: PlaceOrderInput) {
+  // §safety — the master switch. A browse-only shop is a useful thing; a shop
+  // that accepts orders it cannot collect on or fulfil is not.
+  if (!shopConfig.commerce.checkoutEnabled) {
+    throw new AppError(
+      'Online ordering is not open yet. Message us on WhatsApp and we will reserve it for you.',
+      503
+    );
+  }
+
   const paymentMode = input.paymentMode ?? 'prepaid';
 
   if (paymentMode === 'cod' && !shopConfig.commerce.codEnabled) {

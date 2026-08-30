@@ -69,13 +69,64 @@ export async function listSizes(): Promise<ShopSize[]> {
   }));
 }
 
-/** size name → age label, e.g. "24" → "5 years". */
+/**
+ * Size names in this catalogue come from two vocabularies that were never
+ * reconciled: the `sizes` master holds age forms ("4-5 Y", "6-9 M") while
+ * `product_variants.size` is free text and mostly plain numbers. Spelling also
+ * drifts — "6-9 M" in the master, "6-9M" on the variant.
+ *
+ * So every lookup is on a NORMALISED key: lowercased, spaces stripped. An exact
+ * join here silently loses about a fifth of the catalogue.
+ */
+const sizeKey = (name: string): string => name.toLowerCase().replace(/\s+/g, '');
+
+/**
+ * size name → age label, e.g. "24" → "5 years".
+ *
+ * Only the numeric sizes carry a label, and that is the point: "24" tells a
+ * parent nothing, whereas "6-9 M" already IS an age and needs no help.
+ */
 async function ageLabelMap(): Promise<Map<string, string>> {
   const sizes = await prisma.size.findMany({
     where: { isActive: true },
     select: { name: true, ageLabel: true },
   });
-  return new Map(sizes.filter((s) => s.ageLabel).map((s) => [s.name, s.ageLabel as string]));
+  return new Map(
+    sizes.filter((s) => s.ageLabel).map((s) => [sizeKey(s.name), s.ageLabel as string])
+  );
+}
+
+/**
+ * The size names that fit a given age band, resolved from the age RANGE stored
+ * on each size rather than a hardcoded list — so a band matches both "22" and
+ * "4-5 Y" without either vocabulary being privileged.
+ */
+async function sizeNamesForAgeBand(slug: string): Promise<string[]> {
+  const band = AGE_BANDS.find((b) => b.slug === slug);
+  if (!band) return [];
+
+  // Derive the band's month window from the sizes it names in the shared
+  // config, then find every size whose own range overlaps that window.
+  const anchors = await prisma.size.findMany({
+    where: { name: { in: [...band.sizes] } },
+    select: { ageFromMonths: true, ageToMonths: true },
+  });
+  const froms = anchors.map((a) => a.ageFromMonths).filter((n): n is number => n != null);
+  const tos = anchors.map((a) => a.ageToMonths).filter((n): n is number => n != null);
+  if (froms.length === 0 || tos.length === 0) return [...band.sizes];
+
+  const from = Math.min(...froms);
+  const to = Math.max(...tos);
+
+  const overlapping = await prisma.size.findMany({
+    where: {
+      isActive: true,
+      ageFromMonths: { lte: to },
+      ageToMonths: { gte: from },
+    },
+    select: { name: true },
+  });
+  return overlapping.map((s) => s.name);
 }
 
 function primaryImage(images: { url: string; alt: string | null }[]) {
@@ -133,8 +184,7 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
   // which is the whole reason the age band exists.
   const sizeNames = new Set<string>();
   if (query.age) {
-    const band = AGE_BANDS.find((b) => b.slug === query.age);
-    if (band) band.sizes.forEach((s) => sizeNames.add(s));
+    (await sizeNamesForAgeBand(query.age)).forEach((s) => sizeNames.add(s));
   }
   if (query.size) query.size.split(',').forEach((s) => sizeNames.add(s.trim()));
   if (sizeNames.size > 0) {
@@ -175,7 +225,7 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
     const priced = p.variants.map((v) => ({
       id: v.id,
       size: v.size,
-      ageLabel: ages.get(v.size) ?? null,
+      ageLabel: ages.get(sizeKey(v.size)) ?? null,
       price: chargePrice(v),
       mrp: mrpFor(v),
       available: stock.get(v.id)?.available ?? 0,
@@ -234,14 +284,14 @@ export async function getProductBySlug(slug: string, branchId = shopConfig.branc
     branchId
   );
 
-  const sizeMeta = await prisma.size.findMany({
-    where: { name: { in: product.variants.map((v) => v.size) } },
-  });
-  const metaBySize = new Map(sizeMeta.map((s) => [s.name, s]));
+  // Fetch the whole (small) size master and match on the normalised key rather
+  // than an exact `name IN (...)`, which misses "6-9M" against "6-9 M".
+  const sizeMeta = await prisma.size.findMany({ where: { isActive: true } });
+  const metaBySize = new Map(sizeMeta.map((s) => [sizeKey(s.name), s]));
 
   const variants = product.variants
     .map((v) => {
-      const meta = metaBySize.get(v.size);
+      const meta = metaBySize.get(sizeKey(v.size));
       const available = stock.get(v.id)?.available ?? 0;
       return {
         id: v.id,

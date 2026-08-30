@@ -80,11 +80,15 @@ export async function getCartView(cartId: number) {
     cart.branchId
   );
 
+  // Normalised lookup — see the note on `sizeKey` in catalog.ts. The master
+  // spells it "6-9 M"; variants are typed "6-9M".
   const sizeMeta = await prisma.size.findMany({
-    where: { name: { in: cart.items.map((i) => i.variant.size) } },
+    where: { isActive: true },
     select: { name: true, ageLabel: true },
   });
-  const ages = new Map(sizeMeta.map((s) => [s.name, s.ageLabel]));
+  const ages = new Map(
+    sizeMeta.map((s) => [s.name.toLowerCase().replace(/\s+/g, ''), s.ageLabel])
+  );
 
   const now = new Date();
   const lines = cart.items.map((item) => {
@@ -102,7 +106,7 @@ export async function getCartView(cartId: number) {
       productSlug: item.variant.product.slug,
       image: item.variant.product.images[0]?.url ?? null,
       size: item.variant.size,
-      ageLabel: ages.get(item.variant.size) ?? null,
+      ageLabel: ages.get(item.variant.size.toLowerCase().replace(/\s+/g, '')) ?? null,
       color: item.variant.color,
       quantity: item.quantity,
       unitPrice: price,

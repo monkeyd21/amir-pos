@@ -166,6 +166,21 @@ export const COMMERCE = {
   codMaxOrderValue: 10000,
   /** ASSUMED — extra fee on COD orders, offsetting refusal cost.0 disables it. */
   codFee: 0,
+  /**
+   * ASSUMED — the master switch for taking money.
+   *
+   * FALSE by default, deliberately. A storefront can be genuinely useful while
+   * browse-only: real catalogue, real live stock, real size guide — which is
+   * what lets the shop opt products in and photograph them against something
+   * real. What it must NOT do is accept an order it cannot collect on or fulfil.
+   *
+   * Turn this on (SHOP_CHECKOUT_ENABLED=true) only when all three are true:
+   *   1. PAYMENT_PROVIDER=cashfree with production credentials
+   *   2. WHATSAPP_ACCESS_TOKEN set, so sign-in OTPs can actually be delivered
+   *   3. enough photographed, onlineVisible products to be worth buying from
+   */
+  checkoutEnabled: false,
+
   /** CONFIRMED — the ERP already runs a 7-day exchange window (branches.returnPolicy). */
   exchangeWindowDays: 7,
   /** ASSUMED — Q11. The ERP already prices sale = MRP − 10%, so this is honest. */

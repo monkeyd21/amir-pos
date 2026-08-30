@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { getCart } from '@/lib/api';
+import { getCart, getShopConfig } from '@/lib/api';
 import Checkout from '@/components/Checkout';
 import { COOKIE } from '@/lib/config';
 
@@ -13,6 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function CheckoutPage() {
+  const cfg = await getShopConfig();
+  if (!cfg.success || !cfg.data.checkoutEnabled) redirect('/');
+
   const cart = await getCart();
   if (!cart.success || cart.data.lines.length === 0) redirect('/cart');
 
