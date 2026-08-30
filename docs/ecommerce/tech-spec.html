@@ -454,7 +454,7 @@
   <main>
 
     <header class="masthead">
-      <p class="eyebrow">Technical Specification · Draft 1</p>
+      <p class="eyebrow">Technical Specification · v1 built</p>
       <h1>An online store on the shop's own till</h1>
       <p class="standfirst">
         A public e-commerce site for Sabiha's Ethnic — children's ethnic wear,
@@ -464,10 +464,34 @@
         honest with each other, not the shopfront, is what this document is mostly
         about.
       </p>
+      <div class="note">
+        <span class="tag">Built and verified</span>
+        <p>
+          This document described the design; the code now exists. The migration
+          applies cleanly with zero drift against the schema, 21 integration
+          tests run against real PostgreSQL, the backend suite passes 325/325,
+          and the storefront builds to 18 routes.
+        </p>
+        <p>
+          An end-to-end run — browse, hold, OTP sign-in, address, quote, UPI
+          payment — produced <code>Sale O0004</code> with the quoted total, the
+          order total and the sale total agreeing exactly, stock decremented
+          once, and no commission written. Ten simultaneous add-to-bag requests
+          for a single unit over HTTP granted exactly one.
+        </p>
+        <p>
+          One thing in §5 is <strong>not</strong> built: the automatic refund at
+          step 4 of §4.5. The gateway driver in this codebase exposes no refund
+          call, so the obligation is logged and recorded against the customer
+          for a human to settle. That is the highest-value next task.
+        </p>
+      </div>
+
       <dl class="meta">
-        <div><dt>Status</dt><dd>Draft — pre-implementation</dd></div>
+        <div><dt>Status</dt><dd>Built — pre-launch</dd></div>
         <div><dt>Date</dt><dd>30 Aug 2026</dd></div>
         <div><dt>Tracking</dt><dd>docs/ecommerce/PLAN.md</dd></div>
+        <div><dt>Assumptions</dt><dd>docs/ecommerce/ASSUMPTIONS.md</dd></div>
         <div><dt>Codebase</dt><dd>amir-pos monorepo</dd></div>
       </dl>
     </header>
