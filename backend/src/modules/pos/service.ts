@@ -14,6 +14,11 @@ import { gstRateForPrice } from '../../utils/tax';
 import { createProduct as createProductService } from '../products/service';
 import { slugify } from '../../utils/helpers';
 import { canExchangeLine, clearanceCashOutBlocked } from './exchange-policy';
+import { liveHoldsForVariant, paidUnfulfilledClaims } from '../shop/availability';
+import {
+  nonClearanceChargePrice as sharedNonClearanceChargePrice,
+  PricedVariant,
+} from './pricing';
 
 /**
  * Atomically allocate the next human-friendly bill number for a channel
@@ -455,6 +460,42 @@ export class PosService {
    * sale deduction lands at zero instead of going negative — and the correction
    * is auditable (a movement linked to the sale). In-stock lines are a no-op.
    */
+  /**
+   * §shop-guard — the online counterpart to `topUpShortfall`, and its exact
+   * opposite: where the counter invents the stock it needs, the web refuses to.
+   *
+   * Throws if recorded stock cannot cover the line. Callers on the shop path
+   * treat this as an expected outcome with a defined recovery (refund the
+   * shopper, mark the order failed, write no Sale) rather than an error.
+   *
+   * Deliberately checks RAW on-hand stock: the order's own reservation does not
+   * make a garment exist, and by this point a cashier may have sold it.
+   */
+  private async assertOnlineStock(
+    tx: Prisma.TransactionClient,
+    variantId: number,
+    branchId: number,
+    quantity: number
+  ): Promise<void> {
+    const inv = await tx.inventory.findUnique({
+      where: { variantId_branchId: { variantId, branchId } },
+    });
+    const onHand = inv?.quantity ?? 0;
+    if (onHand < quantity) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: variantId },
+        include: { product: { select: { name: true } } },
+      });
+      const label = variant
+        ? `${variant.product.name} (size ${variant.size})`
+        : `variant ${variantId}`;
+      throw new AppError(
+        `${label} sold out while the payment was being confirmed.`,
+        409
+      );
+    }
+  }
+
   private async topUpShortfall(
     tx: Prisma.TransactionClient,
     variantId: number,
@@ -513,28 +554,37 @@ export class PosService {
     userId: number,
     branchId: number
   ) {
-    return prisma.$transaction(async (tx) => {
-      // 1. Verify user has an open session
-      const session = await tx.posSession.findFirst({
-        where: { userId, status: 'open' },
-      });
+    // §shop — an ONLINE sale has no cashier, no till and no shift. Every
+    // session-shaped rule below is therefore skipped for it, and the trading day
+    // comes from the wall clock (in IST) instead of an open shift.
+    const isOnlineSale = data.channel === 'online';
 
-      if (!session) {
+    return prisma.$transaction(async (tx) => {
+      // 1. Verify user has an open session (counter sales only)
+      const session = isOnlineSale
+        ? null
+        : await tx.posSession.findFirst({
+            where: { userId, status: 'open' },
+          });
+
+      if (!isOnlineSale && !session) {
         throw new AppError('No open POS session. Open a session before checkout.', 400);
       }
 
       // §bug9 — hard cutoff: if this shift belongs to an earlier trading day and
       // it's now past the 4 am cutoff, block further billing until it's closed.
       // (Before the cutoff, post-midnight peak-season billing continues normally.)
-      const shiftDate = businessDateOf(session);
-      const now = new Date();
-      const todayDate = istBusinessDate(now);
-      if (shiftDate.getTime() < todayDate.getTime() && istHour(now) >= SHIFT_CUTOFF_HOUR) {
-        const label = formatBusinessDate(shiftDate);
-        throw new AppError(
-          `The ${label} shift is still open past ${SHIFT_CUTOFF_HOUR}:00 am. Close it (enter the closing balance) before billing again.`,
-          400
-        );
+      if (session) {
+        const shiftDate = businessDateOf(session);
+        const now = new Date();
+        const todayDate = istBusinessDate(now);
+        if (shiftDate.getTime() < todayDate.getTime() && istHour(now) >= SHIFT_CUTOFF_HOUR) {
+          const label = formatBusinessDate(shiftDate);
+          throw new AppError(
+            `The ${label} shift is still open past ${SHIFT_CUTOFF_HOUR}:00 am. Close it (enter the closing balance) before billing again.`,
+            400
+          );
+        }
       }
 
       // 2. Resolve all barcodes to variants with product info
@@ -684,7 +734,11 @@ export class PosService {
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       }));
-      const evaluated = data.offline ? [] : await evaluateCartEngine(cartLines);
+      // §shop — an online sale sees ONLY online-eligible offers, so the price
+      // the website quoted is the price the ledger records.
+      const evaluated = data.offline
+        ? []
+        : await evaluateCartEngine(cartLines, { onlineOnly: isOnlineSale });
       const offerByVariantId = new Map<
         number,
         { offerId: number; discount: number; effectiveUnitPrice: number }
@@ -1113,7 +1167,8 @@ export class PosService {
           clientRef: data.clientRef || null,
           // §11.0 — roll this sale up into the open shift's trading day, not the
           // wall-clock date. createdAt still records the real time (printed on the bill).
-          businessDate: businessDateOf(session),
+          // An online sale belongs to no shift, so it takes the IST calendar day.
+          businessDate: session ? businessDateOf(session) : istBusinessDate(new Date()),
           subtotal,
           taxAmount: totalTax,
           discountAmount: totalDiscount,
@@ -1197,10 +1252,23 @@ export class PosService {
 
       // 8. Deduct inventory and create movement records
       for (const item of saleItemsData) {
-        // §ghost-inventory — cover any shortfall first so the sale never fails and
-        // the count doesn't go negative. Offline bills are left to reconcile
-        // against a possibly-negative count, as before.
-        if (!data.offline) {
+        if (isOnlineSale) {
+          // §shop-guard — NEVER top up a shortfall for an online sale.
+          //
+          // `topUpShortfall` exists so a cashier holding the garment is never
+          // dead-ended by a wrong count: the goods plainly exist, the records
+          // were wrong. Reached from the website it is the worst thing the
+          // system could do — it would invent stock for something already sold,
+          // take the customer's money, and leave nothing to ship.
+          //
+          // Online must fail loudly instead. The shop module catches this,
+          // refunds the payment and never writes a Sale.
+          // See docs/ecommerce/tech-spec.html §6.
+          await this.assertOnlineStock(tx, item.variantId, branchId, item.quantity);
+        } else if (!data.offline) {
+          // §ghost-inventory — cover any shortfall first so the counter sale never
+          // fails and the count doesn't go negative. Offline bills are left to
+          // reconcile against a possibly-negative count, as before.
           await this.topUpShortfall(tx, item.variantId, branchId, item.quantity, sale.id, userId);
         }
 
@@ -1544,6 +1612,53 @@ export class PosService {
       },
     });
 
+    // §shop — the counter needs to know what the website is doing with this
+    // same physical stock. Two different situations, two different answers:
+    //
+    //   • an UNPAID web hold  → advisory warning. The cashier may still sell it;
+    //     the customer in the shop is real and present, the web shopper has not
+    //     paid. Their payment will fail the §4.5 re-check and be refunded.
+    //
+    //   • a PAID web order    → hard block. That garment is owed to someone who
+    //     has already handed over money for it.
+    //
+    // Both are computed here so every POS surface that scans a barcode gets
+    // them without having to remember to ask.
+    // A failure on the storefront side must never stop a cashier scanning an
+    // item, so this degrades to "no online interest" rather than throwing.
+    const [webHolds, paidClaims] = await Promise.all([
+      liveHoldsForVariant(variant.id, branchId).catch(() => []),
+      paidUnfulfilledClaims(variant.id, branchId).catch(() => []),
+    ]);
+    const onHand = inventory?.quantity ?? 0;
+    const claimedUnits = paidClaims.reduce((n, c) => n + c.quantity, 0);
+    const heldUnits = webHolds.reduce((n, h) => n + h.quantity, 0);
+
+    const onlineClaim =
+      claimedUnits > 0 && onHand <= claimedUnits
+        ? {
+            level: 'block' as const,
+            message:
+              `Reserved for paid online order ${paidClaims[0].orderNumber}. ` +
+              `Owner PIN required to sell this piece at the counter.`,
+            orderNumbers: paidClaims.map((c) => c.orderNumber),
+            units: claimedUnits,
+          }
+        : heldUnits > 0 && onHand <= heldUnits
+        ? {
+            level: 'warn' as const,
+            message:
+              `${heldUnits} held in an online basket until ` +
+              `${webHolds[0].expiresAt.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Kolkata',
+              })}. Selling it here will cancel and refund that order.`,
+            expiresAt: webHolds[0].expiresAt,
+            units: heldUnits,
+          }
+        : null;
+
     // §2.4 — clearance-flagged variants price at the fixed clearancePrice and
     // the POS must lock all discounts on the line.
     const isClearance = variant.clearanceFlag && variant.clearancePrice != null;
@@ -1577,6 +1692,8 @@ export class PosService {
       ),
       stock: inventory?.quantity ?? 0,
       clearance: isClearance,
+      /** Null when the website has no interest in this stock. */
+      onlineClaim,
     };
   }
 
@@ -1626,27 +1743,9 @@ export class PosService {
    * path is only for rows predating it. Clearance is handled by callers, which
    * use the fixed `clearancePrice` instead.
    */
-  private nonClearanceChargePrice(variant: {
-    mrpOverride?: { toString(): string } | null;
-    priceOverride: { toString(): string } | null;
-    product: {
-      mrp?: { toString(): string } | null;
-      basePrice: { toString(): string };
-      cgstRate: { toString(): string };
-      sgstRate: { toString(): string };
-      priceIncludesTax: boolean;
-    };
-  }): number {
-    const salePrice = variant.priceOverride ?? variant.product.basePrice;
-    if (salePrice != null) {
-      const raw = Number(salePrice);
-      if (variant.product.priceIncludesTax) return raw;
-      const rate = Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
-      return Math.round(raw * (1 + rate / 100) * 100) / 100;
-    }
-    // Legacy fallback only: no Sale Price stored. MRP is final tax-inclusive.
-    const mrp = variant.mrpOverride ?? variant.product.mrp;
-    return mrp != null ? Number(mrp) : 0;
+  private nonClearanceChargePrice(variant: PricedVariant): number {
+    // Single implementation, shared with the storefront — see pos/pricing.ts.
+    return sharedNonClearanceChargePrice(variant);
   }
 
   async searchProducts(query: string, branchId: number) {

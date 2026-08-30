@@ -183,10 +183,19 @@ export function computeDiscount(
 const now = () => new Date();
 
 /** Prisma filter for offers that are currently active */
-export const activeOfferWhere = (): Prisma.OfferWhereInput => {
+/**
+ * `onlineOnly` narrows to offers flagged `onlineEligible`. The storefront MUST
+ * pass it — a counter-only promotion that leaked onto the website would be
+ * honoured at the quote and then again at checkout, and the shopper would be
+ * charged a different number from the one they agreed to.
+ */
+export const activeOfferWhere = (
+  opts: { onlineOnly?: boolean } = {}
+): Prisma.OfferWhereInput => {
   const n = now();
   return {
     isActive: true,
+    ...(opts.onlineOnly ? { onlineEligible: true } : {}),
     AND: [
       { OR: [{ startsAt: null }, { startsAt: { lte: n } }] },
       { OR: [{ endsAt: null }, { endsAt: { gte: n } }] },
@@ -234,7 +243,8 @@ export async function resolveOfferForVariant(
  * Bulk-fetches offers in as few queries as possible.
  */
 export async function evaluateCart(
-  lines: CartLine[]
+  lines: CartLine[],
+  opts: { onlineOnly?: boolean } = {}
 ): Promise<
   Array<{ line: CartLine; offer: Offer | null; result: DiscountResult | null }>
 > {
@@ -253,7 +263,7 @@ export async function evaluateCart(
   // Bulk-fetch all active offers that touch any of these variants or products
   const candidateOffers = await prisma.offer.findMany({
     where: {
-      ...activeOfferWhere(),
+      ...activeOfferWhere(opts),
       OR: [
         { variants: { some: { variantId: { in: variantIds } } } },
         { products: { some: { productId: { in: productIds } } } },

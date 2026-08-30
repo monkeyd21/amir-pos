@@ -36,12 +36,20 @@ import auditRoutes from './modules/audit/routes';
 import voucherRoutes from './modules/vouchers/routes';
 import historicalRoutes from './modules/historical/routes';
 import payableRoutes from './modules/payables/routes';
+import shopRoutes from './modules/shop/routes';
+import { shopController } from './modules/shop/controller';
 import { posController } from './modules/pos/controller';
 
 const app = express();
 
-// Payment webhook (needs raw body for signature verification) — must be before JSON parser
+// Payment webhooks (need the raw body for signature verification) — these must
+// be registered before the JSON parser or the signature can never be checked.
 app.post('/api/v1/webhooks/payment', express.raw({ type: 'application/json' }), posController.handlePaymentWebhook);
+// The storefront has its own webhook so a shop payment can never be mistaken
+// for a counter UPI collection, and vice versa.
+app.post('/api/shop/v1/webhooks/payment', express.raw({ type: 'application/json' }), (q, s2, n) =>
+  shopController.paymentWebhook(q as any, s2, n)
+);
 
 // Middleware
 app.use(helmet({
@@ -91,6 +99,11 @@ app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/vouchers', voucherRoutes);
 app.use('/api/v1/historical', historicalRoutes);
 app.use('/api/v1/payables', payableRoutes);
+
+// ─── Public storefront API ───────────────────────────────────────────────
+// A separate namespace with its own authentication (shopper tokens, not staff
+// JWTs). Nothing under /api/v1 becomes publicly reachable.
+app.use('/api/shop/v1', shopRoutes);
 
 // Serve Angular frontend in production
 if (config.nodeEnv === 'production') {

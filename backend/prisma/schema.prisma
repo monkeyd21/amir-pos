@@ -53,6 +53,9 @@ model Branch {
   auditLogs          AuditLog[]
   giftVouchers       GiftVoucher[]
   varianceLogs       VarianceLog[]
+  reservations       StockReservation[]
+  shopCarts          ShopCart[]
+  shopOrders         ShopOrder[]
 
   @@map("branches")
 }
@@ -252,11 +255,21 @@ model Color {
 // variants keep working with no data migration. `sortOrder` lets the picker
 // present sizes in a sensible order (e.g. age bands ascending).
 model Size {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  // ─── Kidswear sizing (shop module) ───
+  // Indian kidswear sizes are numbers (12–36) that mean nothing to a shopper on
+  // their own, so the age travels with the size everywhere in the storefront.
+  // The barcode label keeps printing just `name`.
+  ageLabel      String?
+  chestInches   Decimal? @db.Decimal(5, 1)
+  lengthInches  Decimal? @db.Decimal(5, 1)
+  // Age band in months, powering the shop-by-age filter.
+  ageFromMonths Int?
+  ageToMonths   Int?
+  createdAt     DateTime @default(now())
 
   @@map("sizes")
 }
@@ -264,39 +277,52 @@ model Size {
 // ─── Product ─────────────────────────────────────────
 
 model Product {
-  id               Int      @id @default(autoincrement())
-  brandId          Int
-  categoryId       Int
-  name             String
-  slug             String   @unique
-  description      String?
+  id                Int      @id @default(autoincrement())
+  brandId           Int
+  categoryId        Int
+  name              String
+  slug              String   @unique
+  description       String?
   // §13.3 — MRP is the printed list price; basePrice is the effective Sale Price
   // (auto-calculated as MRP − 10% at entry). Both are printed on the barcode label.
-  mrp              Decimal? @db.Decimal(10, 2)
-  basePrice        Decimal  @db.Decimal(10, 2)
-  costPrice        Decimal  @db.Decimal(10, 2)
-  landingPrice     Decimal? @db.Decimal(10, 2)
+  mrp               Decimal? @db.Decimal(10, 2)
+  basePrice         Decimal  @db.Decimal(10, 2)
+  costPrice         Decimal  @db.Decimal(10, 2)
+  landingPrice      Decimal? @db.Decimal(10, 2)
   // GST is split into CGST + SGST per Indian tax rules. For non-clothing
   // verticals these can both be 0. Effective rate the POS sees = cgst + sgst.
-  hsnCode          String?  @db.VarChar(10)
-  cgstRate         Decimal  @default(9) @db.Decimal(5, 2)
-  sgstRate         Decimal  @default(9) @db.Decimal(5, 2)
+  hsnCode           String?  @db.VarChar(10)
+  cgstRate          Decimal  @default(9) @db.Decimal(5, 2)
+  sgstRate          Decimal  @default(9) @db.Decimal(5, 2)
   // When true (the Indian retail convention), basePrice is the MRP — tax is
   // already extracted from inside it. When false, tax is added on top at POS.
-  priceIncludesTax Boolean  @default(true)
+  priceIncludesTax  Boolean  @default(true)
   // Sale-policy flags. `nonReturnable` blocks both refund-returns and exchanges
   // (e.g. clearance/sale/defective goods). `exchangeOnly` allows an exchange but
   // blocks a refund-return. The POS enforces these when goods come back.
-  nonReturnable    Boolean  @default(false)
-  exchangeOnly     Boolean  @default(false)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  nonReturnable     Boolean  @default(false)
+  exchangeOnly      Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  // ─── Storefront (shop module) ───
+  // Listing is opt-in: the counter catalogue is not the web catalogue.
+  onlineVisible     Boolean  @default(false)
+  // Long-form copy written for the web, distinct from the terse POS name.
+  onlineDescription String?  @db.Text
+  metaTitle         String?
+  metaDescription   String?
+  // Per-product COD gate. True forces prepaid-only on this product even when
+  // COD is enabled globally — for thin or high-value lines.
+  codBlocked        Boolean  @default(false)
+  // 'girls' | 'boys' | 'unisex'. Drives the Girls/Boys split in shop navigation.
+  audience          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   brand    Brand            @relation(fields: [brandId], references: [id])
   category Category         @relation(fields: [categoryId], references: [id])
   variants ProductVariant[]
   offers   OfferProduct[]
+  images   ProductImage[]
 
   @@map("products")
 }
@@ -324,6 +350,8 @@ model ProductVariant {
   // backend-only, never at POS.
   clearanceFlag   Boolean  @default(false)
   clearancePrice  Decimal? @db.Decimal(10, 2)
+  // Lets one size be held back for the shop floor without delisting the product.
+  onlineSellable  Boolean  @default(true)
   createdAt       DateTime @default(now())
   // Bumped on every variant update (incl. setting clearanceFlag). Drives the
   // "recent first" ordering of the clearance list so freshly-flagged articles
@@ -338,6 +366,10 @@ model ProductVariant {
   stockTransferItems  StockTransferItem[]
   offers              OfferVariant[]
   historicalBillItems HistoricalBillItem[]
+  images              ProductImage[]
+  reservations        StockReservation[]
+  shopCartItems       ShopCartItem[]
+  shopOrderItems      ShopOrderItem[]
 
   @@map("product_variants")
 }
@@ -553,6 +585,7 @@ model Sale {
   loyaltyTransactions LoyaltyTransaction[]
   voucherRedemptions  VoucherRedemption[]
   upiPaymentIntent    UpiPaymentIntent?
+  shopOrder           ShopOrder?
 
   @@index([branchId, createdAt])
   @@index([branchId, businessDate])
@@ -611,20 +644,22 @@ enum OfferType {
 }
 
 model Offer {
-  id           Int       @id @default(autoincrement())
-  name         String // "Summer Sale 20%"
-  description  String?
-  type         OfferType
-  percentValue Decimal?  @db.Decimal(5, 2) // percentage / buy_x_get_y_percent
-  flatValue    Decimal?  @db.Decimal(10, 2) // flat / bundle total
-  buyQty       Int? // BOGO / bundle threshold
-  getQty       Int? // BOGO free/discount count
-  priority     Int       @default(0) // higher wins when multiple apply
-  isActive     Boolean   @default(true)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  name           String // "Summer Sale 20%"
+  description    String?
+  type           OfferType
+  percentValue   Decimal?  @db.Decimal(5, 2) // percentage / buy_x_get_y_percent
+  flatValue      Decimal?  @db.Decimal(10, 2) // flat / bundle total
+  buyQty         Int? // BOGO / bundle threshold
+  getQty         Int? // BOGO free/discount count
+  priority       Int       @default(0) // higher wins when multiple apply
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // Counter-only promotions must not leak onto the website.
+  onlineEligible Boolean   @default(true)
 
   products  OfferProduct[]
   variants  OfferVariant[]
@@ -942,6 +977,10 @@ model Customer {
   upiPaymentIntents   UpiPaymentIntent[]
   giftVouchers        GiftVoucher[]
   historicalBills     HistoricalBill[]
+  addresses           Address[]
+  shopSessions        CustomerSession[]
+  shopCarts           ShopCart[]
+  shopOrders          ShopOrder[]
 
   @@map("customers")
 }
@@ -1436,4 +1475,310 @@ model HistoricalBillItem {
   @@index([historicalBillId])
   @@index([barcode])
   @@map("historical_bill_items")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SHOP — the public storefront (backend/src/modules/shop)
+//
+//  Everything below is additive. The POS and ERP do not read any of it, except
+//  where explicitly noted (the POS warns on a live reservation, and blocks a
+//  scan of stock owed to a paid online order).
+//
+//  Spec: docs/ecommerce/tech-spec.html   ·   Plan: docs/ecommerce/PLAN.md
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─── Product imagery ─────────────────────────────────────────────────────────
+// The ERP had no image concept at all. `url` is a key in object storage (or a
+// relative path under /uploads in local dev) — never a data URI.
+model ProductImage {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  // Optional narrowing: an image that shows one specific colour/size variant.
+  variantId Int?
+  url       String   @db.Text
+  alt       String?
+  width     Int?
+  height    Int?
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+// ─── Customer identity ───────────────────────────────────────────────────────
+// `Customer` has no password and never gets one: shoppers sign in with a phone
+// OTP delivered over the WhatsApp integration the ERP already runs. A web signup
+// is matched to an existing Customer by phone, so the CRM record is never split.
+
+model CustomerOtp {
+  id         Int       @id @default(autoincrement())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+  @@map("customer_otps")
+}
+
+model CustomerSession {
+  id               Int       @id @default(autoincrement())
+  customerId       Int
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("customer_sessions")
+}
+
+// ─── Addresses ───────────────────────────────────────────────────────────────
+// `Customer.address` is a single free-text line — fine for a counter record,
+// useless for despatch. This is the structured, multiple, validated version.
+model Address {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  name       String
+  phone      String
+  line1      String
+  line2      String?
+  landmark   String?
+  city       String
+  state      String
+  pincode    String   @db.VarChar(6)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("addresses")
+}
+
+// ─── Cart + reservations ─────────────────────────────────────────────────────
+
+enum ReservationStatus {
+  held
+  consumed
+  released
+  expired
+}
+
+// The core of the shared-stock design. A time-boxed soft hold on physical stock.
+//
+// Availability is ALWAYS `inventory.quantity − SUM(active reservations)`, never
+// the raw quantity. "Active" means status = held AND expiresAt > now(), so an
+// expired hold stops blocking a sale the instant it lapses — correctness never
+// depends on the sweeper having run.
+model StockReservation {
+  id        Int               @id @default(autoincrement())
+  variantId Int
+  branchId  Int
+  quantity  Int
+  status    ReservationStatus @default(held)
+  expiresAt DateTime
+  cartId    Int?
+  orderId   Int?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  variant  ProductVariant @relation(fields: [variantId], references: [id])
+  branch   Branch         @relation(fields: [branchId], references: [id])
+  cart     ShopCart?      @relation(fields: [cartId], references: [id])
+  order    ShopOrder?     @relation(fields: [orderId], references: [id])
+  cartItem ShopCartItem?
+
+  // The hot path: availability for a variant at a branch.
+  @@index([variantId, branchId, status, expiresAt])
+  @@index([cartId])
+  @@index([orderId])
+  @@map("stock_reservations")
+}
+
+// Server-side cart, keyed by an httpOnly cookie token so it survives before
+// sign-in and merges into the customer's cart afterwards.
+model ShopCart {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  customerId Int?
+  branchId   Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer     Customer?          @relation(fields: [customerId], references: [id])
+  branch       Branch             @relation(fields: [branchId], references: [id])
+  items        ShopCartItem[]
+  reservations StockReservation[]
+
+  @@index([customerId])
+  @@map("shop_carts")
+}
+
+model ShopCartItem {
+  id            Int      @id @default(autoincrement())
+  cartId        Int
+  variantId     Int
+  quantity      Int
+  // 1-1 with the hold that keeps this line's stock off the shelf.
+  reservationId Int?     @unique
+  createdAt     DateTime @default(now())
+
+  cart        ShopCart          @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant     ProductVariant    @relation(fields: [variantId], references: [id])
+  reservation StockReservation? @relation(fields: [reservationId], references: [id])
+
+  @@unique([cartId, variantId])
+  @@index([cartId])
+  @@map("shop_cart_items")
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+enum ShopOrderStatus {
+  pending_payment
+  paid
+  packed
+  shipped
+  delivered
+  cancelled
+  refunded
+  failed
+}
+
+enum ShopPaymentMode {
+  prepaid
+  cod
+}
+
+// The fulfilment lifecycle.
+//
+// A `Sale` in this system means money taken, stock gone, GST recorded. An order
+// that is placed but unpaid is none of those, so the Sale row is created exactly
+// once — at payment confirmation for prepaid, at despatch for COD — and never
+// before. A cancelled unpaid order therefore leaves no trace in the books, and
+// the accounting/reporting code needs no changes to stay correct.
+model ShopOrder {
+  id          Int             @id @default(autoincrement())
+  orderNumber String          @unique
+  customerId  Int
+  branchId    Int
+  // Set once, when the order settles into the ledger.
+  saleId      Int?            @unique
+  status      ShopOrderStatus @default(pending_payment)
+  paymentMode ShopPaymentMode @default(prepaid)
+
+  // Shipping address SNAPSHOT — deliberately copied, not a foreign key, so
+  // editing the address book never rewrites where a past order went.
+  shipName     String
+  shipPhone    String
+  shipLine1    String
+  shipLine2    String?
+  shipLandmark String?
+  shipCity     String
+  shipState    String
+  shipPincode  String  @db.VarChar(6)
+
+  subtotal              Decimal @db.Decimal(10, 2)
+  discountAmount        Decimal @default(0) @db.Decimal(10, 2)
+  loyaltyDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
+  prepaidDiscountAmount Decimal @default(0) @db.Decimal(10, 2)
+  shippingAmount        Decimal @default(0) @db.Decimal(10, 2)
+  codFeeAmount          Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount             Decimal @default(0) @db.Decimal(10, 2)
+  total                 Decimal @db.Decimal(10, 2)
+  loyaltyPointsRedeemed Int     @default(0)
+
+  // Idempotency key carried through to Sale.clientRef.
+  clientRef          String?   @unique
+  // Our own intent id, echoed back by the gateway webhook.
+  paymentIntentId    String?
+  // The gateway's id for the same intent — needed to poll status directly when
+  // a webhook is delayed or never arrives.
+  paymentProviderRef String?
+  // UPI QR / intent link handed to the shopper. Regenerated per attempt.
+  paymentQrUrl       String?   @db.Text
+  paymentUpiLink     String?   @db.Text
+  paymentExpiresAt   DateTime?
+  cancelReason       String?
+  notes              String?
+
+  placedAt    DateTime  @default(now())
+  paidAt      DateTime?
+  cancelledAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  customer     Customer           @relation(fields: [customerId], references: [id])
+  branch       Branch             @relation(fields: [branchId], references: [id])
+  sale         Sale?              @relation(fields: [saleId], references: [id])
+  items        ShopOrderItem[]
+  shipments    Shipment[]
+  reservations StockReservation[]
+
+  @@index([customerId, placedAt])
+  @@index([status])
+  @@map("shop_orders")
+}
+
+model ShopOrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  variantId   Int
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  mrp         Decimal? @db.Decimal(10, 2)
+  discount    Decimal  @default(0) @db.Decimal(10, 2)
+  taxAmount   Decimal  @default(0) @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  offerId     Int?
+  // Snapshots so a past order still reads correctly after a rename.
+  productName String
+  sizeName    String
+  colorName   String?
+
+  order   ShopOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@map("shop_order_items")
+}
+
+enum ShipmentStatus {
+  pending
+  in_transit
+  out_for_delivery
+  delivered
+  returned
+  lost
+}
+
+model Shipment {
+  id          Int            @id @default(autoincrement())
+  orderId     Int
+  carrier     String?
+  awb         String?
+  trackingUrl String?        @db.Text
+  status      ShipmentStatus @default(pending)
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  order ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("shipments")
 }
