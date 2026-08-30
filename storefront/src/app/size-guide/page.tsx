@@ -18,7 +18,11 @@ const whatsappHref = `https://wa.me/${SHOP_IDENTITY.whatsappNumber}?text=${encod
 
 export default async function SizeGuidePage() {
   const res = await getSizes();
-  const sizes = res.success ? res.data : [];
+  // The size master holds two vocabularies: the numeric grid (which needs
+  // translating for a parent) and age-named entries like "4-5 Y" (which are
+  // already an age). The chart is the translation, so it shows the numeric grid
+  // — listing "4-5 Y → 4-5 Y" would be noise.
+  const sizes = (res.success ? res.data : []).filter((s: any) => s.ageLabel);
 
   return (
     <div className="shell py-10">
@@ -31,6 +35,11 @@ export default async function SizeGuidePage() {
         measurement in inches. Size 24 fits a typical five year old. If your child is between
         two sizes, or on the taller side, take the larger one — ethnic wear is worn a few
         times a year and a little room is better than none.
+      </p>
+      <p className="mb-9 max-w-[62ch] text-[15px] text-muted">
+        Some of our pieces are labelled by age instead — <span className="whitespace-nowrap">6-9 M</span>,{' '}
+        <span className="whitespace-nowrap">4-5 Y</span>. Those need no translation: order the
+        age you would expect.
       </p>
 
       <div className="grid gap-12 lg:grid-cols-[1.25fr_1fr]">

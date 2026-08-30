@@ -316,6 +316,40 @@ FROM (VALUES
 ) AS a(name, from_m, to_m)
 WHERE s."name" = a.name;
 
+-- ─── Grants ──────────────────────────────────────────────────────────────
+-- This script is run as `postgres` (the app role cannot create types), so every
+-- new table and sequence is owned by postgres and the app role `amir` gets
+-- nothing by default. Without this the API fails with
+-- "permission denied for table product_images" the moment it reads the
+-- catalogue. Derive the role from the existing tables rather than hardcoding
+-- it, so this is correct on any environment.
+DO $$
+DECLARE app_role TEXT;
+BEGIN
+  SELECT tableowner INTO app_role FROM pg_tables
+   WHERE schemaname = 'public' AND tablename = 'products';
+
+  IF app_role IS NULL THEN
+    RAISE NOTICE 'Could not determine the app role — grant by hand.';
+    RETURN;
+  END IF;
+
+  EXECUTE format('GRANT ALL ON ALL TABLES IN SCHEMA public TO %I', app_role);
+  EXECUTE format('GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO %I', app_role);
+  -- Ownership too, so future ALTERs by the app role work as they do elsewhere.
+  EXECUTE format('ALTER TABLE product_images    OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE customer_otps     OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE customer_sessions OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE addresses         OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE shop_carts        OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE shop_cart_items   OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE shop_orders       OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE shop_order_items  OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE stock_reservations OWNER TO %I', app_role);
+  EXECUTE format('ALTER TABLE shipments         OWNER TO %I', app_role);
+  RAISE NOTICE 'Granted new shop tables to %', app_role;
+END $$;
+
 COMMIT;
 
 -- ─── Verify ──────────────────────────────────────────────────────────────

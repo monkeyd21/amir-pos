@@ -96,6 +96,12 @@ async function ageLabelMap(): Promise<Map<string, string>> {
   );
 }
 
+/** size name → sortOrder, so a card's size range reads smallest-first. */
+async function sizeOrderMap(): Promise<Map<string, number>> {
+  const sizes = await prisma.size.findMany({ select: { name: true, sortOrder: true } });
+  return new Map(sizes.map((s) => [sizeKey(s.name), s.sortOrder]));
+}
+
 /**
  * The size names that fit a given age band, resolved from the age RANGE stored
  * on each size rather than a hardcoded list — so a band matches both "22" and
@@ -206,7 +212,7 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
       ? { name: 'asc' }
       : { createdAt: 'desc' };
 
-  const [rows, total, ages] = await Promise.all([
+  const [rows, total, ages, order] = await Promise.all([
     prisma.product.findMany({
       where,
       include: productInclude,
@@ -216,6 +222,7 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
     }) as Promise<ProductWithRelations[]>,
     prisma.product.count({ where }),
     ageLabelMap(),
+    sizeOrderMap(),
   ]);
 
   const allVariantIds = rows.flatMap((p) => p.variants.map((v) => v.id));
@@ -226,13 +233,26 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
       id: v.id,
       size: v.size,
       ageLabel: ages.get(sizeKey(v.size)) ?? null,
+      sortOrder: order.get(sizeKey(v.size)) ?? 0,
       price: chargePrice(v),
       mrp: mrpFor(v),
       available: stock.get(v.id)?.available ?? 0,
     }));
 
-    const inStock = priced.filter((v) => v.available > 0);
-    const pool = inStock.length > 0 ? inStock : priced;
+    // A product can carry several variants in the SAME size — different colours
+    // of one style. A size picker that lists "32" twice is broken, so sizes are
+    // deduped for display, preferring one that is actually in stock.
+    const bySize = new Map<string, (typeof priced)[number]>();
+    for (const v of priced) {
+      const seen = bySize.get(v.size);
+      if (!seen || (seen.available <= 0 && v.available > 0)) bySize.set(v.size, v);
+    }
+    // Smallest first — a parent scanning a card should see the range read
+    // naturally, not in whatever order the variants were created.
+    const uniqueSizes = [...bySize.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const inStock = uniqueSizes.filter((v) => v.available > 0);
+    const pool = inStock.length > 0 ? inStock : uniqueSizes;
     const prices = pool.map((v) => v.price);
     const mrps = pool.map((v) => v.mrp);
 
@@ -252,7 +272,7 @@ export async function listProducts(query: ListQuery, branchId = shopConfig.branc
       /** Sizes a shopper can actually buy today, each carrying its age. */
       availableSizes: inStock.map((v) => ({ size: v.size, ageLabel: v.ageLabel })),
       /** Every size the style is made in, so "made in 16–30" can be shown. */
-      sizeRange: priced.map((v) => v.size),
+      sizeRange: uniqueSizes.map((v) => v.size),
     };
   });
 
@@ -312,8 +332,18 @@ export async function getProductBySlug(slug: string, branchId = shopConfig.branc
     })
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const inStock = variants.filter((v) => v.inStock);
-  const pricePool = inStock.length > 0 ? inStock : variants;
+  // Dedupe by size for the same reason as the listing: one chip per size.
+  // Colour selection within a size is a follow-up; today the in-stock variant
+  // wins so the chip is never falsely shown as sold out.
+  const bySize = new Map<string, (typeof variants)[number]>();
+  for (const v of variants) {
+    const seen = bySize.get(v.size);
+    if (!seen || (!seen.inStock && v.inStock)) bySize.set(v.size, v);
+  }
+  const uniqueVariants = [...bySize.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const inStock = uniqueVariants.filter((v) => v.inStock);
+  const pricePool = inStock.length > 0 ? inStock : uniqueVariants;
 
   return {
     id: product.id,
@@ -332,12 +362,12 @@ export async function getProductBySlug(slug: string, branchId = shopConfig.branc
       width: i.width,
       height: i.height,
     })),
-    variants,
+    variants: uniqueVariants,
     priceFrom: pricePool.length ? Math.min(...pricePool.map((v) => v.price)) : 0,
     mrpFrom: pricePool.length ? Math.min(...pricePool.map((v) => v.mrp)) : 0,
     inStock: inStock.length > 0,
     /** "Made in sizes 16 to 30" — the honest range, stock aside. */
-    madeInSizes: variants.map((v) => ({ size: v.size, ageLabel: v.ageLabel })),
+    madeInSizes: uniqueVariants.map((v) => ({ size: v.size, ageLabel: v.ageLabel })),
   };
 }
 
