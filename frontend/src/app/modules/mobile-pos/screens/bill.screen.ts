@@ -156,6 +156,9 @@ interface LoyaltyConfigResponse {
                         </div>
                       </div>
                       <div class="line-item__calc">
+                        @if (item.mrp && item.mrp > item.unitPrice) {
+                          <span class="line-item__mrp">{{ formatInr(item.mrp) }}</span>
+                        }
                         {{ item.quantity }} × {{ formatInr(item.unitPrice) }}
                       </div>
                       <div class="line-item__total">{{ formatInr(lineTotal(item)) }}</div>
@@ -684,6 +687,12 @@ interface LoyaltyConfigResponse {
       margin-top: 2px;
     }
     .line-item__variant .dot { opacity: 0.6; }
+
+    .line-item__mrp {
+      opacity: 0.55;
+      text-decoration: line-through;
+      margin-right: 4px;
+    }
 
     .line-item__calc {
       grid-column: 2 / 3;

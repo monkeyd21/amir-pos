@@ -195,11 +195,11 @@ export class ReceiptPrintService {
 body { font-family:'Courier New',monospace; font-size:12px; line-height:1.35; color:#000; background:#f5f5f5; display:flex; flex-direction:column; align-items:center; padding:20px; }
 .receipt { width:58mm; background:#fff; padding:2mm; white-space:pre-wrap; overflow-wrap:anywhere; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
 .center { text-align:center; } .store-name { font-size:15px; font-weight:bold; }
-.item { margin:4px 0; } .discount { color:#888; } strong { font-weight:bold; }
+.item { margin:4px 0; } .discount { color:#888; } .mrp { color:#888; } strong { font-weight:bold; }
 .actions { margin-top:16px; display:flex; gap:8px; }
 .actions button { padding:8px 20px; font-size:13px; border:none; border-radius:4px; cursor:pointer; font-family:'Inter',Arial,sans-serif; }
 .btn-print { background:#1a1a2e; color:#fff; } .btn-close { background:#e0e0e0; color:#333; }
-@media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:58mm; max-width:58mm; padding:1mm; font-weight:bold; color:#000; } .receipt .discount { color:#000 !important; } .actions { display:none !important; } @page { size:58mm auto; margin:0; } }
+@media print { html,body { background:none; padding:0; display:block; color:#000; -webkit-font-smoothing:none; text-rendering:geometricPrecision; -webkit-print-color-adjust:exact; print-color-adjust:exact; } .receipt { box-shadow:none; width:58mm; max-width:58mm; padding:1mm; font-weight:bold; color:#000; } .receipt .discount, .receipt .mrp { color:#000 !important; } .actions { display:none !important; } @page { size:58mm auto; margin:0; } }
 </style></head><body>
 <div class="receipt"><div class="center">${headerBlock}</div>
 ${title} #: ${this.esc(r.returnNumber)}
@@ -265,11 +265,24 @@ ${divider}</div></div>
         const priceLine = `  ${item.quantity} x ${this.formatCurrency(item.unitPrice)}`;
         const totalStr = this.formatCurrency(item.total);
         const padded = priceLine + this.pad(priceLine, totalStr) + totalStr;
-        // §2.4/bug8 — clearance line: show the original MRP it was marked down
-        // from, so the customer sees MRP vs the fixed clearance price on the bill.
+        // Print the tag MRP against what was actually charged whenever the two
+        // differ — not only on clearance, which is all this used to do.
+        //
+        // Since the POS began charging the Sale Price (MRP − 10%) rather than
+        // the MRP, an ordinary line printed its price twice —
+        // "1 x ₹550.00   ₹550.00" — and the ₹60 the customer saved appeared
+        // nowhere until the bill total. Show it on the line that earned it.
+        let mrpLine = '';
+        if (item.mrp && item.mrp > item.unitPrice) {
+          const mrpLabel = item.isClearance ? '  MRP (clearance):' : '  MRP:';
+          const mrpStr = this.formatCurrency(item.mrp);
+          mrpLine = `\n<span class="mrp">${mrpLabel}${this.pad(mrpLabel, mrpStr)}${mrpStr}</span>`;
+        }
+        // §2.4/bug8 — a clearance line is still flagged as such; the MRP it was
+        // marked down from is now on the line above rather than repeated here.
         let clearanceLine = '';
-        if (item.isClearance && item.mrp && item.mrp > item.unitPrice) {
-          clearanceLine = `\n<span class="discount">  CLEARANCE (was ${this.formatCurrency(item.mrp)})</span>`;
+        if (item.isClearance && !mrpLine) {
+          clearanceLine = `\n<span class="discount">  CLEARANCE</span>`;
         }
         let discountLine = '';
         if (item.discount > 0) {
@@ -292,7 +305,8 @@ ${divider}</div></div>
         } else if (item.exchangeOnly) {
           flagLine = `\n<span class="flag">  ** EXCHANGE ONLY **</span>`;
         }
-        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}\n${padded}${clearanceLine}${discountLine}${loyaltyLine}${flagLine}</div>`;
+        // MRP sits ABOVE the rate/amount line, the order an Indian bill reads in.
+        return `<div class="item">${this.esc(item.name)}${variantLine ? '\n' + variantLine : ''}${mrpLine}\n${padded}${clearanceLine}${discountLine}${loyaltyLine}${flagLine}</div>`;
       })
       .join('');
 
@@ -475,6 +489,7 @@ ${divider}</div></div>
     .store-name { font-size: 15px; font-weight: bold; }
     .item { margin: 4px 0; }
     .discount { color: #888; }
+    .mrp { color: #888; }
     .flag { font-weight: bold; }
     .saved { text-align: center; font-weight: bold; font-size: 15px; margin: 3px 0 1px; }
     .upi { font-weight: bold; margin: 4px 0; }
@@ -535,7 +550,7 @@ ${divider}</div></div>
         font-weight: bold;
         color: #000;
       }
-      .receipt .discount { color: #000 !important; }
+      .receipt .discount, .receipt .mrp { color: #000 !important; }
       .actions { display: none !important; }
 
       @page {

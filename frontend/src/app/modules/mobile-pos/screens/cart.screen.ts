@@ -26,6 +26,9 @@ interface BarcodeLookup {
   size: string;
   color: string;
   price: number;
+  /** Tag MRP — what the label says before the shop's markdown. The lookup has
+   *  always returned it; the mobile POS just never carried it through. */
+  mrp?: number | null;
   productName: string;
   brand?: string;
   stock: number;
@@ -171,6 +174,14 @@ interface Envelope<T> {
                       </div>
 
                       <div class="item-total">
+                        <!-- Tag MRP for the line, struck through above what is
+                             actually charged. Without it a single-item line
+                             shows one figure and the saving is invisible. -->
+                        @if (item.mrp && item.mrp > item.unitPrice) {
+                          <div class="item-total__mrp">
+                            {{ formatInr(item.mrp * item.quantity) }}
+                          </div>
+                        }
                         <div class="item-total__amount">
                           {{ formatInr(lineTotal(item)) }}
                         </div>
@@ -607,6 +618,13 @@ interface Envelope<T> {
       position: relative;
     }
 
+    .item-total__mrp {
+      font-size: 11px;
+      line-height: 1.2;
+      opacity: 0.55;
+      text-decoration: line-through;
+    }
+
     .item-total__amount {
       font-size: 16px;
       font-weight: 800;
@@ -929,6 +947,9 @@ export class MobileCartScreen implements OnInit, OnDestroy {
         size: p.size,
         color: p.color,
         unitPrice: Number(p.price),
+        // The lookup already returns the tag MRP; carry it so the line can show
+        // what the customer saved rather than the same figure twice.
+        mrp: p.mrp != null ? Number(p.mrp) : undefined,
         maxStock: Number(p.stock),
       });
 

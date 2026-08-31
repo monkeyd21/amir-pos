@@ -34,6 +34,9 @@ interface BarcodeLookup {
   size: string;
   color: string;
   price: number;
+  /** Tag MRP — what the label says before the shop's markdown. The lookup has
+   *  always returned it; the mobile POS just never carried it through. */
+  mrp?: number | null;
   productName: string;
   brand?: string;
   stock: number;
@@ -689,6 +692,9 @@ export class MobileHomeScreen implements OnInit {
         size: p.size,
         color: p.color,
         unitPrice: Number(p.price),
+        // The lookup already returns the tag MRP; carry it so the line can show
+        // what the customer saved rather than the same figure twice.
+        mrp: p.mrp != null ? Number(p.mrp) : undefined,
         maxStock: Number(p.stock),
       });
 

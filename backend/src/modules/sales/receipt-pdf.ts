@@ -217,17 +217,32 @@ export function buildReceiptPdf(
           .fontSize(8);
       }
 
-      // §2.4/bug8 — clearance line: print the original MRP it was marked down
-      // from, beside the fixed clearance price already shown as the line total.
-      if (item.isClearance) {
-        const mrp = n(item.variant.mrpOverride ?? item.variant.product.mrp ?? item.variant.product.basePrice);
-        if (mrp > n(item.unitPrice)) {
-          doc
-            .font('Helvetica')
-            .fontSize(7)
-            .text(`CLEARANCE (was ${fmtINR(mrp)})`, 12, doc.y, { width: W * 0.7 })
-            .fontSize(8);
-        }
+      // Print the tag MRP against what was actually charged whenever the two
+      // differ — not only on clearance, which is all this used to do. The POS
+      // charges the Sale Price (MRP − 10%), so an ordinary line otherwise shows
+      // its price twice and the saving is invisible until the bill total.
+      //
+      // Prefer the MRP snapshotted onto the SaleItem at checkout: it is what the
+      // tag said on the day, even if the variant has been repriced since.
+      const lineMrp = n(
+        (item as any).mrp ??
+          item.variant.mrpOverride ??
+          item.variant.product.mrp ??
+          item.variant.product.basePrice
+      );
+      if (lineMrp > n(item.unitPrice)) {
+        doc
+          .font('Helvetica')
+          .fontSize(7)
+          .text(
+            `${item.isClearance ? 'CLEARANCE — MRP' : 'MRP'} ${fmtINR(lineMrp)}`,
+            12,
+            doc.y,
+            { width: W * 0.7 }
+          )
+          .fontSize(8);
+      } else if (item.isClearance) {
+        doc.font('Helvetica').fontSize(7).text('CLEARANCE', 12, doc.y, { width: W * 0.7 }).fontSize(8);
       }
 
       if (flagText) {

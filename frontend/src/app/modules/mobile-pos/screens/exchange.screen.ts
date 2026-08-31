@@ -44,6 +44,9 @@ interface BarcodeLookup {
   size: string;
   color: string;
   price: number | string;
+  /** Tag MRP — what the label says before the shop's markdown. The lookup has
+   *  always returned it; the mobile POS just never carried it through. */
+  mrp?: number | string | null;
   productName: string;
   stock: number | string;
 }

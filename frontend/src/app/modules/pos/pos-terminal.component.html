@@ -454,9 +454,23 @@
                           </button>
                         </div>
                       </td>
-                      <!-- Unit price -->
-                      <td class="px-2 py-3 text-right text-sm text-on-surface-variant">
-                        {{ formatCurrency(item.unitPrice) }}
+                      <!--
+                        Unit price. Shows the tag MRP struck through above what
+                        is actually charged, whenever the two differ.
+
+                        Without it the PRICE and TOTAL columns show the same
+                        number on a single-quantity line and the saving is
+                        invisible until the bill total — the POS charges the
+                        Sale Price (MRP − 10%), so that is the common case, not
+                        the exception.
+                      -->
+                      <td class="px-2 py-3 text-right">
+                        @if (item.mrp && item.mrp > item.unitPrice) {
+                          <div class="text-[11px] leading-tight text-on-surface-variant/50 line-through">
+                            {{ formatCurrency(item.mrp) }}
+                          </div>
+                        }
+                        <div class="text-sm text-on-surface-variant">{{ formatCurrency(item.unitPrice) }}</div>
                       </td>
                       <!--
                         Per-line effective discount % (display only) + a

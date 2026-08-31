@@ -11,6 +11,11 @@ export interface MobileCartItem {
   color: string;
   quantity: number;
   unitPrice: number;
+  /** Tag MRP per unit, the "was" price. Higher than unitPrice on any line the
+   *  shop has marked down — which, since the POS charges the Sale Price
+   *  (MRP − 10%), is most of them. Shown struck through beside what is charged
+   *  so the price is not simply printed twice. */
+  mrp?: number;
   maxStock: number;
   /** Agent (salesman) assigned to this line. Defaults to the cashier. */
   agentId?: number | null;
