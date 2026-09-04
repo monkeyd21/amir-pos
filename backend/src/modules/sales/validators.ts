@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  customerPhoneSchema,
+  storedPhoneSchema,
   customerEmailSchema,
   customerAddressSchema,
 } from '../customers/contact-validators';
@@ -123,7 +123,9 @@ export const updateBillCustomerSchema = z.object({
     firstName: z.string().trim().min(1, 'Customer name is required'),
     // Dropdowns and cleared inputs send null — .optional() alone rejects it.
     lastName: z.string().trim().optional().nullable(),
-    phone: customerPhoneSchema,
+    // Loose here on purpose: an edit may carry a legacy number through
+    // untouched. The service enforces the 10 digit rule on a CHANGED number.
+    phone: storedPhoneSchema,
     email: customerEmailSchema,
     address: customerAddressSchema,
   }),

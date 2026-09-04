@@ -5,6 +5,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import {
+  PHONE_DIGITS,
+  phoneFieldError,
+  sanitizePhoneInput,
+} from '../../shared/validation/phone';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -97,7 +102,8 @@ interface BillCustomer {
           </div>
           <label class="flex flex-col gap-1.5">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Phone *</span>
-            <input type="tel" [(ngModel)]="form.phone" placeholder="+91 98765 43210"
+            <input type="tel" inputmode="numeric" [maxlength]="phoneMaxLength"
+              [(ngModel)]="form.phone" (input)="onPhoneInput($event)" placeholder="9876543210"
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
             @if (phoneError) {
               <span class="text-[10px] font-body text-red-400">{{ phoneError }}</span>
@@ -133,21 +139,28 @@ export class BillCustomerEditComponent implements OnInit {
   loading = true;
   saving = false;
   form = { firstName: '', lastName: '', phone: '', email: '', address: '' };
+  /** The number this bill's customer was loaded with, null on a walk-in. */
+  originalPhone: string | null = null;
+  readonly phoneMaxLength = PHONE_DIGITS;
+
+  /** Digits only, and it stops at 10 so an 11th cannot be typed. */
+  onPhoneInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    // A legacy number is only rewritten once the cashier actually types in the
+    // field; loading one into the form leaves it alone.
+    const cleaned = sanitizePhoneInput(input.value);
+    if (cleaned !== input.value) input.value = cleaned;
+    this.form.phone = cleaned;
+  }
+
 
   /**
-   * Mirrors `customerPhoneSchema` / `customerEmailSchema` on the server, the
-   * same rules the customers module's own create form is checked against. The
-   * server is the authority; this only saves the cashier a round trip.
+   * The shared phone rule, the same one the customers form and the POS
+   * quick-add dialog use. `originalPhone` exempts a legacy number that has not
+   * been touched, exactly as the server does.
    */
   get phoneError(): string | null {
-    const phone = this.form.phone.trim();
-    // Nothing typed yet is not an error to shout about: the disabled Save
-    // already says the form is incomplete. Only wrong input turns red.
-    if (!phone) return null;
-    if (!/^[0-9+\-\s()]+$/.test(phone)) return 'Enter a valid phone number';
-    if ((phone.match(/\d/g) ?? []).length < 10) return 'Phone must contain at least 10 digits';
-    if (phone.length > 20) return 'Phone number is too long';
-    return null; // matches customerPhoneSchema, split up so one message shows at a time
+    return phoneFieldError(this.form.phone, this.originalPhone);
   }
 
   get emailError(): string | null {
@@ -184,6 +197,7 @@ export class BillCustomerEditComponent implements OnInit {
             email: c.email || '',
             address: c.address || '',
           };
+          this.originalPhone = c.phone || null;
         }
         this.loading = false;
       },

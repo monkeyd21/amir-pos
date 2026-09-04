@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
+import { isValidPhone, normalizePhone } from '../../../shared/validation/phone';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MobileCartService, MobileCustomer } from '../services/mobile-cart.service';
 
@@ -31,7 +32,7 @@ interface CreateCustomerResponse {
 }
 
 // Matches +<digits> or <digits> of length 7-15 after stripping spaces/dashes
-const PHONE_REGEX = /^\+?\d{7,15}$/;
+
 
 @Component({
   selector: 'app-mobile-customer-screen',
@@ -655,13 +656,16 @@ export class MobileCustomerScreen implements OnInit, OnDestroy {
     this.query().trim().replace(/[\s-]/g, ''),
   );
 
-  readonly queryIsPhone = computed(() => PHONE_REGEX.test(this.normalizedPhone()));
+  readonly queryIsPhone = computed(() => isValidPhone(this.normalizedPhone()));
 
+  // The phone here is read-only and comes from a search query that already had
+  // to be 10 digits, but the guard is checked anyway so this screen can never
+  // be the one that posts a number the server will refuse.
   readonly canSubmit = computed(
     () =>
       this.firstName().trim().length > 0 &&
       this.lastName().trim().length > 0 &&
-      this.newPhone().trim().length > 0,
+      isValidPhone(this.newPhone()),
   );
 
   private search$ = new Subject<string>();
@@ -742,7 +746,7 @@ export class MobileCustomerScreen implements OnInit, OnDestroy {
     const payload = {
       firstName: this.firstName().trim(),
       lastName: this.lastName().trim(),
-      phone: this.newPhone().trim(),
+      phone: normalizePhone(this.newPhone()),
     };
 
     this.api.post<CreateCustomerResponse>('/customers', payload).subscribe({

@@ -2,8 +2,10 @@ import { AfterViewInit, Component, ElementRef, Inject, OnInit, ViewChild } from 
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule,
+  AbstractControl,
   FormBuilder,
   FormGroup,
+  ValidationErrors,
   Validators,
 } from '@angular/forms';
 import { DialogRef } from '../../shared/dialog/dialog-ref';
@@ -11,6 +13,12 @@ import { DIALOG_DATA } from '../../shared/dialog/dialog.tokens';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
+import {
+  PHONE_DIGITS,
+  PHONE_MESSAGE,
+  phoneFieldError,
+  sanitizePhoneInput,
+} from '../../shared/validation/phone';
 
 interface CustomerDialogData {
   customer: {
@@ -41,6 +49,31 @@ export class CustomerDialogComponent implements OnInit, AfterViewInit {
   saving = false;
   isEdit = false;
 
+  readonly phoneMaxLength = PHONE_DIGITS;
+  readonly phoneMessage = PHONE_MESSAGE;
+  /** The number an existing customer was loaded with, null when creating. */
+  private originalPhone: string | null = null;
+
+  /**
+   * Exactly 10 digits, the shared rule, with one exemption: a customer created
+   * before the rule can carry a country prefix or a landline, and someone
+   * opening that record to fix a spelling must still be able to save. A number
+   * left untouched is not flagged. The server applies the same exemption.
+   */
+  private readonly phoneRule = (control: AbstractControl): ValidationErrors | null => {
+    const value = (control.value ?? '').toString();
+    if (!value.trim()) return null; // Validators.required covers the empty case
+    return phoneFieldError(value, this.originalPhone) ? { phone: true } : null;
+  };
+
+  /** Digits only, and it stops at 10 so an 11th cannot be typed. */
+  onPhoneInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const cleaned = sanitizePhoneInput(input.value);
+    if (cleaned !== input.value) input.value = cleaned;
+    this.form.get('phone')?.setValue(cleaned);
+  }
+
   ngAfterViewInit(): void {
     // Land the cursor in First Name the moment the dialog opens so the cashier
     // can type straight away (no click needed).
@@ -57,6 +90,7 @@ export class CustomerDialogComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.isEdit = !!this.data?.customer;
+    this.originalPhone = this.data?.customer?.phone ?? null;
     this.form = this.fb.group({
       firstName: [
         this.data?.customer?.firstName || '',
@@ -71,7 +105,7 @@ export class CustomerDialogComponent implements OnInit, AfterViewInit {
       ],
       phone: [
         this.data?.customer?.phone || this.data?.phone || '',
-        [Validators.required, Validators.minLength(10)],
+        [Validators.required, this.phoneRule],
       ],
       address: [this.data?.customer?.address || ''],
       // §1.6 — DOB + Gender are OPTIONAL when adding a customer (deliberate,

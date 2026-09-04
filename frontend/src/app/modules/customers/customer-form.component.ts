@@ -5,6 +5,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import {
+  PHONE_DIGITS,
+  phoneFieldError,
+  sanitizePhoneInput,
+} from '../../shared/validation/phone';
 
 @Component({
   selector: 'app-customer-form',
@@ -16,7 +21,7 @@ import { PageHeaderComponent } from '../../shared/page-header/page-header.compon
         <a routerLink="/customers" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors cursor-pointer">
           <span class="material-symbols-outlined text-lg">arrow_back</span> Back
         </a>
-        <button (click)="save()" [disabled]="saving || !form.firstName || !form.phone"
+        <button (click)="save()" [disabled]="saving || !form.firstName || !form.phone || !!phoneError"
           class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           @if (saving) {
             <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
@@ -49,8 +54,12 @@ import { PageHeaderComponent } from '../../shared/page-header/page-header.compon
           </div>
           <label class="flex flex-col gap-1.5">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Phone *</span>
-            <input type="tel" [(ngModel)]="form.phone" placeholder="+91 98765 43210"
+            <input type="tel" inputmode="numeric" [maxlength]="phoneMaxLength"
+              [(ngModel)]="form.phone" (input)="onPhoneInput($event)" placeholder="9876543210"
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            @if (phoneError) {
+              <span class="text-[10px] font-body text-red-400">{{ phoneError }}</span>
+            }
           </label>
           <label class="flex flex-col gap-1.5">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Email</span>
@@ -109,6 +118,23 @@ export class CustomerFormComponent implements OnInit {
     childBirthMonth: null,
   };
 
+  /** The number the record was loaded with, so a legacy one can ride along. */
+  originalPhone: string | null = null;
+  readonly phoneMaxLength = PHONE_DIGITS;
+
+  /** The shared rule, the same one the POS and the bill correction page use. */
+  get phoneError(): string | null {
+    return phoneFieldError(this.form.phone, this.originalPhone);
+  }
+
+  /** Digits only, and it stops at 10 so an 11th cannot be typed. */
+  onPhoneInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const cleaned = sanitizePhoneInput(input.value);
+    if (cleaned !== input.value) input.value = cleaned;
+    this.form.phone = cleaned;
+  }
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -136,6 +162,7 @@ export class CustomerFormComponent implements OnInit {
           address: c.address ?? '',
           childBirthMonth: c.childBirthMonth ?? null,
         };
+        this.originalPhone = c.phone ?? null;
         this.loading = false;
       },
       // The HTTP error interceptor already toasts the server's message, so a
@@ -148,6 +175,10 @@ export class CustomerFormComponent implements OnInit {
 
   save(): void {
     if (this.saving) return;
+    if (this.phoneError) {
+      this.notify.error(this.phoneError);
+      return;
+    }
     this.saving = true;
     const body: any = { ...this.form };
     if (!body.email) body.email = null;

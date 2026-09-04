@@ -180,19 +180,62 @@ describe('PUT /sales/:saleId/customer (bug5)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('rejects an empty name and a malformed phone', async () => {
+  it('rejects an empty name', async () => {
     expect((await put(5, { firstName: '', phone: '9876500000' })).status).toBe(400);
-    expect((await put(5, { firstName: 'Sabiha', phone: 'not-a-phone' })).status).toBe(400);
   });
 
-  it('rejects a phone the customer create form would reject', async () => {
+  it('rejects anything that is not exactly 10 digits', async () => {
     // Both screens write the same Customer row, so the bill must not be the
-    // laxer door: a 6-digit stub and a letters-only string both fail here
-    // exactly as they do at /customers/new.
-    expect((await put(5, { firstName: 'Sabiha', phone: '98765' })).status).toBe(400);
-    expect((await put(5, { firstName: 'Sabiha', phone: '123456' })).status).toBe(400);
-    expect((await put(5, { firstName: 'Sabiha', phone: 'abcdefghij' })).status).toBe(400);
+    // laxer door: these all fail here exactly as they do at /customers/new.
+    prismaMock.sale.findUnique.mockResolvedValue(saleWithCustomer);
+
+    for (const phone of ['98765', '987654321', '98765432101', '+919876543210', 'abcdefghij']) {
+      const res = await put(5, { firstName: 'Sabiha', phone });
+      expect([res.status, phone]).toEqual([400, phone]);
+      expect(res.body.error).toMatch(/10 digit/i);
+    }
     expect(prismaMock.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('accepts a 10 digit number typed with separators, and stores the bare digits', async () => {
+    prismaMock.sale.findUnique.mockResolvedValue(saleWithCustomer);
+    prismaMock.customer.findUnique.mockResolvedValue(null);
+    prismaMock.customer.update.mockResolvedValue({ ...existingCustomer, phone: '9876511111' });
+    prismaMock.auditLog.create.mockResolvedValue({ id: 1 });
+
+    const res = await put(5, { firstName: 'Sabiha', phone: '98765 11111' });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.customer.update.mock.calls[0][0].data.phone).toBe('9876511111');
+  });
+
+  describe('customers who predate the 10 digit rule', () => {
+    // Live data carries country prefixes, landlines and junk. Opening one of
+    // those to fix a name must not be blocked by a number nobody touched.
+    const legacyCustomer = { ...existingCustomer, phone: '+91-9998887770' };
+    const legacySale = { ...saleWithCustomer, customer: legacyCustomer };
+
+    it('saves a name correction while the legacy number rides along untouched', async () => {
+      prismaMock.sale.findUnique.mockResolvedValue(legacySale);
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.update.mockResolvedValue({ ...legacyCustomer, firstName: 'Sabina' });
+      prismaMock.auditLog.create.mockResolvedValue({ id: 1 });
+
+      const res = await put(5, { firstName: 'Sabina', phone: '+91-9998887770' });
+
+      expect(res.status).toBe(200);
+      // Kept verbatim, not rejected and not quietly rewritten.
+      expect(prismaMock.customer.update.mock.calls[0][0].data.phone).toBe('+91-9998887770');
+    });
+
+    it('still refuses to REPLACE it with another bad number', async () => {
+      prismaMock.sale.findUnique.mockResolvedValue(legacySale);
+
+      const res = await put(5, { firstName: 'Sabiha', phone: '+91-9998887779' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/10 digit/i);
+    });
   });
 
   it('rejects a malformed email', async () => {

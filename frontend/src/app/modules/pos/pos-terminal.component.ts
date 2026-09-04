@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { isValidPhone } from '../../shared/validation/phone';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService, User } from '../../core/services/auth.service';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
@@ -1016,7 +1017,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             // prompts new-customer creation with that number pre-filled, so the
             // cashier never re-types it.
             const q = this.lastCustomerQuery.trim();
-            const isPhone = /^\d{10,}$/.test(q);
+            // Exactly 10 digits, matching the rule the create form enforces,
+            // so the prompt never pre-fills a number that cannot be saved.
+            const isPhone = isValidPhone(q);
             if (
               this.customerSearchResults.length === 0 &&
               isPhone &&
@@ -1101,7 +1104,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   addCustomer(prefillPhone?: string): void {
-    const phone = prefillPhone ?? (/^\d{10,}$/.test(this.customerSearchQuery.trim()) ? this.customerSearchQuery.trim() : undefined);
+    const query = this.customerSearchQuery.trim();
+    const phone = prefillPhone ?? (isValidPhone(query) ? query : undefined);
     const ref = this.dialog.open<CustomerDialogComponent, any, boolean | any>(
       CustomerDialogComponent,
       { data: { customer: null, phone }, width: '32rem' }

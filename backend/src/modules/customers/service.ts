@@ -1,6 +1,7 @@
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { getPagination, buildPaginationMeta } from '../../utils/helpers';
+import { normalizePhone, resolvePhoneChange } from './contact-validators';
 
 export class CustomerService {
   async list(query: { page?: string; limit?: string; search?: string; query?: string }) {
@@ -137,8 +138,12 @@ export class CustomerService {
     gender?: string | null;
     childBirthMonth?: number | null;
   }) {
+    // Validated as exactly 10 digits at the boundary; store the bare digits so
+    // "98765 43210" and "9876543210" cannot become two rows for one person.
+    const phone = normalizePhone(data.phone);
+
     const existing = await prisma.customer.findUnique({
-      where: { phone: data.phone },
+      where: { phone },
     });
 
     if (existing) {
@@ -147,7 +152,7 @@ export class CustomerService {
 
     const { dateOfBirth, ...rest } = data;
     return prisma.customer.create({
-      data: { ...rest, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null },
+      data: { ...rest, phone, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null },
     });
   }
 
@@ -166,9 +171,15 @@ export class CustomerService {
       throw new AppError('Customer not found', 404);
     }
 
-    if (data.phone && data.phone !== customer.phone) {
+    // A number being CHANGED has to be a valid 10 digit mobile; one carried
+    // through untouched is kept exactly as stored, so the customers who
+    // predate the rule stay editable.
+    const phone =
+      data.phone === undefined ? undefined : resolvePhoneChange(data.phone, customer.phone);
+
+    if (phone && phone !== customer.phone) {
       const existing = await prisma.customer.findUnique({
-        where: { phone: data.phone },
+        where: { phone },
       });
       if (existing) {
         throw new AppError('A customer with this phone number already exists', 409);
@@ -177,6 +188,9 @@ export class CustomerService {
 
     const { dateOfBirth, ...rest } = data;
     const updateData: any = { ...rest };
+    if (phone !== undefined) {
+      updateData.phone = phone;
+    }
     if (dateOfBirth !== undefined) {
       updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
     }

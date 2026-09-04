@@ -2,6 +2,12 @@ import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
+import {
+  isValidPhone,
+  normalizePhone,
+  resolvePhoneChange,
+  PHONE_MESSAGE,
+} from '../customers/contact-validators';
 import { getSetting } from '../settings/service';
 import {
   buildUpiUri,
@@ -1354,11 +1360,21 @@ export class SalesService {
 
     const firstName = data.firstName.trim();
     const lastName = data.lastName?.trim() || null;
-    const phone = data.phone.trim();
     const email = data.email?.trim() || null;
     const address = data.address?.trim() || null;
     if (!firstName) throw new AppError('Customer name is required', 400);
-    if (!phone) throw new AppError('Customer phone is required', 400);
+
+    // Correcting an existing customer: the 10 digit rule applies to a number
+    // being CHANGED, while one left as it was is kept verbatim so the
+    // customers who predate the rule are still editable. A walk-in being
+    // attached is a brand new record, so it gets the rule unconditionally.
+    let phone: string;
+    if (sale.customer) {
+      phone = resolvePhoneChange(data.phone, sale.customer.phone);
+    } else {
+      if (!isValidPhone(data.phone)) throw new AppError(PHONE_MESSAGE, 400);
+      phone = normalizePhone(data.phone);
+    }
 
     // Phone is unique across customers, so a correction that lands on a
     // DIFFERENT customer is a merge (or a re-link), not a rename. Refuse it

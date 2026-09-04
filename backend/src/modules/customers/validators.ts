@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   customerPhoneSchema,
+  storedPhoneSchema,
   customerEmailSchema,
   customerAddressSchema,
 } from './contact-validators';
@@ -28,7 +29,9 @@ export const updateCustomerSchema = z.object({
   body: z.object({
     firstName: z.string().min(1).optional(),
     lastName: z.string().optional().nullable(),
-    phone: customerPhoneSchema.optional(),
+    // Loose here on purpose: an edit may carry a legacy number through
+    // untouched. customerService.update enforces the rule on a CHANGED number.
+    phone: storedPhoneSchema.optional(),
     email: customerEmailSchema,
     address: customerAddressSchema,
     dateOfBirth: z.string().optional().nullable(),
