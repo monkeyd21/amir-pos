@@ -7,6 +7,7 @@ import {
   saleIdParamSchema,
   processReturnSchema,
   processExchangeSchema,
+  approveExchangeOverrideSchema,
   returnableByBarcodeSchema,
   rejectInspectionSchema,
   updateBillCustomerSchema,
@@ -41,6 +42,16 @@ router.post(
   authorize('owner', 'manager', 'cashier', 'staff'),
   validate(processExchangeSchema),
   salesController.processExchange
+);
+
+// §0: a manager or owner authorises a second exchange on a bill that has
+// already been exchanged. The cashier's terminal makes the call; the approver's
+// own credentials in the body are what authorise it, so every role may POST.
+router.post(
+  '/:saleId/exchange-override',
+  authorize('owner', 'manager', 'cashier', 'staff'),
+  validate(approveExchangeOverrideSchema),
+  salesController.approveExchangeOverride
 );
 
 // §1.2a — log a failed-inspection rejection. No return/exchange txn, no

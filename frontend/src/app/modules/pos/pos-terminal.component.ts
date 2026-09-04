@@ -462,6 +462,28 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   exchangeScanVariant: any = null;
   exchangeScanned = false;
 
+  // ─── §0 one exchange per bill ──────────────────────────────────────
+  // The shop allows one exchange per bill as a general policy, so a second one
+  // is stopped here and let through only on a manager's or owner's approval.
+  // A bill that has never been exchanged goes through untouched: no prompt, no
+  // extra click. Rendered inside the exchange panel rather than as a modal,
+  // because the layout's stacking context makes overlays unreachable.
+  /** The bill whose exchange is on hold, and the swap it already had. */
+  exchangeBlockedBill: { id: number; saleNumber: string } | null = null;
+  exchangePriorExchange: { returnNumber: string; dateLabel: string; createdAt: string } | null = null;
+  /** The line the cashier scanned, remembered across the approval detour. */
+  private exchangeBlockedPreselect: number | undefined;
+  exchangeOverrideOpen = false;
+  exchangeOverrideEmail = '';
+  exchangeOverridePassword = '';
+  exchangeOverrideVerifying = false;
+  /** Signed, short-lived approval carried to checkout. Never the password. */
+  exchangeOverrideGrant: string | null = null;
+  exchangeOverrideBillId: number | null = null;
+  exchangeOverrideApprover: string | null = null;
+  /** The original bill's customer, shown so the cashier sees who they serve. */
+  exchangeBillCustomer: any = null;
+
   constructor(
     private api: ApiService,
     private notify: NotificationService,
@@ -1972,6 +1994,11 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           condition: i.condition,
         })),
       };
+      // §0: a second exchange on this bill only goes through with the manager
+      // approval attached. The backend re-verifies it and records who approved.
+      if (this.exchangeOverrideGrant && this.exchangeOverrideBillId === this.exchangeSale.id) {
+        body.exchange.overrideGrant = this.exchangeOverrideGrant;
+      }
     }
 
     this.api
@@ -2035,6 +2062,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
     this.exchangeMode = 'scan';
+    this.exchangeBillCustomer = null;
+    this.clearExchangeOverride();
     this.clearExchangeCustomer();
     this.clearExchangeScan();
   }
@@ -2186,6 +2215,24 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           this.notify.error('Bill not found');
           return;
         }
+
+        // §0: stop before anything is picked when this bill has already been
+        // exchanged, unless a manager has already approved this very bill.
+        const prior = sale.priorExchange || null;
+        const approved =
+          !!this.exchangeOverrideGrant && this.exchangeOverrideBillId === sale.id;
+        if (prior && !approved) {
+          this.exchangeBlockedBill = { id: sale.id, saleNumber: sale.saleNumber };
+          this.exchangePriorExchange = prior;
+          this.exchangeBlockedPreselect = preselectSaleItemId;
+          this.exchangeOverrideOpen = false;
+          this.exchangeOverrideEmail = '';
+          this.exchangeOverridePassword = '';
+          this.showBillsPanel = false;
+          this.showExchangePanel = true;
+          return;
+        }
+
         const items = (sale.items || [])
           // A line marked non-returnable at billing (or a product flagged
           // non-returnable) can't come back — not even via an exchange, since a
@@ -2227,8 +2274,19 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         this.exchangeSale = { id: sale.id, saleNumber: sale.saleNumber };
         this.exchangeItems = items;
         this.exchangeLookupQuery = '';
+        this.clearExchangeBlock();
         this.showBillsPanel = false;
         this.showExchangePanel = true;
+
+        // The replacement bill is for the same customer, so carry them across
+        // instead of making the cashier find or retype someone the shop already
+        // knows. A walk-in bill has no customer: that is the ordinary case, so
+        // nothing is prefilled and the flow carries on unchanged. An already
+        // chosen customer is never overwritten.
+        this.exchangeBillCustomer = sale.customer || null;
+        if (sale.customer && !this.selectedCustomer) {
+          this.selectCustomer(sale.customer);
+        }
       },
       error: (err) => {
         this.exchangeLoading = false;
@@ -2336,12 +2394,87 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     if (item.quantity > item.available) item.quantity = item.available;
   }
 
+  // ─── §0 one exchange per bill: the manager override ───────────────
+
+  /** Reveal the approval form. Deliberately a second, deliberate action. */
+  openExchangeOverride(): void {
+    this.exchangeOverrideOpen = true;
+  }
+
+  /**
+   * A manager or owner signs off on a second exchange with their own
+   * credentials, not the shared Owner PIN, so the approval carries a name. The
+   * backend hands back a short-lived grant scoped to this one bill; that grant,
+   * never the password, is what travels on to checkout and gets recorded.
+   */
+  submitExchangeOverride(): void {
+    const bill = this.exchangeBlockedBill;
+    if (!bill || this.exchangeOverrideVerifying) return;
+    const approverEmail = this.exchangeOverrideEmail.trim();
+    const approverPassword = this.exchangeOverridePassword;
+    if (!approverEmail || !approverPassword) {
+      this.notify.error('Enter the manager or owner email and password');
+      return;
+    }
+
+    this.exchangeOverrideVerifying = true;
+    this.api
+      .post<ApiResponse<any>>(`/sales/${bill.id}/exchange-override`, {
+        approverEmail,
+        approverPassword,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.exchangeOverrideVerifying = false;
+          this.exchangeOverrideGrant = res.data?.grant || null;
+          this.exchangeOverrideApprover = res.data?.approverName || null;
+          this.exchangeOverrideBillId = bill.id;
+          // The password has done its job. Nothing keeps it after this point.
+          this.exchangeOverridePassword = '';
+          this.exchangeOverrideEmail = '';
+          this.notify.success(`Second exchange approved by ${this.exchangeOverrideApprover}`);
+          const preselect = this.exchangeBlockedPreselect;
+          this.startExchange(bill.id, preselect);
+        },
+        error: (err) => {
+          this.exchangeOverrideVerifying = false;
+          this.exchangeOverridePassword = '';
+          this.notify.error(err.error?.error || 'Approval failed');
+        },
+      });
+  }
+
+  /** Back out of the blocked bill without approving anything. */
+  dismissExchangeBlock(): void {
+    this.clearExchangeBlock();
+  }
+
+  private clearExchangeBlock(): void {
+    this.exchangeBlockedBill = null;
+    this.exchangePriorExchange = null;
+    this.exchangeBlockedPreselect = undefined;
+    this.exchangeOverrideOpen = false;
+    this.exchangeOverrideEmail = '';
+    this.exchangeOverridePassword = '';
+    this.exchangeOverrideVerifying = false;
+  }
+
+  private clearExchangeOverride(): void {
+    this.clearExchangeBlock();
+    this.exchangeOverrideGrant = null;
+    this.exchangeOverrideBillId = null;
+    this.exchangeOverrideApprover = null;
+  }
+
   /** Drop the whole exchange — back to a plain sale. */
   cancelExchange(): void {
     this.exchangeSale = null;
     this.exchangeItems = [];
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
+    this.exchangeBillCustomer = null;
+    this.clearExchangeOverride();
     this.clearExchangeCustomer();
     this.clearExchangeScan();
   }

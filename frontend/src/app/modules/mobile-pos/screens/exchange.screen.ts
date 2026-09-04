@@ -25,11 +25,34 @@ interface SaleItem {
   variant?: SaleItemVariant | null;
 }
 
+interface SaleCustomer {
+  id: number;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
+/** §0: the swap this bill has already had. Null when it still has its one. */
+interface PriorExchange {
+  id: number;
+  returnNumber: string;
+  createdAt: string;
+  dateLabel: string;
+}
+
 interface Sale {
   id: number;
   saleNumber: string;
   status: string;
   items: SaleItem[];
+  customer?: SaleCustomer | null;
+  priorExchange?: PriorExchange | null;
+}
+
+interface OverrideApproval {
+  grant: string;
+  approverName: string;
 }
 
 interface Envelope<T> {
@@ -115,6 +138,89 @@ interface NewItem {
           </div>
         } @else {
           <div class="exchange-body">
+            <!-- §0 one exchange per bill. Shown only when the bill has already
+                 been exchanged; a first exchange sees none of this. -->
+            @if (priorExchange(); as prior) {
+              <section class="bill-section">
+                @if (exchangeBlocked()) {
+                  <div class="policy-block">
+                    <div class="policy-block__head">
+                      <span class="material-icons">block</span>
+                      <span>Already exchanged</span>
+                    </div>
+                    <p class="policy-block__body">
+                      Bill {{ sale()?.saleNumber }} was exchanged on
+                      <strong>{{ prior.dateLabel }}</strong> ({{ prior.returnNumber }}).
+                      Store policy is one exchange per bill.
+                    </p>
+                    <p class="policy-block__body">
+                      A manager or owner can approve another one.
+                    </p>
+                  </div>
+
+                  @if (!overrideOpen()) {
+                    <button
+                      type="button"
+                      class="mp-btn mp-btn--secondary override-btn"
+                      (click)="openOverride()"
+                    >
+                      Manager override
+                    </button>
+                  } @else {
+                    <div class="override-form">
+                      <p class="override-form__hint">
+                        The approving manager or owner signs in here. Their name is
+                        recorded against this bill.
+                      </p>
+                      <input
+                        class="mp-input"
+                        type="email"
+                        autocomplete="off"
+                        placeholder="Manager email"
+                        [(ngModel)]="overrideEmail"
+                      />
+                      <input
+                        class="mp-input"
+                        type="password"
+                        autocomplete="off"
+                        placeholder="Password"
+                        [(ngModel)]="overridePassword"
+                      />
+                      <button
+                        type="button"
+                        class="mp-btn mp-btn--primary"
+                        [disabled]="overrideVerifying()"
+                        (click)="submitOverride()"
+                      >
+                        {{ overrideVerifying() ? 'Checking…' : 'Approve second exchange' }}
+                      </button>
+                    </div>
+                  }
+                } @else {
+                  <div class="policy-approved">
+                    <span class="material-icons">verified_user</span>
+                    <span>Second exchange approved by {{ overrideApprover() }}</span>
+                  </div>
+                }
+              </section>
+            }
+
+            <!-- The bill's customer, carried across so the cashier can see who
+                 they are serving. Absent on a walk-in bill. -->
+            @if (sale()?.customer) {
+              <section class="bill-section">
+                <div class="section-title">Customer</div>
+                <div class="customer-card">
+                  <span class="material-icons">person</span>
+                  <div class="customer-card__text">
+                    <div class="customer-card__name">{{ customerName() || 'Customer' }}</div>
+                    <div class="customer-card__meta">{{ customerContact() }}</div>
+                  </div>
+                  <span class="customer-card__tag">From bill</span>
+                </div>
+              </section>
+            }
+
             <!-- Return items -->
             <section class="bill-section">
               <div class="section-title">Return Items</div>
@@ -575,6 +681,105 @@ interface NewItem {
         min-height: 52px;
       }
 
+      /* §0 one exchange per bill */
+      .policy-block {
+        border-radius: 14px;
+        padding: 14px 16px;
+        background: var(--mp-error-soft);
+        border: 1px solid var(--mp-error);
+      }
+
+      .policy-block__head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--mp-on-bg);
+      }
+
+      .policy-block__head .material-icons {
+        font-size: 20px;
+        color: var(--mp-error);
+      }
+
+      .policy-block__body {
+        margin: 8px 0 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--mp-on-bg-muted);
+      }
+
+      .override-btn {
+        width: 100%;
+        margin-top: 12px;
+      }
+
+      .override-form {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .override-form__hint {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--mp-on-bg-muted);
+      }
+
+      .policy-approved {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--mp-on-bg);
+        background: var(--mp-surface-2);
+      }
+
+      .policy-approved .material-icons { font-size: 20px; }
+
+      .customer-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: 14px;
+        padding: 12px 16px;
+        background: var(--mp-surface-2);
+      }
+
+      .customer-card__text { flex: 1; min-width: 0; }
+
+      .customer-card__name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--mp-on-bg);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .customer-card__meta {
+        font-size: 12px;
+        color: var(--mp-on-bg-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .customer-card__tag {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--mp-on-bg-muted);
+        flex-shrink: 0;
+      }
+
       .reason-input {
         min-height: 80px;
         padding: 14px 16px;
@@ -695,6 +900,24 @@ export class MobileExchangeScreen implements OnInit {
 
   reasonText = '';
 
+  // ─── §0 one exchange per bill ──────────────────────────────
+  // A bill that has already been exchanged is stopped here and let through
+  // only on a manager's or owner's approval. A first exchange sees none of
+  // this. The approval form is part of this full-screen route, not a modal.
+  readonly priorExchange = computed(() => this.sale()?.priorExchange ?? null);
+  readonly overrideOpen = signal<boolean>(false);
+  readonly overrideVerifying = signal<boolean>(false);
+  /** Signed, short-lived approval carried to submit. Never the password. */
+  readonly overrideGrant = signal<string | null>(null);
+  readonly overrideApprover = signal<string | null>(null);
+  /** True while the policy still blocks this bill. */
+  readonly exchangeBlocked = computed(
+    () => !!this.priorExchange() && !this.overrideGrant()
+  );
+
+  overrideEmail = '';
+  overridePassword = '';
+
   readonly returnTotal = computed(() => {
     const s = this.sale();
     if (!s) return 0;
@@ -740,6 +963,9 @@ export class MobileExchangeScreen implements OnInit {
   });
 
   readonly canSubmit = computed(() => {
+    // §0: a bill that has already been exchanged stays blocked until a
+    // manager or owner approves. A first exchange is unaffected.
+    if (this.exchangeBlocked()) return false;
     if (this.totalReturnQty() === 0 && this.totalNewQty() === 0) return false;
     if (this.reason().trim().length === 0) return false;
     return true;
@@ -920,11 +1146,15 @@ export class MobileExchangeScreen implements OnInit {
       quantity: n.quantity,
     }));
 
-    const body = {
+    const body: Record<string, unknown> = {
       reason: this.reason().trim(),
       returnItems,
       newItems: newItemsPayload,
     };
+    // §0: a second exchange only goes through with the manager approval
+    // attached. The backend re-verifies it and records who approved.
+    const grant = this.overrideGrant();
+    if (grant) body['overrideGrant'] = grant;
 
     this.submitting.set(true);
     this.api
@@ -944,6 +1174,69 @@ export class MobileExchangeScreen implements OnInit {
           );
         },
       });
+  }
+
+  // ─── §0 one exchange per bill: the manager override ────────
+
+  /** Reveal the approval form. Deliberately a second, deliberate action. */
+  openOverride(): void {
+    this.overrideOpen.set(true);
+  }
+
+  /**
+   * A manager or owner signs off with their own credentials, not the shared
+   * Owner PIN, so the approval carries a name. The backend returns a grant
+   * scoped to this one bill; that grant, never the password, travels on.
+   */
+  submitOverride(): void {
+    const s = this.sale();
+    if (!s || this.overrideVerifying()) return;
+    const approverEmail = this.overrideEmail.trim();
+    const approverPassword = this.overridePassword;
+    if (!approverEmail || !approverPassword) {
+      this.notify.error('Enter the manager or owner email and password');
+      return;
+    }
+
+    this.overrideVerifying.set(true);
+    this.api
+      .post<Envelope<OverrideApproval>>('/sales/' + s.id + '/exchange-override', {
+        approverEmail,
+        approverPassword,
+      })
+      .subscribe({
+        next: (res) => {
+          this.overrideVerifying.set(false);
+          this.overrideGrant.set(res?.data?.grant ?? null);
+          this.overrideApprover.set(res?.data?.approverName ?? null);
+          // The password has done its job. Nothing keeps it after this point.
+          this.overridePassword = '';
+          this.overrideEmail = '';
+          this.overrideOpen.set(false);
+          this.notify.success('Second exchange approved by ' + this.overrideApprover());
+        },
+        error: (err: unknown) => {
+          this.overrideVerifying.set(false);
+          this.overridePassword = '';
+          const e = err as { error?: { error?: string; message?: string }; message?: string };
+          this.notify.error(
+            e?.error?.error || e?.error?.message || e?.message || 'Approval failed'
+          );
+        },
+      });
+  }
+
+  /** The bill's customer, carried across from the original bill. */
+  customerName(): string {
+    const c = this.sale()?.customer;
+    if (!c) return '';
+    return `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+  }
+
+  customerContact(): string {
+    const c = this.sale()?.customer;
+    if (!c) return '';
+    return c.phone || c.email || 'No contact on file';
   }
 
   // ─── Helpers ────────────────────────────────────────────────

@@ -14,6 +14,15 @@ import { gstRateForPrice } from '../../utils/tax';
 import { createProduct as createProductService } from '../products/service';
 import { slugify } from '../../utils/helpers';
 import { canExchangeLine, clearanceCashOutBlocked } from './exchange-policy';
+import {
+  carriedCustomerId,
+  findPriorExchange,
+  oneExchangePerBillMessage,
+} from './exchange-limit';
+import {
+  ExchangeOverrideGrant,
+  verifyExchangeOverrideGrant,
+} from '../../services/exchange-override';
 import { snapshotMrp, tagMrp } from './tag-mrp';
 import { liveHoldsForVariant, paidUnfulfilledClaims } from '../shop/availability';
 import {
@@ -550,6 +559,12 @@ export class PosService {
         originalSaleId: number;
         returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
         reason?: string;
+        /**
+         * §0 one exchange per bill: a manager's or owner's signed approval to
+         * swap against a bill that has already been exchanged. Issued by
+         * `POST /sales/:saleId/exchange-override`.
+         */
+        overrideGrant?: string;
       };
     },
     userId: number,
@@ -559,6 +574,34 @@ export class PosService {
     // session-shaped rule below is therefore skipped for it, and the trading day
     // comes from the wall clock (in IST) instead of an open shift.
     const isOnlineSale = data.channel === 'online';
+
+    // §0/§exchange-prefill: everything the exchange needs from the ORIGINAL
+    // bill is resolved here, before the transaction opens: verifying an override
+    // grant is pure crypto and reading the original customer is a single row,
+    // and neither should run while a checkout transaction holds its locks.
+    let overrideApproval: ExchangeOverrideGrant | null = null;
+    if (data.exchange && !data.offline) {
+      if (data.exchange.overrideGrant) {
+        overrideApproval = verifyExchangeOverrideGrant(
+          data.exchange.overrideGrant,
+          data.exchange.originalSaleId
+        );
+      }
+
+      // The replacement bill belongs to whoever the original bill belonged to,
+      // so the cashier never has to find or retype a customer the shop already
+      // knows. A walk-in bill carries no customer and stays a walk-in, which is
+      // the ordinary case, not an error. An explicitly chosen customer always
+      // wins over the carried-over one.
+      if (data.customerId == null) {
+        const orig = await prisma.sale.findUnique({
+          where: { id: data.exchange.originalSaleId },
+          select: { customerId: true },
+        });
+        const carried = carriedCustomerId(data.customerId, orig?.customerId);
+        if (carried != null) data = { ...data, customerId: carried };
+      }
+    }
 
     return prisma.$transaction(async (tx) => {
       // 1. Verify user has an open session (counter sales only)
@@ -947,6 +990,8 @@ export class PosService {
       // §2.4/bug2 — how much of the exchange credit came from clearance lines,
       // which may be swapped but must never turn into cash back.
       let nonRefundableCredit = 0;
+      // §0: the earlier exchange this bill already had, when there is one.
+      let priorExchange: ReturnType<typeof findPriorExchange> = null;
 
       if (data.exchange && !data.offline) {
         const orig = await tx.sale.findUnique({
@@ -963,6 +1008,20 @@ export class PosService {
           );
         }
         exchangeOriginalNumber = orig.saleNumber;
+
+        // §0 one exchange per bill. A bill that was merely REFUNDED against
+        // still has its exchange: `Return.type` is what tells the two apart.
+        // The check is re-run here inside the transaction, so two tills cannot
+        // both slip a second exchange past it at the same moment.
+        priorExchange = findPriorExchange(
+          await tx.return.findMany({
+            where: { originalSaleId: orig.id, type: 'exchange' },
+            select: { id: true, returnNumber: true, type: true, createdAt: true },
+          })
+        );
+        if (priorExchange && !overrideApproval) {
+          throw new AppError(oneExchangePerBillMessage(orig.saleNumber, priorExchange), 409);
+        }
 
         const origItems = new Map(orig.items.map((i) => [i.id, i]));
         let returnSubtotal = 0;
@@ -1043,6 +1102,8 @@ export class PosService {
             taxAmount: Math.round(returnTax * 100) / 100,
             total: exchangeCredit,
             status: 'completed',
+            // §0: the manager or owner who let this second exchange through.
+            approvedBy: overrideApproval?.approvedBy ?? null,
             items: {
               create: restock.map((r) => ({
                 saleItemId: r.saleItemId,
@@ -1055,6 +1116,30 @@ export class PosService {
           },
         });
         exchangeReturnId = returnRecord.id;
+
+        // §0: record the override where it is SPENT, not where it was given,
+        // so the log never claims an approval that was never used. Who, when
+        // (the row's own createdAt) and which bill (entityId) all land here.
+        if (priorExchange && overrideApproval) {
+          await recordAudit(tx, {
+            action: 'exchange.limit_overridden',
+            entityType: 'sale',
+            entityId: orig.id,
+            userId: overrideApproval.approvedBy,
+            branchId,
+            reason: data.exchange.reason,
+            data: {
+              saleNumber: orig.saleNumber,
+              approvedBy: overrideApproval.approvedBy,
+              approverName: overrideApproval.approverName,
+              approverRole: overrideApproval.approverRole,
+              requestedByUserId: userId,
+              priorExchange,
+              returnId: returnRecord.id,
+              returnNumber,
+            },
+          });
+        }
 
         for (const r of restock) {
           await tx.saleItem.update({

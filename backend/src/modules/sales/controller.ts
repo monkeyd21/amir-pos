@@ -211,6 +211,25 @@ export class SalesController {
     }
   }
 
+  // §0: manager/owner approval to exchange a bill a second time. Returns a
+  // short-lived grant the exchange submission carries; nothing is recorded
+  // until that grant is actually spent on an exchange.
+  async approveExchangeOverride(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await salesService.approveExchangeOverride(
+        parseInt(req.params.saleId, 10),
+        req.body
+      );
+      res.json({
+        success: true,
+        data: result,
+        message: `Approved by ${result.approverName}`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async assignAgents(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const saleId = parseInt(req.params.saleId, 10);

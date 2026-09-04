@@ -95,3 +95,10 @@ export const monthLabel = (month: Ym): string => {
   const [y, m] = month.split('-').map(Number);
   return `${MONTH_LABELS[m - 1]} ${y}`;
 };
+
+/** `2026-09-05` (or an instant) → `5 Sep 2026`, for screen and message text. */
+export const istDateLabel = (value: Ymd | Date): string => {
+  const ymd = typeof value === 'string' ? value : toIstYmd(value);
+  const [y, m, d] = ymd.split('-').map(Number);
+  return `${d} ${MONTH_LABELS[m - 1]} ${y}`;
+};

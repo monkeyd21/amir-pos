@@ -800,7 +800,9 @@ model Return {
   refundBreakup         Json?
   loyaltyPointsRestored Int          @default(0) // redeemed points returned to wallet
   loyaltyPointsReversed Int          @default(0) // earned points clawed back
-  approvedBy            Int? // manager/owner who authorised a method override
+  // Manager/owner who authorised an override on this return: a forced refund
+  // method, or (§0) a second exchange against a bill that already had one.
+  approvedBy            Int?
   createdAt             DateTime     @default(now())
 
   originalSale Sale         @relation(fields: [originalSaleId], references: [id])

@@ -103,6 +103,20 @@ export const processExchangeSchema = z.object({
       )
       .min(1, 'At least one new item is required'),
     reason: z.string().optional(),
+    // §0: signed manager/owner approval to exchange this bill a second time.
+    overrideGrant: z.string().optional().nullable(),
+  }),
+});
+
+// §0: a manager or owner authorising a second exchange with their OWN
+// credentials. Verified against the User table, so the approval carries a name.
+export const approveExchangeOverrideSchema = z.object({
+  params: z.object({
+    saleId: z.string().regex(/^\d+$/),
+  }),
+  body: z.object({
+    approverEmail: z.string().min(1, 'Approver email is required'),
+    approverPassword: z.string().min(1, 'Approver password is required'),
   }),
 });
 

@@ -1585,8 +1585,62 @@
           </div>
 
           <div class="flex-1 overflow-y-auto p-4 space-y-3">
-            <!-- Bill lookup — by bill number or by customer -->
-            @if (!exchangeSale) {
+            <!-- §0 one exchange per bill. Shown only when the bill has already
+                 been exchanged; otherwise the flow below is untouched. -->
+            @if (exchangeBlockedBill && exchangePriorExchange) {
+              <div class="p-4 rounded-xl bg-error-container/20 border border-error/40 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-error">block</span>
+                  <p class="text-sm font-bold text-on-surface">Already exchanged</p>
+                </div>
+                <p class="text-xs text-on-surface-variant leading-relaxed">
+                  Bill <span class="font-semibold text-on-surface">{{ exchangeBlockedBill.saleNumber }}</span>
+                  was exchanged on
+                  <span class="font-semibold text-on-surface">{{ exchangePriorExchange.dateLabel }}</span>
+                  ({{ exchangePriorExchange.returnNumber }}).
+                  Store policy is one exchange per bill.
+                </p>
+                <p class="text-xs text-on-surface-variant leading-relaxed">
+                  A manager or owner can approve another one.
+                </p>
+              </div>
+
+              @if (!exchangeOverrideOpen) {
+                <button (click)="openExchangeOverride()"
+                  class="w-full py-2.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/25 transition-colors">
+                  Manager override
+                </button>
+              } @else {
+                <div class="p-4 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 space-y-3">
+                  <p class="text-[11px] text-on-surface-variant leading-relaxed">
+                    The approving manager or owner signs in here. Their name is recorded against this bill.
+                  </p>
+                  <input
+                    [(ngModel)]="exchangeOverrideEmail"
+                    type="email"
+                    placeholder="Manager email"
+                    autocomplete="off"
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm px-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                  />
+                  <input
+                    [(ngModel)]="exchangeOverridePassword"
+                    (keyup.enter)="submitExchangeOverride()"
+                    type="password"
+                    placeholder="Password"
+                    autocomplete="off"
+                    class="w-full bg-surface-container-lowest border border-outline-variant/20 focus:border-primary text-on-surface text-sm px-3 py-2.5 rounded-lg outline-none placeholder:text-outline/50"
+                  />
+                  <button (click)="submitExchangeOverride()" [disabled]="exchangeOverrideVerifying"
+                    class="w-full py-2.5 rounded-lg bg-primary-container text-on-primary-container text-sm font-bold disabled:opacity-40">
+                    {{ exchangeOverrideVerifying ? 'Checking...' : 'Approve second exchange' }}
+                  </button>
+                </div>
+              }
+
+              <button (click)="dismissExchangeBlock()" class="w-full py-2 text-xs text-on-surface-variant hover:text-on-surface">
+                Pick a different bill
+              </button>
+            } @else if (!exchangeSale) {
               <!-- Mode toggle -->
               <div class="flex p-1 rounded-lg bg-surface-container-high/60 text-xs font-semibold">
                 <button (click)="exchangeMode = 'scan'"
@@ -1725,6 +1779,27 @@
                 <p class="text-xs text-on-surface-variant">Returning against <span class="font-semibold text-on-surface">{{ exchangeSale.saleNumber }}</span></p>
                 <button (click)="cancelExchange()" class="text-[11px] text-error hover:underline">Remove</button>
               </div>
+              <!-- The original bill's customer, carried across so the cashier
+                   can see who they are serving. Absent on a walk-in bill. -->
+              @if (exchangeBillCustomer) {
+                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-container/10 border border-primary/20">
+                  <div class="w-7 h-7 rounded-full bg-primary-container/25 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                    {{ (exchangeBillCustomer.firstName || '?')[0] }}{{ (exchangeBillCustomer.lastName || '?')[0] }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm text-on-surface truncate">{{ exchangeBillCustomer.firstName }} {{ exchangeBillCustomer.lastName }}</p>
+                    <p class="text-[10px] text-on-surface-variant truncate">
+                      {{ exchangeBillCustomer.phone || exchangeBillCustomer.email || 'No contact on file' }}
+                    </p>
+                  </div>
+                  <span class="text-[10px] font-bold uppercase tracking-widest text-primary shrink-0">From bill</span>
+                </div>
+              }
+              @if (exchangeOverrideApprover && exchangeOverrideBillId === exchangeSale.id) {
+                <p class="text-[11px] text-amber-300 leading-relaxed">
+                  Second exchange approved by {{ exchangeOverrideApprover }}.
+                </p>
+              }
               @for (it of exchangeItems; track it.saleItemId) {
                 <div class="p-3 rounded-xl border transition-colors"
                   [class]="it.selected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-surface-container-high/40 border-outline-variant/10'">

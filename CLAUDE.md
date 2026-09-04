@@ -85,6 +85,27 @@ exchange must not settle as cash out — the replacement has to be worth at leas
 the clearance credit (equal-or-greater-value). Product-level `nonReturnable`
 still blocks both paths.
 
+### 4a. One exchange per bill is a BILL-level guard, layered on top
+`pos/exchange-limit.ts` answers a different question from `exchange-policy.ts`:
+not "may this line come back" but "has this receipt already been swapped once".
+`Return.type` is the only thing that separates the two cases, so a bill that was
+merely REFUNDED against still has its exchange. Both exchange entry points check
+it inside their own transaction (`pos/service.ts` checkout with an `exchange`
+block, and `sales/service.ts` `processExchange`), and `GET /sales/:id` carries a
+derived `priorExchange` so the UI can warn before the cashier picks anything.
+
+The policy warns, it does not block: a manager or owner authorises a second swap
+with their OWN credentials via `POST /sales/:saleId/exchange-override`, which
+returns a short-lived signed grant scoped to that one bill. The grant, never the
+password, rides on the exchange submission. Credentials rather than the shared
+Owner PIN (§2.3, §8.2) because the PIN cannot say WHO approved. The audit row
+(`exchange.limit_overridden`) and `Return.approvedBy` are written where the
+grant is SPENT, so the log never claims an approval that was never used.
+
+An exchange also carries the original bill's customer onto the replacement sale
+(`carriedCustomerId`); an explicitly chosen customer wins, and a walk-in
+original carries nobody.
+
 ### 5. Prisma Decimal fields arrive as STRINGS over JSON
 `sale.total`, `commission.amount`, `product.basePrice`, etc. are Prisma `Decimal` type. They come across the wire as strings like `"237"`. Always wrap with `Number(value)` before math — otherwise `reduce` concatenates strings → `NaN`.
 

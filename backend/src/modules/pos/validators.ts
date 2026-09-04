@@ -126,6 +126,10 @@ export const checkoutSchema = z.object({
           )
           .min(1, 'At least one return item is required'),
         reason: z.string().optional(),
+        // §0 one exchange per bill: a manager's or owner's signed approval to
+        // swap against a bill that has already been exchanged. Issued by
+        // POST /sales/:saleId/exchange-override.
+        overrideGrant: z.string().optional().nullable(),
       })
       .optional(),
   }),

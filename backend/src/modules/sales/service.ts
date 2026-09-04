@@ -24,6 +24,12 @@ export const EXCHANGE_WINDOW_DAYS = 15;
 import { reconcileCommissionsForSale } from '../../services/commission-reconcile';
 import { creditBackVouchers } from '../vouchers/service';
 import { MovementType, PaymentMethod, Prisma, SaleStatus } from '@prisma/client';
+import { findPriorExchange, oneExchangePerBillMessage } from '../pos/exchange-limit';
+import {
+  approveExchangeOverride,
+  ExchangeOverrideGrant,
+  verifyExchangeOverrideGrant,
+} from '../../services/exchange-override';
 
 export class SalesService {
   async listSales(query: {
@@ -216,7 +222,12 @@ export class SalesService {
    *  sale settled part of its value with an exchange credit. exchangeReturnId
    *  is a plain scalar (no relation), so we resolve it here. */
   private async attachExchangeReturn(sale: any) {
-    if (!sale?.exchangeReturnId) return sale;
+    // §0: the swap this bill has already had, if any. Derived from the loaded
+    // `returns` so the exchange screen can warn the cashier BEFORE they pick
+    // anything, rather than at submit. Null on a bill that has only been
+    // refunded against; only `Return.type === 'exchange'` counts.
+    const withPrior = { ...sale, priorExchange: findPriorExchange(sale?.returns) };
+    if (!sale?.exchangeReturnId) return withPrior;
     const exchangeReturn = await prisma.return.findUnique({
       where: { id: sale.exchangeReturnId },
       include: {
@@ -228,7 +239,47 @@ export class SalesService {
         },
       },
     });
-    return { ...sale, exchangeReturn };
+    return { ...withPrior, exchangeReturn };
+  }
+
+  /**
+   * §0: a manager's or owner's approval to exchange a bill a second time.
+   * Verifies their own credentials (the Owner PIN is shared, so it could never
+   * say WHO approved) and hands back a short-lived grant scoped to this bill.
+   * The audit row is written when the grant is spent on an actual exchange.
+   */
+  async approveExchangeOverride(
+    saleId: number,
+    data: { approverEmail: string; approverPassword: string }
+  ) {
+    const sale = await prisma.sale.findUnique({
+      where: { id: saleId },
+      select: { id: true, saleNumber: true, status: true },
+    });
+    if (!sale) throw new AppError('Sale not found', 404);
+    if (sale.status === 'void') {
+      throw new AppError('Cannot exchange against a voided sale', 400);
+    }
+
+    const priorExchange = findPriorExchange(
+      await prisma.return.findMany({
+        where: { originalSaleId: saleId, type: 'exchange' },
+        select: { id: true, returnNumber: true, type: true, createdAt: true },
+      })
+    );
+    if (!priorExchange) {
+      throw new AppError(
+        `Bill ${sale.saleNumber} has not been exchanged yet, so no approval is needed`,
+        400
+      );
+    }
+
+    const approval = await approveExchangeOverride(
+      saleId,
+      data.approverEmail,
+      data.approverPassword
+    );
+    return { ...approval, saleNumber: sale.saleNumber, priorExchange };
   }
 
   async getSaleById(id: number) {
@@ -961,10 +1012,22 @@ export class SalesService {
       returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
       newItems: { barcode: string; quantity: number }[];
       reason?: string;
+      /**
+       * §0 one exchange per bill: a manager's or owner's signed approval to
+       * swap against a bill that has already been exchanged. Issued by
+       * `POST /sales/:saleId/exchange-override`.
+       */
+      overrideGrant?: string;
     },
     userId: number,
     branchId: number
   ) {
+    // Verifying the grant is pure crypto, so it happens before the transaction
+    // opens rather than while it holds its locks.
+    const overrideApproval: ExchangeOverrideGrant | null = data.overrideGrant
+      ? verifyExchangeOverrideGrant(data.overrideGrant, saleId)
+      : null;
+
     return prisma.$transaction(async (tx) => {
       // Get original sale
       const sale = await tx.sale.findUnique({
@@ -978,6 +1041,19 @@ export class SalesService {
 
       if (sale.status === 'void') {
         throw new AppError('Cannot exchange on a voided sale', 400);
+      }
+
+      // §0 one exchange per bill. Only a Return of type 'exchange' counts. A
+      // bill that was merely refunded against still has its exchange left.
+      // Checked inside the transaction so two tills cannot race past it.
+      const priorExchange = findPriorExchange(
+        await tx.return.findMany({
+          where: { originalSaleId: saleId, type: 'exchange' },
+          select: { id: true, returnNumber: true, type: true, createdAt: true },
+        })
+      );
+      if (priorExchange && !overrideApproval) {
+        throw new AppError(oneExchangePerBillMessage(sale.saleNumber, priorExchange), 409);
       }
 
       const saleItemsMap = new Map(sale.items.map((i) => [i.id, i]));
@@ -1115,6 +1191,8 @@ export class SalesService {
           taxAmount: Math.round(returnTax * 100) / 100,
           total: returnTotal,
           status: 'completed',
+          // §0: the manager or owner who let this second exchange through.
+          approvedBy: overrideApproval?.approvedBy ?? null,
           items: {
             create: returnItemsData.map((item) => ({
               saleItemId: item.saleItemId,
@@ -1225,6 +1303,30 @@ export class SalesService {
         reason: data.reason,
         data: { originalSaleId: saleId, returnTotal, newItemsTotal: newTotal, priceDifference },
       });
+
+      // §0: record the override where it is SPENT, not where it was given, so
+      // the log never claims an approval that was never used. Who, when (the
+      // row's own createdAt) and which bill (entityId) all land here.
+      if (priorExchange && overrideApproval) {
+        await recordAudit(tx, {
+          action: 'exchange.limit_overridden',
+          entityType: 'sale',
+          entityId: saleId,
+          userId: overrideApproval.approvedBy,
+          branchId,
+          reason: data.reason,
+          data: {
+            saleNumber: sale.saleNumber,
+            approvedBy: overrideApproval.approvedBy,
+            approverName: overrideApproval.approverName,
+            approverRole: overrideApproval.approverRole,
+            requestedByUserId: userId,
+            priorExchange,
+            returnId: returnRecord.id,
+            returnNumber,
+          },
+        });
+      }
 
       return {
         returnRecord,
