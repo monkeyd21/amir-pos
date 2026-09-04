@@ -21,6 +21,12 @@ interface Product {
   category?: { id: number; name: string };
   variants?: any[];
   _count?: { variants: number };
+  // Pieces on hand at the branch in context, summed over the product's
+  // variants. Served by GET /products, which scopes stock to the same branch
+  // the rest of the app uses.
+  stockQuantity?: number;
+  minStockLevel?: number;
+  isLowStock?: boolean;
 }
 
 interface Brand {
@@ -90,6 +96,24 @@ export class ProductListComponent implements OnInit, OnDestroy {
     this.loadFilters();
     this.loadProducts();
     this.loadValuation();
+    this.loadLowStockCount();
+  }
+
+  /**
+   * The Low Stock Alerts card used to be hard-wired to 0, so it read "all
+   * clear" even with sold-out articles on the shelf. It now uses the same
+   * branch-scoped `quantity <= minStockLevel` list the inventory module serves.
+   */
+  private loadLowStockCount(): void {
+    this.api
+      .get<ApiResponse<unknown[]>>('/inventory/low-stock')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.lowStockAlerts = res.data?.length ?? 0;
+        },
+        error: () => {},
+      });
   }
 
   /** Inventory valuation across all stock (server aggregate — page-independent). */
@@ -255,6 +279,24 @@ export class ProductListComponent implements OnInit, OnDestroy {
 
   closeMenu(): void {
     this.activeMenuId = null;
+  }
+
+  stockOf(product: Product): number {
+    return Number(product.stockQuantity ?? 0);
+  }
+
+  /**
+   * Out of stock reads as an alert, low stock as a warning, anything else as a
+   * plain figure. "Low" is the existing `quantity <= minStockLevel` rule that
+   * the inventory module already uses, not a new threshold. Returned as one
+   * full class string because Angular's template parser chokes on `/` inside a
+   * `[class.X]` binding.
+   */
+  stockClass(product: Product): string {
+    const base = 'text-sm font-semibold tabular-nums';
+    if (this.stockOf(product) <= 0) return `${base} text-error`;
+    if (product.isLowStock) return `${base} text-tertiary`;
+    return `${base} text-on-surface`;
   }
 
   formatCurrency(value: number): string {

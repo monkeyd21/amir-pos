@@ -53,7 +53,17 @@ export const materialiseVariantPrices = (
   landingOverride: (v.landingOverride ?? p.landingPrice ?? p.costPrice) as any,
 });
 
-export const listProducts = async (query: ListProductsQuery) => {
+/**
+ * Catalogue page.
+ *
+ * Each product carries `stockQuantity`: the pieces on hand at `branchId`,
+ * summed over the variants this page is actually showing. When a size or colour
+ * filter narrows the variant list, the stock figure narrows with it, so the
+ * number always matches the variants beside it. `isLowStock` reuses the
+ * existing `quantity <= minStockLevel` rule (see `inventory/service.ts`),
+ * rolled up to the product, rather than inventing a second threshold.
+ */
+export const listProducts = async (query: ListProductsQuery, branchId: number) => {
   const { page, limit, skip } = getPagination(query);
 
   const where: any = { isActive: true };
@@ -112,7 +122,64 @@ export const listProducts = async (query: ListProductsQuery) => {
     prisma.product.count({ where }),
   ]);
 
-  return { products, meta: buildPaginationMeta(page, limit, total) };
+  const stock = await stockForVariants(
+    products.flatMap((p) => p.variants.map((v) => v.id)),
+    branchId
+  );
+
+  const withStock = products.map((p) => {
+    let stockQuantity = 0;
+    let minStockLevel = 0;
+    for (const v of p.variants) {
+      const row = stock.get(v.id);
+      if (!row) continue;
+      stockQuantity += row.quantity;
+      minStockLevel += row.minStockLevel;
+    }
+    return {
+      ...p,
+      stockQuantity,
+      minStockLevel,
+      isLowStock: stockQuantity <= minStockLevel,
+    };
+  });
+
+  return { products: withStock, meta: buildPaginationMeta(page, limit, total) };
+};
+
+/**
+ * Stock for a whole page of variants at ONE branch, in ONE query.
+ *
+ * Branch-scoped on purpose. Every other stock read in the app is scoped the
+ * same way (`inventory/service.ts` takes `branchId`, the POS sends
+ * `X-Branch-Id`), and a figure that quietly mixed branches would tell the
+ * counter it holds a garment that is actually sitting in another shop.
+ *
+ * Bulk on purpose too: one query per row would be an N+1, and production is
+ * already at 172 products over 872 variants. `getPagination` caps a page at
+ * 100 products, so the `IN` list stays small.
+ *
+ * A variant with no inventory row at this branch counts as zero, never as
+ * unknown, so it is simply absent from the map.
+ */
+const stockForVariants = async (variantIds: number[], branchId: number) => {
+  const byVariant = new Map<number, { quantity: number; minStockLevel: number }>();
+  if (variantIds.length === 0) return byVariant;
+
+  const rows = await prisma.inventory.groupBy({
+    by: ['variantId'],
+    where: { variantId: { in: variantIds }, branchId },
+    _sum: { quantity: true, minStockLevel: true },
+  });
+
+  for (const row of rows) {
+    byVariant.set(row.variantId, {
+      quantity: row._sum.quantity ?? 0,
+      minStockLevel: row._sum.minStockLevel ?? 0,
+    });
+  }
+
+  return byVariant;
 };
 
 /**

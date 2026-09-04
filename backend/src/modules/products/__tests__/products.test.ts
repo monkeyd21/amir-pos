@@ -171,6 +171,174 @@ describe('Products Module', () => {
     });
   });
 
+  // ─── GET / stock column (branch-scoped, one query per page) ──
+  describe('GET / (in-stock quantity per product)', () => {
+    // A product whose variants live in more than one branch: only branch 1,
+    // the branch in context, may be counted.
+    const multiVariant = {
+      ...fakeProduct,
+      id: 10,
+      name: 'Kurta Set',
+      variants: [{ id: 101 }, { id: 102 }, { id: 103 }],
+    };
+    // Every variant sold out at branch 1, so the row must read 0, not blank.
+    const soldOut = {
+      ...fakeProduct,
+      id: 20,
+      name: 'Sold Out Frock',
+      variants: [{ id: 201 }],
+    };
+    // No variants at all, so the database must not be touched for stock.
+    const noVariants = { ...fakeProduct, id: 30, name: 'Bare Product', variants: [] };
+
+    // Stands in for the inventory table: one row per (variantId, branchId).
+    const inventoryRows = [
+      { variantId: 101, branchId: 1, quantity: 4, minStockLevel: 0 },
+      { variantId: 102, branchId: 1, quantity: 3, minStockLevel: 0 },
+      { variantId: 103, branchId: 1, quantity: 0, minStockLevel: 0 },
+      // Same garment sitting in branch 2. Must never be added to branch 1.
+      { variantId: 101, branchId: 2, quantity: 50, minStockLevel: 0 },
+      { variantId: 103, branchId: 2, quantity: 7, minStockLevel: 0 },
+      { variantId: 201, branchId: 1, quantity: 0, minStockLevel: 0 },
+      { variantId: 201, branchId: 2, quantity: 9, minStockLevel: 0 },
+    ];
+
+    // Behaves like the real groupBy: filter by branch and variant, then sum.
+    const mockGroupBy = () =>
+      prismaMock.inventory.groupBy.mockImplementation(async ({ where }: any) => {
+        const ids: number[] = where.variantId.in;
+        const matched = inventoryRows.filter(
+          (r) => r.branchId === where.branchId && ids.includes(r.variantId)
+        );
+        const sums = new Map<number, { quantity: number; minStockLevel: number }>();
+        for (const r of matched) {
+          const acc = sums.get(r.variantId) ?? { quantity: 0, minStockLevel: 0 };
+          acc.quantity += r.quantity;
+          acc.minStockLevel += r.minStockLevel;
+          sums.set(r.variantId, acc);
+        }
+        return [...sums].map(([variantId, _sum]) => ({ variantId, _sum }));
+      });
+
+    it('sums stock across a product variants, for the branch in context only', async () => {
+      prismaMock.product.findMany.mockResolvedValue([multiVariant]);
+      prismaMock.product.count.mockResolvedValue(1);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      // 4 + 3 + 0 at branch 1. The 57 pieces in branch 2 are another shop's.
+      expect(res.body.data[0].stockQuantity).toBe(7);
+      expect(res.body.data[0].isLowStock).toBe(false);
+      expect(prismaMock.inventory.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ branchId: 1 }) })
+      );
+    });
+
+    it('reports zero (not blank) when nothing is in stock at this branch', async () => {
+      prismaMock.product.findMany.mockResolvedValue([soldOut]);
+      prismaMock.product.count.mockResolvedValue(1);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].stockQuantity).toBe(0);
+      // quantity <= minStockLevel, the existing low-stock rule, rolled up.
+      expect(res.body.data[0].isLowStock).toBe(true);
+    });
+
+    it('treats a variant with no inventory row at this branch as zero', async () => {
+      prismaMock.product.findMany.mockResolvedValue([
+        { ...fakeProduct, id: 40, variants: [{ id: 999 }] },
+      ]);
+      prismaMock.product.count.mockResolvedValue(1);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].stockQuantity).toBe(0);
+    });
+
+    it('resolves a whole page of products in ONE stock query (no N+1)', async () => {
+      prismaMock.product.findMany.mockResolvedValue([multiVariant, soldOut, noVariants]);
+      prismaMock.product.count.mockResolvedValue(3);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      expect(prismaMock.inventory.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.inventory.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            variantId: { in: [101, 102, 103, 201] },
+          }),
+        })
+      );
+      expect(res.body.data.map((p: any) => p.stockQuantity)).toEqual([7, 0, 0]);
+    });
+
+    it('skips the stock query entirely when the page has no variants', async () => {
+      prismaMock.product.findMany.mockResolvedValue([noVariants]);
+      prismaMock.product.count.mockResolvedValue(1);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].stockQuantity).toBe(0);
+      expect(prismaMock.inventory.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('follows the owner branch switch sent as X-Branch-Id', async () => {
+      prismaMock.product.findMany.mockResolvedValue([multiVariant]);
+      prismaMock.product.count.mockResolvedValue(1);
+      mockGroupBy();
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.owner))
+        .set('X-Branch-Id', '2');
+
+      expect(res.status).toBe(200);
+      // 50 + 7 at branch 2.
+      expect(res.body.data[0].stockQuantity).toBe(57);
+    });
+
+    it('counts a low stock product against its rolled-up minStockLevel', async () => {
+      prismaMock.product.findMany.mockResolvedValue([
+        { ...fakeProduct, id: 50, variants: [{ id: 301 }, { id: 302 }] },
+      ]);
+      prismaMock.product.count.mockResolvedValue(1);
+      prismaMock.inventory.groupBy.mockResolvedValue([
+        { variantId: 301, _sum: { quantity: 1, minStockLevel: 2 } },
+        { variantId: 302, _sum: { quantity: 1, minStockLevel: 3 } },
+      ]);
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', authHeader(testUsers.cashier));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data[0].stockQuantity).toBe(2);
+      expect(res.body.data[0].minStockLevel).toBe(5);
+      expect(res.body.data[0].isLowStock).toBe(true);
+    });
+  });
+
   // ─── GET /:id (get product by id) ───────────────────────────
   describe('GET /:id (get product by id)', () => {
     it('should return a product by id', async () => {

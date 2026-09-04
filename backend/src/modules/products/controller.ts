@@ -4,7 +4,10 @@ import * as productService from './service';
 
 export const listProducts = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { products, meta } = await productService.listProducts(req.query as any);
+    const { products, meta } = await productService.listProducts(
+      req.query as any,
+      req.user!.branchId
+    );
     res.json({ success: true, data: products, meta });
   } catch (error) {
     next(error);

@@ -81,6 +81,7 @@
             <th class="th-label text-left">Category</th>
             <th class="th-label text-right">MRP</th>
             <th class="th-label text-right">Price</th>
+            <th class="th-label text-right whitespace-nowrap">In Stock</th>
             <th class="th-label text-center">Variants</th>
             <th class="th-label text-right">Actions</th>
           </tr>
@@ -114,6 +115,10 @@
               <!-- Price -->
               <td class="px-6 py-4 text-right">
                 <span class="text-sm font-bold text-on-surface">{{ formatCurrency(product.basePrice) }}</span>
+              </td>
+              <!-- In Stock: pieces on hand at the current branch, across all variants -->
+              <td class="px-6 py-4 text-right whitespace-nowrap">
+                <span [class]="stockClass(product)">{{ stockOf(product) }}</span>
               </td>
               <!-- Variants -->
               <td class="px-6 py-4 text-center">
