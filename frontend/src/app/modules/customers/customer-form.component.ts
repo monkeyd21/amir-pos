@@ -138,9 +138,10 @@ export class CustomerFormComponent implements OnInit {
         };
         this.loading = false;
       },
+      // The HTTP error interceptor already toasts the server's message, so a
+      // second notify here just stacks a duplicate on top of it.
       error: () => {
         this.loading = false;
-        this.notify.error('Failed to load customer');
       },
     });
   }
@@ -168,9 +169,8 @@ export class CustomerFormComponent implements OnInit {
         const newId = res.data?.id ?? this.customerId;
         this.router.navigate(['/customers', newId]);
       },
-      error: (err: any) => {
+      error: () => {
         this.saving = false;
-        this.notify.error(err.error?.error || 'Failed to save customer');
       },
     });
   }

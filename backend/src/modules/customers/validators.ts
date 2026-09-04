@@ -1,12 +1,17 @@
 import { z } from 'zod';
+import {
+  customerPhoneSchema,
+  customerEmailSchema,
+  customerAddressSchema,
+} from './contact-validators';
 
 export const createCustomerSchema = z.object({
   body: z.object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().optional().nullable(),
-    phone: z.string().min(10, 'Phone must be at least 10 characters'),
-    email: z.string().email().optional().nullable(),
-    address: z.string().optional().nullable(),
+    phone: customerPhoneSchema,
+    email: customerEmailSchema,
+    address: customerAddressSchema,
     // §5.3 — DOB (ISO date string) + gender ('M'/'F').
     dateOfBirth: z.string().optional().nullable(),
     gender: z.enum(['M', 'F']).optional().nullable(),
@@ -23,9 +28,9 @@ export const updateCustomerSchema = z.object({
   body: z.object({
     firstName: z.string().min(1).optional(),
     lastName: z.string().optional().nullable(),
-    phone: z.string().min(10).optional(),
-    email: z.string().email().optional().nullable(),
-    address: z.string().optional().nullable(),
+    phone: customerPhoneSchema.optional(),
+    email: customerEmailSchema,
+    address: customerAddressSchema,
     dateOfBirth: z.string().optional().nullable(),
     gender: z.enum(['M', 'F']).optional().nullable(),
     // §bug6 — child's birth MONTH only (1-12), optional. Drives the monthly

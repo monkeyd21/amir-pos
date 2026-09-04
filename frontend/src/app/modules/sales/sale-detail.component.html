@@ -359,7 +359,7 @@
   <div class="mb-8">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-headline font-bold text-on-surface tracking-tight">Customer Information</h2>
-      <!-- bug5 — limited bill editing: name/contact only, on its own page. -->
+      <!-- bug5 (limited bill editing): name/contact only, on its own page. -->
       @if (sale.status !== 'void') {
         <a [routerLink]="['/sales', sale.id, 'edit-customer']"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold font-body text-on-surface-variant bg-surface-container-highest/60 rounded-lg hover:bg-surface-container-highest hover:text-on-surface transition-colors cursor-pointer">
@@ -385,6 +385,12 @@
             <div>
               <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Phone</p>
               <p class="text-sm font-body text-on-surface">{{ sale.customer.phone }}</p>
+            </div>
+          }
+          @if (sale.customer.address) {
+            <div class="sm:col-span-3">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Address</p>
+              <p class="text-sm font-body text-on-surface">{{ sale.customer.address }}</p>
             </div>
           }
         </div>

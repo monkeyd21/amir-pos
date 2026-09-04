@@ -55,6 +55,12 @@ router.post(
 // bug5 — limited bill editing. Customer name/contact only; a closed bill's
 // money (lines, prices, totals, payments) stays immutable. Owner/manager only,
 // and every edit is audited with before/after.
+//
+// OPEN QUESTION, not yet settled: `PUT /customers/:id` has no role gate, so a
+// cashier refused here can still make the identical edit to the same Customer
+// row from the customers screen. The two routes should agree, and which way
+// they agree (gate the customers route, or open this one) is a decision for
+// the owner. Until then this stays as it is.
 router.put(
   '/:saleId/customer',
   authorize('owner', 'manager'),

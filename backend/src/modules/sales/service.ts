@@ -1311,9 +1311,35 @@ export class SalesService {
    *
    * Every edit is audited with before/after, since it rewrites a closed bill.
    */
+  /**
+   * bug5 (limited bill editing): correct WHO a completed bill belongs to.
+   *
+   * The bill itself is a banked financial record and stays frozen. A `Sale`
+   * keeps no copy of the customer's name or contact, only `customerId`, so the
+   * correction is applied to the `Customer` row and therefore shows on every
+   * one of their bills at once, with their loyalty and purchase history still
+   * attached to the single record.
+   *
+   * How the money is bounded, deliberately:
+   *  - the only write to `Customer` is the literal object below, whose keys are
+   *    all contact fields;
+   *  - the only write to `Sale` is `{ customerId }`, and it is reachable only
+   *    when the bill had no customer at all (a walk-in asking to be added
+   *    afterwards). An already-attached bill is never re-pointed;
+   *  - nothing here reads or writes a line, quantity, price, discount, total,
+   *    payment, date, cashier or agent.
+   *
+   * Every edit is written to the shared `AuditLog` with before and after.
+   */
   async updateBillCustomer(
     saleId: number,
-    data: { firstName: string; lastName?: string | null; phone: string },
+    data: {
+      firstName: string;
+      lastName?: string | null;
+      phone: string;
+      email?: string | null;
+      address?: string | null;
+    },
     userId: number,
     branchId: number
   ) {
@@ -1323,18 +1349,23 @@ export class SalesService {
     });
     if (!sale) throw new AppError('Sale not found', 404);
     if (sale.status === 'void') {
-      throw new AppError('This bill is void — its customer cannot be edited', 400);
+      throw new AppError('This bill is void, its customer cannot be edited', 400);
     }
 
     const firstName = data.firstName.trim();
     const lastName = data.lastName?.trim() || null;
     const phone = data.phone.trim();
+    const email = data.email?.trim() || null;
+    const address = data.address?.trim() || null;
     if (!firstName) throw new AppError('Customer name is required', 400);
     if (!phone) throw new AppError('Customer phone is required', 400);
 
-    // Phone is unique across customers, so a correction that collides with a
-    // DIFFERENT customer is a merge, not a rename — refuse it rather than
-    // silently moving history between two real people.
+    // Phone is unique across customers, so a correction that lands on a
+    // DIFFERENT customer is a merge (or a re-link), not a rename. Refuse it
+    // rather than silently moving history between two real people. On a
+    // walk-in bill `sale.customerId` is null, so any existing holder trips
+    // this too: attaching a bill to someone who is already on file is
+    // re-linking, which this endpoint deliberately does not do.
     const holder = await prisma.customer.findUnique({ where: { phone } });
     if (holder && holder.id !== sale.customerId) {
       throw new AppError(
@@ -1345,25 +1376,33 @@ export class SalesService {
       );
     }
 
-    const before = sale.customer
-      ? {
-          customerId: sale.customer.id,
-          firstName: sale.customer.firstName,
-          lastName: sale.customer.lastName,
-          phone: sale.customer.phone,
-        }
-      : null;
+    const snapshot = (c: {
+      id: number;
+      firstName: string;
+      lastName: string | null;
+      phone: string;
+      email: string | null;
+      address: string | null;
+    }) => ({
+      customerId: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      phone: c.phone,
+      email: c.email,
+      address: c.address,
+    });
+
+    const before = sale.customer ? snapshot(sale.customer) : null;
+
+    // Contact fields only. Adding anything else to this object, or spreading
+    // the request body into it, is what this endpoint exists to prevent.
+    const contact = { firstName, lastName, phone, email, address };
 
     const customer = sale.customerId
-      ? await prisma.customer.update({
-          where: { id: sale.customerId },
-          data: { firstName, lastName, phone },
-        })
-      : holder ??
-        (await prisma.customer.create({
-          data: { firstName, lastName, phone },
-        }));
+      ? await prisma.customer.update({ where: { id: sale.customerId }, data: contact })
+      : await prisma.customer.create({ data: contact });
 
+    // Walk-in bills only, and `customerId` is the single column written.
     if (!sale.customerId) {
       await prisma.sale.update({
         where: { id: saleId },
@@ -1380,12 +1419,7 @@ export class SalesService {
       data: {
         saleNumber: sale.saleNumber,
         original: before,
-        updated: {
-          customerId: customer.id,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          phone: customer.phone,
-        },
+        updated: snapshot(customer),
       },
     });
 
@@ -1396,6 +1430,8 @@ export class SalesService {
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
       },
       attached: !sale.customerId,
     };

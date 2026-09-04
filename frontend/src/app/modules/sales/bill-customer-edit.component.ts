@@ -12,8 +12,16 @@ interface ApiResponse<T> {
   message?: string;
 }
 
+interface BillCustomer {
+  firstName: string;
+  lastName?: string | null;
+  phone: string;
+  email?: string | null;
+  address?: string | null;
+}
+
 /**
- * bug5 — limited bill editing.
+ * bug5 (limited bill editing).
  *
  * A closed bill's money is immutable: no lines, quantities, prices, totals or
  * payments are editable anywhere, because those feed GST, commission and the
@@ -21,7 +29,7 @@ interface ApiResponse<T> {
  * the counter is who the bill belongs to, and fixing that used to mean voiding
  * and rebilling. This page corrects just that.
  *
- * A full page rather than a dialog — the layout's fixed sidebar and backdrop
+ * A full page rather than a dialog: the layout's fixed sidebar and backdrop
  * filter make overlay modals unreachable here (see memory/feedback_no_modals).
  */
 @Component({
@@ -37,7 +45,7 @@ interface ApiResponse<T> {
           class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold font-body bg-surface-container-highest/60 text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors cursor-pointer">
           <span class="material-symbols-outlined text-lg">arrow_back</span> Back to bill
         </a>
-        <button (click)="save()" [disabled]="saving || !form.firstName.trim() || !form.phone.trim()"
+        <button (click)="save()" [disabled]="saving || !!firstError"
           class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold font-body bg-gradient-cta text-white rounded-lg hover:shadow-glow-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           @if (saving) {
             <div class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
@@ -59,7 +67,7 @@ interface ApiResponse<T> {
           <span class="material-symbols-outlined text-base text-on-surface-variant/70 mt-0.5">info</span>
           <p class="text-xs text-on-surface-variant leading-relaxed">
             Only the customer's name and contact can be changed on a completed bill. Items, prices,
-            discounts and payments are locked — they feed GST, commission and the day's cash
+            discounts and payments are locked: they feed GST, commission and the day's cash
             reconciliation. Every edit here is recorded in the audit trail.
           </p>
         </div>
@@ -69,7 +77,7 @@ interface ApiResponse<T> {
             <span class="material-symbols-outlined text-base text-amber-400 mt-0.5">person_add</span>
             <p class="text-xs text-amber-200/90 leading-relaxed">
               This was billed as a walk-in. Saving will create the customer and attach them to this
-              bill — useful when someone asks to be added to loyalty after paying.
+              bill, useful when someone asks to be added to loyalty after paying.
             </p>
           </div>
         }
@@ -89,12 +97,28 @@ interface ApiResponse<T> {
           </div>
           <label class="flex flex-col gap-1.5">
             <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Phone *</span>
-            <input type="tel" [(ngModel)]="form.phone" placeholder="9876543210"
+            <input type="tel" [(ngModel)]="form.phone" placeholder="+91 98765 43210"
               class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
-            <span class="text-[10px] text-on-surface-variant/60">
-              If this number already belongs to a different customer, the edit is refused — that
+            @if (phoneError) {
+              <span class="text-[10px] font-body text-red-400">{{ phoneError }}</span>
+            }
+            <span class="text-[10px] font-body text-on-surface-variant/60">
+              If this number already belongs to a different customer, the edit is refused: that
               would merge two people's purchase history rather than fix a typo.
             </span>
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Email</span>
+            <input type="email" [(ngModel)]="form.email" placeholder="rahul&#64;example.com"
+              class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none" />
+            @if (emailError) {
+              <span class="text-[10px] font-body text-red-400">{{ emailError }}</span>
+            }
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Address</span>
+            <textarea [(ngModel)]="form.address" rows="2" placeholder="Full address"
+              class="px-3 py-2.5 text-sm font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded-lg focus:border-primary focus:outline-none resize-none"></textarea>
           </label>
         </div>
       </div>
@@ -105,11 +129,39 @@ interface ApiResponse<T> {
 })
 export class BillCustomerEditComponent implements OnInit {
   saleId!: number;
-  sale: { saleNumber: string; customer?: { firstName: string; lastName?: string | null; phone: string } | null } | null =
-    null;
+  sale: { saleNumber: string; customer?: BillCustomer | null } | null = null;
   loading = true;
   saving = false;
-  form = { firstName: '', lastName: '', phone: '' };
+  form = { firstName: '', lastName: '', phone: '', email: '', address: '' };
+
+  /**
+   * Mirrors `customerPhoneSchema` / `customerEmailSchema` on the server, the
+   * same rules the customers module's own create form is checked against. The
+   * server is the authority; this only saves the cashier a round trip.
+   */
+  get phoneError(): string | null {
+    const phone = this.form.phone.trim();
+    // Nothing typed yet is not an error to shout about: the disabled Save
+    // already says the form is incomplete. Only wrong input turns red.
+    if (!phone) return null;
+    if (!/^[0-9+\-\s()]+$/.test(phone)) return 'Enter a valid phone number';
+    if ((phone.match(/\d/g) ?? []).length < 10) return 'Phone must contain at least 10 digits';
+    if (phone.length > 20) return 'Phone number is too long';
+    return null; // matches customerPhoneSchema, split up so one message shows at a time
+  }
+
+  get emailError(): string | null {
+    const email = this.form.email.trim();
+    if (!email) return null;
+    return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email) ? null : 'Enter a valid email address';
+  }
+
+  /** Blocks Save, and is what the toast says if Save is somehow reached. */
+  get firstError(): string | null {
+    if (!this.form.firstName.trim()) return 'First name is required';
+    if (!this.form.phone.trim()) return 'Phone is required';
+    return this.phoneError ?? this.emailError;
+  }
 
   constructor(
     private api: ApiService,
@@ -129,24 +181,35 @@ export class BillCustomerEditComponent implements OnInit {
             firstName: c.firstName || '',
             lastName: c.lastName || '',
             phone: c.phone || '',
+            email: c.email || '',
+            address: c.address || '',
           };
         }
         this.loading = false;
       },
+      // The HTTP error interceptor already toasts the server's own message,
+      // so notifying again here would stack a second, rawer toast on top.
       error: () => {
-        this.notification.error('Failed to load the bill');
         this.loading = false;
       },
     });
   }
 
   save(): void {
+    if (this.firstError) {
+      this.notification.error(this.firstError);
+      return;
+    }
     this.saving = true;
+    // Contact fields only. The bill's money is not on this form and not in
+    // this payload, and the endpoint would ignore it if it were.
     this.api
       .put<ApiResponse<any>>(`/sales/${this.saleId}/customer`, {
         firstName: this.form.firstName.trim(),
         lastName: this.form.lastName.trim() || null,
         phone: this.form.phone.trim(),
+        email: this.form.email.trim() || null,
+        address: this.form.address.trim() || null,
       })
       .subscribe({
         next: (res) => {
@@ -154,8 +217,7 @@ export class BillCustomerEditComponent implements OnInit {
           this.saving = false;
           this.router.navigate(['/sales', this.saleId]);
         },
-        error: (err) => {
-          this.notification.error(err?.message || 'Failed to update the customer');
+        error: () => {
           this.saving = false;
         },
       });

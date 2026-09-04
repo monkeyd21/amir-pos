@@ -57,7 +57,14 @@ interface ExchangeReturn {
 interface Sale {
   id: number;
   saleNumber: string;
-  customer: { id: number; firstName: string; lastName: string; email?: string; phone?: string } | null;
+  customer: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  } | null;
   user: { firstName: string; lastName: string } | null;
   items: SaleItem[];
   returns: SaleReturn[];

@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  customerPhoneSchema,
+  customerEmailSchema,
+  customerAddressSchema,
+} from '../customers/contact-validators';
 
 export const returnableByBarcodeSchema = z.object({
   params: z.object({
@@ -110,13 +115,16 @@ export const updateBillCustomerSchema = z.object({
   params: z.object({
     saleId: z.string().regex(/^\d+$/, 'saleId must be numeric'),
   }),
+  // Contact details ONLY, and checked with the very same schemas the customers
+  // module's create form uses, so a phone or email the counter could not type
+  // there cannot be typed here either. Any key not listed is ignored, which is
+  // what keeps a bill's money out of reach of this endpoint.
   body: z.object({
     firstName: z.string().trim().min(1, 'Customer name is required'),
     // Dropdowns and cleared inputs send null — .optional() alone rejects it.
     lastName: z.string().trim().optional().nullable(),
-    phone: z
-      .string()
-      .trim()
-      .regex(/^[0-9+\-\s()]{6,20}$/, 'Enter a valid phone number'),
+    phone: customerPhoneSchema,
+    email: customerEmailSchema,
+    address: customerAddressSchema,
   }),
 });
