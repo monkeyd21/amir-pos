@@ -5,13 +5,14 @@
 #   ./deploy/push.sh --allow-dirty  # deploy the working tree as-is
 #   ./deploy/push.sh --skip-build   # reuse the last local build
 #
-# This does NOT run `prisma migrate deploy`. Prod's migration history does not
-# match the repo's (34 rows recorded vs 41 on the box vs 45 here, plus a failed
-# 20260508210000_add_held_transactions row), so `migrate deploy` aborts on the
-# first already-existing table and leaves a failed row behind. Schema changes on
-# this box are applied by hand from deploy/sql/*.sql. If schema.prisma has
-# changed, this script ships it and regenerates the client only -- it never
-# issues DDL. Apply the matching SQL yourself first, then deploy.
+# This script does NOT apply migrations. If schema.prisma has changed, it ships
+# it and regenerates the Prisma client only -- it never issues DDL. Apply the
+# schema change to prod yourself first, then deploy.
+#
+# Since 2026-09-04 that means `prisma migrate deploy`: prod's migration history
+# was repaired that day and now matches the repo exactly (45 recorded entries,
+# 45 migration directories, nothing unfinished). It used to be broken, which is
+# why deploy/sql/*.sql exists; see docs/deploy-notes.md.
 #
 # Everything is BUILT HERE. The box only ever receives compiled output:
 #   backend/dist  backend/public  backend/prisma
@@ -97,7 +98,7 @@ if [ "$LOCAL_SCHEMA" != "$REMOTE_SCHEMA" ]; then
   cp backend/prisma/schema.prisma "$STAGE/release/schema.prisma"
   echo "⚠ schema.prisma differs from the box."
   echo "  The new schema + a client regen will be shipped, but NO DDL is run."
-  echo "  Apply the matching deploy/sql/*.sql to prod first if you have not."
+  echo "  Apply the migration to prod first (prisma migrate deploy) if you have not."
 fi
 
 TAR="$STAGE/amir-pos-release.tar.gz"

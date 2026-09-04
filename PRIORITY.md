@@ -23,5 +23,8 @@ _Note: the doc API export doesn't carry highlight colour, so items were matched 
 ## Deploy note
 `#8` adds a DB column — migration `20260730000000_add_saleitem_isclearance`
 (`ALTER TABLE "sale_items" ADD COLUMN "isClearance" BOOLEAN NOT NULL DEFAULT false`).
-Prod (`/opt/amir-pos`, Contabo) is a file-copy deploy, so this ALTER must be run
-manually against the `amir_pos` DB before/with the backend update.
+Prod (`/opt/amir-pos`, Contabo) is a file-copy deploy, so the schema change has
+to reach the `amir_pos` DB separately from the backend update. This one was
+applied by hand at the time, and recorded in `_prisma_migrations` by the
+2026-09-04 history repair; `prisma migrate deploy` is the path for anything new.
+See `docs/deploy-notes.md`.

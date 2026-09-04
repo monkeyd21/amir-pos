@@ -1,10 +1,16 @@
 -- Payroll + payables — PROD application script (28 Aug 2026).
 --
--- Prod cannot use `prisma migrate deploy`: `_prisma_migrations` is drifted
--- (20260508210000_add_held_transactions is recorded rolled-back, and
--- historical_bills was applied with no migrate record), so migrate refuses to
--- proceed. Schema changes go on by hand instead. This script is the by-hand
--- equivalent of these three repo migrations:
+-- HISTORICAL. This script has already been applied to production and is kept as
+-- the record of how that release reached the box. It is not the current process:
+-- prod's migration history was repaired on 2026-09-04 and `prisma migrate deploy`
+-- is the normal path again. See docs/deploy-notes.md.
+--
+-- At the time this ran, prod could not use `prisma migrate deploy`:
+-- `_prisma_migrations` was drifted (20260508210000_add_held_transactions was
+-- recorded unfinished, and historical_bills had been applied with no migrate
+-- record), so migrate refused to proceed. Schema changes went on by hand
+-- instead. This script is the by-hand equivalent of these three repo
+-- migrations:
 --   20260828120000_payables_model
 --   20260828120100_payroll_attendance
 --   20260828120200_commission_paid_meta

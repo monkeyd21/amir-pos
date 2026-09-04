@@ -8,8 +8,8 @@
 # receives Next.js's traced standalone bundle and can run `node server.js` with
 # no npm install, no source and no credentials.
 #
-# This never touches the database. Schema changes are hand-applied SQL from
-# deploy/sql/ — see docs/deploy-notes.md.
+# This never touches the database. Apply schema changes to prod yourself first
+# with `prisma migrate deploy`, see docs/deploy-notes.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

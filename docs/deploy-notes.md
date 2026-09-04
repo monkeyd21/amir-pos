@@ -29,22 +29,67 @@ cd /opt/amir-pos && rm -rf backend/dist backend/public \
   && systemctl restart amir-pos
 ```
 
-## Schema changes — read this before shipping one
+## Schema changes
 
-`prisma migrate deploy` **does not work on this box and must not be run.** The
-migration history diverged long ago: 33 rows in `_prisma_migrations`, 41
-migrations that were on the box, 45 in the repo, plus a permanently failed
-`20260508210000_add_held_transactions` row. `migrate deploy` aborts on the first
-already-existing table (`P3018`/`42P07`) and leaves another failed row behind,
-which then blocks every future attempt.
+`prisma migrate deploy` is the normal path again. The production migration
+history was repaired on 2026-09-04 and is now clean: 45 entries in
+`_prisma_migrations` against the 45 migration directories in the repo, with 0
+unfinished, 0 rolled back, 0 checksum mismatches, and 0 entries without a
+matching directory.
 
-Schema changes are applied **by hand**, as idempotent SQL under `deploy/sql/`
-(see `20260828_payroll_payables_prod.sql` for the house style). Order of work:
+Order of work for a schema change:
 
-1. Write and apply the SQL to prod yourself.
-2. Then run `./deploy/push.sh`. If `schema.prisma` differs from the box it warns,
-   ships the new schema and regenerates the Prisma client — but it never issues
-   DDL of its own.
+1. Add the migration to `backend/prisma/migrations/` as usual.
+2. Apply it to prod with `prisma migrate deploy` against the `amir_pos`
+   database. `push.sh` still does not issue DDL of its own: if `schema.prisma`
+   differs from the box it warns, ships the new schema and regenerates the
+   Prisma client, nothing more.
+3. Then run `./deploy/push.sh`.
+
+Take a dump before any schema change regardless.
+
+### Why some rows say "baselined 2026-09-04"
+
+Thirteen entries in `_prisma_migrations` carry `baselined 2026-09-04` in their
+`logs` column. They are not a defect, they are the record of a repair.
+
+Until 2026-09-04 the history table had two bookkeeping defects, and nothing
+wrong with the schema itself:
+
+- A permanently unfinished row for `20260508210000_add_held_transactions`
+  (`finished_at IS NULL`, `applied_steps_count = 0`). The `held_transactions`
+  table it creates did exist in production, so the migration had in fact been
+  applied and only the failure record was stale. That row is what made
+  `migrate deploy` abort on sight.
+- Thirteen migrations applied to production by hand between 2026-07-20 and
+  2026-08-30 that were never recorded, leaving 32 ledger entries against 45
+  migration directories in the repo.
+
+Before repairing, the live schema was verified against the repo. The full
+expected DDL was generated with
+`prisma migrate diff --from-empty --to-schema-datamodel`, and all 680 expected
+columns were confirmed present in production with none missing. The 32
+already-recorded entries were confirmed to checksum-match their files exactly.
+The only object in production not described by the schema is
+`historical_bills_datefix_bak_20260803`, a leftover backup table from a manual
+date fix in August.
+
+The repair itself ran as one transaction: delete the unfinished row, insert 13
+rows recording the hand-applied migrations with their real sha256 checksums.
+Both services stayed up throughout, with zero restarts. Pre-change backups are
+on the box at `/root/db-backups/`: `amir_pos_20260904_175740.dump` (the full
+database) and `prisma_migrations_20260904_175740.csv` (the history table as it
+was).
+
+### `deploy/sql/`
+
+`deploy/sql/20260828_payroll_payables_prod.sql` and
+`deploy/sql/20260830_shop_storefront_prod.sql` are the historical record of how
+the last two schema changes actually reached production, back when
+`migrate deploy` could not run. They are kept for that reason and as a reference
+for the reviewed-idempotent-SQL house style, which is still the right shape for
+any one-off data repair. They are not the routine path for a schema change any
+more.
 
 ## Box
 - Contabo VPS, Ubuntu 24.04, IP **147.93.169.149**, hostname `vmi3382646`.

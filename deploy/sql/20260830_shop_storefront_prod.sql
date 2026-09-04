@@ -1,8 +1,14 @@
 -- Storefront (shop module) — production schema change.
 --
--- APPLY THIS BY HAND, BEFORE ./deploy/push.sh. `prisma migrate deploy` does not
--- work on this box (see docs/deploy-notes.md) — the migration history diverged
--- long ago and it aborts on the first already-existing table.
+-- HISTORICAL. This script has already been applied to production and is kept as
+-- the record of how that release reached the box. It is not the current process:
+-- prod's migration history was repaired on 2026-09-04 and `prisma migrate deploy`
+-- is the normal path again. See docs/deploy-notes.md.
+--
+-- At the time this ran it had to be applied by hand, before ./deploy/push.sh,
+-- because `prisma migrate deploy` did not work on this box: the migration
+-- history had diverged and migrate aborted on the first already-existing table.
+-- It was run as:
 --
 --   sudo -u postgres psql -d amir_pos -v ON_ERROR_STOP=1 \
 --     -f 20260830_shop_storefront_prod.sql
