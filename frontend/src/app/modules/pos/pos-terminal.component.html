@@ -594,13 +594,28 @@
           <div>
             <h2 class="text-[10px] font-bold uppercase tracking-[0.15em] text-on-surface-variant mb-4">Order Summary</h2>
             <div class="space-y-3">
+              <!-- Subtotal is the MRP total, the way an Indian retail bill reads.
+                   The markdown down to the charged Sale Price is the explicit
+                   "Price saving" row below, so subtotal − rows = Total. -->
               <div class="flex justify-between text-sm">
                 <span class="text-on-surface-variant">
                   Subtotal ({{ cart.length }} {{ cart.length === 1 ? 'line' : 'lines' }},
                   {{ totalQuantity }} {{ totalQuantity === 1 ? 'pc' : 'pcs' }})
                 </span>
-                <span class="text-on-surface font-medium">{{ formatCurrency(subtotal) }}</span>
+                <span class="text-on-surface font-medium">{{ formatCurrency(totalMrp) }}</span>
               </div>
+
+              <!-- MRP → Sale Price gap. Hidden when the cart is charged at MRP,
+                   so a zero-saving bill reads exactly as it always did. -->
+              @if (mrpSaving > 0) {
+                <div class="flex justify-between text-sm" data-testid="price-saving">
+                  <span class="flex items-center gap-1.5 text-primary">
+                    <span class="material-symbols-outlined text-sm">price_change</span>
+                    Price saving
+                  </span>
+                  <span class="text-primary font-medium">&minus;{{ formatCurrency(mrpSaving) }}</span>
+                </div>
+              }
 
               @if (offerDiscountTotal > 0) {
                 <div class="flex justify-between text-sm">

@@ -18,6 +18,9 @@ export interface ReceiptSale {
     total: number | string;
     nonReturnable?: boolean; // SaleItem-level flag (line marked at checkout)
     isClearance?: boolean; // §2.4 — line sold from clearance
+    /** Tag MRP snapshotted at checkout. Null on pre-snapshot rows, which fall
+     *  back to the variant/product price stack. */
+    mrp?: number | string | null;
     variant: {
       size: string;
       color: string;
@@ -55,6 +58,52 @@ export interface ReceiptSale {
 }
 
 const n = (v: unknown) => Number(v ?? 0);
+
+/**
+ * Per-unit tag MRP for one sold line.
+ *
+ * Prefers the MRP snapshotted onto the SaleItem at checkout: it is what the tag
+ * said on the day of sale, even if the variant has been repriced since. Only
+ * when that snapshot is missing (pre-snapshot rows) does it fall back to the
+ * variant, then the product. Per CLAUDE.md §3 the variant price wins over the
+ * product's, which is only a creation-time template.
+ *
+ * With no MRP anywhere the answer is the charged price, NOT
+ * `product.basePrice`: basePrice is a Sale Price template, so reading it as a
+ * tag price printed a saving the shelf never carried.
+ */
+export function lineMrpPerUnit(item: ReceiptSale['items'][number]): number {
+  return n(
+    (item as any).mrp ??
+      item.variant.mrpOverride ??
+      item.variant.product.mrp ??
+      item.unitPrice
+  );
+}
+
+/**
+ * The MRP totals an Indian retail bill is read from: the subtotal is Σ MRP × qty
+ * and the first reduction is the markdown down to the Sale Price actually
+ * charged. Each line's MRP is floored at its charged price, so a missing or
+ * stale tag can never produce a negative saving.
+ *
+ * `saving` is the MRP → Sale Price gap only. It is NOT "You Saved", which
+ * measures the whole way down to the bill total after every discount.
+ * `totalMrp − saving` is exactly the stored `sale.subtotal`, so the printed
+ * arithmetic still lands on the same TOTAL: nothing about what was charged moves.
+ */
+export function computeMrpTotals(sale: Pick<ReceiptSale, 'items' | 'subtotal'>): {
+  totalMrp: number;
+  saving: number;
+} {
+  const raw = sale.items.reduce((sum, item) => {
+    const perUnitMrp = Math.max(n(item.unitPrice), lineMrpPerUnit(item));
+    return sum + perUnitMrp * n(item.quantity);
+  }, 0);
+  const totalMrp = Math.round(raw * 100) / 100;
+  const saving = Math.max(0, Math.round((totalMrp - n(sale.subtotal)) * 100) / 100);
+  return { totalMrp, saving };
+}
 
 /**
  * Apportion the consolidated `sale.taxAmount` into CGST + SGST chunks
@@ -224,12 +273,7 @@ export function buildReceiptPdf(
       //
       // Prefer the MRP snapshotted onto the SaleItem at checkout: it is what the
       // tag said on the day, even if the variant has been repriced since.
-      const lineMrp = n(
-        (item as any).mrp ??
-          item.variant.mrpOverride ??
-          item.variant.product.mrp ??
-          item.variant.product.basePrice
-      );
+      const lineMrp = lineMrpPerUnit(item);
       if (lineMrp > n(item.unitPrice)) {
         doc
           .font('Helvetica')
@@ -311,7 +355,13 @@ export function buildReceiptPdf(
       doc.text(value, 12 + W * 0.6, yy, { width: W * 0.4, align: 'right' });
       doc.moveDown(0.3);
     };
-    row('Subtotal', fmtINR(sale.subtotal));
+    // Subtotal is the MRP total and the markdown to the charged Sale Price is
+    // its own row, so the bill reads the way an Indian retail bill does:
+    // MRP subtotal − price saving − discounts = TOTAL. `totalMrp − saving` is
+    // the stored `sale.subtotal`, so TOTAL is untouched.
+    const mrpTotals = computeMrpTotals(sale);
+    row('Subtotal', fmtINR(mrpTotals.totalMrp));
+    if (mrpTotals.saving > 0) row('Price saving', '- ' + fmtINR(mrpTotals.saving));
     if (n(sale.discountAmount) > 0) row('Discount', '- ' + fmtINR(sale.discountAmount));
     // Split the consolidated taxAmount into CGST + SGST per Indian GST
     // rules. We approximate the split by the *rate* ratio across the
@@ -337,16 +387,10 @@ export function buildReceiptPdf(
     doc.moveDown(0.2);
     row('TOTAL', fmtINR(sale.total), true);
 
-    // "You Saved" = aggregate tag MRP (Σ mrp × qty) − the bill total. Each line's
-    // MRP is floored at its charged price so a missing/stale MRP can't go negative.
-    const totalMrp = sale.items.reduce((sum, item) => {
-      const resolvedMrp = n(
-        item.variant.mrpOverride ?? item.variant.product.mrp ?? item.variant.product.basePrice
-      );
-      const perUnitMrp = Math.max(n(item.unitPrice), resolvedMrp);
-      return sum + perUnitMrp * n(item.quantity);
-    }, 0);
-    const saved = Math.max(0, Math.round((totalMrp - n(sale.total)) * 100) / 100);
+    // "You Saved" = aggregate tag MRP (Σ mrp × qty) − the bill total. Bigger than
+    // the "Price saving" row above, which stops at the Sale Price: this one runs
+    // all the way down past the bill-level discounts.
+    const saved = Math.max(0, Math.round((mrpTotals.totalMrp - n(sale.total)) * 100) / 100);
     if (saved > 0) {
       doc.moveDown(0.2);
       doc.font('Helvetica-Bold').fontSize(10).text(`You Saved ${fmtINR(saved)}`, 12, doc.y, {

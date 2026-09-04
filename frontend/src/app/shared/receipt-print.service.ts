@@ -348,9 +348,29 @@ ${divider}</div></div>
     const qtyVal = String(totalQty);
     const totalQtyLine = qtyLabel + this.pad(qtyLabel, qtyVal) + qtyVal;
 
+    // Aggregate tag MRP (Σ mrp × qty), each line floored at its charged price so
+    // a missing or stale MRP can never show as a negative saving. This is the
+    // subtotal the bill prints: an Indian retail bill starts at MRP and works
+    // down, so `Subtotal − Price saving` lands on what was actually charged
+    // (`r.subtotal`, the stored gross), and the discount rows carry on from there.
+    const totalMrpAmt = r.items.reduce(
+      (sum, i) =>
+        sum + Math.max(Number(i.mrp) || 0, Number(i.unitPrice) || 0) * (Number(i.quantity) || 0),
+      0
+    );
+    const mrpSaving = Math.max(0, Math.round((totalMrpAmt - Number(r.subtotal)) * 100) / 100);
+
     const subtotalLabel = 'Subtotal:';
-    const subtotalVal = this.formatCurrency(r.subtotal);
+    const subtotalVal = this.formatCurrency(totalMrpAmt);
     const subtotalLine = subtotalLabel + this.pad(subtotalLabel, subtotalVal) + subtotalVal;
+
+    // Only printed when there is a gap, so a bill charged at MRP reads as before.
+    let priceSavingLine = '';
+    if (mrpSaving > 0) {
+      const psLabel = 'Price saving:';
+      const psVal = `-${this.formatCurrency(mrpSaving)}`;
+      priceSavingLine = `\n<span class="discount">${psLabel}${this.pad(psLabel, psVal)}${psVal}</span>`;
+    }
 
     let discountLine = '';
     if (r.discountAmount > 0) {
@@ -371,12 +391,8 @@ ${divider}</div></div>
 
     // "You Saved" = aggregate tag MRP (Σ mrp × qty) − the bill total (after all
     // item- and bill-level discounts). Shown prominently when there's a saving.
-    const totalMrpAmt = r.items.reduce(
-      (sum, i) =>
-        sum + Math.max(Number(i.mrp) || 0, Number(i.unitPrice) || 0) * (Number(i.quantity) || 0),
-      0
-    );
-    const savedAmount = Math.max(0, Math.round((totalMrpAmt - r.total) * 100) / 100);
+    // Bigger than the "Price saving" line above, which stops at the Sale Price.
+    const savedAmount = Math.max(0, Math.round((totalMrpAmt - Number(r.total)) * 100) / 100);
     const savedLine =
       savedAmount > 0
         ? `\n<div class="saved">You Saved ${this.formatCurrency(savedAmount)}</div>`
@@ -573,7 +589,7 @@ ITEMS:
 ${itemsHtml}
 ${exchangedBlock ? exchangedBlock + '\n' : ''}${thinDivider}
 ${totalQtyLine}
-${subtotalLine}${discountLine}${taxLine}
+${subtotalLine}${priceSavingLine}${discountLine}${taxLine}
 ${thinDivider}
 ${totalLine}${exchangeLines}${savedLine}
 ${thinDivider}

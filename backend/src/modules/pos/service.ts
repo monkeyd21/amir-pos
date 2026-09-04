@@ -14,6 +14,7 @@ import { gstRateForPrice } from '../../utils/tax';
 import { createProduct as createProductService } from '../products/service';
 import { slugify } from '../../utils/helpers';
 import { canExchangeLine, clearanceCashOutBlocked } from './exchange-policy';
+import { snapshotMrp, tagMrp } from './tag-mrp';
 import { liveHoldsForVariant, paidUnfulfilledClaims } from '../shop/availability';
 import {
   nonClearanceChargePrice as sharedNonClearanceChargePrice,
@@ -652,13 +653,9 @@ export class PosService {
         // Snapshot the tag/MRP at the moment of sale so the bill/receipt shows the
         // historical MRP even if the variant's MRP is edited or it later leaves
         // clearance. For a clearance line this is the "was <MRP>" against the fixed
-        // clearance price captured in `unitPrice`.
-        const mrp =
-          variant.mrpOverride != null
-            ? Number(variant.mrpOverride)
-            : variant.product.mrp != null
-            ? Number(variant.product.mrp)
-            : Number(variant.product.basePrice);
+        // clearance price captured in `unitPrice`. See `tag-mrp.ts` for why there
+        // is no basePrice fallback.
+        const mrp = snapshotMrp(variant, unitPrice);
 
         saleItemsData.push({
           variantId: variant.id,
@@ -1679,12 +1676,7 @@ export class PosService {
       // on a normal line and is kept for the barcode-label callers.
       price: isClearance ? Number(variant.clearancePrice) : this.nonClearanceChargePrice(variant),
       salePrice: this.computeInclusivePrice(variant),
-      mrp:
-        variant.mrpOverride != null
-          ? Number(variant.mrpOverride)
-          : variant.product.mrp != null
-          ? Number(variant.product.mrp)
-          : null,
+      mrp: tagMrp(variant),
       costPrice: Number(variant.costOverride ?? variant.product.costPrice),
       // §gst — dynamic rate on the charged price (≤ ₹2,500 → 5%, else 18%).
       taxRate: gstRateForPrice(
@@ -1804,12 +1796,7 @@ export class PosService {
         salePrice: this.computeInclusivePrice(v),
         clearance: isClearance,
         // §13.3 — printed MRP: per-variant override wins, else the product MRP.
-        mrp:
-          v.mrpOverride != null
-            ? Number(v.mrpOverride)
-            : v.product.mrp != null
-            ? Number(v.product.mrp)
-            : null,
+        mrp: tagMrp(v),
         // §gst — dynamic rate on the charged price (≤ ₹2,500 → 5%, else 18%).
         taxRate: gstRateForPrice(
           isClearance ? Number(v.clearancePrice) : this.nonClearanceChargePrice(v)

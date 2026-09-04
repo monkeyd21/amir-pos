@@ -76,6 +76,23 @@ export class MobileCartService {
     this.items().reduce((s, i) => s + (i.offerQualified ? i.offerDiscount ?? 0 : 0), 0)
   );
 
+  /** Aggregate tag MRP (Σ mrp × qty), what the bill shows as its subtotal, the
+   *  way an Indian retail bill reads. Each line's MRP is floored at its charged
+   *  price so a missing or stale tag can never produce a negative saving. */
+  readonly totalMrp = computed(() =>
+    this.items().reduce(
+      (s, i) => s + Math.max(Number(i.mrp) || 0, Number(i.unitPrice) || 0) * i.quantity,
+      0
+    )
+  );
+
+  /** The markdown already in the shelf price: MRP total − the charged subtotal.
+   *  Stops at the Sale Price, so it is smaller than the whole-bill saving (which
+   *  runs on down past the discount rows). Zero when everything is sold at MRP. */
+  readonly mrpSaving = computed(() =>
+    Math.max(0, Math.round((this.totalMrp() - this.subtotal()) * 100) / 100)
+  );
+
   /** Base for manual %-discount calculation — subtotal minus offer savings */
   readonly discountBase = computed(() => this.subtotal() - this.offerDiscount());
 

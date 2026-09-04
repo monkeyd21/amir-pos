@@ -93,6 +93,21 @@ describe('POS scan pricing (bug6)', () => {
     expect(Number(res.body.data.price)).toBe(1200); // mrpOverride
   });
 
+  it('reports NO MRP when none is set, so the bill shows no invented saving', async () => {
+    // The counter screen and the printed bill must agree. The scan says "no MRP"
+    // here, so the checkout snapshot and the receipt must not reach for
+    // product.basePrice: that is a Sale Price template (CLAUDE.md §3), and
+    // reading it as a tag price put a saving on the bill the shelf never had.
+    const res = await lookup({
+      ...variant,
+      mrpOverride: null,
+      product: { ...product, mrp: null },
+    });
+
+    expect(res.body.data.mrp).toBeNull();
+    expect(Number(res.body.data.price)).toBe(1080); // still charged the Sale Price
+  });
+
   it('a clearance line still charges its fixed clearance price', async () => {
     const res = await lookup({ ...variant, clearanceFlag: true, clearancePrice: 350 });
 

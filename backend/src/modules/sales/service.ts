@@ -431,6 +431,9 @@ export class SalesService {
         isClearance: Boolean((item as any).isClearance),
         // Prefer the MRP snapshotted at sale time; fall back to the variant for
         // pre-snapshot rows (nullable column, backfilled best-effort).
+        // Last resort is the charged price, never product.basePrice: basePrice is
+        // a Sale Price template (CLAUDE.md §3), and printing it as the tag price
+        // showed a saving that was never on the shelf.
         mrp:
           (item as any).mrp != null
             ? Number((item as any).mrp)
@@ -438,7 +441,7 @@ export class SalesService {
             ? Number(item.variant.mrpOverride)
             : item.variant.product.mrp != null
             ? Number(item.variant.product.mrp)
-            : Number(item.variant.product.basePrice),
+            : Number(item.unitPrice),
         // Per-item share of the loyalty points redeemed on this bill. The
         // redemption was apportioned across lines by paid value, so each line
         // carries `redeemed × (lineTotal / saleTotal)`. This is the SAME ratio

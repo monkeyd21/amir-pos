@@ -1246,6 +1246,21 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     );
   }
 
+  /**
+   * The markdown already baked into the shelf price: Total MRP − the charged
+   * subtotal (Σ unitPrice × qty). This is what makes the bill read like an
+   * Indian retail bill: the subtotal shown is the MRP total, this line takes it
+   * down to what is actually charged, and the discount rows carry on from there.
+   *
+   * NOT the same figure as `youSaved`: this one stops at the Sale Price, while
+   * `youSaved` measures all the way to the final total after every discount.
+   * Never negative (each line's MRP is floored at its charged price in
+   * `totalMrp`), so an unpriced or stale tag simply shows no saving.
+   */
+  get mrpSaving(): number {
+    return Math.max(0, Math.round((this.totalMrp - this.subtotal) * 100) / 100);
+  }
+
   /** "You Saved" = Total MRP − Net Sale Value (the bill total after ALL item- and
    *  bill-level discounts). Exchange credit is a tender, not a discount, so it is
    *  excluded. Never negative. */

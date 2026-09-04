@@ -131,8 +131,16 @@ interface LoyaltyConfigResponse {
               </div>
               <div class="line-summary__row">
                 <span class="line-summary__label">Subtotal</span>
-                <span class="line-summary__value">{{ formatInr(cart.subtotal()) }}</span>
+                <span class="line-summary__value">{{ formatInr(cart.totalMrp()) }}</span>
               </div>
+              @if (cart.mrpSaving() > 0) {
+                <div class="line-summary__row line-summary__row--savings">
+                  <span class="line-summary__label">Price Saving</span>
+                  <span class="line-summary__value">
+                    &minus;{{ formatInr(cart.mrpSaving()) }}
+                  </span>
+                </div>
+              }
               @if (cart.offerDiscount() > 0) {
                 <div class="line-summary__row line-summary__row--savings">
                   <span class="line-summary__label">Offer Savings</span>
@@ -346,8 +354,14 @@ interface LoyaltyConfigResponse {
             <div class="mp-card totals">
               <div class="totals__row">
                 <span>Subtotal</span>
-                <span>{{ formatInr(cart.subtotal()) }}</span>
+                <span>{{ formatInr(cart.totalMrp()) }}</span>
               </div>
+              @if (cart.mrpSaving() > 0) {
+                <div class="totals__row totals__row--savings">
+                  <span>Price saving</span>
+                  <span>&minus;{{ formatInr(cart.mrpSaving()) }}</span>
+                </div>
+              }
               @if (cart.offerDiscount() > 0) {
                 <div class="totals__row totals__row--savings">
                   <span>Offer savings</span>

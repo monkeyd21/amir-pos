@@ -60,6 +60,22 @@ product-level `mrp` / `basePrice` is only a creation-time template. **Never read
 the product price where a variant price exists** — that was the clearance-MRP
 bug.
 
+The tag/MRP rule is `pos/tag-mrp.ts` (`tagMrp` / `snapshotMrp`), used by the scan
+lookup and the checkout snapshot. It stops at `product.mrp`: `basePrice` is a
+Sale Price template and must never be read as a tag price, or the bill invents a
+saving the shelf never carried.
+
+### 3a. The bill reads MRP-first
+Every bill surface shows the MRP total as its subtotal and the markdown down to
+the charged Sale Price as its own "Price saving" row, so
+`subtotal − price saving − discounts = total`. Display only: `Sale.subtotal`
+stays the charged gross. The row is hidden at zero, and each line's MRP is
+floored at its charged price so the saving can never go negative. Not to be
+confused with "You Saved", which measures the whole way down to the bill total.
+Arithmetic lives in `sales/receipt-pdf.ts` (`computeMrpTotals`, tested), mirrored
+in `pos-terminal.component.ts`, `receipt-print.service.ts` and
+`mobile-cart.service.ts`.
+
 ### 4. Clearance is "no refund, exchange yes"
 A clearance line sets `SaleItem.nonReturnable` at checkout to block refunds, but
 it IS exchangeable. The split lives in `pos/exchange-policy.ts`
