@@ -20,6 +20,13 @@ npm run dev                         # Start backend + frontend (concurrently)
 
 ## Test commands
 ```bash
+# In a FRESH checkout or worktree, run these three first or 18 of 28 suites
+# fail at load: jest resolves @clothing-erp/shared from shared/dist, and
+# ts-jest needs the generated Prisma client types.
+npm install
+npm run build --workspace=shared
+cd backend && npx prisma generate
+
 # Backend unit tests (Jest + mocked Prisma)
 cd backend && npx jest --verbose
 
