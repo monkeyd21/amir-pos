@@ -9,15 +9,19 @@ import {
   debounceTime,
   distinctUntilChanged,
   switchMap,
+  map,
   of,
 } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { BranchService } from '../../core/services/branch.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
 import { AutoCapsDirective } from '../../shared/directives/auto-caps.directive';
+import { operatingBranch, stockForBranch } from './branch-stock';
 
 interface Brand {
   id: number;
@@ -207,7 +211,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     barcode: string;
     size: string;
     color: string;
-    stock: number;
+    /** On-hand pieces at `stockBranchId` — editable, see `dirtyStockVariants`. */
+    stock: number | null;
     clearanceFlag: boolean;
     clearancePrice: number | null;
     mrpOverride: number | null;
@@ -217,8 +222,41 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       mrpOverride: number | null;
       priceOverride: number | null;
       costOverride: number | null;
+      stock: number;
     };
   }> = [];
+
+  // ─── Stock editing (edit mode) ──────────────────────────────────
+  /**
+   * Stock is NOT a column on the variant: it lives in `Inventory`, one row per
+   * variant PER BRANCH, and every move is supposed to leave an
+   * `InventoryMovement` behind. So the grid never writes a quantity — it works
+   * out the delta against the loaded figure and posts it to
+   * `POST /inventory/adjust`, the same audited endpoint the stock-levels page
+   * uses, which stamps the movement with the user and the reason.
+   *
+   * Only owners and managers see the inputs, mirroring that endpoint's
+   * `authorize('owner', 'manager')` (same pattern as `canEditPrices` on the
+   * product detail page). A cashier still sees the read-only figure.
+   */
+  canAdjustStock = false;
+  /**
+   * The branch whose stock this grid shows and edits — the one the user is
+   * operating in, i.e. exactly what the auth interceptor sends as X-Branch-Id.
+   * The product endpoint returns inventory rows for EVERY branch, so summing
+   * them (as this grid used to) both overstated the figure and made a delta
+   * meaningless. Null only when no branch is known at all.
+   */
+  stockBranchId: number | null = null;
+  stockBranchName = '';
+  /** Required by the endpoint, and what the movement row records as its note. */
+  stockReason = 'Stock count correction';
+  readonly stockReasonPresets = [
+    'Stock count correction',
+    'Found stock (physical recount)',
+    'Damaged / write-off',
+    'Shrinkage (missing at count)',
+  ];
 
   // "Apply to all" bar above the existing-variant grid.
   bulkMrp: number | null = null;
@@ -274,10 +312,14 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     private notification: NotificationService,
     private route: ActivatedRoute,
     private router: Router,
-    private labelPrint: LabelPrintService
+    private labelPrint: LabelPrintService,
+    private auth: AuthService,
+    private branch: BranchService
   ) {}
 
   ngOnInit(): void {
+    this.canAdjustStock = this.auth.hasRole(['owner', 'manager']);
+    this.resolveStockBranch();
     const idParam = this.route.snapshot.paramMap.get('id');
     this.productId = idParam ? Number(idParam) : null;
     this.isEdit = this.productId !== null;
@@ -386,24 +428,67 @@ export class ProductFormComponent implements OnInit, OnDestroy {
         const mrpOverride = num(v.mrpOverride);
         const priceOverride = num(v.priceOverride);
         const costOverride = num(v.costOverride);
+        const stock = stockForBranch(v.inventory, this.stockBranchId);
         return {
           id: v.id,
           sku: v.sku,
           barcode: v.barcode,
           size: v.size,
           color: v.color,
-          stock: (v.inventory || []).reduce(
-            (s: number, i: any) => s + (Number(i.quantity) || 0),
-            0
-          ),
+          stock,
           clearanceFlag: v.clearanceFlag === true,
           clearancePrice: num(v.clearancePrice),
           mrpOverride,
           priceOverride,
           costOverride,
-          orig: { mrpOverride, priceOverride, costOverride },
+          orig: { mrpOverride, priceOverride, costOverride, stock },
         };
       });
+  }
+
+  // ─── Stock (edit mode) ──────────────────────────────────────────
+  private resolveStockBranch(): void {
+    const b = operatingBranch(this.branch, this.auth);
+    this.stockBranchId = b.id;
+    this.stockBranchName = b.name;
+  }
+
+  /**
+   * Inputs appear only for a role allowed to move stock, and only on a known
+   * branch — with no branch the figure is an all-branch total (see
+   * `stockForBranch`) and a delta would have nowhere to land.
+   */
+  get canEditStock(): boolean {
+    return this.isEdit && this.canAdjustStock && this.stockBranchId !== null;
+  }
+
+  /** Whole pieces only, never below zero — the endpoint refuses both. */
+  onExistingStockChange(
+    row: { stock: number | null },
+    value: number | null
+  ): void {
+    if (value == null || (value as unknown as string) === '') {
+      row.stock = null;
+      return;
+    }
+    row.stock = Math.max(0, Math.floor(Number(value)));
+  }
+
+  /** Rows whose on-hand count the user actually changed — one adjustment each. */
+  private dirtyStockVariants() {
+    if (!this.canEditStock) return [];
+    return this.existingVariants.filter(
+      (v) => v.stock != null && Number(v.stock) !== v.orig.stock
+    );
+  }
+
+  get stockChangeCount(): number {
+    return this.dirtyStockVariants().length;
+  }
+
+  /** Header badge: prices and counts are both "unsaved" until Update Product. */
+  get unsavedVariantChangeCount(): number {
+    return this.existingVariantChangeCount + this.stockChangeCount;
   }
 
   // ─── Existing-variant bulk price editing (edit mode) ────────────
@@ -465,6 +550,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       row.mrpOverride = row.orig.mrpOverride;
       row.priceOverride = row.orig.priceOverride;
       row.costOverride = row.orig.costOverride;
+      row.stock = row.orig.stock;
     }
     this.bulkMrp = null;
     this.bulkSale = null;
@@ -864,6 +950,12 @@ export class ProductFormComponent implements OnInit, OnDestroy {
 
   onSubmit(): void {
     if (!this.isValid || this.saving) return;
+    // A stock correction is an audit-trail entry, so it never goes in unsigned:
+    // the endpoint requires a reason and we ask for one rather than invent it.
+    if (this.stockChangeCount > 0 && !this.stockReason.trim()) {
+      this.notification.error('Enter a reason for the stock change');
+      return;
+    }
     this.saving = true;
 
     const productPayload: Record<string, any> = {
@@ -931,7 +1023,10 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     //      variant owns its price, so a bulk reprice is N explicit writes
     //   3. POST any newly entered rows to the bulk endpoint, which both creates
     //      new size+color combos AND tops up stock on existing ones
+    //   4. POST one audited adjustment per corrected on-hand count
     const repriced = this.dirtyExistingVariants();
+    const stockEdits = this.dirtyStockVariants();
+    const stockReason = this.stockReason.trim();
     const bulkBody: any = { variants, ...supplierMeta };
 
     this.api
@@ -957,6 +1052,24 @@ export class ProductFormComponent implements OnInit, OnDestroy {
               )
             : of(null)
         ),
+        // A corrected count is sent as a DELTA, never as "set it to 7": the
+        // audited endpoint takes a signed quantity so the movement trail reads
+        // as the correction that was actually made. It runs last so the delta
+        // is applied on top of anything the bulk top-up just added.
+        switchMap((bulkRes: any) =>
+          stockEdits.length
+            ? forkJoin(
+                stockEdits.map((v) =>
+                  this.api.post('/inventory/adjust', {
+                    variantId: v.id,
+                    branchId: this.stockBranchId,
+                    quantity: Number(v.stock) - v.orig.stock,
+                    reason: stockReason,
+                  })
+                )
+              ).pipe(map(() => bulkRes))
+            : of(bulkRes)
+        ),
         takeUntil(this.destroy$)
       )
       .subscribe({
@@ -966,6 +1079,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
           const incremented = bulkRes?.data?.incremented?.length || 0;
           const parts: string[] = ['Product updated'];
           if (repriced.length) parts.push(`${repriced.length} price(s) revised`);
+          if (stockEdits.length)
+            parts.push(`${stockEdits.length} stock correction(s)`);
           if (created) parts.push(`${created} new variant(s)`);
           if (incremented) parts.push(`${incremented} restocked`);
           this.notification.success(parts.join(' · '));

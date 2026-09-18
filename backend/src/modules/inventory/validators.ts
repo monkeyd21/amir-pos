@@ -17,7 +17,11 @@ export const listInventorySchema = z.object({
 export const adjustStockSchema = z.object({
   body: z.object({
     variantId: z.number().int().positive(),
-    branchId: z.number().int().positive(),
+    // Optional: the adjustment lands on the branch the caller is operating in
+    // (`req.user.branchId`, which already honours the owner's X-Branch-Id
+    // switch). Sending it explicitly is allowed but never widens access — see
+    // the controller, which refuses a non-owner naming another branch.
+    branchId: z.number().int().positive().optional(),
     quantity: z.number().int().refine((v) => v !== 0, 'Quantity cannot be zero'),
     reason: z.string().min(1, 'Reason is required'),
     vendorId: z.number().int().positive().optional().nullable(),

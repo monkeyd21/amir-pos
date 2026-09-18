@@ -5,10 +5,12 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { AuthService } from '../../core/services/auth.service';
 import { BranchService } from '../../core/services/branch.service';
 import { LabelPrintService } from '../../shared/label-print.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { VendorPickerComponent } from '../vendors/vendor-picker.component';
+import { operatingBranch, stockForBranch } from './branch-stock';
 
 interface Variant {
   id: number;
@@ -89,7 +91,8 @@ export class RestockComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private branch: BranchService,
-    private labelPrint: LabelPrintService
+    private labelPrint: LabelPrintService,
+    private auth: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -138,34 +141,16 @@ export class RestockComponent implements OnInit, OnDestroy {
         barcode: v.barcode ?? '',
         size: v.size,
         color: v.color,
-        currentStock: this.stockForBranch(v.inventory, bid),
+        currentStock: stockForBranch(v.inventory, bid),
         addQty: 0,
         unitCost: defaultUnitCost,
       }));
     this.applySorting();
   }
 
-  /** Numeric id of the branch we're operating in, or null if none is selected. */
+  /** The branch this restock lands on — the same one the server will use. */
   private currentBranchId(): number | null {
-    const id = this.branch.getCurrentBranch()?.id;
-    return id != null && id !== '' ? Number(id) : null;
-  }
-
-  /**
-   * Stock for the operating branch. When the branch is known we use exactly that
-   * branch's row (0 if it has none). Only when no branch is selected do we fall
-   * back to summing every branch, which beats silently showing 0.
-   */
-  private stockForBranch(
-    inventory: { quantity: number; branchId: number }[] | undefined,
-    branchId: number | null
-  ): number {
-    if (!inventory || inventory.length === 0) return 0;
-    if (branchId != null) {
-      const row = inventory.find((i) => Number(i.branchId) === branchId);
-      return row ? Number(row.quantity) || 0 : 0;
-    }
-    return inventory.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+    return operatingBranch(this.branch, this.auth).id;
   }
 
   applySorting(): void {

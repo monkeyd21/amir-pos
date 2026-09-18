@@ -111,6 +111,118 @@ describe('Inventory Module', () => {
 
       expect(res.status).toBe(403);
     });
+
+    it('should require a reason so the movement is never unsigned', async () => {
+      const res = await request(app)
+        .post(`${BASE}/adjust`)
+        .set('Authorization', authHeader(testUsers.manager))
+        .send({ variantId: 1, branchId: 1, quantity: 5 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should stamp the movement with the acting user and the reason', async () => {
+      prismaMock.inventory.findUnique.mockResolvedValue({
+        variantId: 1,
+        branchId: 1,
+        quantity: 10,
+      });
+      prismaMock.inventory.upsert.mockResolvedValue({
+        variantId: 1,
+        branchId: 1,
+        quantity: 7,
+      });
+      prismaMock.inventoryMovement.create.mockResolvedValue({ id: 9 });
+
+      const res = await request(app)
+        .post(`${BASE}/adjust`)
+        .set('Authorization', authHeader(testUsers.manager))
+        .send({
+          variantId: 1,
+          branchId: 1,
+          quantity: -3,
+          reason: 'Stock count correction',
+        });
+
+      expect(res.status).toBe(201);
+      expect(prismaMock.inventoryMovement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'adjustment',
+            quantity: -3,
+            notes: 'Stock count correction',
+            createdBy: testUsers.manager.userId,
+            branchId: 1,
+          }),
+        })
+      );
+    });
+
+    // Stock is per variant PER BRANCH. The product edit page corrects the
+    // branch the user is working in, so the endpoint has to land there.
+    it('should default to the caller branch when no branchId is sent', async () => {
+      prismaMock.inventory.findUnique.mockResolvedValue({
+        variantId: 1,
+        branchId: 1,
+        quantity: 10,
+      });
+      prismaMock.inventory.upsert.mockResolvedValue({
+        variantId: 1,
+        branchId: 1,
+        quantity: 12,
+      });
+      prismaMock.inventoryMovement.create.mockResolvedValue({ id: 10 });
+
+      const res = await request(app)
+        .post(`${BASE}/adjust`)
+        .set('Authorization', authHeader(testUsers.manager))
+        .send({ variantId: 1, quantity: 2, reason: 'Stock count correction' });
+
+      expect(res.status).toBe(201);
+      expect(prismaMock.inventory.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { variantId_branchId: { variantId: 1, branchId: 1 } },
+        })
+      );
+    });
+
+    it('should follow the owner X-Branch-Id switch', async () => {
+      prismaMock.inventory.findUnique.mockResolvedValue({
+        variantId: 1,
+        branchId: 2,
+        quantity: 5,
+      });
+      prismaMock.inventory.upsert.mockResolvedValue({
+        variantId: 1,
+        branchId: 2,
+        quantity: 6,
+      });
+      prismaMock.inventoryMovement.create.mockResolvedValue({ id: 11 });
+
+      const res = await request(app)
+        .post(`${BASE}/adjust`)
+        .set('Authorization', authHeader(testUsers.owner))
+        .set('X-Branch-Id', '2')
+        .send({ variantId: 1, quantity: 1, reason: 'Stock count correction' });
+
+      expect(res.status).toBe(201);
+      expect(prismaMock.inventory.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { variantId_branchId: { variantId: 1, branchId: 2 } },
+        })
+      );
+    });
+
+    it('should refuse a non-owner adjusting another branch', async () => {
+      const res = await request(app)
+        .post(`${BASE}/adjust`)
+        .set('Authorization', authHeader(testUsers.manager))
+        .send({ variantId: 1, branchId: 2, quantity: 5, reason: 'Recount' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/another branch/i);
+      expect(prismaMock.inventory.upsert).not.toHaveBeenCalled();
+    });
   });
 
   // ─── POST /transfer (create transfer) ──────────────────────

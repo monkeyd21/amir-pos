@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
+import { AppError } from '../../middleware/errorHandler';
 import { inventoryService } from './service';
 import {
   parseExcelBuffer,
@@ -35,7 +36,25 @@ export class InventoryController {
 
   async adjust(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const result = await inventoryService.adjustStock(req.body, req.user!.userId);
+      // Stock is per variant PER BRANCH, so the adjustment has to name one.
+      // Default to the branch the caller is operating in: `req.user.branchId`
+      // is the JWT branch for everyone except an owner, for whom the auth
+      // middleware has already applied the X-Branch-Id switch. A non-owner is
+      // pinned to their own branch, so a body `branchId` pointing elsewhere is
+      // refused rather than quietly moving another store's stock.
+      const requested =
+        req.body.branchId != null ? Number(req.body.branchId) : null;
+      if (
+        requested != null &&
+        requested !== req.user!.branchId &&
+        req.user!.role !== 'owner'
+      ) {
+        throw new AppError('Cannot adjust stock for another branch', 403);
+      }
+      const result = await inventoryService.adjustStock(
+        { ...req.body, branchId: requested ?? req.user!.branchId },
+        req.user!.userId
+      );
       res.status(201).json({
         success: true,
         data: result,
