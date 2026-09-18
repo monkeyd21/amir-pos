@@ -769,11 +769,20 @@ export class PosService {
       // 3b. Resolve offers server-side (never trust the client). Offline bills
       // are priced at MRP − manual discount only, so the total the customer was
       // charged offline matches exactly what's recorded on sync (no offer drift).
-      const cartLines: CartLine[] = saleItemsData.map((i) => ({
-        variantId: i.variantId,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-      }));
+      // §2.4 — clearance lines are kept OUT of the engine, not filtered out of
+      // its answer. Their price is locked, so they may not take an offer; and
+      // since a bundle is now priced over the pool of lines it covers, a
+      // clearance line left in the input would swell that pool and change what
+      // the OTHER lines are charged. The quote (`evaluateCart`) has always
+      // excluded them, so this is also what keeps the quote and the bill saying
+      // the same number.
+      const cartLines: CartLine[] = saleItemsData
+        .filter((i) => !i.isClearance)
+        .map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        }));
       // §shop — an online sale sees ONLY online-eligible offers, so the price
       // the website quoted is the price the ledger records.
       const evaluated = data.offline

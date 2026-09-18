@@ -292,6 +292,140 @@ export function chooseBestOffer(
   return null;
 }
 
+// ─── Bundles pool across the cart ───────────────────────────────
+
+/**
+ * "3 for Rs. 1200" means ANY three pieces the offer covers — three sizes, three
+ * colours, three different articles — not three of one variant.
+ *
+ * That distinction is the whole reason this exists. Every other offer type is a
+ * property of ONE line: a percentage, a flat amount, a buy-x-get-y run all read
+ * a single line's quantity and answer for it. A bundle is a property of the
+ * BASKET, and the cart splits a basket by variant (`pos-terminal` merges scans
+ * on variantId), so three sizes of the same article arrive as three lines of
+ * one. Asking each line "do you hold three?" answers no three times, and on a
+ * rail carrying one piece per size the deal could never fire at all.
+ *
+ * So a bundle is priced over the pool of every line it covers, and the discount
+ * is then apportioned BACK onto those lines. Apportionment is not cosmetic:
+ * `SaleItem.offerId` and `effectiveUnitPrice` are per line, and a refund pays
+ * back `SaleItem.total ÷ quantity`, so a customer returning one piece of a
+ * three-for-1200 must get its fair share of the deal, never a third of the
+ * shelf price.
+ */
+
+/** One line's share of a pooled bundle. */
+export interface PooledBundle {
+  /** True when the pool holds enough units AND the deal is worth applying. */
+  qualified: boolean;
+  /** Total discount across the whole pool. */
+  discountAmount: number;
+  /** That discount split back over the participating lines, by line index. */
+  byLine: Map<number, number>;
+  /** How many units each line actually put INTO the bundle, by line index. */
+  unitsByLine: Map<number, number>;
+  /** Units still to be added before it applies, or before the NEXT one does. */
+  shortfall: number;
+  hint?: string;
+  /** Units left over after the last whole bundle. */
+  leftoverUnits: number;
+}
+
+const emptyPool = (shortfall = 0, hint?: string, leftoverUnits = 0): PooledBundle => ({
+  qualified: false,
+  discountAmount: 0,
+  byLine: new Map(),
+  unitsByLine: new Map(),
+  shortfall,
+  hint,
+  leftoverUnits,
+});
+
+/**
+ * Price one bundle offer across every line it covers.
+ *
+ * Which units go into the bundle when the basket holds more than a whole
+ * multiple: the DEAREST ones. Four pieces on a "3 for 1200" pay 1200 for the
+ * three most expensive and shelf price for the cheapest, which is the largest
+ * saving available and the only choice a customer would not argue with.
+ *
+ * A bundle that costs MORE than the pieces it covers is not applied at all,
+ * rather than applied as a surcharge dressed as a deal.
+ */
+export function poolBundle(
+  offer: Offer,
+  lines: Array<{ index: number; unitPrice: number; quantity: number }>
+): PooledBundle {
+  const buy = offer.buyQty ?? 0;
+  const bundleTotal = toNum(offer.flatValue);
+  if (offer.type !== 'bundle' || buy <= 0 || bundleTotal <= 0) return emptyPool();
+
+  const units: Array<{ index: number; unitPrice: number }> = [];
+  for (const line of lines) {
+    for (let i = 0; i < line.quantity; i += 1) {
+      units.push({ index: line.index, unitPrice: line.unitPrice });
+    }
+  }
+  if (units.length === 0) return emptyPool();
+
+  if (units.length < buy) {
+    const shortfall = buy - units.length;
+    return emptyPool(
+      shortfall,
+      `Add ${shortfall} more for ${describeOffer(offer)}`,
+      units.length
+    );
+  }
+
+  const bundles = Math.floor(units.length / buy);
+  const selected = [...units]
+    .sort((a, b) => b.unitPrice - a.unitPrice || a.index - b.index)
+    .slice(0, bundles * buy);
+
+  const bundledGross = selected.reduce((sum, u) => sum + u.unitPrice, 0);
+  const discount = round2(bundledGross - bundles * bundleTotal);
+  if (discount <= 0) return emptyPool();
+
+  // Apportion by the value each line put INTO the bundle, so the line that
+  // contributed the dearest pieces carries the largest share of the saving.
+  const grossByLine = new Map<number, number>();
+  const unitsByLine = new Map<number, number>();
+  for (const u of selected) {
+    grossByLine.set(u.index, (grossByLine.get(u.index) ?? 0) + u.unitPrice);
+    unitsByLine.set(u.index, (unitsByLine.get(u.index) ?? 0) + 1);
+  }
+  const byLine = new Map<number, number>();
+  let allocated = 0;
+  for (const [index, gross] of grossByLine) {
+    const share = round2((discount * gross) / bundledGross);
+    byLine.set(index, share);
+    allocated = round2(allocated + share);
+  }
+  // Rounding drift lands on the largest share, so the parts always sum to the
+  // whole and the bill never disagrees with itself by a paisa.
+  const drift = round2(discount - allocated);
+  if (drift !== 0 && byLine.size > 0) {
+    let biggest = [...byLine.entries()][0];
+    for (const entry of byLine) if (entry[1] > biggest[1]) biggest = entry;
+    byLine.set(biggest[0], round2(biggest[1] + drift));
+  }
+
+  const leftoverUnits = units.length - selected.length;
+  return {
+    qualified: true,
+    discountAmount: discount,
+    byLine,
+    unitsByLine,
+    // What the NEXT bundle needs, counted over the pieces left outside this one.
+    shortfall: leftoverUnits > 0 ? buy - leftoverUnits : 0,
+    hint:
+      leftoverUnits > 0
+        ? `Add ${buy - leftoverUnits} more for ${describeOffer(offer)}`
+        : undefined,
+    leftoverUnits,
+  };
+}
+
 // ─── Offer resolution (DB-backed) ───────────────────────────────
 
 const now = () => new Date();
@@ -419,10 +553,10 @@ export async function evaluateCart(
     for (const { productId } of ops) push(productOfferMap, productId, offerData as Offer);
   }
 
-  // Resolve per line, at this line's current quantity.
-  return lines.map((line) => {
+  // Candidates per line, then the per-line answer at this line's quantity.
+  const candidatesByLine = lines.map((line): OfferCandidate[] => {
     const productId = variantToProduct.get(line.variantId);
-    const candidates: OfferCandidate[] = [
+    return [
       ...(variantOfferMap.get(line.variantId) ?? []).map(
         (offer): OfferCandidate => ({ offer, scope: 'variant' })
       ),
@@ -430,13 +564,146 @@ export async function evaluateCart(
         (offer): OfferCandidate => ({ offer, scope: 'product' })
       ),
     ];
+  });
 
-    const choice = chooseBestOffer(candidates, line.unitPrice, line.quantity);
+  const baseline = lines.map((line, i) =>
+    chooseBestOffer(candidatesByLine[i], line.unitPrice, line.quantity)
+  );
+
+  // ── Bundles, priced over the basket rather than the line ──
+  //
+  // A bundle covering several lines is worth more pooled than it can ever be
+  // worth line by line, and on a rail with one piece per size it is worth
+  // nothing otherwise. It takes the lines only when the pool beats what those
+  // same lines already had, so a bundle never costs the customer a better deal
+  // they were already getting.
+  const bundlesById = new Map<number, { offer: Offer; lineIndexes: number[] }>();
+  candidatesByLine.forEach((candidates, i) => {
+    for (const c of candidates) {
+      if (c.offer.type !== 'bundle') continue;
+      const entry = bundlesById.get(c.offer.id);
+      if (entry) entry.lineIndexes.push(i);
+      else bundlesById.set(c.offer.id, { offer: c.offer, lineIndexes: [i] });
+    }
+  });
+
+  const pooledByLine = new Map<
+    number,
+    { offer: Offer; discount: number; unitsInBundle: number }
+  >();
+  const pooledHintByLine = new Map<number, string>();
+  const claimed = new Set<number>();
+
+  // Best deal first, so the strongest bundle picks its lines before a weaker
+  // one can take them.
+  const pools = [...bundlesById.values()]
+    .map((b) => ({
+      ...b,
+      pooled: poolBundle(
+        b.offer,
+        b.lineIndexes.map((i) => ({
+          index: i,
+          unitPrice: lines[i].unitPrice,
+          quantity: lines[i].quantity,
+        }))
+      ),
+    }))
+    .sort((a, b) => b.pooled.discountAmount - a.pooled.discountAmount);
+
+  for (const pool of pools) {
+    const free = pool.lineIndexes.filter((i) => !claimed.has(i));
+    if (free.length === 0) continue;
+    // Recompute over only the lines still available, so a line taken by a
+    // stronger bundle cannot also prop up a weaker one.
+    const pooled =
+      free.length === pool.lineIndexes.length
+        ? pool.pooled
+        : poolBundle(
+            pool.offer,
+            free.map((i) => ({
+              index: i,
+              unitPrice: lines[i].unitPrice,
+              quantity: lines[i].quantity,
+            }))
+          );
+
+    if (!pooled.qualified) {
+      // Not there yet: tell the cashier how close the BASKET is, which is the
+      // number the customer can act on ("add 1 more"), not a per-line count.
+      if (pooled.hint) {
+        for (const i of free) if (!pooledHintByLine.has(i)) pooledHintByLine.set(i, pooled.hint);
+      }
+      continue;
+    }
+
+    const baselineDiscount = round2(
+      free.reduce((sum, i) => sum + (baseline[i]?.result.discountAmount ?? 0), 0)
+    );
+    if (pooled.discountAmount <= baselineDiscount) continue;
+
+    for (const [index, share] of pooled.byLine) {
+      pooledByLine.set(index, {
+        offer: pool.offer,
+        discount: share,
+        unitsInBundle: pooled.unitsByLine.get(index) ?? 0,
+      });
+      claimed.add(index);
+    }
+
+    // Pieces left over after the last whole bundle get a nudge counted over
+    // THOSE pieces, not over one line: two leftovers need one more piece, and
+    // saying "add 2 more" because one line happens to hold one piece is how the
+    // cashier ends up promising the wrong thing.
+    if (pooled.hint) {
+      for (const i of free) if (!claimed.has(i)) pooledHintByLine.set(i, pooled.hint);
+    }
+  }
+
+  return lines.map((line, i) => {
+    const pooled = pooledByLine.get(i);
+    if (pooled) {
+      const gross = round2(line.unitPrice * line.quantity);
+
+      // A bundle consumes UNITS, but an offer is recorded per LINE, so a line
+      // can end up with some units inside the deal and some outside. Those
+      // outside keep the offer they would have had on their own — otherwise a
+      // customer buying 2+2+1 pays more than one buying 2+1+2 for the same five
+      // pieces, purely because of how the cart happened to split.
+      //
+      // The line still records the bundle as its offer, because that is the
+      // deal that priced it; `effectiveUnitPrice` is the line's average, which
+      // is what a refund pays back (`SaleItem.total ÷ quantity`).
+      const outside = line.quantity - pooled.unitsInBundle;
+      const fallback = baseline[i]?.offer;
+      let outsideDiscount = 0;
+      if (outside > 0 && fallback && fallback.type !== 'bundle') {
+        const r = computeDiscount(fallback, line.unitPrice, outside);
+        if (r.qualified) outsideDiscount = r.discountAmount;
+      }
+
+      const discountAmount = round2(pooled.discount + outsideDiscount);
+      const lineTotal = round2(gross - discountAmount);
+      return {
+        line,
+        offer: pooled.offer,
+        result: {
+          qualified: true,
+          discountAmount,
+          effectiveUnitPrice: round2(lineTotal / line.quantity),
+          lineTotal,
+          displayText: describeOffer(pooled.offer),
+        } as DiscountResult,
+        upcomingHint: undefined,
+      };
+    }
+    const choice = baseline[i];
     return {
       line,
       offer: choice?.offer ?? null,
       result: choice?.result ?? null,
-      upcomingHint: choice?.upcoming?.result.hint,
+      // The pooled shortfall counts the whole basket, so it supersedes the
+      // per-line nudge whenever there is one.
+      upcomingHint: pooledHintByLine.get(i) ?? choice?.upcoming?.result.hint,
     };
   });
 }

@@ -175,6 +175,38 @@ prints it under the offer text as an upsell.
 `evaluateCart` feeds checkout, `POST /pos/cart/evaluate` and the storefront
 quote, so all three agree by construction. Tests: `offers/__tests__/offer-choice.test.ts`.
 
+### 4c. A BUNDLE is priced over the basket, not the line
+"3 for Rs. 1200" means any three pieces the offer covers: three sizes, three
+colours, three different articles. Every other offer type is a property of one
+line, but the cart splits a basket by variant (`pos-terminal` merges scans on
+`variantId`), so three sizes arrive as three lines of one. Asked line by line,
+the deal never fired — and on a rail carrying one piece per size it never could.
+
+`poolBundle` (pure, tested) prices a bundle over every line the offer covers and
+apportions the discount BACK onto those lines by the value each put in. That
+split is not cosmetic: `SaleItem.offerId` and `effectiveUnitPrice` are per line
+and a refund pays `SaleItem.total ÷ quantity`, so a customer returning one piece
+of a three-for-1200 gets its share of the deal, never a third of the shelf price.
+
+Rules worth knowing before touching it:
+- The **dearest** units go into the bundle, so four pieces pay 1200 for the top
+  three and shelf price for the cheapest. Largest saving, and the only split a
+  customer would not argue with.
+- A bundle takes the lines only when the pool beats what those lines already
+  had, so it never costs the customer a better deal they were already getting.
+- A bundle consumes UNITS but an offer is recorded per LINE, so a line can be
+  straddled. Units left outside the deal keep the offer they would have had on
+  their own; otherwise a 2+2+1 basket costs more than a 2+1+2 one for the same
+  five pieces. The line still records the bundle as its offer, and
+  `effectiveUnitPrice` is the line's average.
+- A bundle priced above the shelf value of the pieces it covers is not applied.
+- Clearance lines are kept OUT of the engine's input entirely (`pos/service.ts`),
+  not filtered out of its answer: a clearance line left in would swell the pool
+  and change what the other lines are charged.
+
+Tests: `offers/__tests__/pooled-bundle.test.ts` (arithmetic and the split) and
+`pooled-bundle-cart.test.ts` (which offer a line ends up with).
+
 ### 5. Prisma Decimal fields arrive as STRINGS over JSON
 `sale.total`, `commission.amount`, `product.basePrice`, etc. are Prisma `Decimal` type. They come across the wire as strings like `"237"`. Always wrap with `Number(value)` before math — otherwise `reduce` concatenates strings → `NaN`.
 
