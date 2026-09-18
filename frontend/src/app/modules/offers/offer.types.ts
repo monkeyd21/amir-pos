@@ -20,7 +20,15 @@ export interface Offer {
   endsAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Raw assignment rows. Used for the "is this offer in use" warning only. */
   _count?: { products: number; variants: number };
+  /**
+   * What the offer actually reaches: articles touched at either level, and the
+   * variants that follow from that (a whole article brings all of its own).
+   * This is what the list shows, and it is the same rule the offer page prints
+   * — see `shared/src/offer-coverage.ts` for why raw rows mislead.
+   */
+  coverage?: { articles: number; variants: number };
 }
 
 export interface OfferDetail extends Offer {

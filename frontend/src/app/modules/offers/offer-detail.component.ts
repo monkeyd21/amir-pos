@@ -6,6 +6,7 @@ import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { offerCoverage, OfferCoverage } from '@clothing-erp/shared';
 import {
   Offer,
   OfferDetail,
@@ -306,8 +307,35 @@ export class OfferDetailComponent implements OnInit {
     });
   }
 
+  /**
+   * The header count, from the SAME rule the offers list uses
+   * (`shared/src/offer-coverage.ts`). The two screens disagreed once, in
+   * opposite directions, because each counted its own way; they now cannot.
+   *
+   * A whole-covered article contributes every variant it holds, which is what
+   * `variants` already lists for a product-scope entry, so its own length is
+   * the total to feed in.
+   */
+  private get coverageCounts(): OfferCoverage {
+    const productIds = this.coverage
+      .filter((c) => c.scope === 'product')
+      .map((c) => c.productId);
+    const variantProductIds = this.coverage
+      .filter((c) => c.scope === 'variant')
+      .flatMap((c) => c.variants.map(() => c.productId));
+    const variantTotals: Record<number, number> = {};
+    for (const c of this.coverage) {
+      if (c.scope === 'product') variantTotals[c.productId] = c.variants.length;
+    }
+    return offerCoverage({ productIds, variantProductIds }, variantTotals);
+  }
+
+  get coveredArticleCount(): number {
+    return this.coverageCounts.articles;
+  }
+
   get coveredVariantCount(): number {
-    return this.coverage.reduce((n, c) => n + c.variants.length, 0);
+    return this.coverageCounts.variants;
   }
 
   /** Every product in the catalogue is covered, whole. */

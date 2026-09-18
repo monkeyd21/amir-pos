@@ -76,7 +76,7 @@
           <th class="px-5 py-3">Name</th>
           <th class="px-5 py-3">Type</th>
           <th class="px-5 py-3">Details</th>
-          <th class="px-5 py-3 text-center">Products</th>
+          <th class="px-5 py-3 text-center">Articles</th>
           <th class="px-5 py-3 text-center">Variants</th>
           <th class="px-5 py-3 text-center">Priority</th>
           <th class="px-5 py-3 text-center">Status</th>
@@ -96,8 +96,12 @@
             </td>
             <td class="px-5 py-3 text-xs text-on-surface-variant">{{ typeLabels[offer.type] }}</td>
             <td class="px-5 py-3 text-xs font-semibold text-primary">{{ describe(offer) }}</td>
-            <td class="px-5 py-3 text-center text-xs font-mono text-on-surface-variant">{{ offer._count?.products ?? 0 }}</td>
-            <td class="px-5 py-3 text-center text-xs font-mono text-on-surface-variant">{{ offer._count?.variants ?? 0 }}</td>
+            <!-- Coverage, not raw assignment rows: a whole-article assignment
+                 reaches every variant of it, and variant-level assignments
+                 reach the articles those variants belong to. Same rule the
+                 offer page prints (shared/src/offer-coverage.ts). -->
+            <td class="px-5 py-3 text-center text-xs font-mono text-on-surface-variant">{{ offer.coverage?.articles ?? 0 }}</td>
+            <td class="px-5 py-3 text-center text-xs font-mono text-on-surface-variant">{{ offer.coverage?.variants ?? 0 }}</td>
             <td class="px-5 py-3 text-center text-xs font-mono text-on-surface-variant">{{ offer.priority ?? 0 }}</td>
             <td class="px-5 py-3 text-center">
               @if (offer.isActive) {

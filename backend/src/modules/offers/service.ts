@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { offerCoverage } from '@clothing-erp/shared';
 import { AppError } from '../../middleware/errorHandler';
 import { Prisma } from '@prisma/client';
 
@@ -57,10 +58,44 @@ export async function listOffers(query: {
     where,
     include: {
       _count: { select: { products: true, variants: true } },
+      // Ids only. The counting rule needs which ARTICLES are touched, not the
+      // rows themselves, and an offer can hold a hundred variant assignments.
+      products: { select: { productId: true } },
+      variants: { select: { variant: { select: { productId: true } } } },
     },
     orderBy: [{ isActive: 'desc' }, { priority: 'desc' }, { createdAt: 'desc' }],
   });
-  return offers;
+
+  // A whole-article assignment reaches every variant of that article, so the
+  // list needs each covered article's variant count to say how far the offer
+  // actually goes. One grouped query for every offer on the page.
+  const wholeArticleIds = [
+    ...new Set(offers.flatMap((o) => (o.products ?? []).map((p) => p.productId))),
+  ];
+  const totals = wholeArticleIds.length
+    ? await prisma.productVariant.groupBy({
+        by: ['productId'],
+        where: { productId: { in: wholeArticleIds } },
+        _count: { _all: true },
+      })
+    : [];
+  const variantTotals: Record<number, number> = {};
+  for (const t of totals ?? []) variantTotals[t.productId] = t._count._all;
+
+  // `_count` stays on the payload (it is the raw assignment rows, which the
+  // editor below the list still reasons about); `coverage` is what the list
+  // SHOWS, and it is the same rule the offer page prints. See
+  // `shared/src/offer-coverage.ts` for why the two differ.
+  return offers.map(({ products, variants, ...offer }) => ({
+    ...offer,
+    coverage: offerCoverage(
+      {
+        productIds: (products ?? []).map((p) => p.productId),
+        variantProductIds: (variants ?? []).map((v) => v.variant.productId),
+      },
+      variantTotals
+    ),
+  }));
 }
 
 export async function getOffer(id: number) {
