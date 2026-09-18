@@ -58,6 +58,11 @@ interface ReceiptData {
   payments: ReceiptPayment[];
   loyaltyPointsEarned: number;
   loyaltyPointsRedeemed: number;
+  /** Points the customer can spend once this bill is settled — the wallet
+   *  balance AFTER this sale, rewound from the live wallet server-side so a
+   *  reprint shows the same number the original print did. Null on a walk-in
+   *  bill, which prints no balance line at all. */
+  loyaltyPointsBalance?: number | null;
   exchangeCredit?: number;
   exchangeRefund?: number;
   exchangeOriginalSaleNumber?: string | null;
@@ -442,19 +447,29 @@ ${divider}</div></div>
       changeLine = `\n${changeLabel}${this.pad(changeLabel, changeVal)}${changeVal}`;
     }
 
+    // Loyalty block. Mirrors `loyaltyReceiptRows()` in the backend's
+    // `sales/receipt-loyalty.ts` so the thermal bill and the shared PDF always
+    // quote the same points. A walk-in bill has no balance at all (null), and a
+    // customer bill with nothing earned, redeemed or saved up prints no block
+    // rather than a row of zeroes — but once the block shows, the balance is
+    // printed even at zero: "none left" is the honest answer to a bill that
+    // just spent the lot.
+    const balance = r.loyaltyPointsBalance == null ? null : Number(r.loyaltyPointsBalance);
     let loyaltySection = '';
-    if (r.loyaltyPointsEarned > 0 || r.loyaltyPointsRedeemed > 0) {
+    if (r.loyaltyPointsEarned > 0 || r.loyaltyPointsRedeemed > 0 || (balance !== null && balance > 0)) {
       let lines = '';
+      const addLine = (label: string, value: string) => {
+        if (lines) lines += '\n';
+        lines += label + this.pad(label, value) + value;
+      };
       if (r.loyaltyPointsEarned > 0) {
-        const earnLabel = 'Points Earned:';
-        const earnVal = String(r.loyaltyPointsEarned);
-        lines += earnLabel + this.pad(earnLabel, earnVal) + earnVal;
+        addLine('Points Earned:', String(r.loyaltyPointsEarned));
       }
       if (r.loyaltyPointsRedeemed > 0) {
-        const redLabel = 'Points Redeemed:';
-        const redVal = String(r.loyaltyPointsRedeemed);
-        if (lines) lines += '\n';
-        lines += redLabel + this.pad(redLabel, redVal) + redVal;
+        addLine('Points Redeemed:', String(r.loyaltyPointsRedeemed));
+      }
+      if (balance !== null) {
+        addLine('Points Balance:', String(balance));
       }
       loyaltySection = `\n${thinDivider}\n${lines}`;
     }

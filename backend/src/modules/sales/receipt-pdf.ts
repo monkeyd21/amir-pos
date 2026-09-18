@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { loyaltyReceiptRows } from './receipt-loyalty';
 
 export interface ReceiptSale {
   saleNumber: string;
@@ -44,6 +45,13 @@ export interface ReceiptSale {
   taxAmount: number | string;
   discountAmount: number | string;
   total: number | string;
+  // Loyalty, printed as its own block under the payments so the PDF says the
+  // same thing as the thermal bill. `loyaltyPointsBalance` is what the customer
+  // can spend after this sale (see `receipt-loyalty.ts`); null/absent on a
+  // walk-in bill, which prints no balance line at all.
+  loyaltyPointsEarned?: number;
+  loyaltyPointsRedeemed?: number;
+  loyaltyPointsBalance?: number | null;
   // §bug13 — items returned/exchanged against this bill (shown after the sold
   // items). Populated by the caller when the sale has an exchange credit.
   exchangeOriginalSaleNumber?: string | null;
@@ -400,6 +408,17 @@ export function buildReceiptPdf(
     doc.font('Helvetica').fontSize(8);
     for (const p of sale.payments) {
       doc.text(`${p.method.toUpperCase()}: ${fmtINR(p.amount)}`, { align: 'right' });
+    }
+
+    // Loyalty — the same rows the thermal bill prints: what this sale earned,
+    // what it redeemed, and the balance left to spend. Absent entirely on a
+    // walk-in bill or when no points are in play.
+    const loyaltyRows = loyaltyReceiptRows(sale);
+    if (loyaltyRows.length > 0) {
+      doc.moveDown(0.4);
+      doc.strokeColor('#000').lineWidth(0.5).moveTo(12, doc.y).lineTo(12 + W, doc.y).stroke();
+      doc.moveDown(0.3);
+      for (const [label, value] of loyaltyRows) row(label, value);
     }
 
     // §upi — scan-to-pay QR (amount pre-filled). Passed in only when a store VPA

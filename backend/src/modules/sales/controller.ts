@@ -4,6 +4,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
 import { salesService } from './service';
 import { buildReceiptPdf } from './receipt-pdf';
+import { receiptLoyaltyBalance } from './receipt-loyalty';
 import { getSetting } from '../settings/service';
 import {
   buildUpiUri,
@@ -141,8 +142,12 @@ export class SalesController {
         upi = { qr: await upiQrPng(uri), vpa: upiAccount.vpa, amount: amountDue };
       }
 
+      // Points left to spend after this bill. Same source as the thermal
+      // receipt, so the shared PDF can't quote a different balance.
+      const loyaltyPointsBalance = await receiptLoyaltyBalance(sale);
+
       const pdf = await buildReceiptPdf(
-        { ...(sale as any), exchangedItems, exchangeOriginalSaleNumber },
+        { ...(sale as any), exchangedItems, exchangeOriginalSaleNumber, loyaltyPointsBalance },
         showGst,
         upi
       );

@@ -16,6 +16,7 @@ import {
   normaliseUpiConfig,
   defaultUpiAccount,
 } from '../../utils/upi';
+import { receiptLoyaltyBalance } from './receipt-loyalty';
 
 // §1.5 / Bug#2 — return/exchange policy windows. The refund/return window is
 // Settings-configurable (`returnWindowDays`, default 15); exchanges stay at 15.
@@ -461,6 +462,11 @@ export class SalesService {
       upiQr = await upiQrDataUrl(uri);
     }
 
+    // Points the customer can actually spend when they walk out with this bill,
+    // rewound from the live wallet so a reprint still shows the day's number.
+    // Null for a walk-in — the receipt then prints no balance line at all.
+    const loyaltyPointsBalance = await receiptLoyaltyBalance(sale);
+
     return {
       receiptHeader: sale.branch.receiptHeader,
       receiptFooter: sale.branch.receiptFooter,
@@ -529,6 +535,7 @@ export class SalesService {
       })),
       loyaltyPointsEarned: sale.loyaltyPointsEarned,
       loyaltyPointsRedeemed: sale.loyaltyPointsRedeemed,
+      loyaltyPointsBalance,
       exchangeCredit,
       exchangeRefund,
       exchangeOriginalSaleNumber,
