@@ -10,6 +10,7 @@ import { ReturnDialogComponent } from './return-dialog.component';
 import { ExchangeDialogComponent } from './exchange-dialog.component';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
 import { AuthService } from '../../core/services/auth.service';
+import { canExchangeLine, refundRule } from '@clothing-erp/shared';
 
 interface SaleItem {
   id: number;
@@ -369,23 +370,48 @@ export class SaleDetailComponent implements OnInit {
     );
   }
 
+  private lineUnreturned(item: SaleItem): boolean {
+    return (item.returnedQuantity || 0) < item.quantity;
+  }
+
+  private linePolicy(item: SaleItem) {
+    return {
+      isClearance: Boolean(item.isClearance),
+      lineNonReturnable: Boolean(item.nonReturnable),
+      productNonReturnable: Boolean(item.variant?.product?.nonReturnable),
+    };
+  }
+
+  /** Lines that may come back for MONEY. */
   get returnableItems(): SaleItem[] {
     if (!this.sale) return [];
     // Bug#4 — a line marked non-returnable at billing (or a product flagged
-    // non-returnable / exchange-only) can't be refund-returned from the Sales
-    // tab. It doesn't appear as a refundable option here; exchange is still
-    // available at the POS counter.
+    // non-returnable) can't be refund-returned. An exchange-only product is
+    // excluded here too: by definition it swaps but never refunds.
     //
     // §2.4 — clearance lines are the exception. They carry nonReturnable as
-    // well, but a Manager or Owner may refund one with the Owner PIN, so they
-    // belong on the list (flagged, with the PIN asked for) rather than hidden
-    // behind a dead end the cashier cannot explain to the customer.
+    // well, but a Manager or Owner may refund one with the Owner PIN
+    // (`refundRule` → 'owner-pin'), so they belong on the list (flagged, with
+    // the PIN asked for) rather than hidden behind a dead end the cashier
+    // cannot explain to the customer.
     return this.sale.items.filter(
       (item) =>
-        (item.returnedQuantity || 0) < item.quantity &&
-        (!item.nonReturnable || item.isClearance) &&
-        !item.variant?.product?.nonReturnable &&
+        this.lineUnreturned(item) &&
+        refundRule(this.linePolicy(item)) !== 'never' &&
         !item.variant?.product?.exchangeOnly
+    );
+  }
+
+  /**
+   * Lines that may come back as a SWAP: a different question, and a wider
+   * answer. Clearance goods swap freely, and an `exchangeOnly` product is the
+   * whole point of this list even though it can never be refunded. Feeding the
+   * exchange dialog `returnableItems` (the refund list) hid both.
+   */
+  get exchangeableItems(): SaleItem[] {
+    if (!this.sale) return [];
+    return this.sale.items.filter(
+      (item) => this.lineUnreturned(item) && canExchangeLine(this.linePolicy(item))
     );
   }
 

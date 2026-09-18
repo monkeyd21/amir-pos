@@ -85,7 +85,11 @@ in `pos-terminal.component.ts`, `receipt-print.service.ts` and
 
 ### 4. Clearance is "exchange freely, refund on the Owner PIN"
 A clearance line sets `SaleItem.nonReturnable` at checkout, but that flag no
-longer means "never". The rules live in `pos/exchange-policy.ts`:
+longer means "never". The rules live in `shared/src/exchange-policy.ts`, in the
+SHARED workspace, not the backend, because the server gate and the UI pickers
+must apply the same test. `backend/src/modules/pos/exchange-policy.ts` is a
+re-export shim so existing backend imports keep working, and the frontend
+imports the same functions from `@clothing-erp/shared`:
 
 - `canExchangeLine` — anyone may swap a clearance line, no authorisation.
 - `refundRule` — a clearance line returns `'owner-pin'`: refundable, but only
@@ -97,6 +101,16 @@ longer means "never". The rules live in `pos/exchange-policy.ts`:
 - `clearanceCashOutBlocked` — an exchange that hands money back is a clearance
   refund in a swap's clothing, so it takes the same PIN (`pos/service.ts`);
   otherwise the replacement must be worth at least the clearance credit.
+
+**Never hand-roll `!item.nonReturnable` in a picker.** That filter hid every
+clearance line from the Sales-tab refund list and then, separately, from the POS
+exchange list (bill W0215). The goods were returnable, the server would have
+accepted them, the cashier simply could not see them. The POS exchange picker is
+now `frontend/src/app/modules/pos/exchange-items.ts` (`buildExchangeItems`,
+tested in `exchange-items.spec.ts`); `sale-detail.component.ts` exposes
+`returnableItems` (refund, via `refundRule`) and `exchangeableItems` (swap, via
+`canExchangeLine`) as two separate lists, because they are two different
+questions.
 
 The policy module never checks the PIN itself — the service does, so policy
 stays testable without a database. Both PIN-spending sites write a

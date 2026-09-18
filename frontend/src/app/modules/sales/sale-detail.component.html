@@ -476,7 +476,7 @@
 @if (showExchangeDialog && sale) {
   <app-exchange-dialog
     [sale]="sale"
-    [returnableItems]="returnableItems"
+    [returnableItems]="exchangeableItems"
     (close)="closeExchangeDialog()"
     (exchangeComplete)="onExchangeComplete()"
   />

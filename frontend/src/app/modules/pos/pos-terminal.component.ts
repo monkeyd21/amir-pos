@@ -14,6 +14,7 @@ import { QuickProductDialogComponent } from './quick-product-dialog.component';
 import { ScanSoundService } from '../../core/services/scan-sound.service';
 import { NoSpinDirective } from '../../shared/directives/no-spin.directive';
 import { OfflineService } from '../../core/services/offline.service';
+import { buildExchangeItems, ExchangePickerLine } from './exchange-items';
 
 /**
  * A single payment entry the cashier has added to a sale. One sale can have
@@ -423,22 +424,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // goods come from a previous bill; their value offsets the amount due.
   // A net refund (return worth more than the cart) is blocked → Sales tab.
   exchangeSale: { id: number; saleNumber: string } | null = null;
-  exchangeItems: Array<{
-    saleItemId: number;
-    productName: string;
-    size: string;
-    color: string;
-    sku: string;
-    barcode: string;
-    available: number;
-    quantity: number;
-    condition: 'resellable' | 'damaged';
-    unitPrice: number;
-    selected: boolean;
-    /** §2.4/bug2 — a clearance line may be exchanged but never refunded, so it
-     *  cannot settle as cash out. Drives the guard below. */
-    isClearance: boolean;
-  }> = [];
+  exchangeItems: ExchangePickerLine[] = [];
   showExchangePanel = false;
   exchangeLookupQuery = '';
   exchangeLoading = false;
@@ -2248,39 +2234,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           return;
         }
 
-        const items = (sale.items || [])
-          // A line marked non-returnable at billing (or a product flagged
-          // non-returnable) can't come back — not even via an exchange, since a
-          // POS exchange can net a cash refund when the return exceeds the new
-          // purchase. Mirrors the Sales-tab refund filter. Genuine exchange-only
-          // products are still allowed here.
-          .filter((it: any) => !it.nonReturnable && !it.variant?.product?.nonReturnable)
-          .map((it: any) => {
-            const available = (it.quantity || 0) - (it.returnedQuantity || 0);
-            const preselected = preselectSaleItemId === it.id;
-            return {
-              saleItemId: it.id,
-              productName: it.variant?.product?.name || it.productName || 'Item',
-              size: it.variant?.size || '-',
-              color: it.variant?.color || '-',
-              sku: it.variant?.sku || '-',
-              barcode: it.variant?.barcode || '-',
-              available,
-              // A scanned item means "this one unit is coming back" — default
-              // its qty to 1; otherwise default to all returnable.
-              quantity: preselected ? 1 : available,
-              condition: 'resellable' as const,
-              // Credit the actual paid-per-unit (line total ÷ qty, net of every
-              // discount), not MRP/effective — so a 10%-off 4k item credits 3.6k.
-              unitPrice:
-                it.total != null && it.quantity
-                  ? Number(it.total) / it.quantity
-                  : Number(it.effectiveUnitPrice ?? it.unitPrice) || 0,
-              selected: preselected,
-              isClearance: Boolean(it.isClearance),
-            };
-          })
-          .filter((i: any) => i.available > 0);
+        const items = buildExchangeItems(sale.items, preselectSaleItemId);
 
         if (items.length === 0) {
           this.notify.error('Nothing left to return on this bill');
