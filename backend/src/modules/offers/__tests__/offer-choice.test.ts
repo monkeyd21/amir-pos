@@ -185,10 +185,14 @@ describe('how a winner is picked', () => {
   });
 });
 
-describe('variant-level assignments still beat product-level', () => {
-  it('takes the variant-level offer even when a product-level one is richer', () => {
-    // Singling a variant out is how the shop says "this one is different" —
-    // scope targets the article, it does not compete on money.
+describe('the best deal wins, whatever the offer was attached to', () => {
+  it('takes the richer article-wide offer over a thinner variant-level one', () => {
+    // Scope used to gate this, and a shop running "Rs 50 off" on variants and
+    // "3 for Rs 1200" on the article found the bundle could never apply: the
+    // flat offer qualifies at every quantity, so it always won. Targeting is
+    // not the same as value, and gating one by the other charged customers
+    // more. A variant-level offer can now be beaten, but only by a BIGGER
+    // discount, never a smaller one.
     const targeted = offer({ name: 'Variant 5%', type: 'percentage', percentValue: 5 as any });
     const blanket = offer({ name: 'Product 30%', type: 'percentage', percentValue: 30 as any });
     const choice = chooseBestOffer(
@@ -199,7 +203,64 @@ describe('variant-level assignments still beat product-level', () => {
       SALE_PRICE,
       1
     );
-    expect(choice?.offer.name).toBe('Variant 5%');
+    expect(choice?.offer.name).toBe('Product 30%');
+  });
+
+  it('keeps the variant-level offer when it is the better deal', () => {
+    const targeted = offer({ name: 'Variant 30%', type: 'percentage', percentValue: 30 as any });
+    const blanket = offer({ name: 'Product 5%', type: 'percentage', percentValue: 5 as any });
+    const choice = chooseBestOffer(
+      [
+        { offer: targeted, scope: 'variant' },
+        { offer: blanket, scope: 'product' },
+      ],
+      SALE_PRICE,
+      1
+    );
+    expect(choice?.offer.name).toBe('Variant 30%');
+  });
+
+  it('lets the article-wide bundle take a line the variant-level flat offer held', () => {
+    // The shop's actual setup, the one that was billing 1740 for three pieces.
+    const choice = chooseBestOffer(
+      [
+        { offer: rs50Off(0), scope: 'variant' },
+        { offer: threeFor1200(0), scope: 'product' },
+      ],
+      SALE_PRICE,
+      3
+    );
+    expect(choice?.offer.name).toBe('3 for Rs 1200');
+    expect(choice?.result.lineTotal).toBe(1200);
+  });
+
+  it('leaves that same line on the flat offer below the bundle quantity', () => {
+    const choice = chooseBestOffer(
+      [
+        { offer: rs50Off(0), scope: 'variant' },
+        { offer: threeFor1200(0), scope: 'product' },
+      ],
+      SALE_PRICE,
+      2
+    );
+    expect(choice?.offer.name).toBe('Rs 50 off');
+    expect(choice?.result.lineTotal).toBe(900);
+  });
+
+  it('falls back to the narrower assignment only when the money is identical', () => {
+    // Same discount, same priority, same age: scope is the last word, not the
+    // first.
+    const targeted = offer({ id: 20, name: 'Variant 10%', type: 'percentage', percentValue: 10 as any });
+    const blanket = offer({ id: 21, name: 'Product 10%', type: 'percentage', percentValue: 10 as any });
+    const choice = chooseBestOffer(
+      [
+        { offer: blanket, scope: 'product' },
+        { offer: targeted, scope: 'variant' },
+      ],
+      SALE_PRICE,
+      1
+    );
+    expect(choice?.offer.name).toBe('Variant 10%');
   });
 
   it('falls through to product level when no variant-level offer applies yet', () => {

@@ -148,23 +148,32 @@ An exchange also carries the original bill's customer onto the replacement sale
 (`carriedCustomerId`); an explicitly chosen customer wins, and a walk-in
 original carries nobody.
 
-### 4b. Several offers on one article: best at the CURRENT quantity wins
+### 4b. Several offers on one article: the customer gets the best deal
 `offers/engine.ts` → `chooseBestOffer` is the only place that answers "which
 offer does this line get", and it answers it fresh on every evaluation, because
 the answer changes with the quantity. The order is:
 
-1. **Scope targets, it does not rank money.** A variant-level assignment is the
-   shop singling that article out, so variant-level offers are considered first
-   — but only those that actually APPLY at this quantity. If none do, product-
-   level offers get their turn instead of the line losing every discount.
-2. **Within the winning scope, the biggest discount for the customer wins.**
-3. **Priority (then recency, then id) breaks genuine ties only.**
+1. **Every offer that applies at this quantity competes**, whether it was
+   assigned to the whole article or to specific variants.
+2. **The biggest discount off the line wins.**
+3. **Priority (then recency, then the narrower assignment, then id) breaks
+   genuine ties only.**
 
 So "Rs 50 off" holds a line at 1 and 2 units and "3 for Rs 1200" takes it over
-at 3, whichever of the two carries the higher priority — and it hands back if
-the third unit is removed. The old code picked ONE offer per line by priority
-BEFORE looking at quantity, so a bundle that lost the priority tie at qty 1 was
-never reconsidered at qty 3 and the shop never charged the bundle price.
+at 3, and it hands back if the third unit is removed.
+
+Two rules were tried here and both were wrong, so don't reintroduce either.
+First, ONE offer per line was picked by priority BEFORE the quantity was known,
+so a bundle that lost the priority tie at 1 unit was never reconsidered at 3.
+Then scope gated the comparison: variant-level offers were considered first and
+product-level ones only if none applied. That reasoning was "singling out a
+variant is the shop saying this one is different", and real data killed it — a
+shop ran "Rs 50 off" on variants and "3 for Rs 1200" on the article, the flat
+offer qualifies at every quantity, so the bundle could never apply at all.
+Targeting is not value. Scope now sits at the bottom of the tie-break, where it
+only decides between offers worth exactly the same. If the shop ever needs
+"these pieces are excluded from the article-wide offer", that wants an exclusion
+flag that says so, not a scope hierarchy doing it as a side effect.
 
 One line still takes exactly ONE offer — `SaleItem.offerId` records the single
 deal given, so offers never stack on a line. When a line already qualifies but a

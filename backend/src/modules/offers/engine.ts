@@ -204,11 +204,14 @@ export interface OfferChoice {
 
 /**
  * House order — the tie-break the shop controls: higher priority first, then
- * the more recently created offer, then the lower id so the answer is stable.
+ * the more recently created offer, then the narrower assignment, then the lower
+ * id so the answer is stable. Scope sits here, at the very bottom, and only
+ * where two offers are worth the customer exactly the same.
  */
 const byHouseOrder = (a: OfferChoice, b: OfferChoice): number =>
   b.offer.priority - a.offer.priority ||
   b.offer.createdAt.getTime() - a.offer.createdAt.getTime() ||
+  Number(b.scope === 'variant') - Number(a.scope === 'variant') ||
   a.offer.id - b.offer.id;
 
 /** Best for the customer first; house order only breaks a genuine tie. */
@@ -223,16 +226,27 @@ const byUpsellValue = (a: OfferChoice, b: OfferChoice): number =>
  * Pick the offer a line gets, AT THE QUANTITY THE LINE HOLDS RIGHT NOW.
  * Pure function — feed it every offer that matches the line and it decides.
  *
- * The rule, in order:
+ * The rule, in one line: the customer gets the best deal available.
  *
- *  1. Scope targets, it does not rank money. A variant-level assignment is the
- *     shop deliberately singling this article out, so variant-level offers are
- *     considered first — but only those that actually APPLY at this quantity.
- *     If none of them do, product-level offers get their turn rather than the
- *     line silently losing every discount.
- *  2. Within the scope that wins, the offer that is BEST FOR THE CUSTOMER at
- *     this quantity wins — the largest discount off the line.
- *  3. Priority (then recency, then id) breaks genuine ties only.
+ *  1. Every offer that APPLIES at this quantity competes, whether it was
+ *     assigned to the whole article or to specific variants.
+ *  2. The largest discount off the line wins.
+ *  3. Priority (then recency, then the narrower assignment, then id) breaks
+ *     genuine ties only.
+ *
+ * Scope used to gate this: variant-level offers were considered first and
+ * product-level ones only got a turn if none of them applied. The reasoning was
+ * that singling out a variant is the shop saying "this one is different", so a
+ * blanket offer should not override it. Real data killed that. A shop ran
+ * "Rs 50 off" on specific variants and "3 for Rs 1200" on the whole article;
+ * the flat offer qualifies at every quantity, so it always won and the bundle
+ * could never apply. Targeting and value are different things, and gating one
+ * by the other quietly charged customers more.
+ *
+ * A variant-level offer can now be beaten by an article-wide one, but only ever
+ * by a BIGGER discount, never a smaller one. If the shop ever needs "these
+ * pieces are excluded from the article-wide offer", that wants an exclusion
+ * flag saying so, not a scope hierarchy doing it as a side effect.
  *
  * Because every candidate is re-costed on each call, a threshold deal that was
  * out of reach at 2 units takes over the moment the 3rd is scanned, and hands
@@ -266,30 +280,20 @@ export function chooseBestOffer(
     result: computeDiscount(c.offer, unitPrice, quantity),
   }));
 
-  const scopes: OfferScope[] = ['variant', 'product'];
-
-  // The nudge is drawn from everything that did not apply, whatever its scope —
-  // an upsell the cashier can voice is worth more than scope tidiness.
+  // The nudge is drawn from everything that did not apply — an upsell the
+  // cashier can voice is worth saying whatever the offer was attached to.
   const notYet = scored.filter((s) => !s.result.qualified).sort(byUpsellValue);
 
-  for (const scope of scopes) {
-    const qualified = scored
-      .filter((s) => s.scope === scope && s.result.qualified)
-      .sort(byCustomerValue);
-    if (qualified.length > 0) {
-      const chosen = qualified[0];
-      const upcoming = notYet.find((s) => !!s.result.hint);
-      return upcoming ? { ...chosen, upcoming } : chosen;
-    }
+  const qualified = scored.filter((s) => s.result.qualified).sort(byCustomerValue);
+  if (qualified.length > 0) {
+    const chosen = qualified[0];
+    const upcoming = notYet.find((s) => !!s.result.hint);
+    return upcoming ? { ...chosen, upcoming } : chosen;
   }
 
-  // Nothing applies at this quantity. Return the offer the shop would most like
-  // the cashier to mention, so the line still carries its "add 1 more" hint.
-  for (const scope of scopes) {
-    const inScope = notYet.filter((s) => s.scope === scope);
-    if (inScope.length > 0) return inScope[0];
-  }
-  return null;
+  // Nothing applies at this quantity. Hand back the offer the shop would most
+  // like mentioned, so the line still carries its "add 1 more" hint.
+  return notYet[0] ?? null;
 }
 
 // ─── Bundles pool across the cart ───────────────────────────────
