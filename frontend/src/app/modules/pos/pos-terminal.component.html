@@ -391,7 +391,10 @@
                           }
                         </div>
                         @if (item.offer) {
-                          <div class="flex items-center gap-1.5 mt-1.5">
+                          <!-- flex-wrap: the article cell is narrow, so the
+                               offer text and the upsell each take their own
+                               line instead of being squeezed mid-word. -->
+                          <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
                             @if (item.qualified) {
                               <!-- Qualified: show the human offer text
                                    (e.g. "Buy 2 Get 1 Free"). The bold
@@ -400,6 +403,17 @@
                               <span class="text-[10px] font-semibold text-amber-300/80">
                                 {{ item.offer.displayText }}
                               </span>
+                              @if (item.offerUpcomingHint) {
+                                <!-- Already on an offer, but a better one is a
+                                     unit or two away. Upsell, not a warning.
+                                     Icon and text wrap as one unit. -->
+                                <span class="inline-flex items-center gap-1.5">
+                                  <span class="material-symbols-outlined text-xs text-on-surface-variant">add_shopping_cart</span>
+                                  <span class="text-[10px] font-semibold text-on-surface-variant/70">
+                                    {{ item.offerUpcomingHint }}
+                                  </span>
+                                </span>
+                              }
                             } @else {
                               <!-- Not yet qualified: show the hint so the
                                    cashier can offer upsell ("add 1 more

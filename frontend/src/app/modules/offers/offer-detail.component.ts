@@ -35,6 +35,24 @@ interface PagedResponse<T> {
   meta?: { page: number; totalPages: number; total: number };
 }
 
+/**
+ * One article the SAVED offer covers, as the server reports it. Built from
+ * `OfferProduct[]` + `OfferVariant[]`, never from the product picker below —
+ * the picker is paged and filtered, so it can only ever show a slice.
+ */
+interface CoverageEntry {
+  productId: number;
+  productName: string;
+  brandName: string | null;
+  categoryName: string | null;
+  /** 'product' — every variant, now and any added later. 'variant' — only these. */
+  scope: 'product' | 'variant';
+  /** Variants actually covered (all of them at product scope). */
+  variants: Variant[];
+  /** How many variants the product has in total. */
+  totalVariants: number;
+}
+
 type SaveState = 'idle' | 'saving';
 
 @Component({
@@ -101,6 +119,11 @@ export class OfferDetailComponent implements OnInit {
   brands: Array<{ id: number; name: string }> = [];
   categories: Array<{ id: number; name: string }> = [];
 
+  // ─── Coverage (what the SAVED offer applies to) ──────────
+  coverage: CoverageEntry[] = [];
+  /** Products in the catalogue, so "covers everything" can be recognised. */
+  catalogueProductCount = 0;
+
   // Pagination for the product list
   page = 1;
   totalPages = 1;
@@ -123,6 +146,7 @@ export class OfferDetailComponent implements OnInit {
     this.loadCategories();
 
     if (this.offerId) {
+      this.loadCatalogueSize();
       this.loadOffer(this.offerId);
     } else {
       this.loadProducts();
@@ -186,6 +210,7 @@ export class OfferDetailComponent implements OnInit {
           this.selectedVariantIds.add(ov.variantId);
         }
 
+        this.coverage = this.buildCoverage(o);
         this.loading = false;
         this.loadProducts();
       },
@@ -216,6 +241,82 @@ export class OfferDetailComponent implements OnInit {
         this.loadingProducts = false;
       },
     });
+  }
+
+  /** Total products in the catalogue — one row is enough, we only want the count. */
+  loadCatalogueSize(): void {
+    this.api
+      .get<PagedResponse<Product>>('/products', { page: 1, limit: 1 })
+      .subscribe({
+        next: (res) => (this.catalogueProductCount = res.meta?.total ?? 0),
+      });
+  }
+
+  // ─── Coverage ────────────────────────────────────────────
+
+  /**
+   * What the offer covers, straight from the saved assignments. A product-level
+   * assignment covers the whole article (including variants added later); a
+   * variant-level one covers exactly the variants named. A product assigned at
+   * BOTH levels is shown once, as product-level, because that is what applies.
+   */
+  private buildCoverage(o: OfferDetail): CoverageEntry[] {
+    const byProduct = new Map<number, CoverageEntry>();
+
+    for (const op of o.products) {
+      byProduct.set(op.product.id, {
+        productId: op.product.id,
+        productName: op.product.name,
+        brandName: op.product.brand?.name ?? null,
+        categoryName: op.product.category?.name ?? null,
+        scope: 'product',
+        variants: op.product.variants ?? [],
+        totalVariants: (op.product.variants ?? []).length,
+      });
+    }
+
+    for (const ov of o.variants) {
+      const p = ov.variant.product;
+      const existing = byProduct.get(p.id);
+      if (existing?.scope === 'product') continue; // already covered whole
+      if (existing) {
+        existing.variants.push(ov.variant);
+        continue;
+      }
+      byProduct.set(p.id, {
+        productId: p.id,
+        productName: p.name,
+        brandName: p.brand?.name ?? null,
+        categoryName: null,
+        scope: 'variant',
+        variants: [ov.variant],
+        totalVariants: 0, // unknown from this payload — see variantScopeLabel
+      });
+    }
+
+    return [...byProduct.values()].sort((a, b) =>
+      a.productName.localeCompare(b.productName)
+    );
+  }
+
+  /** Re-read the saved assignments after a save, so the panel is never stale. */
+  private refreshCoverage(offerId: number): void {
+    this.api.get<ApiResponse<OfferDetail>>(`/offers/${offerId}`).subscribe({
+      next: (res) => (this.coverage = this.buildCoverage(res.data)),
+    });
+  }
+
+  get coveredVariantCount(): number {
+    return this.coverage.reduce((n, c) => n + c.variants.length, 0);
+  }
+
+  /** Every product in the catalogue is covered, whole. */
+  get coversWholeCatalogue(): boolean {
+    return (
+      this.catalogueProductCount > 0 &&
+      this.coverage.length >= this.catalogueProductCount &&
+      this.coverage.every((c) => c.scope === 'product')
+    );
   }
 
   // ─── Search / filter handlers ────────────────────────────
@@ -426,6 +527,10 @@ export class OfferDetailComponent implements OnInit {
       endsAt: this.form.endsAt ? new Date(this.form.endsAt).toISOString() : null,
     };
 
+    // Whether THIS save created the offer — captured before the create handler
+    // flips `isNew`, which used to leave the page stranded on /offers/new.
+    const created = this.isNew;
+
     const afterSave = (offerId: number) => {
       const assignments = this.buildAssignmentPayload();
       this.api
@@ -434,7 +539,10 @@ export class OfferDetailComponent implements OnInit {
           next: () => {
             this.saveState = 'idle';
             this.notification.success('Offer saved');
-            if (this.isNew) {
+            // The coverage panel reports server truth, so re-read it.
+            this.refreshCoverage(offerId);
+            if (this.catalogueProductCount === 0) this.loadCatalogueSize();
+            if (created) {
               this.router.navigate(['/offers', offerId]);
             }
           },

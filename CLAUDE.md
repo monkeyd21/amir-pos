@@ -148,6 +148,33 @@ An exchange also carries the original bill's customer onto the replacement sale
 (`carriedCustomerId`); an explicitly chosen customer wins, and a walk-in
 original carries nobody.
 
+### 4b. Several offers on one article: best at the CURRENT quantity wins
+`offers/engine.ts` → `chooseBestOffer` is the only place that answers "which
+offer does this line get", and it answers it fresh on every evaluation, because
+the answer changes with the quantity. The order is:
+
+1. **Scope targets, it does not rank money.** A variant-level assignment is the
+   shop singling that article out, so variant-level offers are considered first
+   — but only those that actually APPLY at this quantity. If none do, product-
+   level offers get their turn instead of the line losing every discount.
+2. **Within the winning scope, the biggest discount for the customer wins.**
+3. **Priority (then recency, then id) breaks genuine ties only.**
+
+So "Rs 50 off" holds a line at 1 and 2 units and "3 for Rs 1200" takes it over
+at 3, whichever of the two carries the higher priority — and it hands back if
+the third unit is removed. The old code picked ONE offer per line by priority
+BEFORE looking at quantity, so a bundle that lost the priority tie at qty 1 was
+never reconsidered at qty 3 and the shop never charged the bundle price.
+
+One line still takes exactly ONE offer — `SaleItem.offerId` records the single
+deal given, so offers never stack on a line. When a line already qualifies but a
+richer deal is a unit or two away, `evaluateCart` returns `upcomingHint`
+alongside (`hint` still means "this offer does not apply yet"); the terminal
+prints it under the offer text as an upsell.
+
+`evaluateCart` feeds checkout, `POST /pos/cart/evaluate` and the storefront
+quote, so all three agree by construction. Tests: `offers/__tests__/offer-choice.test.ts`.
+
 ### 5. Prisma Decimal fields arrive as STRINGS over JSON
 `sale.total`, `commission.amount`, `product.basePrice`, etc. are Prisma `Decimal` type. They come across the wire as strings like `"237"`. Always wrap with `Number(value)` before math — otherwise `reduce` concatenates strings → `NaN`.
 
@@ -203,7 +230,10 @@ Always use fallback: `item.variant?.product?.name || item.productName || item.na
 - `Commission.userId` = agent/cashier who earned it. Rate comes from `User.commissionRate`.
 - `Customer` has `loyaltyPoints`, `loyaltyTier` (bronze/silver/gold/platinum), `totalSpent`, `visitCount` (auto-incremented on sale).
 - `SaleItem.offerId` + `effectiveUnitPrice` — stored at checkout for fair BOGO refunds.
-- `Offer` → `OfferProduct[]` + `OfferVariant[]`. Variant-level beats product-level. Priority breaks ties.
+- `Offer` → `OfferProduct[]` + `OfferVariant[]`. Variant-level beats product-level, then the
+  best deal at the line's current quantity wins and priority breaks ties (§4b). The offer detail
+  page shows the saved coverage in its own "Articles Covered" panel, read from these two relations
+  rather than from the paged product picker below it.
 
 ## Global settings (in `Setting` table)
 - `labelTemplate` — DEPRECATED, moved to `label_templates` table per-printer in the `printing` module

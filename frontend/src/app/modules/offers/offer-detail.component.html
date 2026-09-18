@@ -29,6 +29,89 @@
 } @else {
   <div class="grid grid-cols-12 gap-4">
 
+    <!-- ─── Coverage: which articles this offer actually reaches ───
+         Server truth, read from the saved OfferProduct/OfferVariant rows —
+         not from the paged picker below, which only ever shows a slice. -->
+    @if (!isNew) {
+      <div class="col-span-12">
+        <div class="bg-surface-container/60 border border-outline-variant/10 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xs font-headline font-bold text-on-surface tracking-wider uppercase">
+              Articles Covered
+            </h3>
+            @if (coverage.length > 0) {
+              <span class="text-[10px] font-mono text-on-surface-variant/70">
+                {{ coverage.length }} {{ coverage.length === 1 ? 'article' : 'articles' }} · {{ coveredVariantCount }} {{ coveredVariantCount === 1 ? 'variant' : 'variants' }}
+              </span>
+            }
+          </div>
+
+          @if (coverage.length === 0) {
+            <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-surface-container-lowest/40 border border-outline-variant/10">
+              <span class="material-symbols-outlined text-lg text-error/70">error</span>
+              <div>
+                <p class="text-sm font-semibold text-on-surface">No articles yet</p>
+                <p class="text-[11px] text-on-surface-variant/70 mt-0.5">
+                  This offer will never apply at the till. Pick the articles below and save.
+                </p>
+              </div>
+            </div>
+          } @else {
+            @if (coversWholeCatalogue) {
+              <div class="flex items-start gap-3 px-4 py-3 mb-2 rounded-xl bg-primary-container/30 border border-primary/20">
+                <span class="material-symbols-outlined text-lg text-primary">select_all</span>
+                <div>
+                  <p class="text-sm font-semibold text-on-surface">Every article in the catalogue</p>
+                  <p class="text-[11px] text-on-surface-variant/70 mt-0.5">
+                    All {{ catalogueProductCount }} products, every variant — including any added later.
+                  </p>
+                </div>
+              </div>
+            }
+
+            <div class="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
+              @for (entry of coverage; track entry.productId) {
+                <div class="border border-outline-variant/10 rounded-xl bg-surface-container-lowest/40 px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-semibold text-on-surface truncate">{{ entry.productName }}</p>
+                      <p class="text-[10px] text-on-surface-variant/70 mt-0.5">
+                        {{ entry.brandName || 'No brand' }}@if (entry.categoryName) { · {{ entry.categoryName }}}
+                      </p>
+                    </div>
+                    @if (entry.scope === 'product') {
+                      <span class="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-body rounded-full bg-primary-container text-primary shrink-0">
+                        <span class="material-symbols-outlined text-xs leading-none">inventory_2</span>
+                        Whole article · {{ entry.totalVariants }} {{ entry.totalVariants === 1 ? 'variant' : 'variants' }}
+                      </span>
+                    } @else {
+                      <span class="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-body rounded-full bg-surface-container-highest text-on-surface-variant shrink-0">
+                        <span class="material-symbols-outlined text-xs leading-none">filter_alt</span>
+                        {{ entry.variants.length }} {{ entry.variants.length === 1 ? 'variant' : 'variants' }} only
+                      </span>
+                    }
+                  </div>
+
+                  @if (entry.scope === 'variant') {
+                    <!-- Named variants, so the owner can see exactly which
+                         sizes/colours the discount reaches. -->
+                    <div class="flex flex-wrap gap-1.5 mt-2.5">
+                      @for (v of entry.variants; track v.id) {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface-variant">
+                          {{ v.size }}
+                          <span class="text-on-surface-variant/50">{{ v.color }}</span>
+                        </span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
     <!-- ─── Left: Offer Form ──────────────────────────── -->
     <div class="col-span-12 lg:col-span-4 space-y-4">
 

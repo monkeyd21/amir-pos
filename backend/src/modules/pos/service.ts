@@ -1525,6 +1525,7 @@ export class PosService {
           effectiveUnitPrice: m.unitPrice,
           lineTotal: m.unitPrice * m.quantity,
           hint: undefined,
+          upcomingHint: undefined,
           clearance: true,
         };
       }
@@ -1548,6 +1549,10 @@ export class PosService {
         effectiveUnitPrice: result?.effectiveUnitPrice ?? 0,
         lineTotal: result?.lineTotal ?? m.unitPrice * m.quantity,
         hint: result?.hint,
+        // A line can be on one offer and one unit away from a better one
+        // ("Add 1 more for 3 for Rs. 1200"). That upsell is worth saying out
+        // loud, so it rides alongside rather than replacing `hint`.
+        upcomingHint: e?.upcomingHint,
         clearance: false,
       };
     });

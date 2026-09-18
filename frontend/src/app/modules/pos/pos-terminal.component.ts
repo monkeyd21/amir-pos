@@ -94,6 +94,8 @@ interface CartItem {
   offerDiscount?: number;
   effectiveUnitPrice?: number;
   offerHint?: string;
+  /** The better deal this line has not reached yet — an upsell, not a warning. */
+  offerUpcomingHint?: string;
   /**
    * When true, this line is excluded from the bill-level manual discount
    * (the cashier's ₹/% entry AND round-off). The line still honors any
@@ -133,6 +135,7 @@ interface EvaluatedLine {
   effectiveUnitPrice: number;
   lineTotal: number;
   hint?: string;
+  upcomingHint?: string;
 }
 
 interface PosSession {
@@ -645,6 +648,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
             item.offerDiscount = line.discountAmount;
             item.effectiveUnitPrice = line.effectiveUnitPrice;
             item.offerHint = line.hint;
+            item.offerUpcomingHint = line.upcomingHint;
             // Auto-lock lines that qualified for an offer so the cashier
             // doesn't stack the counter discount on a sale item by
             // mistake. We stop auto-syncing as soon as the cashier
