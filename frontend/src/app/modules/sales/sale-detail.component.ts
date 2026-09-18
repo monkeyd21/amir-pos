@@ -30,6 +30,10 @@ interface SaleItem {
   // §1.2 / Bug#4 — per-line "sold as-is" flag set at billing. Blocks refund/
   // return (exchange is still allowed at the POS counter).
   nonReturnable?: boolean;
+  // §2.4 — sold from clearance. Carries nonReturnable too, but unlike a
+  // cashier's as-is sale it CAN be refunded once a Manager or Owner enters the
+  // Owner PIN, so it stays on the refund list.
+  isClearance?: boolean;
 }
 
 interface SaleReturn {
@@ -371,10 +375,15 @@ export class SaleDetailComponent implements OnInit {
     // non-returnable / exchange-only) can't be refund-returned from the Sales
     // tab. It doesn't appear as a refundable option here; exchange is still
     // available at the POS counter.
+    //
+    // §2.4 — clearance lines are the exception. They carry nonReturnable as
+    // well, but a Manager or Owner may refund one with the Owner PIN, so they
+    // belong on the list (flagged, with the PIN asked for) rather than hidden
+    // behind a dead end the cashier cannot explain to the customer.
     return this.sale.items.filter(
       (item) =>
         (item.returnedQuantity || 0) < item.quantity &&
-        !item.nonReturnable &&
+        (!item.nonReturnable || item.isClearance) &&
         !item.variant?.product?.nonReturnable &&
         !item.variant?.product?.exchangeOnly
     );

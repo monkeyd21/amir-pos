@@ -988,7 +988,8 @@ export class PosService {
       let exchangeReturnId: number | null = null;
       let exchangeOriginalNumber: string | null = null;
       // §2.4/bug2 — how much of the exchange credit came from clearance lines,
-      // which may be swapped but must never turn into cash back.
+      // which may be swapped freely but only turn into cash back on a Manager's
+      // or Owner's authorisation.
       let nonRefundableCredit = 0;
       // §0: the earlier exchange this bill already had, when there is one.
       let priorExchange: ReturnType<typeof findPriorExchange> = null;
@@ -1187,20 +1188,42 @@ export class PosService {
       const amountDue = Math.max(0, netPayable);
       const refundDue = Math.max(0, Math.round(-netPayable * 100) / 100);
 
-      // §2.4/bug2 — clearance goods are exchangeable but never refundable, so a
-      // clearance-backed exchange may not settle as cash out. Requiring the new
-      // items to cover at least the clearance portion of the credit is the
-      // equal-or-greater-value policy, and it is what lets the exchange be
-      // allowed at all without reopening a refund route on a non-refundable
-      // line. Only the clearance share is protected: a bill mixing clearance
-      // and normal goods can still refund down to the normal goods' value.
+      // §2.4/bug2 — a clearance-backed exchange that pays money out is a
+      // clearance refund wearing a swap's clothes, so it answers to the same
+      // rule: the cashier settles it as equal-or-greater value, or a Manager or
+      // Owner authorises the payout with the Owner PIN. Only the clearance
+      // share is protected: a bill mixing clearance and normal goods can still
+      // refund down to the normal goods' value with no PIN at all.
       if (clearanceCashOutBlocked(nonRefundableCredit, refundDue)) {
         const spendShortfall = Math.round(refundDue * 100) / 100;
-        throw new AppError(
-          `Clearance items can be exchanged but never refunded. This exchange would pay out ₹${spendShortfall.toFixed(2)}. ` +
-            `Add ₹${spendShortfall.toFixed(2)} more to the new items so the exchange is equal or greater in value.`,
-          400
-        );
+        if (!data.ownerPin) {
+          throw new AppError(
+            `Clearance items are not refundable. This exchange would pay out ₹${spendShortfall.toFixed(2)}. ` +
+              `Add ₹${spendShortfall.toFixed(2)} more to the new items so the exchange is equal or greater in value, ` +
+              `or enter the Owner PIN for a Manager or Owner to authorise the payout.`,
+            403
+          );
+        }
+        await verifyOwnerPin(data.ownerPin);
+        // Recorded where the PIN is SPENT. `userId` is the cashier at the
+        // terminal, not the approver: the Owner PIN is one shared secret
+        // (§6.4), so it proves somebody senior agreed and never who.
+        await recordAudit(tx, {
+          action: 'refund.clearance_authorised',
+          entityType: 'return',
+          entityId: exchangeReturnId ?? 0,
+          userId,
+          branchId,
+          reason: data.exchange?.reason,
+          data: {
+            via: 'exchange-cash-out',
+            originalSaleNumber: exchangeOriginalNumber,
+            clearanceCredit: Math.round(nonRefundableCredit * 100) / 100,
+            paidOut: spendShortfall,
+            authorisedBy: 'owner-pin',
+            processedByUserId: userId,
+          },
+        });
       }
 
       // 5. Validate tenders cover what the customer owes. Gift vouchers are a

@@ -22,6 +22,8 @@ interface SaleItem {
   effectiveUnitPrice?: number | string | null;
   returnedQuantity: number | string;
   variant?: SaleItemVariant | null;
+  /** §2.4 — sold from clearance: refundable only on a Manager's/Owner's PIN. */
+  isClearance?: boolean;
 }
 
 interface SaleCustomer {
@@ -133,6 +135,9 @@ interface LineState {
                     <div class="item-card__head">
                       <div class="item-card__name">
                         {{ productNameOf(item) }}
+                        @if (item.isClearance) {
+                          <span class="clearance-chip">Clearance</span>
+                        }
                       </div>
                       <div class="item-card__price">
                         {{ formatCurrency(effectivePrice(item)) }}
@@ -212,6 +217,29 @@ interface LineState {
                 }
               </div>
             </section>
+
+            <!-- §2.4 — clearance goods print NON-RETURNABLE on the bill. The
+                 shop will still refund one, on a Manager's or Owner's PIN. -->
+            @if (needsOwnerPin()) {
+              <section class="bill-section">
+                <div class="section-title">Manager / Owner approval</div>
+                <div class="mp-card owner-pin-card">
+                  <p class="owner-pin-card__note">
+                    This return includes clearance goods, which the bill marks non-returnable.
+                    Only a Manager or Owner can refund them.
+                  </p>
+                  <input
+                    class="mp-input"
+                    type="password"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    [(ngModel)]="ownerPinText"
+                    (ngModelChange)="ownerPin.set($event)"
+                    placeholder="Owner PIN"
+                  />
+                </div>
+              </section>
+            }
 
             <!-- Reason -->
             <section class="bill-section">
@@ -531,6 +559,36 @@ interface LineState {
         color: var(--mp-error);
       }
 
+      /* §2.4 — clearance marker + the senior's approval box */
+      .clearance-chip {
+        margin-left: 8px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--mp-warning);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
+      .owner-pin-card {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        border: 1px solid rgba(251, 191, 36, 0.35);
+      }
+
+      .owner-pin-card__note {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: var(--mp-on-bg-muted);
+      }
+
       /* Reason */
       .reason-input {
         min-height: 80px;
@@ -653,9 +711,12 @@ export class MobileReturnScreen implements OnInit {
   /** Per-item selection keyed by saleItemId */
   readonly lines = signal<Record<number, LineState>>({});
   readonly reason = signal<string>('');
+  /** §2.4 — the senior's authorisation, asked for only on clearance lines. */
+  readonly ownerPin = signal<string>('');
 
-  /** Two-way bound copy so ngModel stays in sync with the signal */
+  /** Two-way bound copies so ngModel stays in sync with the signals */
   reasonText = '';
+  ownerPinText = '';
 
   readonly selectedLines = computed(() => {
     const s = this.sale();
@@ -680,9 +741,20 @@ export class MobileReturnScreen implements OnInit {
     this.selectedLines().reduce((acc, l) => acc + l.subtotal, 0)
   );
 
+  /** True once a clearance line is actually being returned. */
+  readonly needsOwnerPin = computed(() => {
+    const s = this.sale();
+    if (!s) return false;
+    const map = this.lines();
+    return s.items.some((i) => i.isClearance && (map[i.id]?.quantity ?? 0) > 0);
+  });
+
   readonly canSubmit = computed(() => {
     if (this.selectedLines().length === 0) return false;
     if (this.reason().trim().length === 0) return false;
+    // Checked here as well as on the server so the cashier learns the refund
+    // needs a senior before the customer is promised it.
+    if (this.needsOwnerPin() && this.ownerPin().trim().length === 0) return false;
     return true;
   });
 
@@ -770,10 +842,13 @@ export class MobileReturnScreen implements OnInit {
         condition: map[it.id].condition,
       }));
 
-    const body = {
+    const body: { reason: string; items: typeof items; ownerPin?: string } = {
       reason: this.reason().trim(),
       items,
     };
+    if (this.needsOwnerPin()) {
+      body.ownerPin = this.ownerPin().trim();
+    }
 
     this.submitting.set(true);
     this.api
@@ -789,7 +864,16 @@ export class MobileReturnScreen implements OnInit {
         },
         error: (err: unknown) => {
           this.submitting.set(false);
-          const e = err as { error?: { error?: string; message?: string }; message?: string };
+          const e = err as {
+            status?: number;
+            error?: { error?: string; message?: string };
+            message?: string;
+          };
+          // A refused PIN must not sit in the box looking accepted.
+          if (e?.status === 403) {
+            this.ownerPin.set('');
+            this.ownerPinText = '';
+          }
           this.notify.error(
             e?.error?.error || e?.error?.message || e?.message || 'Return failed'
           );

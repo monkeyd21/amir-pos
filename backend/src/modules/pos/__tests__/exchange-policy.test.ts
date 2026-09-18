@@ -1,4 +1,4 @@
-import { canExchangeLine, canRefundLine, clearanceCashOutBlocked } from '../exchange-policy';
+import { canExchangeLine, canRefundLine, refundRule, clearanceCashOutBlocked } from '../exchange-policy';
 
 /**
  * §0/§2.4 — clearance goods are exchangeable but never refundable.
@@ -40,8 +40,35 @@ describe('exchange policy', () => {
     });
   });
 
+  describe('refundRule', () => {
+    it('lets a clearance line be refunded, but only on the Owner PIN', () => {
+      expect(refundRule(line({ isClearance: true }))).toBe('owner-pin');
+    });
+
+    it('still asks for the PIN when clearance set the line flag at checkout', () => {
+      // The flag clearance sets must not be mistaken for a cashier's as-is
+      // sale, which no PIN reopens.
+      expect(refundRule(line({ isClearance: true, lineNonReturnable: true }))).toBe('owner-pin');
+    });
+
+    it('refunds an ordinary line with no ceremony', () => {
+      expect(refundRule(line())).toBe('allowed');
+    });
+
+    it('never refunds a cashier-flagged line', () => {
+      expect(refundRule(line({ lineNonReturnable: true }))).toBe('never');
+    });
+
+    it('never refunds a non-returnable PRODUCT, clearance or not', () => {
+      // The product flag is about the goods themselves, so it outranks both the
+      // clearance allowance and the PIN.
+      expect(refundRule(line({ productNonReturnable: true }))).toBe('never');
+      expect(refundRule(line({ isClearance: true, productNonReturnable: true }))).toBe('never');
+    });
+  });
+
   describe('canRefundLine', () => {
-    it('never refunds a clearance line', () => {
+    it('does not refund a clearance line unauthorised', () => {
       expect(canRefundLine(line({ isClearance: true }))).toBe(false);
     });
 

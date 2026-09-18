@@ -52,6 +52,33 @@ const soldVariant = {
   },
 };
 
+/** A cheaper replacement, so the swap settles as a payout. */
+const cheapVariant = {
+  id: 6,
+  barcode: '2222222222222',
+  sku: 'TST-S-RED',
+  size: 'S',
+  color: 'Red',
+  priceOverride: null,
+  mrpOverride: null,
+  costOverride: null,
+  landingOverride: null,
+  isClearance: false,
+  clearancePrice: null,
+  isActive: true,
+  product: {
+    id: 2,
+    name: 'Scarf',
+    basePrice: 400,
+    mrp: 400,
+    costPrice: 150,
+    cgstRate: 0,
+    sgstRate: 0,
+    priceIncludesTax: true,
+    nonReturnable: false,
+  },
+};
+
 const originalSaleItem = {
   id: 10,
   saleId: 1,
@@ -250,5 +277,80 @@ describe('POS checkout with an exchange', () => {
     expect(override.data.approverName).toBe('Farah Sheikh');
     expect(override.data.requestedByUserId).toBe(testUsers.cashier.userId);
     expect(override.data.priorExchange.dateLabel).toBe('5 Sep 2026');
+  });
+});
+
+/**
+ * §2.4 — a clearance-backed exchange that would hand money back is a clearance
+ * refund in a swap's clothing, so it answers to the same rule: cover it with
+ * goods, or have a Manager or Owner authorise the payout with the Owner PIN.
+ */
+describe('POS checkout: a clearance exchange that pays out', () => {
+  const clearanceOriginal = () =>
+    originalSale({
+      items: [{ ...originalSaleItem, isClearance: true, nonReturnable: true }],
+    });
+
+  /** ₹1000 of clearance credit against a ₹400 replacement = ₹600 payout. */
+  function mockCashOut() {
+    mockCheckout(clearanceOriginal(), []);
+    prismaMock.productVariant.findMany.mockResolvedValue([cheapVariant]);
+    prismaMock.inventory.findMany.mockResolvedValue([{ variantId: 6, branchId: 1, quantity: 10 }]);
+    prismaMock.inventory.findUnique.mockResolvedValue({ variantId: 6, branchId: 1, quantity: 10 });
+  }
+
+  const cashOutBody = (over: Record<string, unknown> = {}) =>
+    checkoutBody({
+      items: [{ barcode: '2222222222222', quantity: 1 }],
+      payments: [],
+      ...over,
+    });
+
+  const clearanceAuditRow = () =>
+    prismaMock.auditLog.create.mock.calls
+      .map((c: any[]) => c[0].data)
+      .find((d: any) => d.action === 'refund.clearance_authorised');
+
+  it('refuses the payout on the cashier\'s own authority', async () => {
+    mockCashOut();
+
+    const res = await checkout(cashOutBody());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Owner PIN/i);
+    expect(prismaMock.sale.create).not.toHaveBeenCalled();
+    expect(clearanceAuditRow()).toBeUndefined();
+  });
+
+  it('pays out on the Owner PIN, and records it against the exchange', async () => {
+    mockCashOut();
+
+    const res = await checkout(cashOutBody({ ownerPin: '1234' }));
+
+    expect(res.status).toBe(201);
+    const row = clearanceAuditRow();
+    expect(row).toBeDefined();
+    expect(row.data.via).toBe('exchange-cash-out');
+    expect(row.data.paidOut).toBe(600);
+    expect(row.data.clearanceCredit).toBe(1000);
+    expect(row.data.authorisedBy).toBe('owner-pin');
+  });
+
+  it('refuses a wrong PIN', async () => {
+    mockCashOut();
+
+    const res = await checkout(cashOutBody({ ownerPin: '9999' }));
+
+    expect(res.status).toBe(403);
+    expect(prismaMock.sale.create).not.toHaveBeenCalled();
+  });
+
+  it('asks for nothing when the replacement covers the clearance credit', async () => {
+    mockCheckout(clearanceOriginal(), []);
+
+    const res = await checkout(checkoutBody());
+
+    expect(res.status).toBe(201);
+    expect(clearanceAuditRow()).toBeUndefined();
   });
 });

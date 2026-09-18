@@ -25,6 +25,8 @@ import { reconcileCommissionsForSale } from '../../services/commission-reconcile
 import { creditBackVouchers } from '../vouchers/service';
 import { MovementType, PaymentMethod, Prisma, SaleStatus } from '@prisma/client';
 import { findPriorExchange, oneExchangePerBillMessage } from '../pos/exchange-limit';
+import { refundRule } from '../pos/exchange-policy';
+import { verifyOwnerPin } from '../../services/owner-pin';
 import {
   approveExchangeOverride,
   ExchangeOverrideGrant,
@@ -662,6 +664,10 @@ export class SalesService {
       // No role gate — the choice is free and every refund is audit-logged.
       refundMode?: 'proportional' | 'cash' | 'card' | 'upi';
       refundSplit?: { method: 'cash' | 'card' | 'upi'; amount: number }[];
+      // §2.4 — a Manager's or Owner's authorisation to refund clearance goods.
+      // Only read when the basket actually contains a clearance line. Null is a
+      // real case: an untouched PIN input posts null, not undefined.
+      ownerPin?: string | null;
     },
     userId: number,
     branchId: number,
@@ -712,6 +718,8 @@ export class SalesService {
         unitPrice: number;
         condition: 'resellable' | 'damaged';
       }> = [];
+      // Lines the customer may only get money back on with a senior's blessing.
+      const clearanceLines: { saleItemId: number; productName: string }[] = [];
 
       // Validate return quantities
       for (const item of data.items) {
@@ -721,14 +729,23 @@ export class SalesService {
           throw new AppError(`Sale item ${item.saleItemId} not found in this sale`, 400);
         }
 
-        // Enforce sale policy: non-returnable goods can't come back at all —
-        // either the product is flagged, or the cashier marked this specific
-        // line non-returnable at checkout (clearance/defective sold as-is).
+        // Enforce sale policy (`pos/exchange-policy.ts`). Goods flagged by the
+        // product, or sold as-is by the cashier, never come back for money.
+        // Clearance goods do — but only once a Manager or Owner has authorised
+        // it, which is checked in one place after this loop.
         // Exchange-only goods can't be refund-returned (use an exchange).
         const product = (saleItem as any).variant?.product;
         const productName = product?.name ?? `item ${item.saleItemId}`;
-        if ((saleItem as any).nonReturnable || product?.nonReturnable) {
+        const rule = refundRule({
+          isClearance: Boolean((saleItem as any).isClearance),
+          lineNonReturnable: Boolean((saleItem as any).nonReturnable),
+          productNonReturnable: Boolean(product?.nonReturnable),
+        });
+        if (rule === 'never') {
           throw new AppError(`${productName} is marked non-returnable and cannot be returned`, 400);
+        }
+        if (rule === 'owner-pin') {
+          clearanceLines.push({ saleItemId: item.saleItemId, productName });
         }
         if (product?.exchangeOnly) {
           throw new AppError(`${productName} is exchange-only — process an exchange, not a refund`, 400);
@@ -766,6 +783,24 @@ export class SalesService {
           unitPrice,
           condition: item.condition,
         });
+      }
+
+      // §2.4 — clearance goods are refundable, but the call is a Manager's or an
+      // Owner's, never a cashier's. Checked once for the whole basket: the PIN
+      // authorises this refund, not each line of it.
+      //
+      // The printed bill still says NON-RETURNABLE (`receipt-pdf.ts`). That is
+      // the position the shop takes with the customer; this is the exception it
+      // keeps the right to make, which is why it costs a PIN.
+      if (clearanceLines.length > 0) {
+        const names = clearanceLines.map((l) => l.productName).join(', ');
+        if (!data.ownerPin) {
+          throw new AppError(
+            `${names} sold from clearance. Only a Manager or Owner can refund clearance goods — enter the Owner PIN to authorise.`,
+            403
+          );
+        }
+        await verifyOwnerPin(data.ownerPin);
       }
 
       returnSubtotal = Math.round(returnSubtotal * 100) / 100;
@@ -1001,6 +1036,35 @@ export class SalesService {
           loyaltyPointsReversed: pointsReversed,
         },
       });
+
+      // §2.4 — a clearance refund is an exception to the printed policy, so it
+      // gets its own row rather than hiding inside `return.created`. Written
+      // where the PIN is SPENT, so the log never claims an authorisation that
+      // did not turn into a refund.
+      //
+      // `userId` is the cashier who processed it, NOT the person who approved:
+      // the Owner PIN is one shared secret (§6.4), so it can say that somebody
+      // senior agreed and never who. `Return.approvedBy` is left null for the
+      // same reason — an approver's name there would be a guess. If the shop
+      // ever needs the name, the credentials handshake in
+      // `services/exchange-override.ts` is the pattern to copy.
+      if (clearanceLines.length > 0) {
+        await recordAudit(tx, {
+          action: 'refund.clearance_authorised',
+          entityType: 'return',
+          entityId: returnRecord.id,
+          userId,
+          branchId,
+          reason: data.reason,
+          data: {
+            saleNumber: sale.saleNumber,
+            clearanceItems: clearanceLines,
+            authorisedBy: 'owner-pin',
+            processedByUserId: userId,
+            returnTotal,
+          },
+        });
+      }
 
       return { returnRecord, refundAmount: returnTotal, refundBreakup, refundMode };
     });

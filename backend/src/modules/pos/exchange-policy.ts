@@ -7,16 +7,26 @@
  *   - REFUND   — money goes back to the customer.
  *   - EXCHANGE — goods are swapped, no money goes back.
  *
- * A clearance line is deliberately "no refund, exchange yes": dead stock is
- * sold at a marked-down fixed price, and the store will still swap a size or
- * colour, it just never pays cash for it. Blocking the exchange too (the old
- * behaviour) was over-broad and is the bug being fixed here.
+ * A clearance line is "exchange freely, refund only on a senior say-so": dead
+ * stock is sold at a marked-down fixed price, the store will swap a size or
+ * colour for anyone, and it will pay the money back only when a Manager or an
+ * Owner authorises it with the Owner PIN. Blocking the exchange too (the old
+ * behaviour) was over-broad; blocking the refund outright turned out to be too
+ * (the shop does relent, it just wants the decision to sit with a senior).
  *
- * The reason the exchange used to be blocked outright is real, though: an
- * exchange nets the returned value against the new purchase, so returning a
- * ₹700 clearance item against a ₹200 replacement pays out ₹500 — a refund by
- * another name. That escape is closed by `clearanceCashOutBlocked` rather than
- * by refusing the swap.
+ * The reason the refund is gated rather than free is real: an exchange nets the
+ * returned value against the new purchase, so returning a ₹700 clearance item
+ * against a ₹200 replacement pays out ₹500 — a refund by another name. That
+ * escape is closed by `clearanceCashOutBlocked`, which is the same gate wearing
+ * different clothes: both routes out of the till need the PIN.
+ *
+ * The bill itself keeps saying NON-RETURNABLE (see `sales/receipt-pdf.ts`). The
+ * PIN is a discretionary exception the shop grants, deliberately not a right
+ * the printed receipt invites the customer to expect.
+ *
+ * This module only says WHICH rule applies. Checking the PIN is the service's
+ * job — policy stays free of auth so it can be reasoned about (and tested)
+ * without a database.
  */
 
 export interface ExchangeLinePolicy {
@@ -43,18 +53,43 @@ export function canExchangeLine(line: ExchangeLinePolicy): boolean {
   return !line.lineNonReturnable;
 }
 
-/** True when this line may be REFUNDED for money. Clearance never can. */
+/**
+ * What it takes to REFUND this line for money.
+ *
+ *   'allowed'   — any cashier, no ceremony.
+ *   'owner-pin' — clearance goods: a Manager or Owner authorises with the
+ *                 Owner PIN (§6.4), the same PIN that gates the discretion
+ *                 discount and the EOD variance.
+ *   'never'     — the goods themselves never come back for money: the product
+ *                 is flagged, or the cashier sold this line as-is at the
+ *                 counter. No PIN opens that; it is not about the price paid.
+ */
+export type RefundRule = 'allowed' | 'owner-pin' | 'never';
+
+export function refundRule(line: ExchangeLinePolicy): RefundRule {
+  if (line.productNonReturnable) return 'never';
+  // Checked before the line flag on purpose: clearance SETS that flag at
+  // checkout, so reading the flag first would classify every clearance line as
+  // a cashier's as-is sale and slam a door the PIN is meant to open.
+  if (line.isClearance) return 'owner-pin';
+  if (line.lineNonReturnable) return 'never';
+  return 'allowed';
+}
+
+/** True when this line refunds with no authorisation at all. */
 export function canRefundLine(line: ExchangeLinePolicy): boolean {
-  return !line.productNonReturnable && !line.lineNonReturnable && !line.isClearance;
+  return refundRule(line) === 'allowed';
 }
 
 /**
- * §0 equal-or-greater-value — an exchange that includes clearance goods may not
- * settle as cash out.
+ * §0 equal-or-greater-value — an exchange that includes clearance goods does
+ * not settle as cash out on a cashier's own authority.
  *
  * Only the clearance share is protected. A bill mixing a ₹700 clearance item
  * with a ₹1,000 full-price item can still refund down to the full-price item's
- * value; it is specifically the clearance money that must stay in the store.
+ * value; it is specifically the clearance money that must stay in the store
+ * unless the Owner PIN says otherwise — paying it out IS a clearance refund, so
+ * it answers to `refundRule`'s 'owner-pin' and not to a second, looser rule.
  *
  * @param nonRefundableCredit ₹ of exchange credit that came from clearance lines
  * @param refundDue           ₹ the exchange would otherwise pay out (≥ 0)

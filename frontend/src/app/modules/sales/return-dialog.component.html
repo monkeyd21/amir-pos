@@ -50,6 +50,32 @@
         }
       </div>
 
+      <!-- §2.4 — clearance goods are printed NON-RETURNABLE on the bill. The
+           shop will still refund one, but only a Manager or Owner may say so,
+           with the Owner PIN. Appears only once such a line is selected. -->
+      @if (needsOwnerPin) {
+        <div class="mb-5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/30" data-testid="clearance-owner-pin">
+          <div class="flex items-start gap-2">
+            <span class="material-symbols-outlined text-base text-amber-400 mt-0.5">lock</span>
+            <div class="flex-1">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-amber-400">Manager / Owner approval *</label>
+              <p class="mt-1 text-xs font-body text-on-surface-variant">
+                This return includes clearance goods, which the bill marks non-returnable. Only a Manager or Owner can refund them.
+              </p>
+              <input
+                type="password"
+                inputmode="numeric"
+                autocomplete="off"
+                [(ngModel)]="ownerPin"
+                placeholder="Owner PIN"
+                data-testid="owner-pin"
+                class="mt-2 w-full sm:w-48 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-lowest border border-outline-variant/20 rounded-xl focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 transition-all"
+              />
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- Bug#1 / §2.2b — refund settlement, freely chosen. Leave blank to
            mirror the original payment, or split across cash/UPI/card (e.g.
            refund a cash sale by UPI when the drawer is short). -->
@@ -105,9 +131,21 @@
                 class="mt-1 w-4 h-4 rounded accent-primary cursor-pointer"
               />
               <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold font-body text-on-surface">{{ item.productName }}</p>
-                  <span class="text-xs font-body text-on-surface-variant">{{ formatCurrency(item.unitPrice) }}/unit</span>
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-semibold font-body text-on-surface">
+                    {{ item.productName }}
+                    @if (item.isClearance) {
+                      <!-- §2.4 — the bill says NON-RETURNABLE; refunding this
+                           one is the shop's exception, so say so on the line
+                           the cashier is about to tick. -->
+                      <span
+                        data-testid="clearance-badge"
+                        class="ml-2 align-middle px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400"
+                        >Clearance &middot; Owner PIN</span
+                      >
+                    }
+                  </p>
+                  <span class="text-xs font-body text-on-surface-variant shrink-0">{{ formatCurrency(item.unitPrice) }}/unit</span>
                 </div>
                 <p class="text-xs font-body text-on-surface-variant mt-0.5">
                   Size: {{ item.size }} &middot; Color: {{ item.color }} &middot; Max returnable: {{ item.maxQuantity }}

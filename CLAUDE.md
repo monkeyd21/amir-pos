@@ -83,14 +83,35 @@ Arithmetic lives in `sales/receipt-pdf.ts` (`computeMrpTotals`, tested), mirrore
 in `pos-terminal.component.ts`, `receipt-print.service.ts` and
 `mobile-cart.service.ts`.
 
-### 4. Clearance is "no refund, exchange yes"
-A clearance line sets `SaleItem.nonReturnable` at checkout to block refunds, but
-it IS exchangeable. The split lives in `pos/exchange-policy.ts`
-(`canExchangeLine` / `canRefundLine` / `clearanceCashOutBlocked`). Because an
-exchange nets returned value against the new purchase, a clearance-backed
-exchange must not settle as cash out — the replacement has to be worth at least
-the clearance credit (equal-or-greater-value). Product-level `nonReturnable`
-still blocks both paths.
+### 4. Clearance is "exchange freely, refund on the Owner PIN"
+A clearance line sets `SaleItem.nonReturnable` at checkout, but that flag no
+longer means "never". The rules live in `pos/exchange-policy.ts`:
+
+- `canExchangeLine` — anyone may swap a clearance line, no authorisation.
+- `refundRule` — a clearance line returns `'owner-pin'`: refundable, but only
+  once a Manager or Owner enters the Owner PIN (§6.4, `services/owner-pin.ts`).
+  A cashier-flagged line and a `nonReturnable` PRODUCT return `'never'` — those
+  are about the goods, not the price paid, and no PIN reaches them. Order
+  matters: clearance is checked BEFORE the line flag, because clearance is what
+  sets that flag.
+- `clearanceCashOutBlocked` — an exchange that hands money back is a clearance
+  refund in a swap's clothing, so it takes the same PIN (`pos/service.ts`);
+  otherwise the replacement must be worth at least the clearance credit.
+
+The policy module never checks the PIN itself — the service does, so policy
+stays testable without a database. Both PIN-spending sites write a
+`refund.clearance_authorised` audit row where the PIN is SPENT. The row names
+the cashier who rang it up, never the approver: the Owner PIN is one shared
+secret, so it proves somebody senior agreed and cannot say who (`Return.approvedBy`
+stays null for that reason — copy `services/exchange-override.ts` if a name is
+ever needed).
+
+The bill deliberately still prints `** NON-RETURNABLE` on clearance lines, and
+"NON-RETURNABLE items cannot be returned or exchanged" below them, on BOTH
+surfaces (`sales/receipt-pdf.ts` and `receipt-print.service.ts`). That is the
+shop's position with the customer; the PIN is the exception it keeps the right
+to make. Do not "fix" the receipt to advertise the swap — the PDF used to say
+"NOT RETURNABLE - EXCHANGE ONLY" and contradicted the thermal bill.
 
 ### 4a. One exchange per bill is a BILL-level guard, layered on top
 `pos/exchange-limit.ts` answers a different question from `exchange-policy.ts`:

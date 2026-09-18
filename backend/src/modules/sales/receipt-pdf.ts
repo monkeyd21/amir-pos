@@ -229,24 +229,20 @@ export function buildReceiptPdf(
       const hsn = item.variant.product.hsnCode || '';
 
       // §1.2 — per-line sale-policy marker.
-      // §2.4/bug2 — a clearance line carries nonReturnable at the line level but
-      // IS exchangeable, so it must not print the blanket NON-RETURNABLE marker
-      // that tells the customer (and the cashier) no swap is possible. It gets
-      // its own wording: not returnable for cash, exchange still available.
-      const clearanceLine = Boolean(item.isClearance);
+      // §2.4 — a clearance line prints the blanket NON-RETURNABLE marker, the
+      // same wording the thermal receipt uses. The shop's position with the
+      // customer is that clearance goods do not come back at all; it will still
+      // swap one, and a Manager or Owner can still authorise a refund with the
+      // Owner PIN, but neither is something the bill should invite. This used
+      // to print "NOT RETURNABLE - EXCHANGE ONLY", which advertised the swap and
+      // left the two receipt surfaces contradicting each other.
       const nonReturnable =
-        !clearanceLine && (Boolean(item.nonReturnable) || Boolean(item.variant.product.nonReturnable));
-      const exchangeOnly =
-        !nonReturnable && (clearanceLine || Boolean(item.variant.product.exchangeOnly));
+        Boolean(item.nonReturnable) || Boolean(item.variant.product.nonReturnable);
+      // Product-level exchange-only is a different flag and keeps its wording.
+      const exchangeOnly = !nonReturnable && Boolean(item.variant.product.exchangeOnly);
       if (nonReturnable) anyNonReturnable = true;
       if (exchangeOnly) anyExchangeOnly = true;
-      const flagText = nonReturnable
-        ? '** NON-RETURNABLE'
-        : clearanceLine
-        ? '** NOT RETURNABLE - EXCHANGE ONLY'
-        : exchangeOnly
-        ? '** EXCHANGE ONLY'
-        : '';
+      const flagText = nonReturnable ? '** NON-RETURNABLE' : exchangeOnly ? '** EXCHANGE ONLY' : '';
 
       // Anchor Qty + Total + HSN to the top of the row
       doc.font('Helvetica').fontSize(8);
@@ -337,7 +333,7 @@ export function buildReceiptPdf(
         doc.text('** NON-RETURNABLE items cannot be returned or exchanged.', 12, doc.y, { width: W });
       }
       if (anyExchangeOnly) {
-        doc.text('** Items marked EXCHANGE ONLY / NOT RETURNABLE can be exchanged for equal or greater value, but never refunded in cash.', 12, doc.y, { width: W });
+        doc.text('** EXCHANGE ONLY items can be exchanged for equal or greater value, but never refunded in cash.', 12, doc.y, { width: W });
       }
       doc.font('Helvetica').fontSize(8);
       doc.moveDown(0.2);

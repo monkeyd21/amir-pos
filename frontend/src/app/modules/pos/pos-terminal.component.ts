@@ -1648,17 +1648,25 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     return Math.max(0, Math.round((this.exchangeCredit - this.total) * 100) / 100);
   }
 
-  /** §2.4/bug2 — clearance goods can be swapped but never turned into cash.
-   *  When a clearance line is being returned and the new items are worth less
-   *  than the credit, the exchange would settle as a payout. The backend
-   *  rejects that; surface it here so the cashier sees it while they can still
-   *  add an item, not as a failure at the end of checkout. */
+  /** §2.4/bug2 — clearance goods swap freely but only turn into cash on a
+   *  Manager's or Owner's say-so. When a clearance line is being returned and
+   *  the new items are worth less than the credit, the exchange settles as a
+   *  payout. Surfaced here so the cashier sees it while they can still add an
+   *  item or fetch a senior, not as a failure at the end of checkout. */
   get exchangeHasClearanceLine(): boolean {
     return this.exchangeItems.some((i) => i.selected && i.quantity > 0 && i.isClearance);
   }
 
+  /** The payout that needs authorising (or covering with more goods). */
   get clearanceRefundBlocked(): boolean {
     return this.exchangeHasClearanceLine && this.refundDue > 0.0001;
+  }
+
+  /** §2.4 — the Owner PIN authorising that payout. */
+  clearanceOwnerPin = '';
+
+  get clearanceCashOutAuthorised(): boolean {
+    return this.clearanceRefundBlocked && this.clearanceOwnerPin.trim().length > 0;
   }
 
   /** What the customer actually pays = bill total minus the exchange credit
@@ -1696,8 +1704,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   get canCheckout(): boolean {
     if (this.cart.length === 0) return false;
     if (this.checkoutLoading) return false;
-    // §2.4/bug2 — a clearance-backed exchange must not settle as cash out.
-    if (this.clearanceRefundBlocked) return false;
+    // §2.4/bug2 — a clearance-backed exchange settles as cash out only once a
+    // Manager or Owner has authorised it with the Owner PIN.
+    if (this.clearanceRefundBlocked && !this.clearanceCashOutAuthorised) return false;
     // When a refund is owed netPayable is 0, so no tender is required — the
     // cashier hands the difference back after completing.
     return this.amountPaid + 0.0001 >= this.netPayable;
@@ -1978,8 +1987,13 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     // Loyalty points redeemed — separate from manual discount
     const redeemPts = Math.min(this.loyaltyPointsRedeem ?? 0, this.loyaltyRedeemable);
     if (redeemPts > 0) body.loyaltyPointsRedeem = redeemPts;
-    // §2.3 — Owner PIN authorising the discretionary discount(s) on this bill.
-    if (this.hasDiscretionary()) body.ownerPin = this.discretionaryOwnerPin;
+    // §2.3/§2.4 — the Owner PIN authorising this bill. One secret, so whichever
+    // gate asked for it answers for both the discretionary discount and a
+    // clearance payout when a bill happens to carry the two together.
+    const ownerPin =
+      (this.hasDiscretionary() ? this.discretionaryOwnerPin : '') ||
+      (this.clearanceCashOutAuthorised ? this.clearanceOwnerPin.trim() : '');
+    if (ownerPin) body.ownerPin = ownerPin;
 
     // Exchange — returned goods credited against this purchase.
     const returnSelections = this.exchangeSale
@@ -2041,6 +2055,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.cart = [];
     this.showDiscretionaryPin = false;
     this.discretionaryOwnerPin = '';
+    this.clearanceOwnerPin = '';
     this.discountMode = 'percent';
     this.discountValue = null;
     this.specialDiscount = null;

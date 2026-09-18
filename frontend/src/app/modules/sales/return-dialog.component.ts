@@ -16,6 +16,8 @@ interface ReturnItem {
   condition: string;
   selected: boolean;
   unitPrice: number;
+  /** §2.4 — sold from clearance: refundable, but only on the Owner PIN. */
+  isClearance: boolean;
 }
 
 @Component({
@@ -44,6 +46,11 @@ export class ReturnDialogComponent implements OnInit {
   splitCash: number | null = null;
   splitUpi: number | null = null;
   splitCard: number | null = null;
+
+  // §2.4 — a Manager's or Owner's PIN, asked for only when a clearance line is
+  // actually selected. The bill tells the customer clearance goods don't come
+  // back; this is the shop's own exception to that, so it costs a senior's PIN.
+  ownerPin = '';
 
   round2(n: number): number {
     return Math.round(n * 100) / 100;
@@ -104,7 +111,13 @@ export class ReturnDialogComponent implements OnInit {
         item.total != null && item.quantity
           ? Number(item.total) / item.quantity
           : item.unitPrice || 0,
+      isClearance: Boolean(item.isClearance),
     }));
+  }
+
+  /** True once the cashier has picked at least one clearance line. */
+  get needsOwnerPin(): boolean {
+    return this.selectedItems.some((i) => i.isClearance);
   }
 
   get selectedItems(): ReturnItem[] {
@@ -125,6 +138,9 @@ export class ReturnDialogComponent implements OnInit {
     // The refund settlement must be entered and allocated IN FULL — no more
     // silent "process without an amount". "All cash" one-taps the common case.
     if (this.refundAmount > 0 && Math.abs(this.splitRemaining) > 0.5) return false;
+    // §2.4 — a clearance refund needs the Owner PIN. Checked here as well as on
+    // the server so the cashier is told before the customer is promised.
+    if (this.needsOwnerPin && !this.ownerPin.trim()) return false;
     return true;
   }
 
@@ -159,6 +175,10 @@ export class ReturnDialogComponent implements OnInit {
         condition: item.condition,
       })),
     };
+    // §2.4 — the senior's authorisation for the clearance line(s) in the basket.
+    if (this.needsOwnerPin) {
+      body.ownerPin = this.ownerPin.trim();
+    }
     // The cashier must allocate the refund explicitly (enforced by canSubmit),
     // so always send the split breakup.
     if (this.usingSplit) {
@@ -185,6 +205,8 @@ export class ReturnDialogComponent implements OnInit {
       },
       error: (err) => {
         this.notify.error(err.error?.error || 'Failed to process return');
+        // A refused PIN must not sit in the box looking accepted.
+        if (err.status === 403) this.ownerPin = '';
         this.submitting = false;
       },
     });

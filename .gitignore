@@ -35,3 +35,6 @@ docs/ecommerce/design/sabihas-ethnic-storefront-directions.html
 # Next.js storefront build output
 storefront/.next/
 storefront/next-env.d.ts
+
+# Agent worktrees (local only)
+.claude/worktrees/

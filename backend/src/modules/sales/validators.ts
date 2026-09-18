@@ -77,6 +77,9 @@ export const processReturnSchema = z.object({
         })
       )
       .optional(),
+    // §2.4 — a Manager's or Owner's PIN, required only when the basket holds a
+    // clearance line. Nullable: an untouched input posts null, not undefined.
+    ownerPin: z.string().optional().nullable(),
   }),
 });
 
