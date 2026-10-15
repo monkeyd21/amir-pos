@@ -157,3 +157,32 @@ describe('cost coverage (§3.1)', () => {
     expect(coverageLevel(null)).toBe('ok');
   });
 });
+
+import { pendingSalesTier, salaryMonthDue, salaryTier, streakTier } from '../actionable';
+
+describe('daily actionable escalation (§15.3)', () => {
+  it('turns attendance and expenses amber after two trading days', () => {
+    expect(streakTier(1)).toBe('good');
+    expect(streakTier(2)).toBe('attention');
+  });
+
+  it('ages pending sales from attention to critical', () => {
+    expect(pendingSalesTier(0, 9)).toBe('good');
+    expect(pendingSalesTier(2, 1)).toBe('good');
+    expect(pendingSalesTier(2, 2)).toBe('attention');
+    expect(pendingSalesTier(1, 4)).toBe('critical');
+  });
+
+  it('makes the salary run critical three days past the pay date', () => {
+    expect(salaryTier(0)).toBe('attention');
+    expect(salaryTier(3)).toBe('critical');
+  });
+
+  it('finds the month whose salary run is due', () => {
+    // On the pay date itself: this month.
+    expect(salaryMonthDue('2026-10-31')).toEqual({ month: '2026-10', payDate: '2026-10-31' });
+    // Early in a month: last month's run may still be open.
+    expect(salaryMonthDue('2026-11-03')).toEqual({ month: '2026-10', payDate: '2026-10-31' });
+    expect(salaryMonthDue('2026-03-02')).toEqual({ month: '2026-02', payDate: '2026-02-28' });
+  });
+});

@@ -25,6 +25,7 @@ import {
 } from '../../services/exchange-override';
 import { snapshotMrp, tagMrp } from './tag-mrp';
 import { resolveReturnReason } from './return-reason';
+import { pointsExpiryDate } from '../loyalty/expiry';
 import {
   businessDateOf,
   istBusinessDate,
@@ -76,6 +77,21 @@ function formatBusinessDate(d: Date): string {
 // GSTR-1), regardless of the `gstComplianceEnabled` setting. That setting is a
 // pure DISPLAY switch: it only controls whether the stored GST is shown on
 // bills, receipts and the P&L — it never changes what is recorded.
+
+/**
+ * Checkout options only server code may set. Deliberately NOT part of the
+ * request-shaped `data`: controllers pass `req.body` straight through, so
+ * anything in `data` is something a client could send.
+ */
+export interface CheckoutInternal {
+  /**
+   * Dashboard §15.5 — finalising a pending sale. The bill belongs to the
+   * pending sale's trading day, needs no open shift (the owner may finalise
+   * days later, from anywhere), and must NOT take the stock off again: it came
+   * off when the pending sale was captured.
+   */
+  fromPendingSale?: { id: number; businessDate: Date };
+}
 
 export class PosService {
   async openSession(userId: number, branchId: number, openingAmount: number, notes?: string) {
@@ -372,7 +388,15 @@ export class PosService {
 
   async checkout(
     data: {
-      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean; discretionaryPct?: number }[];
+      items: {
+        barcode: string;
+        quantity: number;
+        agentId?: number;
+        nonReturnable?: boolean;
+        discretionaryPct?: number;
+        // §7.2 — how `agentId` was learned: scanned on the floor, or picked at the till.
+        attribution?: 'salesfloor' | 'counter';
+      }[];
       customerId?: number;
       channel?: 'walkin' | 'online';
       // Idempotency key (UUID). A repeat checkout with the same key returns the
@@ -400,7 +424,8 @@ export class PosService {
       };
     },
     userId: number,
-    branchId: number
+    branchId: number,
+    internal: CheckoutInternal = {}
   ) {
     const saleInclude = {
       items: { include: { variant: { include: { product: true } } } },
@@ -419,7 +444,7 @@ export class PosService {
     }
 
     try {
-      const result = await this._checkoutTxn(data, userId, branchId);
+      const result = await this._checkoutTxn(data, userId, branchId, internal);
       return { ...result, idempotent: false };
     } catch (e) {
       // Lost a race on the unique clientRef — the winning request created it.
@@ -516,7 +541,15 @@ export class PosService {
 
   private async _checkoutTxn(
     data: {
-      items: { barcode: string; quantity: number; agentId?: number; nonReturnable?: boolean; discretionaryPct?: number }[];
+      items: {
+        barcode: string;
+        quantity: number;
+        agentId?: number;
+        nonReturnable?: boolean;
+        discretionaryPct?: number;
+        // §7.2 — how `agentId` was learned: scanned on the floor, or picked at the till.
+        attribution?: 'salesfloor' | 'counter';
+      }[];
       customerId?: number;
       channel?: 'walkin' | 'online';
       clientRef?: string;
@@ -544,12 +577,14 @@ export class PosService {
       };
     },
     userId: number,
-    branchId: number
+    branchId: number,
+    internal: CheckoutInternal
   ) {
     // §shop — an ONLINE sale has no cashier, no till and no shift. Every
     // session-shaped rule below is therefore skipped for it, and the trading day
     // comes from the wall clock (in IST) instead of an open shift.
     const isOnlineSale = data.channel === 'online';
+    const fromPending = internal.fromPendingSale ?? null;
 
     // §0/§exchange-prefill: everything the exchange needs from the ORIGINAL
     // bill is resolved here, before the transaction opens: verifying an override
@@ -581,13 +616,13 @@ export class PosService {
 
     return prisma.$transaction(async (tx) => {
       // 1. Verify user has an open session (counter sales only)
-      const session = isOnlineSale
+      const session = isOnlineSale || fromPending
         ? null
         : await tx.posSession.findFirst({
             where: { userId, status: 'open' },
           });
 
-      if (!isOnlineSale && !session) {
+      if (!isOnlineSale && !fromPending && !session) {
         throw new AppError('No open POS session. Open a session before checkout.', 400);
       }
 
@@ -634,6 +669,7 @@ export class PosService {
         unitCost: number | null;
         taxRate: number;
         agentId: number | null;
+        attribution: 'salesfloor' | 'counter' | null;
         nonReturnable: boolean;
         discretionaryPct: number;
         isClearance: boolean;
@@ -686,6 +722,7 @@ export class PosService {
           unitCost,
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
+          attribution: item.attribution ?? (item.agentId != null && item.agentId !== userId ? 'counter' : null),
           // §2.4 — clearance lines are always non-returnable, regardless of input.
           nonReturnable: isClearance ? true : item.nonReturnable === true,
           // §2.3 — the 15% ceiling was removed; clamp only to a sane 0–100%
@@ -819,6 +856,7 @@ export class PosService {
         offerId: number | null;
         effectiveUnitPrice: number | null;
         agentId: number | null;
+        attribution: 'salesfloor' | 'counter' | null;
         nonReturnable: boolean;
         isClearance: boolean;
       }
@@ -849,6 +887,7 @@ export class PosService {
           offerId: offerInfo?.offerId ?? null,
           effectiveUnitPrice: offerInfo?.effectiveUnitPrice ?? null,
           agentId: item.agentId,
+          attribution: item.attribution,
           nonReturnable: item.nonReturnable,
           isClearance: item.isClearance,
         });
@@ -895,6 +934,7 @@ export class PosService {
         offerId?: number | null;
         effectiveUnitPrice?: number | null;
         agentId?: number | null;
+        attribution?: string | null;
         nonReturnable?: boolean;
         ownerDiscretionDiscount?: number;
         isClearance?: boolean;
@@ -931,6 +971,7 @@ export class PosService {
           offerId: line.offerId,
           effectiveUnitPrice: line.effectiveUnitPrice,
           agentId: line.agentId,
+          attribution: line.attribution,
           nonReturnable: line.nonReturnable,
           ownerDiscretionDiscount: line.discretionaryDiscount,
           isClearance: line.isClearance,
@@ -1267,7 +1308,11 @@ export class PosService {
           // §11.0 — roll this sale up into the open shift's trading day, not the
           // wall-clock date. createdAt still records the real time (printed on the bill).
           // An online sale belongs to no shift, so it takes the IST calendar day.
-          businessDate: session ? businessDateOf(session) : istBusinessDate(new Date()),
+          businessDate: fromPending
+            ? fromPending.businessDate
+            : session
+            ? businessDateOf(session)
+            : istBusinessDate(new Date()),
           subtotal,
           taxAmount: totalTax,
           discountAmount: totalDiscount,
@@ -1349,8 +1394,9 @@ export class PosService {
         }
       }
 
-      // 8. Deduct inventory and create movement records
-      for (const item of saleItemsData) {
+      // 8. Deduct inventory and create movement records. A finalised pending
+      // sale skips this: its pieces left the shelf when it was captured.
+      for (const item of fromPending ? [] : saleItemsData) {
         if (isOnlineSale) {
           // §shop-guard — NEVER top up a shortfall for an online sale.
           //
@@ -1442,6 +1488,8 @@ export class PosService {
               points: pointsEarned,
               type: 'earned',
               description: `Points earned from sale ${saleNumber}`,
+              // Lapses on the shop's expiry, if it set one (dashboard §8 #3).
+              expiresAt: pointsExpiryDate(loyaltyConfig?.pointsExpiryMonths),
             },
           });
         }

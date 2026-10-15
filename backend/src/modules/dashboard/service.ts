@@ -31,10 +31,14 @@ import {
   heldBillAlerts,
   noSalePeakAlerts,
   prioritiseAlerts,
+  loyaltyExpiryAlerts,
   repeatReturnAlerts,
   returnRateAlerts,
 } from './alerts';
 import { chooseInsight, Insight, returnPatterns, topCategoryOnWeekday } from './insights';
+import { dailyActionable } from './actionable';
+import { weeklyReminder } from './inventory-reminder';
+import { expiringSoon } from '../loyalty/expiry';
 import {
   customerMix,
   hasTrading,
@@ -304,12 +308,14 @@ export async function getDashboard(viewer: DashboardViewer, query: DashboardQuer
       orderBy: { openedAt: 'asc' },
       select: { openedAt: true },
     });
-    const [held, repeat, agentStats, hourly8w, todayByHour] = await Promise.all([
-      heldBillAlerts(viewer.branchId, { ...DEFAULT_ALERT_SETTINGS, ...settings }),
+    const alertSettings = { ...DEFAULT_ALERT_SETTINGS, ...settings };
+    const [held, repeat, agentStats, hourly8w, todayByHour, expiring] = await Promise.all([
+      heldBillAlerts(viewer.branchId, alertSettings),
       repeatReturnAlerts(viewer.branchId, businessDate),
       agentReturnStats(viewer.branchId, businessDate),
       hourlyHistory(viewer.branchId, businessDate, 8),
       billsByHour(viewer.branchId, businessDate),
+      expiringSoon(alertSettings.loyaltyExpiryDays),
     ]);
     const all: DashboardAlert[] = [
       ...repeat,
@@ -323,6 +329,7 @@ export async function getDashboard(viewer: DashboardViewer, query: DashboardQuer
         openedHour: openShift ? istHour(openShift.openedAt) : null,
       }),
       ...held,
+      ...loyaltyExpiryAlerts(expiring.length, alertSettings.loyaltyExpiryDays, businessDate),
     ];
     const visibleTypes =
       level('alerts') === 'operational' ? new Set<string>(OPERATIONAL_ALERT_TYPES) : null;
@@ -349,12 +356,22 @@ export async function getDashboard(viewer: DashboardViewer, query: DashboardQuer
         hourly8w,
         hourly4w,
         topCategoryTomorrow: topCat,
-        loyaltyExpiringCustomers: 0,
+        loyaltyExpiringCustomers: expiring.length,
         activeAlerts: alerts,
         dismissed,
       });
       out.insight = insight;
     }
+  }
+
+  // ─── Daily Actionable and the weekly inventory reminder (§15) ───
+  if (sees('actionable')) {
+    out.actionable = await dailyActionable(viewer.branchId, businessDate);
+  }
+  if (sees('weeklyInventory')) {
+    const weekly = await weeklyReminder(viewer.branchId, businessDate);
+    const dismissed = await loadDismissed(viewer.branchId);
+    out.weeklyInventory = dismissed.has(weekly.dismissKey) ? null : weekly;
   }
 
   // ─── End of day cash (§5.3) ───

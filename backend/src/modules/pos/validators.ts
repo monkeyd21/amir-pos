@@ -57,6 +57,8 @@ export const checkoutSchema = z.object({
           barcode: z.string().min(1),
           quantity: z.number().int().positive(),
           agentId: z.number().int().positive().optional(),
+          // §7.2 — how the salesperson was learned (floor scan or picked at the till).
+          attribution: z.enum(['salesfloor', 'counter']).optional(),
           // Cashier flags this line as sold as-is (clearance/defective) — blocks returns.
           nonReturnable: z.boolean().optional(),
           // §2.3 — Owner Discretion Discount for this line, as a percent of the

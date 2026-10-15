@@ -38,6 +38,8 @@ import historicalRoutes from './modules/historical/routes';
 import payableRoutes from './modules/payables/routes';
 import shopRoutes from './modules/shop/routes';
 import dashboardRoutes from './modules/dashboard/routes';
+import pendingSaleRoutes from './modules/pending-sales/routes';
+import upiCreditRoutes from './modules/upi-credits/routes';
 import { dashboardChangeNotifier } from './modules/dashboard/events';
 import { shopController } from './modules/shop/controller';
 import { posController } from './modules/pos/controller';
@@ -106,6 +108,8 @@ app.use('/api/v1/vouchers', voucherRoutes);
 app.use('/api/v1/historical', historicalRoutes);
 app.use('/api/v1/payables', payableRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/pending-sales', pendingSaleRoutes);
+app.use('/api/v1/upi-credits', upiCreditRoutes);
 
 // ─── Public storefront API ───────────────────────────────────────────────
 // A separate namespace with its own authentication (shopper tokens, not staff

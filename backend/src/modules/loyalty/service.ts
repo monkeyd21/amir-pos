@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { pointsExpiryDate } from './expiry';
 import { AppError } from '../../middleware/errorHandler';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -18,6 +19,7 @@ export class LoyaltyService {
     minRedeemPoints?: number;
     tierThresholds?: Record<string, number>;
     earningMultipliers?: Record<string, number>;
+    pointsExpiryMonths?: number | null;
   }) {
     let config = await prisma.loyaltyConfig.findFirst();
     if (!config) {
@@ -33,6 +35,9 @@ export class LoyaltyService {
         ...(data.minRedeemPoints !== undefined && { minRedeemPoints: data.minRedeemPoints }),
         ...(data.tierThresholds !== undefined && { tierThresholds: data.tierThresholds }),
         ...(data.earningMultipliers !== undefined && { earningMultipliers: data.earningMultipliers }),
+        // Applies to points earned from now on; existing points keep the
+        // expiry they were earned with (none, before this was switched on).
+        ...(data.pointsExpiryMonths !== undefined && { pointsExpiryMonths: data.pointsExpiryMonths }),
       },
     });
   }
@@ -67,6 +72,7 @@ export class LoyaltyService {
           points: pointsEarned,
           type: 'earned',
           description: `Earned ${pointsEarned} points from purchase of ${data.saleTotal}`,
+          expiresAt: pointsExpiryDate(config.pointsExpiryMonths),
         },
       });
 

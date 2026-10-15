@@ -7,6 +7,9 @@ import { AppError } from '../../middleware/errorHandler';
 import { dismiss, getDashboard, getLayout, resetLayout, saveLayout } from './service';
 import { onChange } from './events';
 import { drill, DrillKind } from './drill';
+import { stockList } from './inventory-reminder';
+import { resolveViewerPeriod } from './service';
+import { payableService } from '../payables/service';
 import prisma from '../../config/database';
 import { recordAudit } from '../../services/audit';
 
@@ -81,7 +84,10 @@ router.get('/stream', (req: AuthRequest, res: Response) => {
 
 const drillSchema = z.object({
   params: z.object({
-    kind: z.enum(['sales', 'bills', 'discount', 'payments', 'profit', 'returns', 'customers', 'staff', 'product', 'held', 'eod']),
+    kind: z.enum([
+      'sales', 'bills', 'discount', 'payments', 'profit', 'returns', 'customers',
+      'staff', 'product', 'held', 'eod', 'attendance', 'loyalty',
+    ]),
   }),
   query: z.object({
     period: z.enum(['today', 'week', 'month', 'custom']).default('today'),
@@ -159,6 +165,94 @@ router.delete('/products/:id/quality-check', validate(qualitySchema), async (req
       branchId: req.user!.branchId,
     });
     res.json({ success: true, data: null });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const seniorOnly = (req: AuthRequest) => {
+  if (!isDashboardSenior(req.user!.role)) throw new AppError('Only an owner or manager can do this', 403);
+};
+
+/**
+ * §15.2: "No Expense Today", marked on purpose. A blank day is never read as
+ * zero, so this is the only way an expense-free day stops being pending.
+ */
+router.post('/actions/no-expense', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    seniorOnly(req);
+    const { bdDate } = await resolveViewerPeriod(viewerOf(req), { period: 'today' });
+    await prisma.expenseDayMark.upsert({
+      where: { branchId_businessDate: { branchId: req.user!.branchId, businessDate: bdDate } },
+      create: { branchId: req.user!.branchId, businessDate: bdDate, markedBy: req.user!.userId },
+      update: {},
+    });
+    res.status(201).json({ success: true, data: null });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const expenseSchema = z.object({
+  body: z.object({
+    categoryId: z.number().int().positive(),
+    amount: z.number().positive(),
+    method: z.enum(['cash', 'upi', 'card', 'bank', 'cheque']),
+    note: z.string().max(300).optional().nullable(),
+  }),
+});
+
+/**
+ * §1.6 quick action: an expense paid today, recorded through the Payables
+ * module's own create and pay (its category rules and audit apply), dated to
+ * the trading day so the widget clears.
+ */
+router.post('/actions/expense', validate(expenseSchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    seniorOnly(req);
+    const { businessDate } = await resolveViewerPeriod(viewerOf(req), { period: 'today' });
+    const category = await prisma.expenseCategory.findUnique({ where: { id: req.body.categoryId } });
+    if (!category) throw new AppError('Expense category not found', 404);
+    const note = req.body.note?.trim() || null;
+    const created = await payableService.create(
+      { title: note || category.name, amount: req.body.amount, categoryId: category.id, dueDate: businessDate, description: note },
+      req.user!.branchId,
+      req.user!.userId
+    );
+    const open = await prisma.posSession.findFirst({
+      where: { branchId: req.user!.branchId, status: 'open' },
+      select: { id: true },
+    });
+    const paid = await payableService.pay(
+      created.id,
+      // Cash handed out of the till belongs to the open shift's drawer count.
+      { amount: req.body.amount, method: req.body.method, sessionId: req.body.method === 'cash' ? open?.id ?? null : null },
+      req.user!.userId
+    );
+    res.status(201).json({ success: true, data: paid });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const stockSchema = z.object({
+  query: z.object({
+    view: z.enum(['low', 'stagnant']),
+    days: z.enum(['30', '45', '60', '90']).optional(),
+  }),
+});
+
+/**
+ * §15.6: the list behind the weekly reminder's "View report →" until the
+ * Reports module ships. Same query as the strip.
+ */
+router.get('/stock', validate(stockSchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    seniorOnly(req);
+    const { businessDate } = await resolveViewerPeriod(viewerOf(req), { period: 'today' });
+    const days = Number(req.query.days ?? 60);
+    const rows = await stockList(req.user!.branchId, req.query.view as any, businessDate, days);
+    res.json({ success: true, data: { view: req.query.view, days, asOf: businessDate, rows } });
   } catch (e) {
     next(e);
   }

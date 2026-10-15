@@ -8,6 +8,8 @@ export const updateConfigSchema = z.object({
     // Minimum points balance to be eligible to redeem. Was missing here, so the
     // validator silently stripped it and the setting never persisted.
     minRedeemPoints: z.number().int().min(0).optional(),
+    // Months an earned point stays valid; null switches expiry off.
+    pointsExpiryMonths: z.number().int().min(1).max(60).optional().nullable(),
     tierThresholds: z
       .object({
         silver: z.number().int().positive(),

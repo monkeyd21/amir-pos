@@ -134,7 +134,9 @@ export function candidateInsights(i: InsightInputs): Insight[] {
     }
   }
 
-  if (i.loyaltyExpiringCustomers > 0) {
+  // §8.1: the purple alert already says this; the bar would only repeat it.
+  const loyaltyAlerted = i.activeAlerts.some((a) => a.type === 'loyalty_expiring');
+  if (i.loyaltyExpiringCustomers > 0 && !loyaltyAlerted) {
     out.push({
       key: `insight:loyalty:${i.businessDate}`,
       type: 'loyalty_nudge',

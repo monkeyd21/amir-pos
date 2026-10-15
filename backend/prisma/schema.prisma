@@ -37,8 +37,8 @@ model Branch {
   users               User[]
   inventory           Inventory[]
   inventoryMovements  InventoryMovement[]
-  transfersFrom       StockTransfer[]      @relation("TransferFrom")
-  transfersTo         StockTransfer[]      @relation("TransferTo")
+  transfersFrom       StockTransfer[]           @relation("TransferFrom")
+  transfersTo         StockTransfer[]           @relation("TransferTo")
   sales               Sale[]
   returns             Return[]
   posSessions         PosSession[]
@@ -58,6 +58,10 @@ model Branch {
   shopOrders          ShopOrder[]
   expenseDayMarks     ExpenseDayMark[]
   dashboardDismissals DashboardDismissal[]
+  pendingSales        PendingSale[]
+  upiCredits          UpiCredit[]
+  floorBaskets        FloorBasket[]
+  inventorySnapshots  InventoryWeeklySnapshot[]
 
   @@map("branches")
 }
@@ -171,34 +175,40 @@ model User {
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
-  branch              Branch               @relation(fields: [branchId], references: [id])
-  sales               Sale[]
-  returns             Return[]
-  posSessions         PosSession[]
-  heldTransactions    HeldTransaction[]
-  inventoryMovements  InventoryMovement[]
-  transfersCreated    StockTransfer[]      @relation("TransferCreator")
-  transfersApproved   StockTransfer[]      @relation("TransferApprover")
-  journalEntries      JournalEntry[]
-  expensesCreated     Expense[]            @relation("ExpenseCreator")
-  expensesApproved    Expense[]            @relation("ExpenseApprover")
-  attendance          Attendance[]
-  attendanceMarked    Attendance[]         @relation("AttendanceMarker")
-  salaryPeriods       SalaryPeriod[]       @relation("SalaryPeriodEmployee")
-  salaryPeriodsPaid   SalaryPeriod[]       @relation("SalaryPeriodPayer")
-  payablesSubject     Payable[]            @relation("PayableSubject")
-  payablesCreated     Payable[]            @relation("PayableCreator")
-  payablePayments     PayablePayment[]     @relation("PayablePaymentCreator")
-  commissions         Commission[]
-  commissionsPaid     Commission[]         @relation("CommissionPayer")
-  upiPaymentIntents   UpiPaymentIntent[]
-  agentSaleItems      SaleItem[]           @relation("SaleItemAgent")
-  vendorPayments      VendorPayment[]
-  auditLogs           AuditLog[]
-  preferences         UserPreference[]
-  expenseDayMarks     ExpenseDayMark[]
-  dashboardDismissals DashboardDismissal[]
-  qualityChecks       Product[]            @relation("ProductQualityCheck")
+  branch                Branch               @relation(fields: [branchId], references: [id])
+  sales                 Sale[]
+  returns               Return[]
+  posSessions           PosSession[]
+  heldTransactions      HeldTransaction[]
+  inventoryMovements    InventoryMovement[]
+  transfersCreated      StockTransfer[]      @relation("TransferCreator")
+  transfersApproved     StockTransfer[]      @relation("TransferApprover")
+  journalEntries        JournalEntry[]
+  expensesCreated       Expense[]            @relation("ExpenseCreator")
+  expensesApproved      Expense[]            @relation("ExpenseApprover")
+  attendance            Attendance[]
+  attendanceMarked      Attendance[]         @relation("AttendanceMarker")
+  salaryPeriods         SalaryPeriod[]       @relation("SalaryPeriodEmployee")
+  salaryPeriodsPaid     SalaryPeriod[]       @relation("SalaryPeriodPayer")
+  payablesSubject       Payable[]            @relation("PayableSubject")
+  payablesCreated       Payable[]            @relation("PayableCreator")
+  payablePayments       PayablePayment[]     @relation("PayablePaymentCreator")
+  commissions           Commission[]
+  commissionsPaid       Commission[]         @relation("CommissionPayer")
+  upiPaymentIntents     UpiPaymentIntent[]
+  agentSaleItems        SaleItem[]           @relation("SaleItemAgent")
+  vendorPayments        VendorPayment[]
+  auditLogs             AuditLog[]
+  preferences           UserPreference[]
+  expenseDayMarks       ExpenseDayMark[]
+  dashboardDismissals   DashboardDismissal[]
+  qualityChecks         Product[]            @relation("ProductQualityCheck")
+  pendingSalesCreated   PendingSale[]        @relation("PendingSaleCreator")
+  pendingSalesFinalized PendingSale[]        @relation("PendingSaleFinalizer")
+  pendingSalesVoided    PendingSale[]        @relation("PendingSaleVoider")
+  upiCreditsResolved    UpiCredit[]          @relation("UpiCreditResolver")
+  upiCreditsCreated     UpiCredit[]          @relation("UpiCreditCreator")
+  floorBaskets          FloorBasket[]        @relation("FloorBasketSalesperson")
 
   @@map("users")
 }
@@ -329,6 +339,11 @@ model Product {
   qualityCheckAt    DateTime?
   qualityCheckBy    Int?
   qualityCheckNote  String?
+  // Dashboard §15.6 — reorder below this many pieces per variant. NULL means
+  // the article is not restocked by count (most one-off pieces), so it never
+  // shows as "low stock". A branch's Inventory.minStockLevel, when set above
+  // zero, overrides it for that variant.
+  reorderLevel      Int?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -384,6 +399,8 @@ model ProductVariant {
   historicalBillItems HistoricalBillItem[]
   images              ProductImage[]
   reservations        StockReservation[]
+  pendingSaleItems    PendingSaleItem[]
+  floorBasketItems    FloorBasketItem[]
   shopCartItems       ShopCartItem[]
   shopOrderItems      ShopOrderItem[]
 
@@ -606,6 +623,8 @@ model Sale {
   voucherRedemptions  VoucherRedemption[]
   upiPaymentIntent    UpiPaymentIntent?
   shopOrder           ShopOrder?
+  pendingSale         PendingSale?         @relation("PendingSaleBill")
+  upiCredits          UpiCredit[]          @relation("UpiCreditSale")
 
   @@index([branchId, createdAt])
   @@index([branchId, businessDate])
@@ -649,6 +668,10 @@ model SaleItem {
   // the article had no cost recorded: the dashboard leaves such lines out of
   // profit and counts them against cost coverage rather than assuming ₹0.
   unitCost                Decimal? @db.Decimal(10, 2)
+  // How `agentId` was learned: 'salesfloor' when the salesperson scanned the
+  // piece on the floor (dashboard spec §7.2), 'counter' when the cashier
+  // picked them at the till. NULL: the checkout default (the cashier).
+  attribution             String?
 
   sale        Sale           @relation(fields: [saleId], references: [id])
   variant     ProductVariant @relation(fields: [variantId], references: [id])
@@ -789,7 +812,8 @@ model Payment {
   status          PaymentStatus @default(completed)
   createdAt       DateTime      @default(now())
 
-  sale Sale @relation(fields: [saleId], references: [id])
+  sale      Sale       @relation(fields: [saleId], references: [id])
+  upiCredit UpiCredit?
 
   @@index([saleId])
   @@map("payments")
@@ -1053,11 +1077,17 @@ model LoyaltyTransaction {
   points      Int
   type        LoyaltyTxType
   description String?
+  // Earned points lapse at this instant when the shop sets an expiry
+  // (LoyaltyConfig.pointsExpiryMonths). NULL = never. Debits consume the
+  // oldest points first, so what expires is never more than what is left.
+  expiresAt   DateTime?
   createdAt   DateTime      @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id])
   sale     Sale?    @relation(fields: [saleId], references: [id])
 
+  @@index([customerId, createdAt])
+  @@index([expiresAt])
   @@map("loyalty_transactions")
 }
 
@@ -1069,6 +1099,9 @@ model LoyaltyConfig {
   minRedeemPoints    Int     @default(100)
   tierThresholds     Json    @default("{\"silver\": 1000, \"gold\": 5000, \"platinum\": 20000}")
   earningMultipliers Json    @default("{\"bronze\": 1, \"silver\": 1.5, \"gold\": 2, \"platinum\": 3}")
+  // Months an earned point stays valid. NULL (the default) = points never
+  // expire, which is how the shop has always run.
+  pointsExpiryMonths Int?
 
   @@map("loyalty_config")
 }
@@ -1888,4 +1921,179 @@ model DashboardDismissal {
 
   @@unique([branchId, key])
   @@map("dashboard_dismissals")
+}
+
+// ─── Pending sales (dashboard spec §15.5) ───────────────────────────────────
+
+enum PendingSaleStatus {
+  pending
+  finalized
+  voided
+}
+
+// A sale that happened but could not be billed yet (the owner is away, the
+// staff login may not finalise). Paper is not a record: the pieces are
+// scanned here instead, stock comes off immediately so the website cannot
+// sell them again, and the owner later finalises it into a real bill dated to
+// THIS trading day, or voids it and the stock goes back.
+model PendingSale {
+  id              Int               @id @default(autoincrement())
+  branchId        Int
+  number          String            @unique
+  businessDate    DateTime          @db.Date
+  createdBy       Int
+  paymentMode     PaymentMethod
+  amountReceived  Decimal           @db.Decimal(10, 2)
+  notes           String?
+  // Idempotency key, so a pending sale captured offline syncs once.
+  clientRef       String?           @unique
+  status          PendingSaleStatus @default(pending)
+  finalizedSaleId Int?              @unique
+  finalizedBy     Int?
+  finalizedAt     DateTime?
+  voidReason      String?
+  voidedBy        Int?
+  voidedAt        DateTime?
+  createdAt       DateTime          @default(now())
+
+  branch        Branch            @relation(fields: [branchId], references: [id])
+  creator       User              @relation("PendingSaleCreator", fields: [createdBy], references: [id])
+  finalizer     User?             @relation("PendingSaleFinalizer", fields: [finalizedBy], references: [id])
+  voider        User?             @relation("PendingSaleVoider", fields: [voidedBy], references: [id])
+  finalizedSale Sale?             @relation("PendingSaleBill", fields: [finalizedSaleId], references: [id])
+  items         PendingSaleItem[]
+  upiCredits    UpiCredit[]
+
+  @@index([branchId, status])
+  @@index([branchId, businessDate])
+  @@map("pending_sales")
+}
+
+model PendingSaleItem {
+  id            Int     @id @default(autoincrement())
+  pendingSaleId Int
+  variantId     Int
+  quantity      Int
+  // The price on the tag when it was scanned.
+  tagPrice      Decimal @db.Decimal(10, 2)
+
+  pendingSale PendingSale    @relation(fields: [pendingSaleId], references: [id], onDelete: Cascade)
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([pendingSaleId])
+  @@map("pending_sale_items")
+}
+
+// ─── UPI credits (dashboard spec §15.2 / §15.5) ─────────────────────────────
+
+enum UpiCreditStatus {
+  unmatched
+  matched
+  non_sale
+}
+
+// Money that actually landed in the shop's UPI account, from the bank or PSP
+// statement (imported, or typed in). Each is matched to the bill or pending
+// sale it paid for; one that matches nothing may be a sale that was never
+// billed, so it stays on the dashboard until someone explains it.
+model UpiCredit {
+  id                   Int             @id @default(autoincrement())
+  branchId             Int
+  receivedAt           DateTime
+  amount               Decimal         @db.Decimal(10, 2)
+  // UTR / transaction reference: unique per branch, so importing the same
+  // statement twice adds nothing.
+  reference            String
+  payerName            String?
+  payerVpa             String?
+  source               String          @default("import")
+  importBatch          String?
+  status               UpiCreditStatus @default(unmatched)
+  matchedPaymentId     Int?            @unique
+  matchedSaleId        Int?
+  matchedPendingSaleId Int?
+  // How it was matched: 'reference' or 'amount_time' (automatic), 'manual'.
+  matchMethod          String?
+  nonSaleReason        String?
+  resolvedBy           Int?
+  resolvedAt           DateTime?
+  createdBy            Int
+  createdAt            DateTime        @default(now())
+
+  branch             Branch       @relation(fields: [branchId], references: [id])
+  matchedPayment     Payment?     @relation(fields: [matchedPaymentId], references: [id])
+  matchedSale        Sale?        @relation("UpiCreditSale", fields: [matchedSaleId], references: [id])
+  matchedPendingSale PendingSale? @relation(fields: [matchedPendingSaleId], references: [id])
+  resolver           User?        @relation("UpiCreditResolver", fields: [resolvedBy], references: [id])
+  creator            User         @relation("UpiCreditCreator", fields: [createdBy], references: [id])
+
+  @@unique([branchId, reference])
+  @@index([branchId, status])
+  @@index([branchId, receivedAt])
+  @@map("upi_credits")
+}
+
+// ─── Salesfloor scan (dashboard spec §7.2) ──────────────────────────────────
+
+enum FloorBasketStatus {
+  open
+  billed
+  pending_sale
+  abandoned
+}
+
+// A salesperson's basket on the shop floor: they scan what the customer is
+// taking on their phone, the cashier pulls the basket at the till by its
+// short code, and every line is attributed to whoever scanned it.
+model FloorBasket {
+  id            Int               @id @default(autoincrement())
+  branchId      Int
+  code          String
+  salespersonId Int
+  status        FloorBasketStatus @default(open)
+  saleId        Int?
+  pendingSaleId Int?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  branch      Branch            @relation(fields: [branchId], references: [id])
+  salesperson User              @relation("FloorBasketSalesperson", fields: [salespersonId], references: [id])
+  items       FloorBasketItem[]
+
+  @@index([branchId, status])
+  @@index([branchId, code, status])
+  @@map("floor_baskets")
+}
+
+model FloorBasketItem {
+  id        Int      @id @default(autoincrement())
+  basketId  Int
+  variantId Int
+  quantity  Int      @default(1)
+  scannedAt DateTime @default(now())
+
+  basket  FloorBasket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([basketId])
+  @@map("floor_basket_items")
+}
+
+// Dashboard §15.6: the Weekly Inventory Reminder is refreshed once a week, not
+// on every load, and shows the change against the week before. One row per
+// branch per week (Monday, IST), written the first time the week is asked for.
+model InventoryWeeklySnapshot {
+  id            Int      @id @default(autoincrement())
+  branchId      Int
+  weekStart     DateTime @db.Date
+  lowStockCount Int
+  stagnantCount Int
+  // Stagnant stock at cost, ₹ (pieces whose cost is unknown are left out).
+  frozenValue   Decimal  @db.Decimal(14, 2)
+  computedAt    DateTime @default(now())
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, weekStart])
+  @@map("inventory_weekly_snapshots")
 }

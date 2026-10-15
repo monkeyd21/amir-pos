@@ -193,3 +193,18 @@ export async function agentReturnStats(branchId: number, businessDate: string): 
     returned: Number(r.returned),
   }));
 }
+
+/** Alert #3: customers whose points lapse within the window (§8). */
+export function loyaltyExpiryAlerts(customers: number, days: number, businessDate: string): DashboardAlert[] {
+  if (customers <= 0) return [];
+  return [
+    {
+      key: `alert:loyalty:${businessDate}`,
+      type: 'loyalty_expiring',
+      severity: 'purple',
+      title: `Loyalty points expiring: ${customers} customer${customers === 1 ? '' : 's'}`,
+      detail: `Points lapse within ${days} days. A reminder brings them back in.`,
+      subject: { kind: 'loyalty', id: 0 },
+    },
+  ];
+}

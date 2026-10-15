@@ -7,6 +7,10 @@ import { HIGH_DISCOUNT_PCT } from './activity';
 import { round1, round2, Scope } from './metrics';
 import { addDays, DayRange } from './periods';
 import { DashboardQuery, DashboardViewer, resolveViewerPeriod } from './service';
+import { attendanceGap } from './actionable';
+import { expiringSoon } from '../loyalty/expiry';
+import { getSetting } from '../settings/service';
+import { AlertSettings, DEFAULT_ALERT_SETTINGS } from './alerts';
 
 /**
  * Dashboard spec §1.6: tapping a card, row or alert opens a side panel with
@@ -29,7 +33,9 @@ export type DrillKind =
   | 'staff'
   | 'product'
   | 'held'
-  | 'eod';
+  | 'eod'
+  | 'attendance'
+  | 'loyalty';
 
 const ELEMENT: Record<DrillKind, DashboardElement> = {
   sales: 'sales',
@@ -43,6 +49,8 @@ const ELEMENT: Record<DrillKind, DashboardElement> = {
   product: 'alerts',
   held: 'recentTransactions',
   eod: 'eod',
+  attendance: 'actionable',
+  loyalty: 'alerts',
 };
 
 const LIMIT = 200;
@@ -90,6 +98,10 @@ export async function drill(
       return heldDetail(viewer, query.id);
     case 'eod':
       return eodDetail(viewer.branchId, businessDate);
+    case 'attendance':
+      return attendanceDetail(viewer.branchId, businessDate);
+    case 'loyalty':
+      return loyaltyDetail();
     default:
       throw new AppError('Unknown drill-down', 400);
   }
@@ -501,4 +513,24 @@ async function eodDetail(branchId: number, businessDate: string) {
       card: { expected: n(s.expectedCard), received: n(s.cardReceived), variance: s.cardVariance != null ? round2(-Number(s.cardVariance)) : null },
     })),
   };
+}
+
+/** §1.6: every active employee for the trading day, with today's mark if any. */
+async function attendanceDetail(branchId: number, businessDate: string) {
+  const { staff, marked } = await attendanceGap(branchId, businessDate);
+  return {
+    date: businessDate,
+    staff: staff.map((u) => ({
+      userId: u.id,
+      name: `${u.firstName} ${u.lastName ?? ''}`.trim(),
+      role: u.role,
+      status: marked.get(u.id) ?? null,
+    })),
+  };
+}
+
+/** §1.6 alert #3: who has points lapsing soon, so someone can call them. */
+async function loyaltyDetail() {
+  const settings = { ...DEFAULT_ALERT_SETTINGS, ...(await getSetting<Partial<AlertSettings>>('dashboardAlerts', {})) };
+  return { days: settings.loyaltyExpiryDays, customers: await expiringSoon(settings.loyaltyExpiryDays) };
 }
