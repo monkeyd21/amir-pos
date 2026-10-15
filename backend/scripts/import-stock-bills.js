@@ -15,6 +15,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+// Dashboard spec §12.4: the same DD-MM-YYYY rule the app uses (build `shared` first).
+const { formatDdMmYyyy, validateLegacySaleDate } = require('@clothing-erp/shared');
 
 const args = process.argv.slice(2);
 const FILE = args.find((a) => a.endsWith('.xlsx') || a.endsWith('.json'));
@@ -132,12 +134,23 @@ function parse(FILE) {
     }
     return out;
   };
-  const bills = [...parseBills('PREVIOUS BILLS 25-26', '2025-26', 'H25'), ...parseBills('PREVIOUS BILLS 26-27', '2026-27', 'H26')];
+  const parsedBills = [...parseBills('PREVIOUS BILLS 25-26', '2025-26', 'H25'), ...parseBills('PREVIOUS BILLS 26-27', '2026-27', 'H26')];
+  // §12.4: a legacy bill must carry its original sale date. Refuse one with no
+  // date, a date in the future or one before 01-01-2010, and say which and
+  // why, rather than archiving a bill that would sit on the wrong day forever.
+  const todayIst = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  const bills = [];
+  const rejectedBills = [];
+  for (const b of parsedBills) {
+    const check = validateLegacySaleDate(b.billDate ? formatDdMmYyyy(b.billDate.slice(0, 10)) : '', todayIst);
+    if (check.ok) bills.push(b);
+    else rejectedBills.push({ billNumber: b.billNumber, originalBillNo: b.originalBillNo, fiscalYear: b.fiscalYear, reason: check.error });
+  }
   const visits = {};
   for (const b of bills) if (b.customerMobile) visits[b.customerMobile] = (visits[b.customerMobile] || 0) + 1;
 
   const customers = [...cust.entries()].map(([phone, c]) => { const parts = (c.name || '').trim().split(/\s+/).filter(Boolean); return { phone, firstName: parts[0] || phone, lastName: parts.length > 1 ? parts.slice(1).join(' ') : null, points: Math.max(0, Math.round(c.points)), spent: round2(c.spent), visits: visits[phone] || 0 }; });
-  return { products, customers, bills, dupBc };
+  return { products, customers, bills, rejectedBills, dupBc };
 }
 
 function tally(p) {
@@ -155,6 +168,12 @@ function tally(p) {
   console.log(`customers ${p.customers.length} | points ${Math.round(pts).toLocaleString()} | totalSpent Rs ${Math.round(spent).toLocaleString()}`);
   console.log('── BILLS ──');
   console.log(`bills ${p.bills.length} | items ${items} | total Rs ${Math.round(billTotal).toLocaleString()} | barcode→variant ${matched}/${matched + missed}`);
+  const rejected = p.rejectedBills || [];
+  if (rejected.length) {
+    console.log(`REFUSED ${rejected.length} bill(s) for their date (spec 12.4); they are NOT imported:`);
+    for (const r of rejected.slice(0, 20)) console.log(`  ${r.fiscalYear} bill ${r.originalBillNo}: ${r.reason}`);
+    if (rejected.length > 20) console.log(`  … and ${rejected.length - 20} more`);
+  }
 }
 
 async function commit(p) {
