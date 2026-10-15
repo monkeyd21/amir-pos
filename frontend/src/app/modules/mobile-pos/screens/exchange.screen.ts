@@ -1,4 +1,6 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, switchMap, of, catchError } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReasonPickerComponent } from '../components/reason-picker.component';
@@ -6,6 +8,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MobileScannerService } from '../services/mobile-scanner.service';
+import { OfflineService } from '../../../core/services/offline.service';
 
 type Condition = 'resellable' | 'damaged';
 
@@ -75,11 +78,21 @@ interface BarcodeLookup {
   stock: number | string;
 }
 
-interface ExchangeResponse {
+interface CheckoutResponse {
   success?: boolean;
-  data?: unknown;
-  message?: string;
+  data?: { id: number; saleNumber: string };
+  refund?: number;
 }
+
+/** The server's own settlement of this exchange (`POST /pos/exchange/quote`). */
+interface ExchangeQuote {
+  saleTotal: number;
+  exchangeCredit: number;
+  amountDue: number;
+  refundDue: number;
+}
+
+type Tender = 'cash' | 'upi' | 'card';
 
 interface ReturnLine {
   quantity: number;
@@ -392,24 +405,53 @@ interface NewItem {
               <app-reason-picker [value]="reason()" (valueChange)="reason.set($event)" />
             </section>
 
-            <!-- Math -->
+            <!-- Math: the server's figures, so the screen and the bill agree -->
             <section class="bill-section">
               <div class="mp-card math-card">
                 <div class="math-row">
-                  <span>Return value</span>
-                  <span>{{ formatCurrency(returnTotal()) }}</span>
+                  <span>Return credit</span>
+                  <span>{{ quote() ? formatCurrency(quote()!.exchangeCredit) : formatCurrency(returnTotal()) }}</span>
                 </div>
                 <div class="math-row">
-                  <span>New items value</span>
-                  <span>{{ formatCurrency(newTotal()) }}</span>
+                  <span>New items</span>
+                  <span>{{ quote() ? formatCurrency(quote()!.saleTotal) : formatCurrency(newTotal()) }}</span>
                 </div>
                 <div class="math-divider"></div>
                 <div class="math-row math-row--grand" [attr.data-direction]="diffDirection()">
                   <span>{{ diffLabel() }}</span>
-                  <span>{{ formatCurrency(diffAmount()) }}</span>
+                  <span>
+                    @if (quoting()) {
+                      <span class="spinner spinner--inline" aria-label="Working out the difference"></span>
+                    } @else {
+                      {{ formatCurrency(diffAmount()) }}
+                    }
+                  </span>
                 </div>
+                @if (quoteError()) {
+                  <p class="quote-error">{{ quoteError() }}</p>
+                }
               </div>
             </section>
+
+            @if (diffDirection() === 'pay') {
+              <section class="bill-section">
+                <div class="section-title">Customer pays by</div>
+                <div class="tender-row" role="radiogroup" aria-label="Payment for the difference">
+                  @for (t of tenders; track t.id) {
+                    <button
+                      type="button"
+                      role="radio"
+                      class="tender-chip"
+                      [class.tender-chip--on]="tender() === t.id"
+                      [attr.aria-checked]="tender() === t.id"
+                      (click)="tender.set(t.id)"
+                    >
+                      {{ t.label }}
+                    </button>
+                  }
+                </div>
+              </section>
+            }
 
             <div class="action-spacer"></div>
           </div>
@@ -817,6 +859,44 @@ interface NewItem {
 
       .exchange-action-bar { bottom: 0; }
 
+      .quote-error {
+        margin: 4px 0 0;
+        font-size: 13px;
+        line-height: 1.4;
+        color: var(--mp-error);
+      }
+
+      .tender-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .tender-chip {
+        min-height: 48px;
+        border-radius: 12px;
+        border: 1px solid var(--mp-border);
+        background: var(--mp-surface);
+        color: var(--mp-on-bg);
+        font: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .tender-chip--on {
+        border-color: var(--mp-primary);
+        background: var(--mp-primary-soft);
+        color: var(--mp-primary);
+      }
+
+      .spinner--inline {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        vertical-align: middle;
+      }
+
       .action-spacer { height: 8px; }
 
       .empty-card {
@@ -931,12 +1011,33 @@ export class MobileExchangeScreen implements OnInit {
     this.newItems().reduce((acc, ni) => acc + ni.quantity, 0)
   );
 
-  readonly diffAmount = computed(() =>
-    Math.abs(this.newTotal() - this.returnTotal())
-  );
+  /**
+   * The settlement as the server will bill it (offers, the credit at what the
+   * customer actually paid, clearance rules). The local totals above are only
+   * a placeholder while the quote is on its way.
+   */
+  readonly quote = signal<ExchangeQuote | null>(null);
+  readonly quoting = signal(false);
+  readonly quoteError = signal<string | null>(null);
+  readonly tender = signal<Tender>('cash');
+  readonly tenders: { id: Tender; label: string }[] = [
+    { id: 'cash', label: 'Cash' },
+    { id: 'upi', label: 'UPI' },
+    { id: 'card', label: 'Card' },
+  ];
+  /** One key per exchange attempt, so a double tap cannot bill twice. */
+  private clientRef = '';
+  private readonly quote$ = new Subject<void>();
+
+  readonly diffAmount = computed(() => {
+    const q = this.quote();
+    if (q) return q.amountDue > 0 ? q.amountDue : q.refundDue;
+    return Math.abs(this.newTotal() - this.returnTotal());
+  });
 
   readonly diffDirection = computed<'pay' | 'refund' | 'even'>(() => {
-    const diff = this.newTotal() - this.returnTotal();
+    const q = this.quote();
+    const diff = q ? q.amountDue - q.refundDue : this.newTotal() - this.returnTotal();
     if (diff > 0) return 'pay';
     if (diff < 0) return 'refund';
     return 'even';
@@ -955,8 +1056,71 @@ export class MobileExchangeScreen implements OnInit {
     if (this.exchangeBlocked()) return false;
     if (this.totalReturnQty() === 0 && this.totalNewQty() === 0) return false;
     if (this.reason().trim().length === 0) return false;
+    // Only ever bill a figure the cashier has been shown.
+    if (!this.quote() || this.quoting() || this.quoteError()) return false;
     return true;
   });
+
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly offline = inject(OfflineService);
+
+  constructor() {
+    // Re-quote whenever what is going back or coming in changes.
+    effect(
+      () => {
+        this.returnLines();
+        this.newItems();
+        this.overrideGrant();
+        this.quote$.next();
+      },
+      { allowSignalWrites: true }
+    );
+    this.quote$
+      .pipe(
+        debounceTime(300),
+        switchMap(() => {
+          const body = this.exchangeBody();
+          if (!body) {
+            this.quote.set(null);
+            this.quoting.set(false);
+            return of(null);
+          }
+          this.quoting.set(true);
+          return this.api.post<Envelope<ExchangeQuote>>('/pos/exchange/quote', body).pipe(
+            catchError((err: unknown) => {
+              const e = err as { error?: { error?: string } };
+              this.quoteError.set(e?.error?.error || 'Could not work out the difference');
+              this.quote.set(null);
+              return of(null);
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((res) => {
+        this.quoting.set(false);
+        if (res?.data) {
+          this.quote.set(res.data);
+          this.quoteError.set(null);
+        }
+      });
+  }
+
+  /** The checkout body for this exchange, without tenders; null until there is something to swap. */
+  private exchangeBody(): Record<string, unknown> | null {
+    const s = this.sale();
+    if (!s) return null;
+    const map = this.returnLines();
+    const returnItems = s.items
+      .filter((it) => (map[it.id]?.quantity ?? 0) > 0)
+      .map((it) => ({ saleItemId: it.id, quantity: map[it.id].quantity, condition: map[it.id].condition }));
+    const items = this.newItems().map((n) => ({ barcode: n.barcode, quantity: n.quantity }));
+    if (returnItems.length === 0 || items.length === 0) return null;
+    const exchange: Record<string, unknown> = { originalSaleId: s.id, returnItems };
+    const grant = this.overrideGrant();
+    if (grant) exchange['overrideGrant'] = grant;
+    return { items, exchange };
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -1119,48 +1283,37 @@ export class MobileExchangeScreen implements OnInit {
     const s = this.sale();
     if (!s) return;
 
-    const map = this.returnLines();
-    const returnItems = s.items
-      .filter((it) => (map[it.id]?.quantity ?? 0) > 0)
-      .map((it) => ({
-        saleItemId: it.id,
-        quantity: map[it.id].quantity,
-        condition: map[it.id].condition,
-      }));
-
-    const newItemsPayload = this.newItems().map((n) => ({
-      barcode: n.barcode,
-      quantity: n.quantity,
-    }));
-
-    const body: Record<string, unknown> = {
-      reasonCode: this.reason(),
-      returnItems,
-      newItems: newItemsPayload,
+    const base = this.exchangeBody();
+    const q = this.quote();
+    if (!base || !q) return;
+    this.clientRef ||= this.offline.newClientRef();
+    const body = {
+      ...base,
+      exchange: { ...(base['exchange'] as object), reasonCode: this.reason() },
+      payments: q.amountDue > 0 ? [{ method: this.tender(), amount: q.amountDue }] : [],
+      clientRef: this.clientRef,
     };
-    // §0: a second exchange only goes through with the manager approval
-    // attached. The backend re-verifies it and records who approved.
-    const grant = this.overrideGrant();
-    if (grant) body['overrideGrant'] = grant;
 
     this.submitting.set(true);
-    this.api
-      .post<ExchangeResponse>('/sales/' + s.id + '/exchange', body)
-      .subscribe({
-        next: (res) => {
-          this.submitting.set(false);
-          const msg = res?.message || 'Exchange processed';
-          this.notify.success(msg);
-          this.router.navigate(['/mobile-pos/sales', s.id]);
-        },
-        error: (err: unknown) => {
-          this.submitting.set(false);
-          const e = err as { error?: { error?: string; message?: string }; message?: string };
-          this.notify.error(
-            e?.error?.error || e?.error?.message || e?.message || 'Exchange failed'
-          );
-        },
-      });
+    this.api.post<CheckoutResponse>('/pos/checkout', body).subscribe({
+      next: (res) => {
+        this.submitting.set(false);
+        const bill = res?.data;
+        const refund = res?.refund ?? 0;
+        this.notify.success(
+          refund > 0
+            ? `Exchange billed as ${bill?.saleNumber}. Refund ${this.formatCurrency(refund)} to the customer`
+            : `Exchange billed as ${bill?.saleNumber}`
+        );
+        // The new bill is what the customer takes away: open it to print.
+        this.router.navigate(['/mobile-pos/sales', bill?.id ?? s.id]);
+      },
+      error: (err: unknown) => {
+        this.submitting.set(false);
+        const e = err as { error?: { error?: string; message?: string }; message?: string };
+        this.notify.error(e?.error?.error || e?.error?.message || e?.message || 'Exchange failed');
+      },
+    });
   }
 
   // ─── §0 one exchange per bill: the manager override ────────

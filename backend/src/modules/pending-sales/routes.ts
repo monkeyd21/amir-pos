@@ -19,6 +19,7 @@ const captureSchema = z.object({
     amountReceived: z.number().min(0),
     notes: z.string().max(500).optional().nullable(),
     clientRef: z.string().max(80).optional().nullable(),
+    floorBasketId: z.number().int().positive().optional().nullable(),
   }),
 });
 

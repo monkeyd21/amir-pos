@@ -1,11 +1,13 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate, authorize, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/validate';
 import { posController } from './controller';
+import { posService } from './service';
 import {
   openSessionSchema,
   closeSessionSchema,
   checkoutSchema,
+  quoteSchema,
   holdCartSchema,
   heldIdParamSchema,
   createUpiPaymentSchema,
@@ -55,6 +57,23 @@ router.post(
   authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
   validate(checkoutSchema),
   posController.checkout
+);
+
+// The exact figure a bill (an exchange, mostly) will settle at, computed by the
+// real checkout and rolled back, so a screen never shows a number the bill
+// then disagrees with.
+router.post(
+  '/exchange/quote',
+  authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
+  validate(quoteSchema),
+  async (req: AuthRequest, res, next) => {
+    try {
+      const data = await posService.quote(req.body, req.user!.userId, req.user!.branchId);
+      res.json({ success: true, data });
+    } catch (e) {
+      next(e);
+    }
+  }
 );
 
 // bug3 — UPI collection at the counter. The QR used to exist only on the

@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { legacyExchange } from './legacy-exchange';
 import prisma from '../../config/database';
 import { AppError } from '../../middleware/errorHandler';
 import { AuthRequest } from '../../middleware/auth';
@@ -200,7 +201,7 @@ export class SalesController {
 
   async processExchange(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const result = await salesService.processExchange(
+      const result = await legacyExchange(
         parseInt(req.params.saleId),
         req.body,
         req.user!.userId,

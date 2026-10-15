@@ -26,6 +26,7 @@ import {
 import { snapshotMrp, tagMrp } from './tag-mrp';
 import { resolveReturnReason } from './return-reason';
 import { pointsExpiryDate } from '../loyalty/expiry';
+import { markBasketsBilled } from '../floor-baskets/service';
 import {
   businessDateOf,
   istBusinessDate,
@@ -78,6 +79,45 @@ function formatBusinessDate(d: Date): string {
 // pure DISPLAY switch: it only controls whether the stored GST is shown on
 // bills, receipts and the P&L — it never changes what is recorded.
 
+/** What a checkout is asked to bill. Mirrors `checkoutSchema` (validators.ts). */
+export interface CheckoutInput {
+  items: {
+    barcode: string;
+    quantity: number;
+    agentId?: number;
+    nonReturnable?: boolean;
+    discretionaryPct?: number;
+    // §7.2 — how `agentId` was learned: scanned on the floor, or picked at the till.
+    attribution?: 'salesfloor' | 'counter';
+  }[];
+  customerId?: number;
+  channel?: 'walkin' | 'online';
+  clientRef?: string;
+  offline?: boolean;
+  payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
+  floorBasketIds?: number[];
+  vouchers?: { code: string; amount: number }[];
+  discountAmount?: number;
+  // §12 — special (flat) discount portion of discountAmount, kept separate
+  // for the itemized bill breakup. Does not change totals.
+  specialDiscount?: number;
+  loyaltyPointsRedeem?: number;
+  ownerPin?: string;
+  notes?: string;
+  exchange?: {
+    originalSaleId: number;
+    returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
+    reasonCode?: string | null;
+    reason?: string | null;
+    /**
+     * §0 one exchange per bill: a manager's or owner's signed approval to
+     * swap against a bill that has already been exchanged. Issued by
+     * `POST /sales/:saleId/exchange-override`.
+     */
+    overrideGrant?: string;
+  };
+}
+
 /**
  * Checkout options only server code may set. Deliberately NOT part of the
  * request-shaped `data`: controllers pass `req.body` straight through, so
@@ -91,6 +131,34 @@ export interface CheckoutInternal {
    * off when the pending sale was captured.
    */
   fromPendingSale?: { id: number; businessDate: Date };
+  /**
+   * Price the bill and stop: nothing is written (the transaction is rolled
+   * back) and the tenders are not checked. Used for an exact exchange quote,
+   * so the figure a cashier is shown is the one checkout will charge.
+   */
+  dryRun?: boolean;
+  /**
+   * Bill without an open shift, on today's IST trading day. Only for the
+   * legacy exchange endpoint, which never asked for a shift.
+   */
+  sessionOptional?: boolean;
+}
+
+/** The figures a dry run stops at. Thrown to roll the transaction back. */
+export interface CheckoutQuote {
+  subtotal: number;
+  discount: number;
+  saleTotal: number;
+  exchangeCredit: number;
+  amountDue: number;
+  refundDue: number;
+  lines: { variantId: number; quantity: number; unitPrice: number; total: number; offerId: number | null }[];
+}
+
+class DryRunStop extends Error {
+  constructor(readonly quote: CheckoutQuote) {
+    super('dry run');
+  }
 }
 
 export class PosService {
@@ -387,42 +455,7 @@ export class PosService {
   }
 
   async checkout(
-    data: {
-      items: {
-        barcode: string;
-        quantity: number;
-        agentId?: number;
-        nonReturnable?: boolean;
-        discretionaryPct?: number;
-        // §7.2 — how `agentId` was learned: scanned on the floor, or picked at the till.
-        attribution?: 'salesfloor' | 'counter';
-      }[];
-      customerId?: number;
-      channel?: 'walkin' | 'online';
-      // Idempotency key (UUID). A repeat checkout with the same key returns the
-      // original sale — the anti-duplicate guarantee for retries and offline sync.
-      clientRef?: string;
-      // Offline bill being synced: priced at MRP − manual discount only (no
-      // offers/loyalty/exchange/voucher) and tolerant of stock going negative,
-      // because the goods already physically left the counter.
-      offline?: boolean;
-      payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
-      // Gift vouchers redeemed as a tender. Each covers part of the bill; the
-      // balance is debited and a 'voucher' Payment row is recorded per voucher.
-      vouchers?: { code: string; amount: number }[];
-      discountAmount?: number;
-      // §12 — special (flat) discount portion of discountAmount, kept separate
-      // for the itemized bill breakup. Does not change totals.
-      specialDiscount?: number;
-      loyaltyPointsRedeem?: number;
-      ownerPin?: string;
-      notes?: string;
-      exchange?: {
-        originalSaleId: number;
-        returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
-        reason?: string;
-      };
-    },
+    data: CheckoutInput,
     userId: number,
     branchId: number,
     internal: CheckoutInternal = {}
@@ -447,6 +480,7 @@ export class PosService {
       const result = await this._checkoutTxn(data, userId, branchId, internal);
       return { ...result, idempotent: false };
     } catch (e) {
+      if (e instanceof DryRunStop) throw e;
       // Lost a race on the unique clientRef — the winning request created it.
       if (
         data.clientRef &&
@@ -540,42 +574,7 @@ export class PosService {
   }
 
   private async _checkoutTxn(
-    data: {
-      items: {
-        barcode: string;
-        quantity: number;
-        agentId?: number;
-        nonReturnable?: boolean;
-        discretionaryPct?: number;
-        // §7.2 — how `agentId` was learned: scanned on the floor, or picked at the till.
-        attribution?: 'salesfloor' | 'counter';
-      }[];
-      customerId?: number;
-      channel?: 'walkin' | 'online';
-      clientRef?: string;
-      offline?: boolean;
-      payments: { method: string; amount: number; referenceNumber?: string; identifier?: string }[];
-      vouchers?: { code: string; amount: number }[];
-      discountAmount?: number;
-      // §12 — special (flat) discount portion of discountAmount, kept separate
-      // for the itemized bill breakup. Does not change totals.
-      specialDiscount?: number;
-      loyaltyPointsRedeem?: number;
-      ownerPin?: string;
-      notes?: string;
-      exchange?: {
-        originalSaleId: number;
-        returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
-        reasonCode?: string | null;
-        reason?: string | null;
-        /**
-         * §0 one exchange per bill: a manager's or owner's signed approval to
-         * swap against a bill that has already been exchanged. Issued by
-         * `POST /sales/:saleId/exchange-override`.
-         */
-        overrideGrant?: string;
-      };
-    },
+    data: CheckoutInput,
     userId: number,
     branchId: number,
     internal: CheckoutInternal
@@ -622,7 +621,7 @@ export class PosService {
             where: { userId, status: 'open' },
           });
 
-      if (!isOnlineSale && !fromPending && !session) {
+      if (!isOnlineSale && !fromPending && !session && !internal.sessionOptional && !internal.dryRun) {
         throw new AppError('No open POS session. Open a session before checkout.', 400);
       }
 
@@ -1276,6 +1275,24 @@ export class PosService {
       const cashDue = Math.max(0, Math.round((amountDue - voucherTotal) * 100) / 100);
       const totalPayments = data.payments.reduce((sum, p) => sum + p.amount, 0);
 
+      if (internal.dryRun) {
+        throw new DryRunStop({
+          subtotal,
+          discount: Math.round(totalDiscount * 100) / 100,
+          saleTotal,
+          exchangeCredit,
+          amountDue,
+          refundDue,
+          lines: itemsForCreation.map((l) => ({
+            variantId: l.variantId,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            total: l.total,
+            offerId: l.offerId ?? null,
+          })),
+        });
+      }
+
       if (totalPayments < cashDue) {
         throw new AppError(
           `Payment shortfall. Payable: ${cashDue}, Paid: ${totalPayments}`,
@@ -1509,6 +1526,9 @@ export class PosService {
         sale.loyaltyPointsEarned = pointsEarned;
       }
 
+      // §7.2 — the floor baskets that became this bill are done.
+      await markBasketsBilled(tx, data.floorBasketIds, sale.id, branchId);
+
       // 10. Calculate change — against the cash-side due (after vouchers), so an
       // overpayment in cash returns the right change and vouchers give no cash back.
       const change = Math.round((totalPayments - cashDue) * 100) / 100;
@@ -1523,6 +1543,20 @@ export class PosService {
    *   - computed discount + effective unit price + qualification hint
    *   - the base unit price that was used
    */
+  /**
+   * The exact settlement of an exchange (or any bill) without writing it:
+   * runs the real checkout in a transaction that is always rolled back.
+   */
+  async quote(data: CheckoutInput, userId: number, branchId: number): Promise<CheckoutQuote> {
+    try {
+      await this._checkoutTxn({ ...data, clientRef: undefined, payments: data.payments ?? [] }, userId, branchId, { dryRun: true });
+    } catch (e) {
+      if (e instanceof DryRunStop) return e.quote;
+      throw e;
+    }
+    throw new AppError('Quote did not complete', 500);
+  }
+
   async evaluateCart(items: { variantId: number; quantity: number }[]) {
     const variantIds = items.map((i) => i.variantId);
     const variants = await prisma.productVariant.findMany({

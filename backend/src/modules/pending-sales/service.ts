@@ -26,6 +26,8 @@ export interface CapturePendingInput {
   amountReceived: number;
   notes?: string | null;
   clientRef?: string | null;
+  /** §15.5: captured from a salesfloor basket, which closes as a pending sale. */
+  floorBasketId?: number | null;
 }
 
 export interface FinalizePendingInput {
@@ -126,6 +128,13 @@ export class PendingSaleService {
               notes: `Pending sale ${number}`,
               createdBy: userId,
             },
+          });
+        }
+
+        if (input.floorBasketId) {
+          await tx.floorBasket.updateMany({
+            where: { id: input.floorBasketId, branchId, status: 'open' },
+            data: { status: 'pending_sale', pendingSaleId: pending.id },
           });
         }
 

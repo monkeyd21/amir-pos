@@ -148,66 +148,12 @@ async function grantFor(saleId: number): Promise<string> {
   return res.body.data.grant as string;
 }
 
+// The exchange itself (first one allowed, second refused, the override
+// honoured, the replacement billed) is covered against a real database in
+// src/__integration__/exchange-billing.test.ts. These keep the approval and
+// the bill-read checks, which need no checkout.
 describe('one exchange per bill', () => {
-  describe('a first exchange is untouched', () => {
-    it('goes through with no prompt when the bill has never been exchanged', async () => {
-      mockExchangeMachinery();
-      prismaMock.return.findMany.mockResolvedValue([]);
-
-      const res = await postExchange(1, exchangeBody());
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      // Nothing was approved, so nothing is recorded as approved.
-      expect(prismaMock.return.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ approvedBy: null }) })
-      );
-      const actions = prismaMock.auditLog.create.mock.calls.map(
-        (c: any[]) => c[0].data.action
-      );
-      expect(actions).not.toContain('exchange.limit_overridden');
-    });
-
-    it('goes through on a bill that was REFUNDED against but never exchanged', async () => {
-      // A refund is not an exchange. The customer still has their one swap.
-      mockExchangeMachinery();
-      prismaMock.return.findMany.mockResolvedValue([priorRefundRow]);
-
-      const res = await postExchange(1, exchangeBody());
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-    });
-
-    it('goes through on a bill with no customer attached', async () => {
-      // A walk-in bill is the ordinary case, not an error.
-      mockExchangeMachinery(walkInSale);
-      prismaMock.return.findMany.mockResolvedValue([]);
-
-      const res = await postExchange(2, exchangeBody());
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-    });
-  });
-
   describe('a second exchange is caught', () => {
-    it('refuses it and names the date of the earlier exchange', async () => {
-      mockExchangeMachinery();
-      prismaMock.return.findMany.mockResolvedValue([priorExchangeRow]);
-
-      const res = await postExchange(1, exchangeBody());
-
-      expect(res.status).toBe(409);
-      expect(res.body.error).toContain('W-0001');
-      expect(res.body.error).toContain('5 Sep 2026');
-      expect(res.body.error).toContain('RT-0007');
-      expect(res.body.error).toMatch(/one exchange per bill/i);
-      // Nothing was swapped and nothing was restocked.
-      expect(prismaMock.return.create).not.toHaveBeenCalled();
-      expect(prismaMock.inventory.upsert).not.toHaveBeenCalled();
-    });
-
     it('reports the earlier exchange date on the bill read, before anything is picked', async () => {
       prismaMock.sale.findUnique.mockResolvedValue({
         ...saleWithCustomer,
@@ -249,34 +195,6 @@ describe('one exchange per bill', () => {
   });
 
   describe('the manager override', () => {
-    it('lets a manager approve, and records who approved against which bill', async () => {
-      const grant = await grantFor(1);
-
-      mockExchangeMachinery();
-      prismaMock.return.findMany.mockResolvedValue([priorExchangeRow]);
-
-      const res = await postExchange(1, exchangeBody({ overrideGrant: grant }));
-
-      expect(res.status).toBe(201);
-      // The approver is stamped on the Return itself...
-      expect(prismaMock.return.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ approvedBy: managerRow.id }) })
-      );
-      // ...and written to the audit trail: who, and which bill. The row's own
-      // createdAt is the when.
-      const override = prismaMock.auditLog.create.mock.calls
-        .map((c: any[]) => c[0].data)
-        .find((d: any) => d.action === 'exchange.limit_overridden');
-      expect(override).toBeDefined();
-      expect(override.userId).toBe(managerRow.id);
-      expect(override.entityType).toBe('sale');
-      expect(override.entityId).toBe('1');
-      expect(override.data.approverName).toBe('Farah Sheikh');
-      expect(override.data.approverRole).toBe('manager');
-      expect(override.data.requestedByUserId).toBe(testUsers.cashier.userId);
-      expect(override.data.priorExchange.returnNumber).toBe('RT-0007');
-    });
-
     it('refuses a cashier trying to approve on their own', async () => {
       prismaMock.sale.findUnique.mockResolvedValue({
         id: 1,

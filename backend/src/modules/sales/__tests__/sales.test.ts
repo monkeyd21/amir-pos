@@ -327,81 +327,8 @@ describe('Sales Module', () => {
     });
   });
 
-  // ─── POST /:saleId/exchange ─────────────────────────────────
-  describe('POST /:saleId/exchange', () => {
-    it('should process an exchange', async () => {
-      prismaMock.sale.findUnique.mockResolvedValue({
-        ...fakeSale,
-        items: [
-          {
-            id: 10,
-            variantId: 5,
-            quantity: 2,
-            unitPrice: 1500,
-            taxAmount: 540,
-            returnedQuantity: 0,
-          },
-        ],
-      });
-
-      const newVariant = {
-        id: 20,
-        barcode: '2009876543210',
-        size: 'L',
-        color: 'Red',
-        priceOverride: null,
-        costOverride: null,
-        isActive: true,
-        product: { id: 2, name: 'Polo', basePrice: 2000, costPrice: 1000, taxRate: 18 },
-      };
-      prismaMock.productVariant.findMany.mockResolvedValue([newVariant]);
-      prismaMock.inventory.findUnique.mockResolvedValue({ quantity: 10 });
-
-      prismaMock.return.create.mockResolvedValue({
-        id: 5,
-        returnNumber: 'RT-TEST-005',
-        type: 'exchange',
-        status: 'completed',
-        items: [],
-      });
-
-      prismaMock.saleItem.update.mockResolvedValue({});
-      prismaMock.inventory.upsert.mockResolvedValue({});
-      prismaMock.inventory.update.mockResolvedValue({});
-      prismaMock.inventoryMovement.create.mockResolvedValue({});
-      prismaMock.saleItem.findMany.mockResolvedValue([
-        { id: 10, quantity: 2, returnedQuantity: 1 },
-      ]);
-      prismaMock.sale.update.mockResolvedValue({});
-
-      const res = await request(app)
-        .post(`${BASE}/1/exchange`)
-        .set('Authorization', authHeader(testUsers.cashier))
-        .send({
-          returnItems: [{ saleItemId: 10, quantity: 1, condition: 'resellable' }],
-          newItems: [{ barcode: '2009876543210', quantity: 1 }],
-          reason: 'Size swap',
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty('priceDifference');
-    });
-
-    it('should return 404 for non-existent sale', async () => {
-      prismaMock.sale.findUnique.mockResolvedValue(null);
-
-      const res = await request(app)
-        .post(`${BASE}/999/exchange`)
-        .set('Authorization', authHeader(testUsers.cashier))
-        .send({
-          returnItems: [{ saleItemId: 1, quantity: 1, condition: 'resellable' }],
-          newItems: [{ barcode: '123', quantity: 1 }],
-        });
-
-      expect(res.status).toBe(404);
-    });
-  });
+  // POST /:saleId/exchange now bills through checkout: see
+  // src/__integration__/exchange-billing.test.ts.
 
   // ─── GET /:id with sale number lookup ─────────────────────────
   describe('GET /:id (sale number lookup)', () => {

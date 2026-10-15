@@ -79,6 +79,8 @@ export const checkoutSchema = z.object({
     // Usually ≥1 payment, but an even exchange (return credit exactly covers
     // the new purchase) settles at ₹0 with no tender. The service validates
     // that payments actually cover the net payable, so empty is safe.
+    // §7.2 — salesfloor baskets pulled into this bill.
+    floorBasketIds: z.array(z.number().int().positive()).max(20).optional(),
     payments: z
       .array(
         z.object({
@@ -183,5 +185,15 @@ export const evaluateCartSchema = z.object({
         })
       )
       .min(1, 'At least one item is required'),
+  }),
+});
+
+/**
+ * The exact settlement of a bill before it is taken (exchange quotes): the
+ * checkout body, minus the tenders, which are what the quote is for.
+ */
+export const quoteSchema = z.object({
+  body: checkoutSchema.shape.body.extend({
+    payments: checkoutSchema.shape.body.shape.payments.optional().default([]),
   }),
 });
