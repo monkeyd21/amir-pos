@@ -248,6 +248,48 @@ rewrite past margins.
 `new Date(y, m, d)`: that is the host's timezone, right on the UTC prod box and
 a day off anywhere else. Use `dateOnly(ymd)` from `utils/ist.ts`.
 
+### 7d. The business dashboard computes live, never from a summary table
+The client's dashboard spec (v4.5, zones A to K) asks for a delta-updated
+summary table; it was deliberately NOT built. `GET /api/v1/dashboard` aggregates
+the sales tables per trading day with indexed queries (about 100 ms on a year
+of data), so no write path can ever leave it stale. Definitions live in
+`modules/dashboard/metrics.ts`: a return reduces the day it happens, a POS
+exchange is one bill worth the difference, margin divides by COSTED sales.
+Role access (§11A) is `shared/src/dashboard-access.ts` and is applied on the
+SERVER: a box a role may not see is left out of the payload.
+
+Live updates: `dashboard/events.ts` announces every successful write from ONE
+middleware, and `/dashboard/stream` (SSE, read with `fetch` so the token stays
+in a header) pushes it. Never add per-route "notify the dashboard" calls.
+
+### 7e. Checkout options a client must not send go in `CheckoutInternal`
+Controllers pass `req.body` straight into `posService.checkout`, so anything in
+`CheckoutInput` is client-controllable. Server-only switches (finalising a
+pending sale on its original day without deducting stock, dry-run quotes, the
+legacy exchange endpoint's shift-free billing) are the fourth argument.
+`POST /pos/exchange/quote` runs the real checkout and rolls it back: use it
+whenever a screen must show what a bill will settle at.
+
+### 7f. Every exchange is a bill
+Both exchange entry points settle through checkout: the replacement is a real
+Sale and the difference is a Payment. `POST /sales/:id/exchange` survives only
+for app builds already installed (`sales/legacy-exchange.ts`); it records the
+difference as cash because those screens never asked.
+
+### 7g. Dates read DD-MM-YYYY, in India time
+Use `formatIstDate` / `formatIstDateTime` / `formatDdMmYyyy` from
+`@clothing-erp/shared` in code, and the date pipe (whose app-wide default is
+`dd-MM-yyyy` at `+0530`) in templates. Never `toLocaleDateString` /
+`toLocaleTimeString` without a timezone: the server runs UTC, and the PDF bill
+printed every time 5h30m early until this was fixed.
+
+### 7h. After changing `shared/`, restart `ng serve`
+Rebuild it (`npm run build --workspace=shared`) AND restart the frontend dev
+server: Vite pre-bundles `@clothing-erp/shared` once, so a running `ng serve`
+keeps the old copy and fails at runtime ("X is not a function") on anything
+new, while `ng build` passes. If a restart is not enough, delete
+`frontend/.angular/cache`.
+
 ### 8. ts-node-dev sometimes misses file changes
 If you edit a file and don't see `[INFO] Restarting` in the backend log, force a restart. The `--respawn` flag isn't perfectly reliable. `touch` doesn't always work; you may need to modify file content (add/remove a blank line).
 
@@ -285,9 +327,13 @@ Always use fallback: `item.variant?.product?.name || item.productName || item.na
 | `accounting` | Journal entries | Basic double-entry |
 | `reports` | Analytics + CSV export | Sales, inventory, commissions, P&L |
 | `payments` | UPI/card gateway | Webhook at `/api/v1/webhooks/payment` (raw body) |
+| `dashboard` | Business dashboard (spec v4.5) | `GET /dashboard`, `/dashboard/stream` (SSE), `/dashboard/drill/:kind`, `/dashboard/layout/:device`, `/dashboard/stock`, quick actions |
+| `pending-sales` | Sold but not yet billed (§15.5) | capture (any role, barcode only, stock off at once), `/:id/finalize` → real bill on the original day, `/:id/void` |
+| `upi-credits` | UPI statement import + matching (§15.2) | `/import` (idempotent on UTR), auto-match only when unambiguous, `/:id/match`, `/:id/non-sale` |
+| `floor-baskets` | Salesfloor scan (§7.2) | 3-digit basket per salesperson; the POS pulls it and lines carry `attribution = 'salesfloor'` |
 
 ### Frontend modules (`frontend/src/app/modules/*`)
-`auth`, `dashboard`, `sales`, `inventory`, `pos`, `customers`, `employees`, `expenses`, `accounting`, `reports`, `offers`, `settings`
+`auth`, `dashboard` (grid layout, side panels, stock list), `sales`, `inventory`, `pos`, `customers`, `employees`, `expenses`, `accounting`, `reports`, `offers`, `settings`, `reconciliation` (UPI credits page), `mobile-pos` (Floor tab for baskets and pending sales)
 
 ## Key data models
 - `Sale` has `userId` (cashier). `SaleItem` has `agentId` (per-line salesman — independent of cashier).
@@ -321,6 +367,14 @@ Native Android app wraps the same Angular frontend. Route: `/mobile-pos` (full-s
 - Android project: `frontend/android/` (scaffolded with `npx cap add android`)
 - API URL: auto-resolves from `window.location.hostname` — so if phone opens `http://192.168.x.x:4200/mobile-pos`, API calls go to `http://192.168.x.x:3000/api/v1`. Laptop dev at `localhost` stays on `localhost:3000`.
 - Camera permission in `AndroidManifest.xml` (`android.permission.CAMERA` + camera feature optional).
+- Offline: scans resolve against the cached catalog (IndexedDB via
+  `core/services/offline-store.ts`, held in memory by `OfflineService`;
+  localStorage overflowed silently on a large catalog), checkout queues the
+  bill under its `clientRef`, and pending sales from the Floor tab queue the
+  same way. Everything syncs once on reconnect. Mobile checkout always sends a
+  `clientRef`, so a double tap can never bill twice.
+- An installed APK bundles its own copy of the screens: a backend change must
+  keep the endpoints older builds call working (see §7f).
 
 **Test in browser first (fastest):**
 ```bash
