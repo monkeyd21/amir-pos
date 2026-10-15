@@ -1,4 +1,9 @@
-<aside class="flex flex-col h-screen py-6 bg-[#131b2e] w-64 fixed left-0 top-0 z-40">
+<aside
+  class="flex flex-col h-screen py-6 bg-[#131b2e] w-64 fixed left-0 top-0 z-40 transition-transform duration-200 md:translate-x-0"
+  [class.-translate-x-full]="!drawer.open()"
+  [class.translate-x-0]="drawer.open()"
+  aria-label="Main navigation"
+>
   <!-- Logo -->
   <div class="px-6 mb-10 flex items-center gap-3 shrink-0">
     <div class="w-10 h-10 bg-[#465fff] rounded-xl flex items-center justify-center">

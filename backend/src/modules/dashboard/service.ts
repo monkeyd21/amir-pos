@@ -87,8 +87,8 @@ const ratio = (a: number, b: number): number | null => (b > 0 ? a / b : null);
  * not merely hidden by the browser. Owner-only numbers never leave the server
  * for a cashier.
  */
-export async function getDashboard(viewer: DashboardViewer, query: DashboardQuery) {
-  const branch = await prisma.branch.findUniqueOrThrow({ where: { id: viewer.branchId }, select: { id: true, name: true } });
+/** The trading day and the resolved period ranges for a viewer's branch. */
+export async function resolveViewerPeriod(viewer: DashboardViewer, query: DashboardQuery) {
   const bdDate = await currentBusinessDateForBranch(prisma, viewer.branchId);
   const businessDate = ymdOf(bdDate);
   const period = resolvePeriod({
@@ -98,6 +98,12 @@ export async function getDashboard(viewer: DashboardViewer, query: DashboardQuer
     from: query.from,
     to: query.to,
   });
+  return { bdDate, businessDate, period };
+}
+
+export async function getDashboard(viewer: DashboardViewer, query: DashboardQuery) {
+  const branch = await prisma.branch.findUniqueOrThrow({ where: { id: viewer.branchId }, select: { id: true, name: true } });
+  const { bdDate, businessDate, period } = await resolveViewerPeriod(viewer, query);
 
   const sees = (e: DashboardElement) => canSeeOnDashboard(viewer.role, e, period.period);
   const level = (e: DashboardElement) => dashboardAccess(viewer.role, e);

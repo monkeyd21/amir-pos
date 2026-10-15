@@ -1,0 +1,406 @@
+<div class="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true" [attr.aria-label]="title()">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-[2px]" (click)="close()"></div>
+
+  <aside class="relative flex h-full w-full flex-col bg-surface-container-low shadow-2xl ring-1 ring-outline-variant/20 sm:max-w-[30rem]">
+    <header class="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">
+      <h2 class="min-w-0 flex-1 truncate font-headline text-lg font-bold text-on-surface">{{ title() }}</h2>
+      <button
+        #closeBtn
+        type="button"
+        class="grid h-9 w-9 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+        aria-label="Close"
+        (click)="close()"
+      >
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </header>
+
+    <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[14px] text-on-surface">
+      @if (loading()) {
+        <div class="space-y-3" aria-busy="true">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <div class="h-12 animate-pulse rounded-lg bg-surface-container-high/60"></div>
+          }
+        </div>
+      } @else if (error()) {
+        <p class="rounded-lg bg-rose-500/10 px-4 py-3 text-rose-200 ring-1 ring-rose-400/25">{{ error() }}</p>
+      } @else {
+        @if (data(); as d) {
+        @switch (request.kind) {
+          <!-- ─── Sales: by category and by hour ─── -->
+          @case ('sales') {
+            <h3 class="mb-2 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">By category</h3>
+            @if (d.byCategory.length === 0) {
+              <p class="text-on-surface-variant">No sales in this period.</p>
+            }
+            <ul class="space-y-2">
+              @for (c of d.byCategory; track c.name) {
+                <li>
+                  <div class="flex justify-between gap-3">
+                    <span>{{ c.name }}</span>
+                    <span class="tabular-nums">{{ c.value | inr }} <span class="text-on-surface-variant">· {{ c.items }} pcs</span></span>
+                  </div>
+                  <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-container-highest/70">
+                    <div class="h-full rounded-full bg-primary/75" [style.width.%]="pct(c.value, maxOf(d.byCategory, 'value'))"></div>
+                  </div>
+                </li>
+              }
+            </ul>
+            <h3 class="mb-2 mt-6 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">By hour</h3>
+            <ul class="space-y-1.5">
+              @for (h of d.byHour; track h.hour) {
+                <li class="grid grid-cols-[6.5rem_1fr_5.5rem] items-center gap-3 text-[13px]">
+                  <span class="text-on-surface-variant">{{ hourLabel(h.hour) }}</span>
+                  <span class="h-1.5 overflow-hidden rounded-full bg-surface-container-highest/70">
+                    <span class="block h-full rounded-full bg-sky-400/70" [style.width.%]="pct(h.value, maxOf(d.byHour, 'value'))"></span>
+                  </span>
+                  <span class="text-right tabular-nums">{{ h.value | inr: 'compact' }}</span>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- ─── Bill lists: all, discounted, by payment mode ─── -->
+          @case ('bills') {
+            <ng-container *ngTemplateOutlet="billList; context: { bills: d.bills }"></ng-container>
+          }
+          @case ('discount') {
+            <p class="mb-3 text-[13px] text-on-surface-variant">Bills with a discount, deepest first. Over 25% is flagged.</p>
+            <ng-container *ngTemplateOutlet="billList; context: { bills: d.bills }"></ng-container>
+          }
+          @case ('payments') {
+            <ng-container *ngTemplateOutlet="billList; context: { bills: d.bills, mode: d.mode }"></ng-container>
+          }
+
+          <!-- ─── Profit and cost coverage (§3.1) ─── -->
+          @case ('profit') {
+            <p class="mb-4 text-[13px] leading-relaxed text-on-surface-variant">
+              Profit counts only lines with a cost recorded. Lines without one are left out of both profit and margin, and
+              pull cost coverage down by their value.
+            </p>
+            <h3 class="mb-2 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">By category</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-[13px]">
+                <thead class="text-left text-[11px] uppercase tracking-wider text-on-surface-variant">
+                  <tr>
+                    <th class="py-1.5 font-semibold">Category</th>
+                    <th class="py-1.5 text-right font-semibold">Sales</th>
+                    <th class="py-1.5 text-right font-semibold">Margin</th>
+                    <th class="py-1.5 text-right font-semibold">Coverage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of d.byCategory; track c.name) {
+                    <tr class="border-t border-outline-variant/10">
+                      <td class="py-2">{{ c.name }}</td>
+                      <td class="py-2 text-right tabular-nums">{{ c.sales | inr }}</td>
+                      <td class="py-2 text-right tabular-nums">{{ c.marginPct != null ? c.marginPct + '%' : '—' }}</td>
+                      <td class="py-2 text-right tabular-nums" [class.text-amber-300]="c.coveragePct != null && c.coveragePct < 90">
+                        {{ c.coveragePct != null ? c.coveragePct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <h3 class="mb-2 mt-6 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">
+              Sold without a cost ({{ d.uncosted.length }})
+            </h3>
+            @if (d.uncosted.length === 0) {
+              <p class="text-on-surface-variant">Every line sold has a cost. Profit is complete.</p>
+            } @else {
+              <ul class="divide-y divide-outline-variant/10">
+                @for (u of d.uncosted; track u.variantId) {
+                  <li class="flex items-center justify-between gap-3 py-2">
+                    <span class="min-w-0">
+                      <span class="block truncate">{{ u.name }}</span>
+                      <span class="block text-[12px] text-on-surface-variant">{{ u.sku }} · {{ u.size }} · {{ u.qty }} pc{{ u.qty === 1 ? '' : 's' }}</span>
+                    </span>
+                    <span class="shrink-0 tabular-nums">{{ u.value | inr }}</span>
+                  </li>
+                }
+              </ul>
+              <p class="mt-3 text-[12px] text-on-surface-variant">Add a cost on the article's page to bring these into profit.</p>
+            }
+          }
+
+          <!-- ─── Returns ─── -->
+          @case ('returns') {
+            @if (d.returns.length === 0) {
+              <p class="text-on-surface-variant">Nothing came back in this period.</p>
+            }
+            <ul class="divide-y divide-outline-variant/10">
+              @for (r of d.returns; track r.id) {
+                <li>
+                  <button type="button" class="flex w-full items-start justify-between gap-3 py-2.5 text-left hover:bg-surface-container-high/40" (click)="showBill(r.saleId)">
+                    <span class="min-w-0">
+                      <span class="flex items-center gap-2">
+                        <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" [ngClass]="r.type === 'exchange' ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300'">
+                          {{ r.type === 'exchange' ? 'Exchange' : 'Refund' }}
+                        </span>
+                        <span class="font-medium">{{ r.reason || 'No reason given' }}</span>
+                      </span>
+                      <span class="mt-0.5 block truncate text-[12px] text-on-surface-variant">{{ r.items.join(', ') }}</span>
+                      <span class="block text-[12px] text-on-surface-variant">{{ r.at | ddmmyyyy }} {{ timeIst(r.at) }} · bill {{ r.saleNumber }}</span>
+                    </span>
+                    <span class="shrink-0 tabular-nums">{{ r.value | inr }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- ─── Customers ─── -->
+          @case ('customers') {
+            <p class="mb-3 text-[13px] text-on-surface-variant">
+              Only customers who gave a number are listed. Walk-ins are counted on the card, never labelled new or returning.
+            </p>
+            <ul class="divide-y divide-outline-variant/10">
+              @for (c of d.customers; track c.id) {
+                <li class="flex items-center justify-between gap-3 py-2.5">
+                  <span class="min-w-0">
+                    <span class="flex items-center gap-2">
+                      <span class="truncate font-medium">{{ c.name }}</span>
+                      <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider" [ngClass]="c.returning ? 'bg-emerald-500/15 text-emerald-300' : 'bg-sky-500/15 text-sky-300'">
+                        {{ c.returning ? 'Returning' : 'New' }}
+                      </span>
+                    </span>
+                    <span class="block text-[12px] text-on-surface-variant">{{ c.phone }} · {{ c.bills }} bill{{ c.bills === 1 ? '' : 's' }}</span>
+                  </span>
+                  <span class="shrink-0 tabular-nums">{{ c.spent | inr }}</span>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- ─── Salesperson (§7.2: the fuller picture) ─── -->
+          @case ('staff') {
+            <p class="font-headline text-xl font-bold">{{ d.user.name }}</p>
+            <dl class="mt-4 grid grid-cols-2 gap-3">
+              @for (m of [
+                { label: 'Sales', value: (d.value | inr) },
+                { label: 'Bills', value: d.bills },
+                { label: 'UPT', value: d.upt ?? '—' },
+                { label: 'Return rate', value: d.returnRate != null ? d.returnRate + '%' : '—' },
+              ]; track m.label) {
+                <div class="rounded-xl bg-surface-container-high/60 px-4 py-3">
+                  <dt class="text-[12px] text-on-surface-variant">{{ m.label }}</dt>
+                  <dd class="mt-0.5 font-headline text-lg font-bold tabular-nums">{{ m.value }}</dd>
+                </div>
+              }
+            </dl>
+            <p class="mt-3 text-[12px] leading-relaxed text-on-surface-variant">
+              Sales alone can flatter someone who happened to serve bigger baskets. Read them with UPT and the return rate.
+            </p>
+            <h3 class="mb-2 mt-6 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">Pieces they sold that came back (30 days)</h3>
+            @if (d.returns.length === 0) {
+              <p class="text-on-surface-variant">None.</p>
+            }
+            <ul class="divide-y divide-outline-variant/10">
+              @for (r of d.returns; track r.number + r.item) {
+                <li class="flex items-start justify-between gap-3 py-2">
+                  <span class="min-w-0">
+                    <span class="block truncate">{{ r.item }}</span>
+                    <span class="block text-[12px] text-on-surface-variant">{{ r.reason || 'No reason' }} · {{ r.at | ddmmyyyy }}</span>
+                  </span>
+                  <span class="shrink-0 tabular-nums">{{ r.value | inr }}</span>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- ─── Article: repeat returns + quality check ─── -->
+          @case ('product') {
+            <p class="font-headline text-xl font-bold">{{ d.product.name }}</p>
+            <p class="mt-1 text-[13px] text-on-surface-variant">
+              {{ d.product.category || 'No category' }}
+              @if (d.vendor) { · supplied by {{ d.vendor.name }} } @else { · no supplier on record }
+            </p>
+
+            @if (d.qualityCheck; as q) {
+              <div class="mt-4 rounded-xl bg-amber-500/10 px-4 py-3 ring-1 ring-amber-400/25">
+                <p class="font-semibold text-amber-200">Marked for a quality check</p>
+                <p class="mt-0.5 text-[13px] text-amber-100/80">{{ q.at | ddmmyyyy }}@if (q.by) { by {{ q.by }}}@if (q.note) { · "{{ q.note }}"}</p>
+                @if (senior) {
+                  <button type="button" class="mt-2 text-[13px] font-semibold text-amber-200 underline" [disabled]="busy()" (click)="clearQualityCheck(d.product.id)">
+                    Checked, clear it
+                  </button>
+                }
+              </div>
+            } @else if (senior) {
+              <form class="mt-4 flex flex-col gap-2 rounded-xl bg-surface-container-high/60 p-3" (ngSubmit)="markQualityCheck(d.product.id)">
+                <label class="text-[12px] text-on-surface-variant" for="qc-note">Note for whoever checks it (optional)</label>
+                <input
+                  id="qc-note"
+                  name="note"
+                  maxlength="500"
+                  [(ngModel)]="qualityNote"
+                  placeholder="e.g. stitching at the hem"
+                  class="rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20 focus:outline-none focus:ring-primary/50"
+                />
+                <button type="submit" class="self-start rounded-lg bg-amber-500/90 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400" [disabled]="busy()">
+                  Mark for quality check
+                </button>
+              </form>
+            }
+
+            <h3 class="mb-2 mt-6 text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">Returned in the last 7 days</h3>
+            <ul class="divide-y divide-outline-variant/10">
+              @for (r of d.returns; track r.number + r.sku) {
+                <li>
+                  <button type="button" class="flex w-full items-start justify-between gap-3 py-2 text-left hover:bg-surface-container-high/40" (click)="showBill(r.saleId)">
+                    <span class="min-w-0">
+                      <span class="block">{{ r.reason || 'No reason given' }}</span>
+                      <span class="block text-[12px] text-on-surface-variant">{{ r.variant }} · {{ r.sku }} · {{ r.condition }}</span>
+                    </span>
+                    <span class="shrink-0 text-right text-[12px] text-on-surface-variant">{{ r.at | ddmmyyyy }}<br />{{ r.saleNumber }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- ─── Held bill: resume or void ─── -->
+          @case ('held') {
+            <p class="text-[13px] text-on-surface-variant">
+              Parked {{ ageText(d.createdAt) }} ago by {{ d.heldBy }}
+              @if (d.customer) { for <b class="text-on-surface">{{ d.customer.name }}</b> } @else { for a walk-in }
+            </p>
+            <ul class="mt-4 divide-y divide-outline-variant/10">
+              @for (l of d.lines; track $index) {
+                <li class="flex items-center justify-between gap-3 py-2">
+                  <span class="min-w-0 truncate">{{ l.name }}@if (l.size) { <span class="text-on-surface-variant"> · {{ l.size }}</span>}</span>
+                  <span class="shrink-0 tabular-nums">{{ l.quantity }} × {{ l.price | inr }}</span>
+                </li>
+              }
+            </ul>
+            <p class="mt-3 flex justify-between border-t border-outline-variant/15 pt-3 font-semibold">
+              <span>Value</span><span class="tabular-nums">{{ d.value | inr }}</span>
+            </p>
+            <div class="mt-5 flex flex-wrap gap-2">
+              <button type="button" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container" (click)="resumeHeld(d.id)">
+                Resume billing
+              </button>
+              @if (!confirmVoid()) {
+                <button type="button" class="rounded-lg px-4 py-2 text-sm font-semibold text-rose-300 ring-1 ring-rose-400/40 hover:bg-rose-500/10" (click)="confirmVoid.set(true)">
+                  Void
+                </button>
+              } @else {
+                <span class="flex items-center gap-2 rounded-lg bg-rose-500/10 px-3 py-1.5 text-[13px] ring-1 ring-rose-400/30">
+                  Void this held bill?
+                  <button type="button" class="font-semibold text-rose-200 underline" [disabled]="busy()" (click)="voidHeld(d.id)">Yes, void</button>
+                  <button type="button" class="text-on-surface-variant underline" (click)="confirmVoid.set(false)">Keep</button>
+                </span>
+              }
+            </div>
+          }
+
+          <!-- ─── A single bill ─── -->
+          @case ('bill') {
+            <div class="flex items-baseline justify-between gap-3">
+              <p class="font-headline text-xl font-bold">{{ d.saleNumber }}</p>
+              <p class="text-[13px] text-on-surface-variant">{{ d.businessDate || d.createdAt | ddmmyyyy }} {{ timeIst(d.createdAt) }}</p>
+            </div>
+            <p class="mt-1 text-[13px] text-on-surface-variant">
+              {{ d.customer ? person(d.customer) + ' · ' + d.customer.phone : 'Walk-in' }} · billed by {{ person(d.user) }}
+            </p>
+            <ul class="mt-4 divide-y divide-outline-variant/10">
+              @for (i of d.items; track i.id) {
+                <li class="flex items-start justify-between gap-3 py-2">
+                  <span class="min-w-0">
+                    <span class="block">{{ billLine(i) }}</span>
+                    <span class="block text-[12px] text-on-surface-variant">
+                      {{ i.quantity }} × {{ i.unitPrice | inr }}@if (i.agent) { · sold by {{ person(i.agent) }}}@if (i.returnedQuantity > 0) { · <span class="text-rose-300">{{ i.returnedQuantity }} returned</span>}
+                    </span>
+                  </span>
+                  <span class="shrink-0 tabular-nums">{{ i.total | inr }}</span>
+                </li>
+              }
+            </ul>
+            <dl class="mt-3 space-y-1 border-t border-outline-variant/15 pt-3 text-[13px]">
+              <div class="flex justify-between"><dt class="text-on-surface-variant">Discount</dt><dd class="tabular-nums">{{ d.discountAmount | inr }}</dd></div>
+              <div class="flex justify-between font-semibold"><dt>Total</dt><dd class="tabular-nums">{{ d.total | inr }}</dd></div>
+              @for (p of d.payments; track p.id) {
+                <div class="flex justify-between"><dt class="text-on-surface-variant">{{ paymentLabel(p.method) }}</dt><dd class="tabular-nums">{{ p.amount | inr }}</dd></div>
+              }
+            </dl>
+            <button type="button" class="mt-5 text-sm font-semibold text-primary hover:underline" (click)="openBill(d.id)">Open the full bill →</button>
+          }
+
+          <!-- ─── Cash in drawer (§5.3) ─── -->
+          @case ('eod') {
+            @for (s of d.sessions; track s.id) {
+              <section class="mb-5 rounded-xl bg-surface-container-high/50 p-4">
+                <p class="flex justify-between text-[13px] text-on-surface-variant">
+                  <span>{{ s.cashier }}</span>
+                  <span>{{ timeIst(s.openedAt) }} to {{ s.closedAt ? timeIst(s.closedAt) : 'open' }}</span>
+                </p>
+                <dl class="mt-3 space-y-1 text-[13px]">
+                  <div class="flex justify-between"><dt>Opening float</dt><dd class="tabular-nums">{{ s.openingFloat | inr }}</dd></div>
+                  <div class="flex justify-between"><dt>Expected before payouts</dt><dd class="tabular-nums">{{ s.expectedBeforeOutflows | inr }}</dd></div>
+                  @if (s.pettyCash) {
+                    <div class="flex justify-between"><dt>Petty cash @if (s.pettyCashReason) { ({{ s.pettyCashReason }}) }</dt><dd class="tabular-nums">−{{ s.pettyCash | inr }}</dd></div>
+                  }
+                  @if (s.cashDrop) {
+                    <div class="flex justify-between"><dt>Cash drop</dt><dd class="tabular-nums">−{{ s.cashDrop | inr }}</dd></div>
+                  }
+                  <div class="flex justify-between font-semibold"><dt>Expected in drawer</dt><dd class="tabular-nums">{{ s.expected | inr }}</dd></div>
+                  <div class="flex justify-between font-semibold"><dt>Counted</dt><dd class="tabular-nums">{{ s.counted | inr }}</dd></div>
+                  <div class="flex justify-between" [class.text-rose-300]="s.variance < 0" [class.text-amber-300]="s.variance > 0">
+                    <dt>{{ s.variance < 0 ? 'Short' : s.variance > 0 ? 'Over' : 'Difference' }}</dt>
+                    <dd class="tabular-nums">{{ (s.variance < 0 ? -s.variance : s.variance) | inr }}</dd>
+                  </div>
+                  @if (s.varianceReason) {
+                    <div class="text-[12px] text-on-surface-variant">Reason given: {{ s.varianceReason }}</div>
+                  }
+                </dl>
+                <dl class="mt-3 grid grid-cols-2 gap-2 border-t border-outline-variant/15 pt-3 text-[12px] text-on-surface-variant">
+                  <div>UPI: {{ s.upi.received | inr }} of {{ s.upi.expected | inr }}</div>
+                  <div>Card: {{ s.card.received | inr }} of {{ s.card.expected | inr }}</div>
+                </dl>
+                @if (s.variance > 0) {
+                  <p class="mt-3 text-[12px] leading-relaxed text-amber-200/90">
+                    More cash than the bills explain. It may be a sale that was never billed: check pending sales and
+                    unmatched payments.
+                  </p>
+                }
+              </section>
+            }
+          }
+        }
+        }
+      }
+    </div>
+  </aside>
+</div>
+
+<ng-template #billList let-bills="bills" let-mode="mode">
+  @if (bills.length === 0) {
+    <p class="text-on-surface-variant">No bills in this period.</p>
+  }
+  <ul class="divide-y divide-outline-variant/10">
+    @for (b of bills; track b.id) {
+      <li>
+        <button type="button" class="flex w-full items-center justify-between gap-3 py-2.5 text-left hover:bg-surface-container-high/40" (click)="showBill(b.id)">
+          <span class="min-w-0">
+            <span class="flex items-center gap-2">
+              <span class="font-medium">{{ b.number }}</span>
+              @if (b.exchange) {
+                <span class="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">Exchange</span>
+              }
+              @if (b.highDiscount) {
+                <span class="rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-300">High discount</span>
+              }
+            </span>
+            <span class="block truncate text-[12px] text-on-surface-variant">
+              {{ b.at | ddmmyyyy }} {{ timeIst(b.at) }} · {{ b.customer || 'Walk-in' }} · {{ b.lines }} line{{ b.lines === 1 ? '' : 's' }}@if (b.discount > 0) { · {{ b.discountPct }}% off}
+            </span>
+          </span>
+          <span class="shrink-0 text-right tabular-nums">
+            {{ (mode ? b.modeAmount : b.total) | inr }}
+          </span>
+        </button>
+      </li>
+    }
+  </ul>
+</ng-template>

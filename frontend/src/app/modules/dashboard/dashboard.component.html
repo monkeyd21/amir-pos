@@ -1,263 +1,518 @@
-<!-- Loading State -->
-<div *ngIf="loading" class="flex items-center justify-center h-[60vh]">
-  <div class="flex flex-col items-center gap-4">
-    <div class="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-    <p class="text-sm text-on-surface-variant">Loading dashboard...</p>
-  </div>
-</div>
-
-<!-- Dashboard Content -->
-<div *ngIf="!loading" class="space-y-10">
-
-  <!-- Page Title -->
-  <div>
-    <h1 class="text-3xl font-headline font-bold text-on-surface">Dashboard</h1>
-    <p class="mt-1 text-sm text-on-surface-variant">Welcome back. Here's your store overview.</p>
-  </div>
-
-  <!-- KPI Section -->
-  <section>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-
-      <!-- Today's Sales -->
-      <div class="bg-surface-container-high p-8 rounded-xl relative overflow-hidden group">
-        <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-tertiary"></div>
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Today's Sales</p>
-        <div class="flex items-end justify-between">
-          <h3 class="text-4xl font-headline font-bold text-primary">{{ totalSales }}</h3>
-          <span class="material-symbols-outlined text-primary/40 text-4xl">shopping_bag</span>
-        </div>
-        <div class="mt-4 flex items-center gap-1 text-xs text-primary">
-          <span class="material-symbols-outlined text-sm">trending_up</span>
-          <span>orders today</span>
-        </div>
-      </div>
-
-      <!-- Revenue -->
-      <div class="bg-surface-container-high p-8 rounded-xl relative overflow-hidden group">
-        <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary-container"></div>
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Revenue</p>
-        <div class="flex items-end justify-between">
-          <h3 class="text-4xl font-headline font-bold text-on-surface">{{ formatCurrency(totalRevenue) }}</h3>
-          <span class="material-symbols-outlined text-on-surface/40 text-4xl">payments</span>
-        </div>
-        <div class="mt-4 flex items-center gap-1 text-xs text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm">trending_up</span>
-          <span>today's revenue</span>
-        </div>
-      </div>
-
-      <!-- Customers -->
-      <div class="bg-surface-container-high p-8 rounded-xl relative overflow-hidden group">
-        <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-secondary-container"></div>
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Customers</p>
-        <div class="flex items-end justify-between">
-          <h3 class="text-4xl font-headline font-bold text-on-surface">{{ totalCustomers }}</h3>
-          <span class="material-symbols-outlined text-on-surface/40 text-4xl">person_add</span>
-        </div>
-        <div class="mt-4 flex items-center gap-1 text-xs text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm">group</span>
-          <span>total registered</span>
-        </div>
-      </div>
-
-      <!-- Low Stock -->
-      <div class="bg-surface-container-high p-8 rounded-xl relative overflow-hidden group">
-        <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-error"></div>
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Low Stock</p>
-        <div class="flex items-end justify-between">
-          <h3 class="text-4xl font-headline font-bold text-error">{{ lowStockCount }}</h3>
-          <span class="material-symbols-outlined text-error/40 text-4xl">inventory_2</span>
-        </div>
-        <div class="mt-4 flex items-center gap-1 text-xs text-error">
-          <span class="material-symbols-outlined text-sm">warning</span>
-          <span>items need restock</span>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- Analytics Section -->
-  <section>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-      <!-- Weekly Sales Chart -->
-      <div class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-8 shadow-2xl">
-        <div class="flex items-center justify-between mb-8">
-          <div>
-            <h2 class="text-lg font-headline font-bold text-on-surface">Weekly Sales</h2>
-            <p class="text-xs text-on-surface-variant mt-1">Sales performance this week</p>
-          </div>
-          <span class="material-symbols-outlined text-on-surface-variant">bar_chart</span>
-        </div>
-        <div class="h-[300px]">
-          <canvas #salesChart></canvas>
-        </div>
-      </div>
-
-      <!-- Stock Alerts -->
-      <div class="bg-surface-container-lowest rounded-xl p-8 shadow-2xl">
-        <div class="flex items-center justify-between mb-8">
-          <div>
-            <h2 class="text-lg font-headline font-bold text-on-surface">Stock Alerts</h2>
-            <p class="text-xs text-on-surface-variant mt-1">Items below minimum level</p>
-          </div>
-          <span class="material-symbols-outlined text-error">notification_important</span>
-        </div>
-
-        <div *ngIf="lowStockItems.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
-          <span class="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-3">check_circle</span>
-          <p class="text-sm text-on-surface-variant">All stock levels healthy</p>
-        </div>
-
-        <div class="space-y-1 max-h-[300px] overflow-y-auto no-scrollbar">
-          <div
-            *ngFor="let item of lowStockItems; let i = index"
-            class="flex items-center gap-4 p-4 rounded-lg hover:bg-surface-container-high/50 transition-colors"
-            [class.border-l-2]="true"
-            [class.border-error]="item.currentStock <= 2"
-            [class.border-yellow-500]="item.currentStock > 2"
-          >
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-on-surface truncate">{{ getProductName(item) }}</p>
-              <p class="text-[11px] text-on-surface-variant mt-0.5">
-                {{ item.sku }}
-                <span *ngIf="getVariantLabel(item)" class="ml-1 text-on-surface-variant/60">{{ getVariantLabel(item) }}</span>
-              </p>
-            </div>
-            <div class="text-right shrink-0">
-              <span
-                class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-sm font-bold"
-                [ngClass]="item.currentStock <= 2 ? 'bg-error/10 text-error' : 'bg-yellow-500/10 text-yellow-400'"
-              >
-                {{ item.currentStock }}
+<div class="mx-auto max-w-[1440px] space-y-5">
+  <!-- ─── Zone A: top bar ─────────────────────────────────────────────── -->
+  <header class="flex flex-wrap items-center gap-x-5 gap-y-3">
+    <div class="w-full min-w-0 sm:w-auto sm:flex-1">
+      <h1 class="truncate font-headline text-2xl font-bold text-on-surface sm:text-[26px]">
+        {{ data()?.meta?.storeName || 'Dashboard' }}
+      </h1>
+      <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+        @switch (live.state()) {
+          @case ('live') {
+            <span class="inline-flex items-center gap-1.5 font-semibold text-emerald-300" data-testid="live-indicator">
+              <span class="relative flex h-2 w-2">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
               </span>
-            </div>
-          </div>
-        </div>
+              Live
+            </span>
+            <span class="text-on-surface-variant">Last updated {{ lastUpdated() }}</span>
+          }
+          @case ('connecting') {
+            <span class="text-on-surface-variant">Connecting…</span>
+          }
+          @default {
+            <span class="inline-flex items-center gap-1.5 font-medium text-amber-300" data-testid="stale-indicator">
+              <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+              Last updated {{ lastUpdated() }}
+            </span>
+          }
+        }
+        @if (data()?.meta; as m) {
+          <span class="text-on-surface-variant">
+            @if (m.range.from === m.range.to) {
+              {{ m.range.from | ddmmyyyy }}
+            } @else {
+              {{ m.range.from | ddmmyyyy }} to {{ m.range.to | ddmmyyyy }}
+            }
+          </span>
+        }
+      </div>
+    </div>
 
-        <a
-          *ngIf="lowStockItems.length > 0"
-          routerLink="/inventory/stock-levels"
-          class="mt-6 flex items-center justify-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
+    <div class="flex items-center gap-2">
+      <div class="flex rounded-xl bg-surface-container-low p-1 ring-1 ring-outline-variant/15" role="tablist" aria-label="Period">
+        @for (p of periods; track p.id) {
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="selection().period === p.id"
+            class="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors sm:px-4"
+            [class]="
+              selection().period === p.id
+                ? 'bg-primary-container text-on-primary-container shadow-sm'
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+            "
+            (click)="pickPeriod(p.id)"
+          >
+            {{ p.label }}
+          </button>
+        }
+      </div>
+
+      <div class="relative">
+        <button
+          type="button"
+          class="grid h-9 w-9 place-items-center rounded-xl text-on-surface-variant ring-1 ring-outline-variant/15 hover:bg-surface-container-high hover:text-on-surface"
+          aria-label="Dashboard settings"
+          [attr.aria-expanded]="menuOpen()"
+          (click)="menuOpen.set(!menuOpen())"
         >
-          <span>View all stock levels</span>
-          <span class="material-symbols-outlined text-sm">arrow_forward</span>
-        </a>
+          <span class="material-symbols-outlined text-[20px]">tune</span>
+        </button>
+        @if (menuOpen()) {
+          <div class="fixed inset-0 z-40" (click)="menuOpen.set(false)"></div>
+          <div class="absolute right-0 top-11 z-50 w-60 rounded-xl bg-surface-container-high p-1.5 shadow-2xl ring-1 ring-outline-variant/20">
+            <p class="px-3 pb-1.5 pt-2 text-[11px] leading-snug text-on-surface-variant">
+              Drag ≡ to rearrange a box, drag its corner to resize. Saved for you on this
+              {{ mobile() ? 'phone' : 'screen size' }}.
+            </p>
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container-highest"
+              (click)="resetLayout()"
+            >
+              <span class="material-symbols-outlined text-[18px] text-on-surface-variant">restart_alt</span>
+              Reset to default layout
+            </button>
+          </div>
+        }
       </div>
-
     </div>
-  </section>
 
-  <!-- Recent Sales Table -->
-  <section>
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="text-lg font-headline font-bold text-on-surface">Recent Sales</h2>
-        <p class="text-xs text-on-surface-variant mt-1">Latest transactions</p>
-      </div>
-      <a
-        routerLink="/sales"
-        class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
+    @if (customOpen()) {
+      <form
+        class="flex w-full flex-wrap items-end gap-3 rounded-xl bg-surface-container-low p-3 ring-1 ring-outline-variant/15"
+        (ngSubmit)="applyCustom()"
       >
-        <span>View all sales</span>
-        <span class="material-symbols-outlined text-sm">arrow_forward</span>
-      </a>
-    </div>
+        <label class="flex flex-col gap-1 text-[12px] text-on-surface-variant">
+          From
+          <input
+            name="from"
+            inputmode="numeric"
+            placeholder="DD-MM-YYYY"
+            class="w-36 rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20 focus:outline-none focus:ring-primary/50"
+            [ngModel]="customFrom()"
+            (ngModelChange)="customFrom.set($event)"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-[12px] text-on-surface-variant">
+          To
+          <input
+            name="to"
+            inputmode="numeric"
+            placeholder="DD-MM-YYYY"
+            class="w-36 rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20 focus:outline-none focus:ring-primary/50"
+            [ngModel]="customTo()"
+            (ngModelChange)="customTo.set($event)"
+          />
+        </label>
+        <button type="submit" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container">
+          Show
+        </button>
+        @if (customError()) {
+          <p class="w-full text-[12px] text-rose-300">{{ customError() }}</p>
+        }
+      </form>
+    }
+  </header>
 
-    <div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="bg-surface-container-low/50">
-            <th class="px-8 py-5 text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">ID</th>
-            <th class="px-8 py-5 text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Customer</th>
-            <th class="px-8 py-5 text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Date</th>
-            <th class="px-8 py-5 text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold text-right">Total</th>
-            <th class="px-8 py-5 text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-outline-variant/10">
-          <tr
-            *ngFor="let sale of recentSales"
-            class="hover:bg-surface-container-high/30 transition-colors cursor-pointer"
-            [routerLink]="['/sales', sale.id]"
-          >
-            <td class="px-8 py-6 text-sm font-medium text-primary">
-              {{ sale.saleNumber || '#' + sale.id }}
-            </td>
-            <td class="px-8 py-6 text-sm text-on-surface">
-              {{ sale.customer ? (sale.customer.firstName + ' ' + (sale.customer.lastName || '')).trim() : 'Walk-in' }}
-            </td>
-            <td class="px-8 py-6 text-sm text-on-surface-variant">
-              {{ formatDate(sale.createdAt) }}
-            </td>
-            <td class="px-8 py-6 text-sm font-headline font-bold text-on-surface text-right">
-              {{ formatCurrency(sale.total) }}
-            </td>
-            <td class="px-8 py-6">
-              <span class="status-pill" [ngClass]="getStatusClasses(sale.status)">
-                {{ formatStatus(sale.status) }}
+  <!-- §11: offline. Billing carries on; only the dashboard's live updates pause. -->
+  @if (live.state() === 'offline') {
+    <div class="flex items-center gap-3 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-400/30" role="status">
+      <span class="material-symbols-outlined text-[20px] text-amber-300">cloud_off</span>
+      <span><b class="font-semibold">Offline.</b> Billing still works. The dashboard will catch up when the connection is back.</span>
+    </div>
+  }
+
+  @if (error() && !data()) {
+    <div class="rounded-xl bg-rose-500/10 px-4 py-6 text-center text-sm text-rose-200 ring-1 ring-rose-400/30">
+      {{ error() }}
+      <button type="button" class="ml-2 font-semibold underline" (click)="load()">Try again</button>
+    </div>
+  }
+
+  @if (loading() && !data()) {
+    <div class="grid grid-cols-12 gap-4" aria-busy="true" aria-label="Loading the dashboard">
+      @for (w of [3, 3, 3, 3, 12, 4, 4, 4]; track $index) {
+        <div class="h-[144px] animate-pulse rounded-[0.875rem] bg-surface-container-low" [style.grid-column]="'span ' + w"></div>
+      }
+    </div>
+  }
+
+  @if (data(); as d) {
+    <div class="transition-opacity" [class.opacity-60]="loading()">
+      <app-dashboard-grid [layout]="layout()" [visible]="visible()" [mobile]="mobile()" (layoutChange)="onLayout($event)">
+        <!-- ─── Zone B: sales trio + profit ─────────────────────────────── -->
+        <ng-template dashBox="total-sales">
+          @if (d.sales; as s) {
+            <dash-kpi label="Total Sales" (open)="open({ kind: 'sales' })">
+              <span kpi-value>{{ s.totalSales | inr }}</span>
+              <dash-compare [c]="s.compare.totalSales.prev" [label]="compareLabel()" />
+              @if (s.compare.totalSales.yoy; as y) {
+                <dash-compare [c]="y" label="YoY" emptyText="No prior year data" />
+              }
+            </dash-kpi>
+          }
+        </ng-template>
+
+        <ng-template dashBox="bills">
+          @if (d.sales; as s) {
+            <dash-kpi label="Bills Raised" (open)="open({ kind: 'bills' })">
+              <span kpi-value>{{ s.bills | indian }}</span>
+              <dash-compare [c]="s.compare.bills.prev" [label]="compareLabel()" as="count" />
+              @if (s.compare.bills.yoy; as y) {
+                <dash-compare [c]="y" label="YoY" emptyText="No prior year data" />
+              }
+            </dash-kpi>
+          }
+        </ng-template>
+
+        <ng-template dashBox="avg-bill">
+          @if (d.sales; as s) {
+            <dash-kpi label="Avg Bill Value" (open)="open({ kind: 'bills' })">
+              <span kpi-value>{{ s.avgBill | inr }}</span>
+              <dash-compare [c]="s.compare.avgBill.prev" [label]="compareLabel()" />
+              @if (s.compare.avgBill.yoy; as y) {
+                <dash-compare [c]="y" label="YoY" emptyText="No prior year data" />
+              }
+            </dash-kpi>
+          }
+        </ng-template>
+
+        <ng-template dashBox="profit">
+          @if (d.profit; as p) {
+            <dash-kpi label="Gross Profit & Margin" [tier]="marginTier()" (open)="open({ kind: 'profit' })">
+              <span kpi-value class="flex items-baseline gap-2.5">
+                <span>{{ p.grossProfit | inr }}</span>
+                <span class="text-on-surface-variant/50 font-normal" aria-hidden="true">|</span>
+                <span>{{ p.marginPct != null ? p.marginPct + '%' : '—' }}</span>
+                @if (p.coverageLevel !== 'ok') {
+                  <span
+                    class="material-symbols-outlined self-center text-[18px]"
+                    [class.text-amber-300]="p.coverageLevel === 'amber'"
+                    [class.text-rose-300]="p.coverageLevel === 'red'"
+                    [attr.aria-label]="'Profit based on ' + p.coveragePct + '% cost coverage'"
+                    title="Profit based on {{ p.coveragePct }}% cost coverage. Tap for detail."
+                  >info</span>
+                }
               </span>
-            </td>
-          </tr>
+              <dash-compare [c]="p.compare.marginPct.prev" [label]="'margin ' + compareLabel()" as="points" />
+              @if (p.compare.marginPct.yoy; as y) {
+                <dash-compare [c]="y" label="margin YoY" as="points" emptyText="No prior year data" />
+              }
+            </dash-kpi>
+          }
+        </ng-template>
 
-          <!-- Empty state -->
-          <tr *ngIf="recentSales.length === 0">
-            <td colspan="5" class="px-8 py-16 text-center">
-              <span class="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-2 block">receipt_long</span>
-              <p class="text-sm text-on-surface-variant">No sales recorded yet</p>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+        <!-- ─── Zone C: basket strip ────────────────────────────────────── -->
+        <ng-template dashBox="basket">
+          @if (d.basket; as b) {
+            <div class="flex h-full flex-wrap items-center gap-x-8 gap-y-2 rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-3 pr-12 text-[14px]">
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="font-semibold text-on-surface-variant">UPT</span>
+                <span class="font-headline text-lg font-bold tabular-nums text-on-surface">{{ b.upt ?? '—' }}</span>
+                <dash-compare [c]="b.compare.upt.prev" [label]="compareLabel()" />
+                @if (b.uptBaseline8w != null) {
+                  <span class="text-on-surface-variant">· own 8-week avg <b class="tabular-nums text-on-surface">{{ b.uptBaseline8w }}</b></span>
+                }
+              </div>
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="font-semibold text-on-surface-variant">Avg Item Value</span>
+                <span class="font-headline text-lg font-bold tabular-nums text-on-surface">{{ b.avgItemValue | inr }}</span>
+                <dash-compare [c]="b.compare.avgItemValue.prev" [label]="compareLabel()" />
+              </div>
+              @if (b.ownOnly) {
+                <span class="text-[12px] text-on-surface-variant">Your bills only</span>
+              }
+            </div>
+          }
+        </ng-template>
 
-  <!-- §10 — Business Performance -->
-  <section class="mb-8" *ngIf="performance" data-testid="performance-section">
-    <h2 class="text-lg font-headline font-bold text-on-surface mb-1">Business Performance</h2>
-    <p class="text-sm text-on-surface-variant mb-4">Profit, margins, and weekly patterns</p>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Sales</p>
-        <h3 class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(performance.overall.totalSales) }}</h3>
-      </div>
-      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Cost</p>
-        <h3 class="text-2xl font-headline font-bold text-on-surface">{{ formatCurrency(performance.overall.totalCost) }}</h3>
-      </div>
-      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Total Profit</p>
-        <h3 class="text-2xl font-headline font-bold text-green-400">{{ formatCurrency(performance.overall.totalProfit) }}</h3>
-      </div>
-      <div class="p-4 rounded-2xl bg-surface-container border border-outline-variant/10">
-        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Avg Profit %</p>
-        <h3 class="text-2xl font-headline font-bold text-on-surface" data-testid="avg-margin">{{ performance.overall.avgProfitPercent }}%</h3>
-      </div>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-7 gap-2" data-testid="dow-ratings">
-      <div *ngFor="let d of performance.dayOfWeek" class="p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 text-center">
-        <p class="text-xs font-bold text-on-surface">{{ d.day }}</p>
-        <p class="text-[10px] text-on-surface-variant">{{ formatCurrency(d.avgSales) }}</p>
-        <span class="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
-          [class]="d.rating === 'Best' ? 'bg-green-500/20 text-green-400' : d.rating === 'Strong' ? 'bg-primary-container/30 text-primary' : d.rating === 'Good' ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-container text-on-surface-variant'">
-          {{ d.rating }}
-        </span>
-      </div>
-    </div>
-    <p class="text-xs text-on-surface-variant mt-3" *ngIf="performance.insights.bestDay">
-      Best day: <b class="text-on-surface">{{ performance.insights.bestDay }}</b>
-      <span *ngIf="performance.insights.bestMonth"> · Best month: <b class="text-on-surface">{{ performance.insights.bestMonth }}</b></span>
-    </p>
-    <!-- §10.4 — proactive recommendations -->
-    <div class="mt-4 space-y-1.5" *ngIf="performance.recommendations?.length" data-testid="recommendations">
-      <h3 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recommendations</h3>
-      <div *ngFor="let rec of performance.recommendations" class="flex items-start gap-2 text-xs text-on-surface">
-        <span class="material-symbols-outlined text-[14px] text-primary mt-0.5">lightbulb</span>
-        <span>{{ rec }}</span>
-      </div>
-    </div>
-  </section>
+        <!-- ─── Zone D: returns, customers, discount ────────────────────── -->
+        <ng-template dashBox="returns">
+          @if (d.returns; as r) {
+            <dash-kpi [label]="r.ownOnly ? 'Your Returns' : 'Returns'" (open)="open({ kind: 'returns' })" valueSize="text-[24px]">
+              <span kpi-value>{{ r.count }} <span class="text-on-surface-variant/60 font-normal">·</span> {{ r.value | inr }}</span>
+              @if (r.topReasons.length) {
+                <span class="flex flex-wrap gap-1.5">
+                  @for (reason of r.topReasons; track reason.code) {
+                    <span class="rounded-md bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-200 ring-1 ring-rose-400/20">
+                      {{ reason.label }} · {{ reason.count }}
+                    </span>
+                  }
+                </span>
+              } @else {
+                <span class="text-on-surface-variant/70">No reasons recorded</span>
+              }
+              <dash-compare [c]="r.compare.count.prev" [label]="compareLabel()" as="count" emptyText="None to compare" />
+            </dash-kpi>
+          }
+        </ng-template>
 
+        <ng-template dashBox="customers">
+          @if (d.customers; as c) {
+            <dash-kpi label="Customers Served" (open)="open({ kind: 'customers' })" valueSize="text-[20px]">
+              <span kpi-value class="flex flex-wrap items-baseline gap-x-1.5">
+                <span>{{ c.identified }} identified</span>
+                @if (c.returningPct != null) {
+                  <span class="font-semibold text-on-surface-variant">({{ c.returningPct }}% returning)</span>
+                }
+                <span class="font-semibold text-on-surface-variant">+</span>
+                <span>{{ c.walkIns }} walk-in{{ c.walkIns === 1 ? '' : 's' }}</span>
+              </span>
+              <dash-compare [c]="c.compare.identified.prev" [label]="'identified ' + compareLabel()" as="count" />
+              @if (c.compare.returningPct.yoy && !c.compare.returningPct.yoy.noData) {
+                <dash-compare [c]="c.compare.returningPct.yoy" label="returning YoY" as="points" />
+              }
+            </dash-kpi>
+          }
+        </ng-template>
+
+        <ng-template dashBox="discount">
+          @if (d.discount; as x) {
+            <dash-kpi label="Discount Given" (open)="open({ kind: 'discount' })" valueSize="text-[24px]">
+              <span kpi-value>
+                {{ x.value | inr }}
+                @if (x.pctOfGross != null) {
+                  <span class="text-on-surface-variant/60 font-normal">·</span> {{ x.pctOfGross }}% of gross
+                }
+              </span>
+              <dash-compare [c]="x.compare.value.prev" [label]="compareLabel()" />
+            </dash-kpi>
+          }
+        </ng-template>
+
+        <!-- ─── Zone E: payment split ───────────────────────────────────── -->
+        <ng-template dashBox="payment-split">
+          @if (d.paymentSplit; as split) {
+            <div class="flex h-full flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-4">
+              <dash-box-title title="Payment Mode Split" />
+              @if (split.length === 0) {
+                <p class="mt-3 text-sm text-on-surface-variant">No payments in this period yet.</p>
+              } @else {
+                <ul class="mt-2.5 flex flex-1 flex-col justify-center gap-1">
+                  @for (row of split; track row.mode) {
+                    <li>
+                      <button
+                        type="button"
+                        class="grid w-full grid-cols-[6.5rem_1fr_3.5rem_5.5rem] items-center gap-3 rounded-md px-1 py-0.5 text-left text-[13px] hover:bg-surface-container-high/60"
+                        (click)="open({ kind: 'payments', mode: row.mode })"
+                      >
+                        <span class="truncate text-on-surface">{{ paymentLabel(row.mode) }}</span>
+                        <span class="h-2 overflow-hidden rounded-full bg-surface-container-highest/70">
+                          <span class="block h-full rounded-full bg-primary/80" [style.width.%]="row.pct"></span>
+                        </span>
+                        <span class="text-right tabular-nums text-on-surface">{{ row.pct }}%</span>
+                        <span class="hidden text-right tabular-nums text-on-surface-variant sm:block">{{ row.value | inr: 'compact' }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </ng-template>
+
+        <!-- ─── Zone F: recent transactions, staff, alerts ──────────────── -->
+        <ng-template dashBox="recent">
+          @if (d.recentTransactions; as rows) {
+            <div class="flex h-full min-h-0 flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low py-4">
+              <div class="px-5"><dash-box-title title="Recent Transactions" /></div>
+              @if (rows.length === 0) {
+                <p class="px-5 pt-3 text-sm text-on-surface-variant">Nothing billed yet.</p>
+              } @else {
+                <ul class="mt-2 min-h-0 flex-1 overflow-y-auto px-2">
+                  @for (t of rows; track t.kind + t.id + t.at) {
+                    <li>
+                      <button
+                        type="button"
+                        class="grid w-full grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-surface-container-high/60"
+                        (click)="openTransaction(t)"
+                      >
+                        <span class="grid h-8 w-8 place-items-center rounded-full bg-surface-container-highest text-[11px] font-bold text-on-surface-variant">
+                          @if (t.customerId) {
+                            {{ initials(t.name) }}
+                          } @else {
+                            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">person</span>
+                          }
+                        </span>
+                        <span class="min-w-0">
+                          <span class="block truncate text-[13px] font-semibold text-on-surface">{{ t.name }}</span>
+                          <span class="block truncate text-[11px] text-on-surface-variant">
+                            {{ timeIst(t.at) }}@if (t.mode) { · {{ paymentLabel(t.mode) }}}@if (t.reason) { · {{ t.reason }}}
+                          </span>
+                        </span>
+                        <span class="text-right text-[13px] font-semibold tabular-nums" [class.text-rose-300]="t.amount < 0" [class.text-on-surface]="t.amount >= 0">
+                          {{ t.amount | inr }}
+                        </span>
+                        <span class="w-[6.5rem] text-right">
+                          <span class="inline-block rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1" [ngClass]="badgeClass(t)">{{ badgeLabel(t) }}</span>
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </ng-template>
+
+        <ng-template dashBox="staff">
+          @if (d.staff; as st) {
+            <div class="flex h-full min-h-0 flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-4">
+              <dash-box-title [title]="st.ownOnly ? 'Your Sales' : 'Staff Performance'" />
+              @if (st.lines.length === 0) {
+                <p class="mt-3 text-sm text-on-surface-variant">No sales tagged to a salesperson yet.</p>
+              } @else {
+                <ul class="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
+                  @for (s of st.lines; track s.userId) {
+                    <li>
+                      <button
+                        type="button"
+                        class="w-full rounded-lg px-2 py-2 text-left hover:bg-surface-container-high/60"
+                        (click)="open({ kind: 'staff', id: s.userId })"
+                      >
+                        <span class="flex items-center gap-1.5 text-[14px] font-semibold text-on-surface">
+                          @if (s.top) {
+                            <span class="material-symbols-outlined icon-filled text-[16px] text-amber-300" aria-label="Top performer">star</span>
+                          }
+                          {{ s.name }}
+                        </span>
+                        <span class="mt-1 block h-1 overflow-hidden rounded-full bg-surface-container-highest/70">
+                          <span class="block h-full rounded-full bg-primary/70" [style.width.%]="staffBarPct(s)"></span>
+                        </span>
+                        <span class="mt-1 block text-[12px] tabular-nums text-on-surface-variant">
+                          {{ s.value | inr }} · {{ s.bills }} bill{{ s.bills === 1 ? '' : 's' }} · UPT {{ s.upt ?? '—' }}
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              <p class="mt-2 text-[11px] text-on-surface-variant/70">By the salesperson who sold it · tap for return rate</p>
+            </div>
+          }
+        </ng-template>
+
+        <ng-template dashBox="alerts">
+          @if (d.alerts; as alerts) {
+            <div class="flex h-full min-h-0 flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-4">
+              <dash-box-title title="Active Alerts">
+                @if (alerts.length) {
+                  <span class="text-[12px] tabular-nums text-on-surface-variant">{{ alerts.length }} of 5</span>
+                }
+              </dash-box-title>
+              @if (alerts.length === 0) {
+                <div class="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-on-surface-variant">
+                  <span class="material-symbols-outlined text-[28px] text-emerald-300/70">check_circle</span>
+                  Nothing needs you right now.
+                </div>
+              } @else {
+                <ul class="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto">
+                  @for (a of alerts; track a.key) {
+                    <li class="group/alert relative">
+                      <button
+                        type="button"
+                        class="flex w-full items-stretch gap-3 rounded-lg py-1.5 pl-1 pr-8 text-left hover:bg-surface-container-high/60"
+                        [disabled]="!a.subject || a.subject.kind === 'hour'"
+                        (click)="openAlert(a)"
+                      >
+                        <span class="w-1 shrink-0 rounded-full" [ngClass]="alertBar(a)"></span>
+                        <span class="min-w-0">
+                          <span class="block text-[13px] font-semibold leading-snug text-on-surface">{{ a.title }}</span>
+                          <span class="block text-[12px] leading-snug text-on-surface-variant">{{ a.detail }}</span>
+                        </span>
+                      </button>
+                      @if (senior) {
+                        <button
+                          type="button"
+                          class="absolute right-1 top-1.5 grid h-6 w-6 place-items-center rounded-md text-on-surface-variant opacity-0 hover:bg-surface-container-highest hover:text-on-surface focus-visible:opacity-100 group-hover/alert:opacity-100"
+                          [attr.aria-label]="'Dismiss ' + a.title"
+                          (click)="dismiss(a.key, $event)"
+                        >
+                          <span class="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        </ng-template>
+
+        <!-- ─── Zone G: inventory value sold ────────────────────────────── -->
+        <ng-template dashBox="inventory-sold">
+          @if (d.inventorySold; as inv) {
+            <button
+              type="button"
+              class="flex h-full w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-3 pr-12 text-left text-[14px] hover:border-primary/30"
+              (click)="open({ kind: 'profit' })"
+            >
+              <span class="font-semibold text-on-surface">Inventory Value Sold (at cost)</span>
+              <span class="font-headline text-lg font-bold tabular-nums text-on-surface">{{ inv.valueAtCost | inr }}</span>
+              <dash-compare [c]="inv.compare.prev" [label]="compareLabel()" />
+              @if (inv.uncostedLines > 0) {
+                <span class="text-[12px] text-amber-300/90">· {{ inv.uncostedLines }} line{{ inv.uncostedLines === 1 ? '' : 's' }} without a cost</span>
+              }
+            </button>
+          }
+        </ng-template>
+
+        <!-- ─── Zone H: insight ─────────────────────────────────────────── -->
+        <ng-template dashBox="insight">
+          @if (d.insight; as ins) {
+            <div class="flex h-full items-center gap-3 rounded-[0.875rem] border border-sky-400/25 bg-sky-500/[0.07] px-5 py-3 pr-12">
+              <span class="material-symbols-outlined text-[20px] text-sky-300" aria-hidden="true">lightbulb</span>
+              <p class="min-w-0 flex-1 text-[14px] font-medium text-on-surface">{{ ins.text }}</p>
+              @if (senior) {
+                <button type="button" class="shrink-0 text-[13px] font-semibold text-sky-300 hover:underline" (click)="dismiss(ins.key)">
+                  Dismiss
+                </button>
+              }
+            </div>
+          }
+        </ng-template>
+
+        <!-- ─── Zone I: end of day cash (conditional) ───────────────────── -->
+        <ng-template dashBox="eod">
+          @if (d.eod; as e) {
+            <button
+              type="button"
+              class="flex h-full w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-[0.875rem] border border-dashed px-5 py-3 pr-12 text-left text-[14px]"
+              [ngClass]="e.tier === 'critical' ? 'border-rose-400/50 bg-rose-500/[0.06]' : e.tier === 'attention' ? 'border-amber-400/50 bg-amber-500/[0.05]' : 'border-outline-variant/40 bg-surface-container-low'"
+              (click)="open({ kind: 'eod' })"
+            >
+              <span class="text-on-surface-variant">Cash in Drawer</span>
+              <span class="tabular-nums text-on-surface">Expected <b>{{ e.expected | inr }}</b></span>
+              <span class="tabular-nums text-on-surface">Counted <b>{{ e.counted | inr }}</b></span>
+              <span
+                class="rounded-md px-2 py-0.5 text-[12px] font-semibold ring-1"
+                [ngClass]="e.status === 'balanced' ? 'bg-emerald-500/12 text-emerald-300 ring-emerald-400/25' : e.tier === 'critical' ? 'bg-rose-500/12 text-rose-300 ring-rose-400/30' : e.tier === 'attention' ? 'bg-amber-500/12 text-amber-300 ring-amber-400/30' : 'bg-surface-container-highest text-on-surface ring-outline-variant/30'"
+              >
+                {{ eodBadge() }}@if (e.status !== 'balanced') { {{ (e.variance < 0 ? -e.variance : e.variance) | inr }}}
+              </span>
+              @if (e.status === 'over') {
+                <span class="text-[12px] text-on-surface-variant">Cash no bill explains: check pending sales</span>
+              }
+            </button>
+          }
+        </ng-template>
+      </app-dashboard-grid>
+    </div>
+  }
 </div>
+
+@if (drill(); as req) {
+  <app-drill-panel [request]="req" [period]="selection()" (closed)="drill.set(null)" (changed)="onPanelChanged()" />
+}

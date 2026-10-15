@@ -198,6 +198,7 @@ model User {
   preferences         UserPreference[]
   expenseDayMarks     ExpenseDayMark[]
   dashboardDismissals DashboardDismissal[]
+  qualityChecks       Product[]            @relation("ProductQualityCheck")
 
   @@map("users")
 }
@@ -285,46 +286,53 @@ model Size {
 // ─── Product ─────────────────────────────────────────
 
 model Product {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   brandId           Int
   categoryId        Int
   name              String
-  slug              String   @unique
+  slug              String    @unique
   description       String?
   // §13.3 — MRP is the printed list price; basePrice is the effective Sale Price
   // (auto-calculated as MRP − 10% at entry). Both are printed on the barcode label.
-  mrp               Decimal? @db.Decimal(10, 2)
-  basePrice         Decimal  @db.Decimal(10, 2)
-  costPrice         Decimal  @db.Decimal(10, 2)
-  landingPrice      Decimal? @db.Decimal(10, 2)
+  mrp               Decimal?  @db.Decimal(10, 2)
+  basePrice         Decimal   @db.Decimal(10, 2)
+  costPrice         Decimal   @db.Decimal(10, 2)
+  landingPrice      Decimal?  @db.Decimal(10, 2)
   // GST is split into CGST + SGST per Indian tax rules. For non-clothing
   // verticals these can both be 0. Effective rate the POS sees = cgst + sgst.
-  hsnCode           String?  @db.VarChar(10)
-  cgstRate          Decimal  @default(9) @db.Decimal(5, 2)
-  sgstRate          Decimal  @default(9) @db.Decimal(5, 2)
+  hsnCode           String?   @db.VarChar(10)
+  cgstRate          Decimal   @default(9) @db.Decimal(5, 2)
+  sgstRate          Decimal   @default(9) @db.Decimal(5, 2)
   // When true (the Indian retail convention), basePrice is the MRP — tax is
   // already extracted from inside it. When false, tax is added on top at POS.
-  priceIncludesTax  Boolean  @default(true)
+  priceIncludesTax  Boolean   @default(true)
   // Sale-policy flags. `nonReturnable` blocks both refund-returns and exchanges
   // (e.g. clearance/sale/defective goods). `exchangeOnly` allows an exchange but
   // blocks a refund-return. The POS enforces these when goods come back.
-  nonReturnable     Boolean  @default(false)
-  exchangeOnly      Boolean  @default(false)
-  isActive          Boolean  @default(true)
+  nonReturnable     Boolean   @default(false)
+  exchangeOnly      Boolean   @default(false)
+  isActive          Boolean   @default(true)
   // ─── Storefront (shop module) ───
   // Listing is opt-in: the counter catalogue is not the web catalogue.
-  onlineVisible     Boolean  @default(false)
+  onlineVisible     Boolean   @default(false)
   // Long-form copy written for the web, distinct from the terse POS name.
-  onlineDescription String?  @db.Text
+  onlineDescription String?   @db.Text
   metaTitle         String?
   metaDescription   String?
   // Per-product COD gate. True forces prepaid-only on this product even when
   // COD is enabled globally — for thin or high-value lines.
-  codBlocked        Boolean  @default(false)
+  codBlocked        Boolean   @default(false)
   // 'girls' | 'boys' | 'unisex'. Drives the Girls/Boys split in shop navigation.
   audience          String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  // Dashboard §1.6 — "Mark for quality check" from a repeat-return alert: when,
+  // by whom and why. Cleared once the article has been looked at.
+  qualityCheckAt    DateTime?
+  qualityCheckBy    Int?
+  qualityCheckNote  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  qualityChecker User? @relation("ProductQualityCheck", fields: [qualityCheckBy], references: [id])
 
   brand    Brand            @relation(fields: [brandId], references: [id])
   category Category         @relation(fields: [categoryId], references: [id])

@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { NavDrawerService } from '../shell/nav-drawer.service';
 
 interface NavItem {
   icon: string;
@@ -16,6 +17,8 @@ interface NavItem {
   templateUrl: './sidebar.component.html',
 })
 export class SidebarComponent {
+  readonly drawer = inject(NavDrawerService);
+
   private readonly allNav: NavItem[] = [
     { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
     { icon: 'point_of_sale', label: 'POS', path: '/pos' },

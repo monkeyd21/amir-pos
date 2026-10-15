@@ -6,6 +6,9 @@ import { validate } from '../../middleware/validate';
 import { AppError } from '../../middleware/errorHandler';
 import { dismiss, getDashboard, getLayout, resetLayout, saveLayout } from './service';
 import { onChange } from './events';
+import { drill, DrillKind } from './drill';
+import prisma from '../../config/database';
+import { recordAudit } from '../../services/audit';
 
 const router = Router();
 router.use(authenticate);
@@ -74,6 +77,91 @@ router.get('/stream', (req: AuthRequest, res: Response) => {
     clearInterval(heartbeat);
     if (pending) clearTimeout(pending);
   });
+});
+
+const drillSchema = z.object({
+  params: z.object({
+    kind: z.enum(['sales', 'bills', 'discount', 'payments', 'profit', 'returns', 'customers', 'staff', 'product', 'held', 'eod']),
+  }),
+  query: z.object({
+    period: z.enum(['today', 'week', 'month', 'custom']).default('today'),
+    from: ymd.optional(),
+    to: ymd.optional(),
+    id: z.string().regex(/^\d+$/).optional(),
+    mode: z.enum(['cash', 'card', 'upi', 'voucher']).optional(),
+  }),
+});
+
+/** §1.6: the detail behind a card, row or alert, for the side panel. */
+router.get('/drill/:kind', validate(drillSchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const q = req.query as Record<string, string | undefined>;
+    const data = await drill(viewerOf(req), req.params.kind as DrillKind, {
+      period: (q.period ?? 'today') as any,
+      from: q.from,
+      to: q.to,
+      id: q.id ? Number(q.id) : undefined,
+      mode: q.mode,
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const qualitySchema = z.object({
+  params: z.object({ id: z.string().regex(/^\d+$/) }),
+  body: z.object({ note: z.string().max(500).optional().nullable() }).optional(),
+});
+
+/**
+ * §1.6 repeat-return alert → "Mark for quality check". Recorded on the
+ * article with who and why, and audited. DELETE clears it once checked.
+ */
+router.post('/products/:id/quality-check', validate(qualitySchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!isDashboardSenior(req.user!.role)) throw new AppError('Only an owner or manager can do this', 403);
+    const id = Number(req.params.id);
+    const note = req.body?.note?.trim() || null;
+    const product = await prisma.product.update({
+      where: { id },
+      data: { qualityCheckAt: new Date(), qualityCheckBy: req.user!.userId, qualityCheckNote: note },
+      select: { id: true, name: true, qualityCheckAt: true },
+    });
+    await recordAudit(prisma, {
+      action: 'product.quality_check_marked',
+      entityType: 'product',
+      entityId: id,
+      userId: req.user!.userId,
+      branchId: req.user!.branchId,
+      reason: note ?? undefined,
+      data: { name: product.name },
+    });
+    res.status(201).json({ success: true, data: product });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete('/products/:id/quality-check', validate(qualitySchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!isDashboardSenior(req.user!.role)) throw new AppError('Only an owner or manager can do this', 403);
+    const id = Number(req.params.id);
+    await prisma.product.update({
+      where: { id },
+      data: { qualityCheckAt: null, qualityCheckBy: null, qualityCheckNote: null },
+    });
+    await recordAudit(prisma, {
+      action: 'product.quality_check_cleared',
+      entityType: 'product',
+      entityId: id,
+      userId: req.user!.userId,
+      branchId: req.user!.branchId,
+    });
+    res.json({ success: true, data: null });
+  } catch (e) {
+    next(e);
+  }
 });
 
 const dismissSchema = z.object({

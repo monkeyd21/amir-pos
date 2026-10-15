@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } fr
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RETURN_REASONS } from '@clothing-erp/shared';
-import { RouterModule, Router } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { isValidPhone } from '../../shared/validation/phone';
@@ -485,7 +485,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     private dialog: DialogService,
     private router: Router,
     private scanSound: ScanSoundService,
-    private offline: OfflineService
+    private offline: OfflineService,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
@@ -519,6 +520,14 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       });
     this.loadLoyaltyConfig();
     this.loadHeld();
+    // Dashboard §1.6: "Resume billing" on a held-bill alert lands here with
+    // ?resumeHeld=<id>. Restore it once, then drop the parameter so a reload
+    // cannot try to resume the same (already deleted) hold again.
+    const resumeId = Number(this.route.snapshot.queryParamMap.get('resumeHeld'));
+    if (resumeId > 0) {
+      this.router.navigate([], { queryParams: { resumeHeld: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      this.resumeHeld({ id: resumeId });
+    }
     this.initOffline();
     // Re-evaluate the trading day every minute so the stale-shift banner shows
     // up at midnight without needing a page interaction.

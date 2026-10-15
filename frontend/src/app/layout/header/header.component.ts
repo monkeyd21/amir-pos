@@ -1,7 +1,8 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService, User } from '../../core/services/auth.service';
 import { Subject, takeUntil } from 'rxjs';
+import { NavDrawerService } from '../shell/nav-drawer.service';
 
 @Component({
   selector: 'app-header',
@@ -14,6 +15,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   userRole = '';
   initials = '';
   showUserMenu = false;
+  readonly drawer = inject(NavDrawerService);
 
   private destroy$ = new Subject<void>();
 
