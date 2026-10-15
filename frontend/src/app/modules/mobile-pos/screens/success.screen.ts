@@ -21,7 +21,13 @@ import { environment } from '../../../../environments/environment';
             </div>
           </div>
 
-          <h1 class="success-title">Sale Complete!</h1>
+          <h1 class="success-title">{{ offline() ? 'Saved offline' : 'Sale Complete!' }}</h1>
+          @if (offline()) {
+            <p class="offline-note">
+              No connection right now. The bill is kept on this phone and syncs on its own when the
+              connection is back; it gets its real bill number then.
+            </p>
+          }
 
           @if (saleNumber()) {
             <div class="sale-number">{{ saleNumber() }}</div>
@@ -42,7 +48,9 @@ import { environment } from '../../../../environments/environment';
           }
 
           <div class="actions">
-            @if (canSendWhatsapp()) {
+            @if (offline()) {
+              <!-- The bill exists only on this phone until it syncs: nothing to send yet. -->
+            } @else if (canSendWhatsapp()) {
               <button
                 type="button"
                 class="mp-btn mp-btn--primary mp-btn--block mp-btn--lg"
@@ -82,6 +90,14 @@ import { environment } from '../../../../environments/environment';
     </div>
   `,
   styles: [`
+      .offline-note {
+        margin: 8px 24px 0;
+        text-align: center;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--mp-on-bg-muted);
+      }
+
     :host {
       display: block;
     }
@@ -225,6 +241,9 @@ export class MobileSuccessScreen implements OnInit {
   readonly sending = signal(false);
   readonly toastVisible = signal(false);
 
+  /** Queued on the phone (no network at checkout): no server bill to send yet. */
+  readonly offline = signal(false);
+
   readonly canSendWhatsapp = computed(
     () => this.customerId() !== null && !!this.customerPhone(),
   );
@@ -240,6 +259,7 @@ export class MobileSuccessScreen implements OnInit {
     this.customerId.set(custIdRaw ? Number(custIdRaw) : null);
     this.customerPhone.set(params.get('customerPhone'));
     this.customerName.set(params.get('customerName'));
+    this.offline.set(params.get('offline') === '1');
   }
 
   formatCurrency(value: number): string {

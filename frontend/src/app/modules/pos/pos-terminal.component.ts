@@ -557,7 +557,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       if (online) this.runSync();
     });
     this.offline.pending$.pipe(takeUntil(this.destroy$)).subscribe((n) => (this.pendingSync = n));
-    this.offlineReady = this.offline.getCatalog().items.length > 0;
+    // The cached catalog loads from IndexedDB asynchronously; follow it.
+    this.offline.catalogSize$.pipe(takeUntil(this.destroy$)).subscribe((n) => (this.offlineReady = n > 0));
     // Pull a fresh catalog + customers so scanning and customer lookup still
     // work if the network drops later (§11.2 / §11.3).
     if (this.offline.isOnline) {

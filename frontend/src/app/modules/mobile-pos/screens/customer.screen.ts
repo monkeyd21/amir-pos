@@ -2,8 +2,9 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
+import { OfflineService } from '../../../core/services/offline.service';
 import { isValidPhone, normalizePhone } from '../../../shared/validation/phone';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MobileCartService, MobileCustomer } from '../services/mobile-cart.service';
@@ -636,6 +637,7 @@ export class MobileCustomerScreen implements OnInit, OnDestroy {
   private cart = inject(MobileCartService);
   private router = inject(Router);
   private notify = inject(NotificationService);
+  private offline = inject(OfflineService);
 
   readonly selectedCustomer = computed(() => this.cart.customer());
   readonly query = signal('');
@@ -686,6 +688,10 @@ export class MobileCustomerScreen implements OnInit, OnDestroy {
           }
           this.loading.set(true);
           this.error.set('');
+          // §11.3 — offline: read-only search of the last synced customers.
+          if (!this.offline.isOnline) {
+            return of({ data: this.offline.searchCustomers(trimmed) } as CustomersResponse);
+          }
           return this.api.get<CustomersResponse>('/customers', {
             search: trimmed,
             limit: 20,

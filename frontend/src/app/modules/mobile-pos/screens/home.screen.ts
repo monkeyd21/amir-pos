@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ApiService } from '../../../core/services/api.service';
+import { OfflineService } from '../../../core/services/offline.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MobileCartService } from '../services/mobile-cart.service';
 import { MobileScannerService } from '../services/mobile-scanner.service';
@@ -498,6 +499,7 @@ export class MobileHomeScreen implements OnInit {
   private cart = inject(MobileCartService);
   private scanner = inject(MobileScannerService);
   private router = inject(Router);
+  private offline = inject(OfflineService);
 
   // Local reactive state
   readonly session = signal<PosSession | null>(null);
@@ -672,11 +674,15 @@ export class MobileHomeScreen implements OnInit {
 
   private async lookupAndAdd(code: string): Promise<void> {
     try {
-      const res = await new Promise<Envelope<BarcodeLookup>>((resolve, reject) => {
-        this.api
-          .get<Envelope<BarcodeLookup>>('/pos/lookup/' + encodeURIComponent(code))
-          .subscribe({ next: resolve, error: reject });
-      });
+      // §11: no network, still sell. The cached catalog prices the piece
+      // exactly as an offline bill is recorded on sync (Sale Price, no offers).
+      const res = this.offline.isOnline
+        ? await new Promise<Envelope<BarcodeLookup>>((resolve, reject) => {
+            this.api
+              .get<Envelope<BarcodeLookup>>('/pos/lookup/' + encodeURIComponent(code))
+              .subscribe({ next: resolve, error: reject });
+          })
+        : this.offlineLookup(code);
 
       const p = res?.data;
       if (!p) {
@@ -718,6 +724,24 @@ export class MobileHomeScreen implements OnInit {
         'Product not found for barcode ' + code;
       this.notify.error(msg);
     }
+  }
+
+  private offlineLookup(code: string): Envelope<BarcodeLookup> {
+    const hit = this.offline.lookupBarcode(code);
+    if (!hit) throw { error: { error: `${code} isn't in the saved catalog. It can be sold once the connection is back.` } };
+    return {
+      success: true,
+      data: {
+        variantId: hit.variantId,
+        sku: hit.sku,
+        barcode: hit.barcode,
+        size: hit.size,
+        color: hit.color,
+        price: hit.price,
+        productName: hit.productName,
+        stock: Math.max(1, hit.stock),
+      },
+    };
   }
 
   private showAddedBanner(name: string): void {

@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { MobileCartService, MobileCartItem } from '../services/mobile-cart.service';
 import { MobileScannerService } from '../services/mobile-scanner.service';
 import { ApiService } from '../../../core/services/api.service';
+import { OfflineService } from '../../../core/services/offline.service';
 import { NotificationService } from '../../../core/services/notification.service';
 
 interface OfferEvalItem {
@@ -819,6 +820,7 @@ interface Envelope<T> {
 })
 export class MobileCartScreen implements OnInit, OnDestroy {
   readonly cart = inject(MobileCartService);
+  private offline = inject(OfflineService);
   private scanner = inject(MobileScannerService);
   private api = inject(ApiService);
   private notify = inject(NotificationService);
@@ -975,6 +977,8 @@ export class MobileCartScreen implements OnInit, OnDestroy {
 
   // ─── Offer evaluation ──────────────────────────────────────
   private evaluateOffers(signature: string): void {
+    // Offline bills are priced without offers (that is how they are recorded on sync).
+    if (!this.offline.isOnline) return;
     if (signature === this.lastEvalKey) return;
     const snapshot = this.cart.items();
     if (snapshot.length === 0) return;

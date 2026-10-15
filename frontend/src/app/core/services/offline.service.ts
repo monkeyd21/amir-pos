@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
+import { idbGet, idbSet } from './offline-store';
 
 export interface CatalogItem {
   variantId: number;
@@ -50,8 +51,10 @@ export interface QueuedPendingSale {
  * bill carries a clientRef (idempotency key), so syncing — even twice — can
  * never create a duplicate on the server.
  *
- * Storage is localStorage for simplicity (fine for a single-store catalog of a
- * few thousand variants). A very large catalog should move to IndexedDB.
+ * The catalog lives in IndexedDB (localStorage caps at ~5 MB and a large
+ * catalog overflowed it silently), held in memory as an index so a scan is a
+ * synchronous lookup. The bill queues stay in localStorage: they are small,
+ * and a write that must not be lost should not wait on an async store.
  */
 @Injectable({ providedIn: 'root' })
 export class OfflineService {
@@ -67,9 +70,15 @@ export class OfflineService {
   /** Number of pending sales (§15.5) captured offline and waiting to sync. */
   pendingSales$ = new BehaviorSubject<number>(this.loadPendingSales().length);
   /** When the catalog was last refreshed from the server. */
-  catalogSyncedAt$ = new BehaviorSubject<string | null>(this.getCatalog().syncedAt ?? null);
+  catalogSyncedAt$ = new BehaviorSubject<string | null>(null);
+  /** Variants in the cached catalog (0 until it has loaded or been fetched). */
+  catalogSize$ = new BehaviorSubject<number>(0);
+
+  private catalog: { items: CatalogItem[]; syncedAt?: string } = { items: [] };
+  private byCode = new Map<string, CatalogItem>();
 
   constructor(private api: ApiService) {
+    void this.loadCatalog();
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.online$.next(true);
@@ -93,29 +102,47 @@ export class OfflineService {
   async refreshCatalog(): Promise<number> {
     const res: any = await firstValueFrom(this.api.get<any>('/pos/catalog'));
     const data = res?.data ?? {};
-    localStorage.setItem(
-      this.CATALOG_KEY,
-      JSON.stringify({ items: data.items ?? [], syncedAt: data.syncedAt ?? new Date().toISOString() })
-    );
-    this.catalogSyncedAt$.next(data.syncedAt ?? null);
-    return data.count ?? (data.items?.length ?? 0);
+    const catalog = { items: (data.items ?? []) as CatalogItem[], syncedAt: data.syncedAt ?? new Date().toISOString() };
+    this.setCatalog(catalog);
+    await idbSet(this.CATALOG_KEY, catalog);
+    return data.count ?? catalog.items.length;
+  }
+
+  /** Load the device's cached catalog into memory (and move an old localStorage copy across). */
+  private async loadCatalog(): Promise<void> {
+    let catalog = await idbGet<{ items: CatalogItem[]; syncedAt?: string }>(this.CATALOG_KEY);
+    if (!catalog) {
+      try {
+        const legacy = localStorage.getItem(this.CATALOG_KEY);
+        if (legacy) {
+          catalog = JSON.parse(legacy);
+          if (await idbSet(this.CATALOG_KEY, catalog)) localStorage.removeItem(this.CATALOG_KEY);
+        }
+      } catch {
+        catalog = null;
+      }
+    }
+    // A fetch that finished first is newer than what the device had stored.
+    if (catalog && this.catalog.items.length === 0) this.setCatalog(catalog);
+  }
+
+  private setCatalog(catalog: { items: CatalogItem[]; syncedAt?: string }): void {
+    this.catalog = catalog;
+    this.byCode = new Map();
+    for (const i of catalog.items) {
+      if (i.barcode) this.byCode.set(i.barcode.toLowerCase(), i);
+      if (i.sku && !this.byCode.has(i.sku.toLowerCase())) this.byCode.set(i.sku.toLowerCase(), i);
+    }
+    this.catalogSyncedAt$.next(catalog.syncedAt ?? null);
+    this.catalogSize$.next(catalog.items.length);
   }
 
   getCatalog(): { items: CatalogItem[]; syncedAt?: string } {
-    try {
-      return JSON.parse(localStorage.getItem(this.CATALOG_KEY) || '{"items":[]}');
-    } catch {
-      return { items: [] };
-    }
+    return this.catalog;
   }
 
   lookupBarcode(barcode: string): CatalogItem | null {
-    const code = barcode.trim().toLowerCase();
-    return (
-      this.getCatalog().items.find(
-        (i) => (i.barcode || '').toLowerCase() === code || (i.sku || '').toLowerCase() === code
-      ) || null
-    );
+    return this.byCode.get(barcode.trim().toLowerCase()) ?? null;
   }
 
   // ── Customers (§11.3 — read-only lookup offline) ──────────────────

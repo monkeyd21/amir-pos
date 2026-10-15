@@ -6,6 +6,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { MobileCartService } from './services/mobile-cart.service';
 import { MobileScannerService } from './services/mobile-scanner.service';
 import { AuthService } from '../../core/services/auth.service';
+import { OfflineService } from '../../core/services/offline.service';
 import { filter } from 'rxjs';
 
 @Component({
@@ -83,7 +84,8 @@ export class MobilePosShellComponent implements OnInit {
     public cart: MobileCartService,
     private scanner: MobileScannerService,
     private router: Router,
-    private auth: AuthService
+    private auth: AuthService,
+    private offline: OfflineService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -102,6 +104,11 @@ export class MobilePosShellComponent implements OnInit {
     // Redirect to login if unauthenticated
     if (!this.auth.getCurrentUser()) {
       this.router.navigate(['/mobile-pos/login']);
+    } else if (this.offline.isOnline) {
+      // §11: keep what offline billing needs fresh, and send anything queued.
+      this.offline.refreshCatalog().catch(() => {});
+      this.offline.refreshCustomers().catch(() => {});
+      this.offline.sync().catch(() => {});
     }
 
     // Track active tab from URL

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MobileCartService, MobileCartItem } from '../services/mobile-cart.service';
 import { ApiService } from '../../../core/services/api.service';
+import { OfflineService } from '../../../core/services/offline.service';
 
 interface OfferEvalItem {
   variantId: number;
@@ -906,6 +907,7 @@ interface LoyaltyConfigResponse {
 })
 export class MobileBillScreen implements OnInit, OnDestroy {
   readonly cart = inject(MobileCartService);
+  private offline = inject(OfflineService);
   private api = inject(ApiService);
   private router = inject(Router);
 
@@ -961,6 +963,8 @@ export class MobileBillScreen implements OnInit, OnDestroy {
 
   // ─── Offer re-evaluation ──────────────────────────────────
   private evaluateOffers(signature: string): void {
+    // Offline bills are priced without offers (that is how they are recorded on sync).
+    if (!this.offline.isOnline) return;
     if (signature === this.lastEvalKey) return;
     const snapshot = this.cart.items();
     if (snapshot.length === 0) return;

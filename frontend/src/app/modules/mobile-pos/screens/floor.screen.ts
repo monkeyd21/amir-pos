@@ -127,7 +127,7 @@ interface Envelope<T> {
                 <div class="line__main">
                   <div class="line__name">{{ l.name || l.barcode }}</div>
                   <div class="line__meta">
-                    @if (l.size) { {{ l.size }} · }{{ l.price != null ? money(l.price) : 'price on sync' }}@if (l.quantity > 1) { · ×{{ l.quantity }} }
+                    @if (l.size) { {{ sizeLabel(l.size) }} · }{{ l.price != null ? money(l.price) : 'price on sync' }}@if (l.quantity > 1) { · ×{{ l.quantity }} }
                   </div>
                 </div>
                 <button type="button" class="icon-btn" [attr.aria-label]="'Remove one ' + (l.name || l.barcode)" (click)="removeLine(l.key)">
@@ -270,6 +270,11 @@ export class MobileFloorScreen implements OnInit {
       if (on) this.loadMine();
     });
     this.offline.pendingSales$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((n) => this.queued.set(n));
+  }
+
+  /** "Free" is free size, not free of charge: say so next to a price. */
+  sizeLabel(size: string): string {
+    return /^free$/i.test(size.trim()) ? 'Free size' : size;
   }
 
   money(n: number): string {

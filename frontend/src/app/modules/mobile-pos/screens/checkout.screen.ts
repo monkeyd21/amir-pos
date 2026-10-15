@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MobileCartService } from '../services/mobile-cart.service';
 import { ApiService } from '../../../core/services/api.service';
+import { OfflineService } from '../../../core/services/offline.service';
 import { NotificationService } from '../../../core/services/notification.service';
 
 type PaymentMethod = 'cash' | 'card' | 'upi';
@@ -354,6 +355,12 @@ export class MobileCheckoutScreen implements OnInit {
   private router = inject(Router);
   private api = inject(ApiService);
   private notify = inject(NotificationService);
+  private offline = inject(OfflineService);
+  /**
+   * One idempotency key per sale attempt, kept until the sale lands: a
+   * double tap, or a retry after a dropped response, can never bill twice.
+   */
+  private clientRef = '';
 
   readonly processing = signal(false);
 
@@ -412,12 +419,14 @@ export class MobileCheckoutScreen implements OnInit {
 
     this.processing.set(true);
 
+    this.clientRef ||= this.offline.newClientRef();
     const body: {
       items: { barcode: string; quantity: number; agentId?: number }[];
       customerId?: number;
       payments: { method: PaymentMethod; amount: number; referenceNumber?: string }[];
       discountAmount?: number;
       loyaltyPointsRedeem?: number;
+      clientRef?: string;
     } = {
       items: this.cart.items().map((i) => ({
         barcode: i.barcode,
@@ -449,8 +458,31 @@ export class MobileCheckoutScreen implements OnInit {
       body.loyaltyPointsRedeem = pts;
     }
 
+    // §11: offline, the bill is queued under its key and syncs on reconnect.
+    if (!this.offline.isOnline) {
+      const tempNumber = `OFF-${Date.now().toString(36).toUpperCase().slice(-5)}`;
+      this.offline.queueSale({
+        clientRef: this.clientRef,
+        tempNumber,
+        createdAt: new Date().toISOString(),
+        total: this.cart.total(),
+        payload: body,
+      });
+      const total = this.cart.total();
+      const cust = this.cart.customer();
+      this.clientRef = '';
+      this.cart.clear();
+      this.processing.set(false);
+      this.router.navigate(['/mobile-pos/success'], {
+        queryParams: { sale: tempNumber, total, offline: 1, customerName: cust ? `${cust.firstName} ${cust.lastName}` : undefined },
+      });
+      return;
+    }
+    body.clientRef = this.clientRef;
+
     this.api.post<CheckoutResponse>('/pos/checkout', body).subscribe({
       next: (res) => {
+        this.clientRef = '';
         const data = res?.data;
         if (!data) {
           this.processing.set(false);

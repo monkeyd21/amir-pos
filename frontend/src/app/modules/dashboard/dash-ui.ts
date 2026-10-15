@@ -163,3 +163,9 @@ export function paymentLabel(mode: string | null | undefined): string {
 export function timeIst(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 }
+
+/** "Free" is free size, not free of charge: say so wherever it sits beside a price. */
+export function sizeLabel(size: string | null | undefined): string {
+  if (!size) return '';
+  return /^free$/i.test(size.trim()) ? 'Free size' : size;
+}

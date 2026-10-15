@@ -124,7 +124,7 @@
               <ul class="mt-2 text-[13px]">
                 @for (i of p.items; track i.id) {
                   <li class="flex justify-between gap-3">
-                    <span class="truncate">{{ i.variant.product.name }} <span class="text-on-surface-variant">· {{ i.variant.size }}</span>@if (i.quantity > 1) { ×{{ i.quantity }} }</span>
+                    <span class="truncate">{{ i.variant.product.name }} <span class="text-on-surface-variant">· {{ sizeLabel(i.variant.size) }}</span>@if (i.quantity > 1) { ×{{ i.quantity }} }</span>
                     <span class="shrink-0 tabular-nums text-on-surface-variant">{{ i.tagPrice | inr }}</span>
                   </li>
                 }

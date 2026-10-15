@@ -6,7 +6,7 @@ import { isValidPhone } from '../../shared/validation/phone';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { OfflineService } from '../../core/services/offline.service';
-import { DdMmYyyyPipe, InrPipe, paymentLabel, timeIst } from './dash-ui';
+import { DdMmYyyyPipe, InrPipe, paymentLabel, sizeLabel, timeIst } from './dash-ui';
 import { SidePanelComponent } from './side-panel.component';
 
 export type ActionKind = 'attendance' | 'expenses' | 'pending-sales' | 'upi' | 'loyalty';
@@ -70,6 +70,7 @@ export class ActionPanelComponent implements OnChanges {
   readonly error = signal<string | null>(null);
   readonly paymentLabel = paymentLabel;
   readonly timeIst = timeIst;
+  readonly sizeLabel = sizeLabel;
 
   // Attendance
   readonly attendanceDate = signal('');
