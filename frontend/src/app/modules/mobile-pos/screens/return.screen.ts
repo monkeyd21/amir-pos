@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ReasonPickerComponent } from '../components/reason-picker.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -61,7 +62,7 @@ interface LineState {
 @Component({
   selector: 'app-mobile-return-screen',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReasonPickerComponent],
   template: `
     <div class="mobile-pos-root">
       <div class="mp-screen mp-screen--no-nav return-screen">
@@ -244,13 +245,7 @@ interface LineState {
             <!-- Reason -->
             <section class="bill-section">
               <div class="section-title">Reason</div>
-              <textarea
-                class="mp-input reason-input"
-                rows="3"
-                [(ngModel)]="reasonText"
-                (ngModelChange)="reason.set($event)"
-                placeholder="Why is this being returned?"
-              ></textarea>
+              <app-reason-picker [value]="reason()" (valueChange)="reason.set($event)" />
             </section>
 
             <!-- Refund summary -->
@@ -589,14 +584,6 @@ interface LineState {
         color: var(--mp-on-bg-muted);
       }
 
-      /* Reason */
-      .reason-input {
-        min-height: 80px;
-        padding: 14px 16px;
-        line-height: 1.4;
-        font-size: 15px;
-        resize: vertical;
-      }
 
       /* Refund card */
       .refund-card {
@@ -715,7 +702,6 @@ export class MobileReturnScreen implements OnInit {
   readonly ownerPin = signal<string>('');
 
   /** Two-way bound copies so ngModel stays in sync with the signals */
-  reasonText = '';
   ownerPinText = '';
 
   readonly selectedLines = computed(() => {
@@ -842,8 +828,8 @@ export class MobileReturnScreen implements OnInit {
         condition: map[it.id].condition,
       }));
 
-    const body: { reason: string; items: typeof items; ownerPin?: string } = {
-      reason: this.reason().trim(),
+    const body: { reasonCode: string; items: typeof items; ownerPin?: string } = {
+      reasonCode: this.reason(),
       items,
     };
     if (this.needsOwnerPin()) {

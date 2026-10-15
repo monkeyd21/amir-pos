@@ -229,6 +229,7 @@ export class EmployeeFormComponent implements OnInit {
   roles = [
     { value: 'owner', label: 'Owner' },
     { value: 'manager', label: 'Manager' },
+    { value: 'supervisor', label: 'Supervisor' },
     { value: 'cashier', label: 'Cashier' },
     { value: 'staff', label: 'Staff' },
   ];

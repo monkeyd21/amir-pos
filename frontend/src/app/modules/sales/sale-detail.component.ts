@@ -7,10 +7,9 @@ import { NotificationService } from '../../core/services/notification.service';
 import { StatusBadgeComponent } from '../../shared/status-badge/status-badge.component';
 import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-spinner.component';
 import { ReturnDialogComponent } from './return-dialog.component';
-import { ExchangeDialogComponent } from './exchange-dialog.component';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
 import { AuthService } from '../../core/services/auth.service';
-import { canExchangeLine, refundRule } from '@clothing-erp/shared';
+import { refundRule } from '@clothing-erp/shared';
 
 interface SaleItem {
   id: number;
@@ -106,7 +105,6 @@ interface SaleResponse {
     StatusBadgeComponent,
     LoadingSpinnerComponent,
     ReturnDialogComponent,
-    ExchangeDialogComponent,
   ],
   templateUrl: './sale-detail.component.html',
 })
@@ -114,7 +112,6 @@ export class SaleDetailComponent implements OnInit {
   sale: Sale | null = null;
   loading = true;
   showReturnDialog = false;
-  showExchangeDialog = false;
   agents: Array<{ id: number; name: string }> = [];
   gstEnabled = false;
 
@@ -402,19 +399,6 @@ export class SaleDetailComponent implements OnInit {
     );
   }
 
-  /**
-   * Lines that may come back as a SWAP: a different question, and a wider
-   * answer. Clearance goods swap freely, and an `exchangeOnly` product is the
-   * whole point of this list even though it can never be refunded. Feeding the
-   * exchange dialog `returnableItems` (the refund list) hid both.
-   */
-  get exchangeableItems(): SaleItem[] {
-    if (!this.sale) return [];
-    return this.sale.items.filter(
-      (item) => this.lineUnreturned(item) && canExchangeLine(this.linePolicy(item))
-    );
-  }
-
   openReturnDialog(): void {
     this.showReturnDialog = true;
   }
@@ -423,24 +407,9 @@ export class SaleDetailComponent implements OnInit {
     this.showReturnDialog = false;
   }
 
-  openExchangeDialog(): void {
-    this.showExchangeDialog = true;
-  }
-
-  closeExchangeDialog(): void {
-    this.showExchangeDialog = false;
-  }
-
   onReturnComplete(): void {
     this.showReturnDialog = false;
     this.notify.success('Return processed successfully');
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) this.loadSale(id);
-  }
-
-  onExchangeComplete(): void {
-    this.showExchangeDialog = false;
-    this.notify.success('Exchange processed successfully');
     const id = this.route.snapshot.paramMap.get('id');
     if (id) this.loadSale(id);
   }

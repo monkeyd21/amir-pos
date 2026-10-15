@@ -472,12 +472,3 @@
   />
 }
 
-<!-- Exchange Dialog -->
-@if (showExchangeDialog && sale) {
-  <app-exchange-dialog
-    [sale]="sale"
-    [returnableItems]="exchangeableItems"
-    (close)="closeExchangeDialog()"
-    (exchangeComplete)="onExchangeComplete()"
-  />
-}

@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ReasonPickerComponent } from '../components/reason-picker.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -97,7 +98,7 @@ interface NewItem {
 @Component({
   selector: 'app-mobile-exchange-screen',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ReasonPickerComponent],
   template: `
     <div class="mobile-pos-root">
       <div class="mp-screen mp-screen--no-nav exchange-screen">
@@ -388,13 +389,7 @@ interface NewItem {
             <!-- Reason -->
             <section class="bill-section">
               <div class="section-title">Reason</div>
-              <textarea
-                class="mp-input reason-input"
-                rows="3"
-                [(ngModel)]="reasonText"
-                (ngModelChange)="reason.set($event)"
-                placeholder="Why is this being exchanged?"
-              ></textarea>
+              <app-reason-picker [value]="reason()" (valueChange)="reason.set($event)" />
             </section>
 
             <!-- Math -->
@@ -780,13 +775,6 @@ interface NewItem {
         flex-shrink: 0;
       }
 
-      .reason-input {
-        min-height: 80px;
-        padding: 14px 16px;
-        line-height: 1.4;
-        font-size: 15px;
-        resize: vertical;
-      }
 
       .math-card {
         padding: 16px;
@@ -898,7 +886,6 @@ export class MobileExchangeScreen implements OnInit {
   readonly newItems = signal<NewItem[]>([]);
   readonly reason = signal<string>('');
 
-  reasonText = '';
 
   // ─── §0 one exchange per bill ──────────────────────────────
   // A bill that has already been exchanged is stopped here and let through
@@ -1147,7 +1134,7 @@ export class MobileExchangeScreen implements OnInit {
     }));
 
     const body: Record<string, unknown> = {
-      reason: this.reason().trim(),
+      reasonCode: this.reason(),
       returnItems,
       newItems: newItemsPayload,
     };

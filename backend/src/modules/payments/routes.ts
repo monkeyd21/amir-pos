@@ -14,7 +14,7 @@ router.use(authenticate);
 
 router.post(
   '/',
-  authorize('owner', 'manager', 'cashier'),
+  authorize('owner', 'manager', 'supervisor', 'cashier'),
   validate(recordPaymentSchema),
   paymentsController.recordPayment
 );

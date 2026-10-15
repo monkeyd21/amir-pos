@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RETURN_REASONS } from '@clothing-erp/shared';
 import { RouterModule, Router } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -428,6 +429,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   // A net refund (return worth more than the cart) is blocked → Sales tab.
   exchangeSale: { id: number; saleNumber: string } | null = null;
   exchangeItems: ExchangePickerLine[] = [];
+  /** Dashboard §5.2 — optional reason code for the swap ('' = not given). */
+  exchangeReasonCode = '';
+  readonly returnReasons = RETURN_REASONS;
   showExchangePanel = false;
   exchangeLookupQuery = '';
   exchangeLoading = false;
@@ -829,11 +833,10 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       });
   }
 
-  /** Billing-only roles (cashier/staff) are bounced from the dashboard, so the
-   *  POS terminal is their whole app — they need a Sign out here. */
+  /** Billing roles (supervisor/cashier/staff) land on the POS, so the
+   *  terminal is their home — they need a Sign out here. */
   get isBillingOnly(): boolean {
-    const role = this.currentUser?.role;
-    return role === 'cashier' || role === 'staff';
+    return this.auth.isBillingRole(this.currentUser?.role);
   }
 
   /** Sign out from the POS terminal (clears tokens + returns to /login). */
@@ -1997,6 +2000,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
           quantity: i.quantity,
           condition: i.condition,
         })),
+        reasonCode: this.exchangeReasonCode || null,
       };
       // §0: a second exchange on this bill only goes through with the manager
       // approval attached. The backend re-verifies it and records who approved.
@@ -2064,6 +2068,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     this.customerSearchQuery = '';
     this.exchangeSale = null;
     this.exchangeItems = [];
+    this.exchangeReasonCode = '';
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
     this.exchangeMode = 'scan';
@@ -2444,6 +2449,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
   cancelExchange(): void {
     this.exchangeSale = null;
     this.exchangeItems = [];
+    this.exchangeReasonCode = '';
     this.exchangeLookupQuery = '';
     this.showExchangePanel = false;
     this.exchangeBillCustomer = null;

@@ -24,7 +24,7 @@ export class LoginComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.authService.isAuthenticated()) {
-      this.router.navigate(['/dashboard']);
+      this.router.navigateByUrl(this.authService.homeRoute());
       return;
     }
 
@@ -49,7 +49,7 @@ export class LoginComponent implements OnInit {
 
     this.authService.login(email, password, rememberMe).subscribe({
       next: () => {
-        this.router.navigate(['/dashboard']);
+        this.router.navigateByUrl(this.authService.homeRoute());
       },
       error: (err) => {
         this.loading = false;

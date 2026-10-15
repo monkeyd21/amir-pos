@@ -34,16 +34,14 @@ export class SidebarComponent {
     { icon: 'history', label: 'Audit Log', path: '/audit' },
   ];
 
-  /** Billing roles (cashier + staff) only get POS + Sales (for returns/exchanges). */
-  private readonly billingPaths = ['/pos', '/sales'];
-  private readonly billingOnlyRoles = ['cashier', 'staff'];
+  /** Billing roles get the dashboard (trimmed to their role), POS and Sales. */
+  private readonly billingPaths = ['/dashboard', '/pos', '/sales'];
 
   mainNav: NavItem[];
   settingsNav: NavItem | null = { icon: 'settings', label: 'Settings', path: '/settings' };
 
   constructor(private auth: AuthService) {
-    const role = this.auth.getCurrentUser()?.role ?? '';
-    const isBillingOnly = this.billingOnlyRoles.includes(role);
+    const isBillingOnly = this.auth.isBillingRole();
     this.mainNav = isBillingOnly
       ? this.allNav.filter((n) => this.billingPaths.includes(n.path))
       : this.allNav;

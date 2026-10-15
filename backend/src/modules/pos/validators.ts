@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RETURN_REASON_CODES } from '@clothing-erp/shared';
 
 export const openSessionSchema = z.object({
   body: z.object({
@@ -125,7 +126,9 @@ export const checkoutSchema = z.object({
             })
           )
           .min(1, 'At least one return item is required'),
-        reason: z.string().optional(),
+        // §5.2 — fixed reason code, optional on an exchange.
+        reasonCode: z.enum(RETURN_REASON_CODES as [string, ...string[]]).optional().nullable(),
+        reason: z.string().optional().nullable(),
         // §0 one exchange per bill: a manager's or owner's signed approval to
         // swap against a bill that has already been exchanged. Issued by
         // POST /sales/:saleId/exchange-override.

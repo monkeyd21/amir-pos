@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RETURN_REASON_CODES } from '@clothing-erp/shared';
 import {
   storedPhoneSchema,
   customerEmailSchema,
@@ -64,7 +65,11 @@ export const processReturnSchema = z.object({
         })
       )
       .min(1, 'At least one item is required'),
-    reason: z.string().min(1, 'Reason is required'),
+    // §5.2 — one of the fixed codes. `reason` is the legacy field that older
+    // clients filled with the same code; the service accepts either, and
+    // refuses a refund that carries neither.
+    reasonCode: z.enum(RETURN_REASON_CODES as [string, ...string[]]).optional().nullable(),
+    reason: z.string().optional().nullable(),
     // Refund settlement (Bug#1 / §2.2b) — freely chosen, not tied to the
     // original payment. Either a single method, or an explicit cash/card/UPI
     // split that must sum to the refund total (validated in the service).
@@ -105,7 +110,8 @@ export const processExchangeSchema = z.object({
         })
       )
       .min(1, 'At least one new item is required'),
-    reason: z.string().optional(),
+    reasonCode: z.enum(RETURN_REASON_CODES as [string, ...string[]]).optional().nullable(),
+    reason: z.string().optional().nullable(),
     // §0: signed manager/owner approval to exchange this bill a second time.
     overrideGrant: z.string().optional().nullable(),
   }),

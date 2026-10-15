@@ -33,21 +33,15 @@
         <label class="block mb-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Return Reason</label>
         <select
           [(ngModel)]="reason"
+          data-testid="return-reason"
           class="w-full sm:w-64 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all cursor-pointer appearance-none"
+          [class.text-on-surface-variant]="!reason"
         >
-          @for (r of reasons; track r.value) {
-            <option [value]="r.value">{{ r.label }}</option>
+          <option value="" disabled>Select a reason</option>
+          @for (r of reasons; track r.code) {
+            <option [value]="r.code">{{ r.label }}</option>
           }
         </select>
-        @if (reason === 'other') {
-          <input
-            type="text"
-            [(ngModel)]="otherReason"
-            placeholder="Describe the reason"
-            data-testid="return-other-reason"
-            class="mt-2 w-full sm:w-64 px-3 py-2 text-sm font-body text-on-surface bg-surface-container-high/60 border border-outline-variant/20 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
-          />
-        }
       </div>
 
       <!-- §2.4 — clearance goods are printed NON-RETURNABLE on the bill. The

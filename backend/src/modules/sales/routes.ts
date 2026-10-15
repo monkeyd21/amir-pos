@@ -33,13 +33,13 @@ router.get('/:id/receipt.pdf', validate(saleIdParamSchema), salesController.rece
 // Returns and exchanges
 router.post(
   '/:saleId/return',
-  authorize('owner', 'manager', 'cashier', 'staff'),
+  authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
   validate(processReturnSchema),
   salesController.processReturn
 );
 router.post(
   '/:saleId/exchange',
-  authorize('owner', 'manager', 'cashier', 'staff'),
+  authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
   validate(processExchangeSchema),
   salesController.processExchange
 );
@@ -49,7 +49,7 @@ router.post(
 // own credentials in the body are what authorise it, so every role may POST.
 router.post(
   '/:saleId/exchange-override',
-  authorize('owner', 'manager', 'cashier', 'staff'),
+  authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
   validate(approveExchangeOverrideSchema),
   salesController.approveExchangeOverride
 );
@@ -58,7 +58,7 @@ router.post(
 // inventory movement — just an audit record of the refused attempt.
 router.post(
   '/:saleId/reject',
-  authorize('owner', 'manager', 'cashier', 'staff'),
+  authorize('owner', 'manager', 'supervisor', 'cashier', 'staff'),
   validate(rejectInspectionSchema),
   salesController.rejectInspection
 );

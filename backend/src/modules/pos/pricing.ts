@@ -64,3 +64,27 @@ export function mrpFor(v: PricedVariant): number {
   if (v.product.mrp != null) return Number(v.product.mrp);
   return Number(v.product.basePrice);
 }
+
+export interface CostedVariant {
+  landingOverride?: { toString(): string } | null;
+  costOverride?: { toString(): string } | null;
+  product: {
+    landingPrice?: { toString(): string } | null;
+    costPrice?: { toString(): string } | null;
+  };
+}
+
+/**
+ * Landed cost of one unit: what the piece actually cost the shop once freight
+ * and charges are in. Variant landing, then product landing, then variant
+ * purchase cost, then product purchase cost: the order the P&L has always used.
+ *
+ * Returns null when no cost was ever entered (a zero is "never entered", not a
+ * free garment), so callers count the line against cost coverage instead of
+ * booking it at 100% margin. Snapshotted onto `SaleItem.unitCost` at checkout.
+ */
+export function landedUnitCost(v: CostedVariant): number | null {
+  const raw = v.landingOverride ?? v.product.landingPrice ?? v.costOverride ?? v.product.costPrice;
+  const n = raw == null ? 0 : Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}

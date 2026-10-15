@@ -107,10 +107,10 @@ clearance line from the Sales-tab refund list and then, separately, from the POS
 exchange list (bill W0215). The goods were returnable, the server would have
 accepted them, the cashier simply could not see them. The POS exchange picker is
 now `frontend/src/app/modules/pos/exchange-items.ts` (`buildExchangeItems`,
-tested in `exchange-items.spec.ts`); `sale-detail.component.ts` exposes
-`returnableItems` (refund, via `refundRule`) and `exchangeableItems` (swap, via
-`canExchangeLine`) as two separate lists, because they are two different
-questions.
+tested in `exchange-items.spec.ts`); the Sales-tab refund list is
+`sale-detail.component.ts` `returnableItems` (via `refundRule`). Refund and swap
+are two different questions, so they are two different lists. Exchanges happen
+only at the POS (the old sale-detail exchange dialog was dead code and is gone).
 
 The policy module never checks the PIN itself — the service does, so policy
 stays testable without a database. Both PIN-spending sites write a
@@ -224,6 +224,29 @@ Frontend dropdowns with default "Select..." option send `null`. Zod `.optional()
 
 ### 7. Static Express routes MUST come before parameterized routes
 `/customers/top` must be registered before `/customers/:id` or Express matches "top" as the `:id` param. Same for `/commissions/pay-bulk` before `/commissions/:id/pay`.
+
+### 7a. Every return carries a fixed reason code, never free text
+`Return.reasonCode` is the `ReturnReason` enum; the six codes and their labels
+live in `shared/src/return-reasons.ts` so the pickers, the server and the
+dashboard agree. A refund without a code is refused
+(`pos/return-reason.ts` → `resolveReturnReason`); an exchange may go uncoded.
+`Return.reason` keeps the label for receipts and legacy rows. Returns also carry
+`businessDate` (the shift's trading day) and reduce THAT day, not the original
+sale's day, in the P&L and the dashboard.
+
+### 7b. Cost is snapshotted per line at checkout
+`SaleItem.unitCost` is the landed cost when the piece was sold
+(`pos/pricing.ts` → `landedUnitCost`: variant landing → product landing →
+variant cost → product cost). NULL means no cost was ever entered; profit
+leaves such lines out and counts them against cost coverage, never as ₹0 cost.
+The P&L and the dashboard both read the snapshot, so a later cost edit cannot
+rewrite past margins.
+
+### 7c. Trading-day helpers live in `utils/business-date.ts`
+`istBusinessDate`, `businessDateOf(session)`, `businessDateForUser`,
+`currentBusinessDateForBranch`. Never build a date range with
+`new Date(y, m, d)`: that is the host's timezone, right on the UTC prod box and
+a day off anywhere else. Use `dateOnly(ymd)` from `utils/ist.ts`.
 
 ### 8. ts-node-dev sometimes misses file changes
 If you edit a file and don't see `[INFO] Restarting` in the backend log, force a restart. The `--respawn` flag isn't perfectly reliable. `touch` doesn't always work; you may need to modify file content (add/remove a blank line).

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const roleEnum = z.enum(['owner', 'manager', 'cashier', 'staff']);
+const roleEnum = z.enum(['owner', 'manager', 'supervisor', 'cashier', 'staff']);
 
 // Blank strings from the form mean "not provided" for optional fields.
 const emptyToNull = (v: unknown) => (v === '' || v == null ? null : v);

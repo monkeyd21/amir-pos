@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RETURN_REASONS, returnReasonLabel } from '@clothing-erp/shared';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -36,8 +37,9 @@ export class ReturnDialogComponent implements OnInit {
   submitting = false;
   // §1.2 — fixed Return Reason dropdown (final for V1). 'other' reveals a
   // mandatory free-text box.
-  reason = 'size_issue';
-  otherReason = '';
+  // §5.2 — no preselected reason: a default would quietly turn every refund
+  // into "size issue" in the dashboard's reason counts.
+  reason = '';
 
   // Bug#1 / §2.2b — refund settlement is freely chosen and NOT tied to the
   // original payment. Leave the split blank to mirror the original payment
@@ -71,16 +73,9 @@ export class ReturnDialogComponent implements OnInit {
     this.splitCard = null;
   }
 
-  // §1.2 — fixed dropdown, final for V1. Do not add/remove options ad hoc.
-  reasons = [
-    { value: 'size_issue', label: 'Size Issue' },
-    { value: 'defective_damaged', label: 'Defective / Damaged Item' },
-    { value: 'wrong_item', label: 'Wrong Item Delivered / Scanned' },
-    { value: 'changed_mind', label: 'Customer Changed Mind' },
-    { value: 'quality_not_expected', label: 'Quality Not as Expected' },
-    { value: 'duplicate_purchase', label: 'Duplicate Purchase' },
-    { value: 'other', label: 'Other' },
-  ];
+  // Dashboard §5.2 — the fixed list shared with the server and the reports.
+  // No "Other": a reason nobody can count tells the owner nothing.
+  readonly reasons = RETURN_REASONS;
 
   conditions = [
     { value: 'resellable', label: 'Resellable / Like New' },
@@ -132,8 +127,7 @@ export class ReturnDialogComponent implements OnInit {
   }
 
   get canSubmit(): boolean {
-    // §1.2 — 'Other' requires the free-text reason to be filled in.
-    if (this.reason === 'other' && !this.otherReason.trim()) return false;
+    if (!this.reason) return false;
     if (this.selectedItems.length === 0 || this.submitting) return false;
     // The refund settlement must be entered and allocated IN FULL — no more
     // silent "process without an amount". "All cash" one-taps the common case.
@@ -167,8 +161,7 @@ export class ReturnDialogComponent implements OnInit {
     this.submitting = true;
 
     const body: any = {
-      // 'Other' sends the free-text; fixed options send their code.
-      reason: this.reason === 'other' ? this.otherReason.trim() : this.reason,
+      reasonCode: this.reason,
       items: this.selectedItems.map((item) => ({
         saleItemId: item.saleItemId,
         quantity: item.quantity,
@@ -218,7 +211,7 @@ export class ReturnDialogComponent implements OnInit {
    */
   reject(): void {
     if (this.submitting) return;
-    const reason = this.reason === 'other' ? this.otherReason.trim() : this.reason;
+    const reason = returnReasonLabel(this.reason);
     if (!reason) {
       this.notify.error('Select a reason before recording a rejection');
       return;

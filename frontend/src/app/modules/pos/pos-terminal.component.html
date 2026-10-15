@@ -1872,6 +1872,19 @@
 
           @if (exchangeSale) {
             <div class="px-5 py-4 border-t border-outline-variant/10 shrink-0 space-y-3">
+              <!-- Dashboard §5.2 — why it came back, from the fixed list. Optional
+                   on a swap, but it is what tells the owner a style keeps
+                   coming back for its size. -->
+              <label class="flex items-center justify-between gap-3">
+                <span class="text-xs text-on-surface-variant">Reason</span>
+                <select [(ngModel)]="exchangeReasonCode" data-testid="pos-exchange-reason"
+                  class="flex-1 max-w-[14rem] text-xs bg-surface-container-lowest border border-outline-variant/20 text-on-surface px-2 py-1.5 rounded-md outline-none">
+                  <option value="">Not given</option>
+                  @for (r of returnReasons; track r.code) {
+                    <option [value]="r.code">{{ r.label }}</option>
+                  }
+                </select>
+              </label>
               <div class="flex justify-between text-sm">
                 <span class="text-on-surface-variant">Total return credit</span>
                 <span class="font-bold text-amber-400">{{ formatCurrency(exchangeCredit) }}</span>

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const userRoleEnum = z.enum(['owner', 'manager', 'cashier', 'staff']);
+const userRoleEnum = z.enum(['owner', 'manager', 'supervisor', 'cashier', 'staff']);
 
 export const createUserSchema = z.object({
   body: z.object({

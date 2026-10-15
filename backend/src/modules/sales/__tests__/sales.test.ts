@@ -155,7 +155,7 @@ describe('Sales Module', () => {
         .set('Authorization', authHeader(testUsers.cashier))
         .send({
           items: [{ saleItemId: 10, quantity: 1, condition: 'resellable' }],
-          reason: 'Wrong size',
+          reasonCode: 'size_issue',
         });
 
       expect(res.status).toBe(201);
@@ -207,7 +207,7 @@ describe('Sales Module', () => {
         .set('Authorization', authHeader(testUsers.manager))
         .send({
           items: [{ saleItemId: 10, quantity: 2, condition: 'resellable' }],
-          reason: 'Customer changed mind',
+          reasonCode: 'changed_mind',
         });
 
       expect(res.status).toBe(201);
@@ -257,7 +257,7 @@ describe('Sales Module', () => {
         .set('Authorization', authHeader(testUsers.cashier))
         .send({
           items: [{ saleItemId: 10, quantity: 1, condition: 'resellable' }],
-          reason: 'Size exchange',
+          reasonCode: 'size_issue',
         });
 
       // Verify inventory was restocked
@@ -298,7 +298,22 @@ describe('Sales Module', () => {
       ]);
       prismaMock.sale.update.mockResolvedValue({});
 
-      await request(app)
+      const res = await request(app)
+        .post(`${BASE}/1/return`)
+        .set('Authorization', authHeader(testUsers.cashier))
+        .send({
+          items: [{ saleItemId: 10, quantity: 1, condition: 'damaged' }],
+          reasonCode: 'defect_damage',
+        });
+
+      expect(res.status).toBe(201);
+      // inventory.upsert should NOT have been called (damaged items don't restock)
+      expect(prismaMock.inventory.upsert).not.toHaveBeenCalled();
+    });
+
+    // Dashboard §5.2: reasons are counted, so a refund needs a code from the list.
+    it('refuses a refund whose reason is free text', async () => {
+      const res = await request(app)
         .post(`${BASE}/1/return`)
         .set('Authorization', authHeader(testUsers.cashier))
         .send({
@@ -306,8 +321,9 @@ describe('Sales Module', () => {
           reason: 'Defective',
         });
 
-      // inventory.upsert should NOT have been called (damaged items don't restock)
-      expect(prismaMock.inventory.upsert).not.toHaveBeenCalled();
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/return reason/i);
+      expect(prismaMock.return.create).not.toHaveBeenCalled();
     });
   });
 

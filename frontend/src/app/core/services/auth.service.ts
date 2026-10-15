@@ -86,6 +86,18 @@ export class AuthService {
     return localStorage.getItem('accessToken');
   }
 
+  /** Roles whose job is billing: their app is the POS plus a slim dashboard. */
+  static readonly BILLING_ROLES = ['supervisor', 'cashier', 'staff'];
+
+  isBillingRole(role = this.getCurrentUser()?.role): boolean {
+    return !!role && AuthService.BILLING_ROLES.includes(role);
+  }
+
+  /** Where a user lands after signing in: billing roles go straight to the till. */
+  homeRoute(): string {
+    return this.isBillingRole() ? '/pos' : '/dashboard';
+  }
+
   hasRole(roles: string[]): boolean {
     const user = this.getCurrentUser();
     return user ? roles.includes(user.role) : false;

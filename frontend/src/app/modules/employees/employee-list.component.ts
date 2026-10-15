@@ -125,6 +125,8 @@ export class EmployeeListComponent implements OnInit, OnDestroy {
         return 'bg-primary-container/15 text-primary';
       case 'manager':
         return 'bg-tertiary/15 text-tertiary';
+      case 'supervisor':
+        return 'bg-sky-500/10 text-sky-300';
       case 'cashier':
         return 'bg-green-500/10 text-green-400';
       default:

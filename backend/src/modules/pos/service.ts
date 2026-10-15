@@ -24,8 +24,16 @@ import {
   verifyExchangeOverrideGrant,
 } from '../../services/exchange-override';
 import { snapshotMrp, tagMrp } from './tag-mrp';
+import { resolveReturnReason } from './return-reason';
+import {
+  businessDateOf,
+  istBusinessDate,
+  istHour,
+  SHIFT_CUTOFF_HOUR,
+} from '../../utils/business-date';
 import { liveHoldsForVariant, paidUnfulfilledClaims } from '../shop/availability';
 import {
+  landedUnitCost,
   nonClearanceChargePrice as sharedNonClearanceChargePrice,
   PricedVariant,
 } from './pricing';
@@ -54,48 +62,15 @@ async function nextBillNumber(
   return `${prefix}${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
 }
 
-// §tz — the store trades in India. The server clock is UTC, so every trading-day
-// calculation is done EXPLICITLY in IST (UTC+5:30, no DST) rather than relying on
-// the server's local timezone. IST has no daylight saving, so a fixed offset is
-// exact and future-proof.
-const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
-
-// The India calendar day of `instant`, returned as a Date whose UTC Y/M/D equal
-// the India-local Y/M/D (i.e. UTC-midnight of the India day). A Prisma `@db.Date`
-// column stores only the UTC calendar date, so storing this value persists exactly
-// the India trading day regardless of the server timezone. Reading it back (also
-// UTC-midnight) and comparing to another value from this function is apples-to-apples.
-function istBusinessDate(instant: Date): Date {
-  const ist = new Date(instant.getTime() + IST_OFFSET_MS);
-  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
-}
-
-// Current hour of day in IST (0–23) — used for the 4 am cutoff.
-function istHour(instant: Date): number {
-  return new Date(instant.getTime() + IST_OFFSET_MS).getUTCHours();
-}
-
 // Format a trading-day value (UTC-midnight of the India day) for display, e.g.
 // "14 July 2026". Formatted in UTC because the stored value is UTC-midnight.
 function formatBusinessDate(d: Date): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
-// §11.0 — business date (trading day) for a shift, frozen at open. Every sale in
-// the shift (including post-midnight ones) inherits it until the shift is closed.
-function businessDateOf(session: { businessDate: Date | null; openedAt: Date }): Date {
-  if (session.businessDate) {
-    // Stored @db.Date reads back as UTC-midnight; take its UTC components verbatim.
-    const d = session.businessDate;
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  }
-  // Legacy sessions without a stored businessDate: derive the India day from openedAt.
-  return istBusinessDate(session.openedAt);
-}
-
-// §bug9 — hard cutoff (IST hour) after which an unclosed prior-day shift blocks
-// all POS activity until it is closed. 4 am per the spec.
-const SHIFT_CUTOFF_HOUR = 4;
+// §tz/§11.0 — the trading-day helpers (IST, shift-frozen business date, the
+// 4 am cutoff) live in utils/business-date.ts, shared with returns and the
+// dashboard so every module agrees on what "today" is.
 
 // §tax — GST is ALWAYS computed and stored on every sale (for GST records /
 // GSTR-1), regardless of the `gstComplianceEnabled` setting. That setting is a
@@ -558,7 +533,8 @@ export class PosService {
       exchange?: {
         originalSaleId: number;
         returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
-        reason?: string;
+        reasonCode?: string | null;
+        reason?: string | null;
         /**
          * §0 one exchange per bill: a manager's or owner's signed approval to
          * swap against a bill that has already been exchanged. Issued by
@@ -655,7 +631,7 @@ export class PosService {
         quantity: number;
         unitPrice: number;
         mrp: number;
-        costPrice: number;
+        unitCost: number | null;
         taxRate: number;
         agentId: number | null;
         nonReturnable: boolean;
@@ -679,7 +655,9 @@ export class PosService {
         // non-negative and auditable. Offline bills keep their prior behaviour
         // (deducted as-is, may go negative, reconciled later).
 
-        const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
+        // Dashboard §3.1/§12.3 — the landed cost at the moment of sale, so a
+        // later cost edit never rewrites this bill's margin.
+        const unitCost = landedUnitCost(variant);
         const taxRate =
           Number(variant.product.cgstRate) + Number(variant.product.sgstRate);
         // §2.4 — a clearance-flagged variant sells at its fixed clearancePrice
@@ -705,7 +683,7 @@ export class PosService {
           quantity: item.quantity,
           unitPrice,
           mrp,
-          costPrice,
+          unitCost,
           taxRate,
           agentId: item.agentId ?? userId, // default to cashier if no agent specified
           // §2.4 — clearance lines are always non-returnable, regardless of input.
@@ -832,6 +810,7 @@ export class PosService {
         quantity: number;
         unitPrice: number;
         mrp: number;
+        unitCost: number | null;
         taxRate: number;
         lineGross: number;
         offerDiscount: number;
@@ -861,6 +840,7 @@ export class PosService {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           mrp: item.mrp,
+          unitCost: item.unitCost,
           taxRate: item.taxRate,
           lineGross,
           offerDiscount,
@@ -908,6 +888,7 @@ export class PosService {
         quantity: number;
         unitPrice: number;
         mrp: number;
+        unitCost: number | null;
         discount: number;
         taxAmount: number;
         total: number;
@@ -943,6 +924,7 @@ export class PosService {
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           mrp: line.mrp,
+          unitCost: line.unitCost,
           discount: Math.round(lineDiscountTotal * 100) / 100,
           taxAmount: Math.round(lineTax * 100) / 100,
           total: Math.round(lineTotal * 100) / 100,
@@ -1107,7 +1089,10 @@ export class PosService {
             userId,
             returnNumber,
             type: 'exchange',
-            reason: data.exchange.reason || 'Exchange at POS',
+            ...resolveReturnReason(data.exchange, { required: false, fallbackText: 'Exchange at POS' }),
+            // The exchange happens inside this checkout, so it lands on the
+            // same trading day as the replacement bill.
+            businessDate: session ? businessDateOf(session) : istBusinessDate(new Date()),
             subtotal: exchangeCredit,
             taxAmount: Math.round(returnTax * 100) / 100,
             total: exchangeCredit,
@@ -2033,7 +2018,7 @@ export class PosService {
       variantId: number;
       quantity: number;
       unitPrice: number;
-      costPrice: number;
+      unitCost: number | null;
       taxRate: number;
     }> = [];
 
@@ -2050,13 +2035,13 @@ export class PosService {
       const unitPrice = isClearance
         ? Number(variant.clearancePrice)
         : this.nonClearanceChargePrice(variant);
-      const costPrice = Number(variant.costOverride ?? variant.product.costPrice);
+      const unitCost = landedUnitCost(variant);
 
       cartItems.push({
         variantId: variant.id,
         quantity: item.quantity,
         unitPrice,
-        costPrice,
+        unitCost,
         taxRate,
       });
     }
@@ -2223,7 +2208,9 @@ export class PosService {
       variantId: number;
       quantity: number;
       unitPrice: number;
-      costPrice: number;
+      // Intents created before the cost snapshot carry `costPrice` instead.
+      unitCost?: number | null;
+      costPrice?: number;
       taxRate: number;
     }>;
 
@@ -2238,6 +2225,7 @@ export class PosService {
         variantId: number;
         quantity: number;
         unitPrice: number;
+        unitCost: number | null;
         discount: number;
         taxAmount: number;
         total: number;
@@ -2257,6 +2245,7 @@ export class PosService {
           variantId: item.variantId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          unitCost: item.unitCost ?? (item.costPrice && item.costPrice > 0 ? item.costPrice : null),
           discount: 0,
           taxAmount: Math.round(lineTax * 100) / 100,
           total: Math.round(lineTotal * 100) / 100,
@@ -2274,10 +2263,9 @@ export class PosService {
       const upiSession = await tx.posSession.findFirst({
         where: { userId: intent.userId, status: 'open' },
       });
-      const now = new Date();
       const upiBusinessDate = upiSession
         ? businessDateOf(upiSession)
-        : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        : istBusinessDate(new Date());
 
       const sale = await tx.sale.create({
         data: {

@@ -320,19 +320,17 @@ export class ReportService {
   }) {
     // Line-item profit register (one row per sale line; returns as negative rows),
     // grouped by bill, with grand totals. Mirrors the legacy LogicERP P&L sheet.
-    // §11.0 — sales roll up by businessDate; returns use their own calendar date.
+    // §11.0 — sales and returns both roll up by their own trading day.
     const round2 = (n: number) => Math.round(n * 100) / 100;
     const round4 = (n: number) => Math.round(n * 10000) / 10000;
     // §tax — GST is always recorded; this flag only controls whether the P&L
     // *reveals* it. OFF → Sale Value = Net (GST hidden); ON → Sale Value = Net −
     // GST, and because the tax was always stored this applies to past bills too.
     const showGst = await getSetting<boolean>('gstComplianceEnabled', false);
-    const s = new Date(query.startDate);
-    const e = new Date(query.endDate);
-    const bdStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    const bdEnd = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
-    const rangeStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    const rangeEnd = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
+    // Trading days, as `@db.Date` values (UTC midnight of the India day), so the
+    // range means the same thing whatever timezone the server runs in.
+    const bdStart = dateOnly(query.startDate.slice(0, 10));
+    const bdEnd = new Date(dateOnly(query.endDate.slice(0, 10)).getTime() + 24 * 60 * 60 * 1000);
 
     const branchId = query.branchId ? parseInt(query.branchId) : undefined;
     const branchFilter = branchId ? { branchId } : {};
@@ -364,18 +362,33 @@ export class ReportService {
       select: {
         saleNumber: true,
         items: {
-          select: { quantity: true, unitPrice: true, total: true, taxAmount: true, variant: { select: variantSelect } },
+          select: {
+            quantity: true,
+            unitPrice: true,
+            total: true,
+            taxAmount: true,
+            unitCost: true,
+            variant: { select: variantSelect },
+          },
         },
       },
     });
 
     const returns = await prisma.return.findMany({
-      where: { createdAt: { gte: rangeStart, lte: rangeEnd }, status: 'completed', ...branchFilter },
+      // Dashboard §12.2 — a return reduces the trading day it happened on.
+      where: { businessDate: { gte: bdStart, lt: bdEnd }, status: 'completed', ...branchFilter },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
         originalSale: { select: { saleNumber: true } },
-        items: { select: { quantity: true, unitPrice: true, variant: { select: variantSelect } } },
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            saleItem: { select: { unitCost: true } },
+            variant: { select: variantSelect },
+          },
+        },
       },
     });
 
@@ -384,10 +397,25 @@ export class ReportService {
 
     // Build one register row. `qty` is signed (negative for returns); `net` is the
     // signed line amount actually charged/refunded (post-discount, tax-inclusive).
-    const buildRow = (sno: number, billNo: string, v: any, qty: number, net: number, storedTax: number | null) => {
+    const buildRow = (
+      sno: number,
+      billNo: string,
+      v: any,
+      qty: number,
+      net: number,
+      storedTax: number | null,
+      soldAtCost: unknown
+    ) => {
       const purchaseRate = Number(v?.costOverride ?? v?.product?.costPrice ?? 0);
       const saleRate = Number(v?.mrpOverride ?? v?.product?.mrp ?? 0);
-      const landingCost = Number(v?.landingOverride ?? v?.product?.landingPrice ?? purchaseRate);
+      // The landed cost snapshotted when the line was sold (SaleItem.unitCost),
+      // so a cost edited later never rewrites a past bill's profit, and this
+      // report and the dashboard always agree. Today's cost is only the
+      // fallback for a line that never had one recorded.
+      const landingCost =
+        soldAtCost != null
+          ? Number(soldAtCost)
+          : Number(v?.landingOverride ?? v?.product?.landingPrice ?? purchaseRate);
       const gstRate = Number(v?.product?.cgstRate ?? 0) + Number(v?.product?.sgstRate ?? 0);
       const grossAmount = saleRate * qty;
       // §pnl — profit is measured against LANDING cost (cost after freight/expenses,
@@ -445,7 +473,9 @@ export class ReportService {
     let sno = 0;
     for (const sale of sales) {
       for (const it of sale.items) {
-        rows.push(buildRow(++sno, sale.saleNumber, it.variant, it.quantity, Number(it.total), Number(it.taxAmount)));
+        rows.push(
+          buildRow(++sno, sale.saleNumber, it.variant, it.quantity, Number(it.total), Number(it.taxAmount), it.unitCost)
+        );
       }
     }
     for (const ret of returns) {
@@ -453,7 +483,7 @@ export class ReportService {
       for (const it of ret.items) {
         const qty = -it.quantity;
         const net = -(Number(it.unitPrice) * it.quantity);
-        rows.push(buildRow(++sno, billNo, it.variant, qty, net, null));
+        rows.push(buildRow(++sno, billNo, it.variant, qty, net, null, it.saleItem?.unitCost));
       }
     }
 

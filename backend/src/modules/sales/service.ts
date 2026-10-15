@@ -1,4 +1,6 @@
 import prisma from '../../config/database';
+import { resolveReturnReason } from '../pos/return-reason';
+import { businessDateForUser } from '../../utils/business-date';
 import { AppError } from '../../middleware/errorHandler';
 import { generateNumber, getPagination, buildPaginationMeta, fullName, isWithinPolicyWindow } from '../../utils/helpers';
 import { recordAudit } from '../../services/audit';
@@ -663,7 +665,8 @@ export class SalesService {
     saleId: number,
     data: {
       items: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
-      reason: string;
+      reasonCode?: string | null;
+      reason?: string | null;
       // How the refund is settled. Default 'proportional' mirrors the original
       // payment split. Bug#1 / §2.2b — the refund is NOT tied to the original
       // method: the cashier may force a single method OR provide `refundSplit`
@@ -680,6 +683,10 @@ export class SalesService {
     branchId: number,
     role?: string
   ) {
+    // §5.2 — resolved before the transaction: a missing or unknown reason is
+    // refused without taking any locks.
+    const refundReason = resolveReturnReason(data, { required: true });
+
     return prisma.$transaction(async (tx) => {
       // Get the original sale + how it was paid (needed to refund to the
       // original sources rather than blindly handing back cash).
@@ -890,7 +897,8 @@ export class SalesService {
           userId,
           returnNumber,
           type: 'return',
-          reason: data.reason,
+          ...refundReason,
+          businessDate: await businessDateForUser(tx, userId),
           subtotal: returnSubtotal,
           taxAmount: returnTax,
           total: returnTotal,
@@ -1033,7 +1041,7 @@ export class SalesService {
         entityId: returnRecord.id,
         userId,
         branchId,
-        reason: data.reason,
+        reason: refundReason.reason ?? undefined,
         data: {
           saleNumber: sale.saleNumber,
           returnTotal,
@@ -1062,7 +1070,7 @@ export class SalesService {
           entityId: returnRecord.id,
           userId,
           branchId,
-          reason: data.reason,
+          reason: refundReason.reason ?? undefined,
           data: {
             saleNumber: sale.saleNumber,
             clearanceItems: clearanceLines,
@@ -1082,7 +1090,8 @@ export class SalesService {
     data: {
       returnItems: { saleItemId: number; quantity: number; condition: 'resellable' | 'damaged' }[];
       newItems: { barcode: string; quantity: number }[];
-      reason?: string;
+      reasonCode?: string | null;
+      reason?: string | null;
       /**
        * §0 one exchange per bill: a manager's or owner's signed approval to
        * swap against a bill that has already been exchanged. Issued by
@@ -1257,7 +1266,8 @@ export class SalesService {
           userId,
           returnNumber,
           type: 'exchange',
-          reason: data.reason || 'Exchange',
+          ...resolveReturnReason(data, { required: false, fallbackText: 'Exchange' }),
+          businessDate: await businessDateForUser(tx, userId),
           subtotal: Math.round(returnSubtotal * 100) / 100,
           taxAmount: Math.round(returnTax * 100) / 100,
           total: returnTotal,
