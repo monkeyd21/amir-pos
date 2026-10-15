@@ -26,7 +26,7 @@ test.describe('Auth', () => {
 
   test('logout returns to the login page', async ({ page }) => {
     await login(page);
-    await page.locator('header button').last().click();
+    await page.locator('app-header button').last().click();
     await page.getByText('Sign out').click();
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });

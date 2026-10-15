@@ -52,6 +52,8 @@ export class DrillPanelComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
   /** Something was changed from inside the panel: the dashboard refetches. */
   @Output() changed = new EventEmitter<void>();
+  /** Hand over to a Daily Actionable panel (EOD "Over" → pending sales, unmatched UPI). */
+  @Output() openAction = new EventEmitter<'pending-sales' | 'upi'>();
 
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);

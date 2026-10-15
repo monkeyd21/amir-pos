@@ -205,7 +205,7 @@
 
         <ng-template dashBox="profit">
           @if (d.profit; as p) {
-            <dash-kpi label="Gross Profit & Margin" [tier]="marginTier()" (open)="open({ kind: 'profit' })">
+            <dash-kpi label="Gross Profit & Margin" [tier]="marginTier()" (open)="open({ kind: 'profit' })" [valueScale]="10.6" [valueMin]="16">
               <span kpi-value class="flex items-baseline gap-2.5">
                 <span>{{ p.grossProfit | inr }}</span>
                 <span class="text-on-surface-variant/50 font-normal" aria-hidden="true">|</span>
@@ -236,6 +236,9 @@
                 <span class="font-semibold text-on-surface-variant">UPT</span>
                 <span class="font-headline text-lg font-bold tabular-nums text-on-surface">{{ b.upt ?? '—' }}</span>
                 <dash-compare [c]="b.compare.upt.prev" [label]="compareLabel()" />
+                @if (b.compare.upt.yoy && !b.compare.upt.yoy.noData) {
+                  <dash-compare [c]="b.compare.upt.yoy" label="YoY" />
+                }
                 @if (b.uptBaseline8w != null) {
                   <span class="text-on-surface-variant">· own 8-week avg <b class="tabular-nums text-on-surface">{{ b.uptBaseline8w }}</b></span>
                 }
@@ -255,12 +258,16 @@
         <!-- ─── Zone D: returns, customers, discount ────────────────────── -->
         <ng-template dashBox="returns">
           @if (d.returns; as r) {
-            <dash-kpi [label]="r.ownOnly ? 'Your Returns' : 'Returns'" (open)="open({ kind: 'returns' })" valueSize="text-[24px]">
+            <dash-kpi [label]="r.ownOnly ? 'Your Returns' : 'Returns'" (open)="open({ kind: 'returns' })" [valueMax]="24" [valueScale]="10">
               <span kpi-value>{{ r.count }} <span class="text-on-surface-variant/60 font-normal">·</span> {{ r.value | inr }}</span>
               @if (r.topReasons.length) {
-                <span class="flex flex-wrap gap-1.5">
+                <!-- One line, whatever the width: the badges shrink, the card never grows. -->
+                <span class="flex min-w-0 gap-1.5 overflow-hidden">
                   @for (reason of r.topReasons; track reason.code) {
-                    <span class="rounded-md bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-200 ring-1 ring-rose-400/20">
+                    <span
+                      class="min-w-0 truncate rounded-md bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-200 ring-1 ring-rose-400/20"
+                      [title]="reason.label + ': ' + reason.count"
+                    >
                       {{ reason.label }} · {{ reason.count }}
                     </span>
                   }
@@ -275,7 +282,7 @@
 
         <ng-template dashBox="customers">
           @if (d.customers; as c) {
-            <dash-kpi label="Customers Served" (open)="open({ kind: 'customers' })" valueSize="text-[20px]">
+            <dash-kpi label="Customers Served" (open)="open({ kind: 'customers' })" [valueMin]="14" [valueMax]="19" [valueScale]="6">
               <span kpi-value class="flex flex-wrap items-baseline gap-x-1.5">
                 <span>{{ c.identified }} identified</span>
                 @if (c.returningPct != null) {
@@ -294,7 +301,7 @@
 
         <ng-template dashBox="discount">
           @if (d.discount; as x) {
-            <dash-kpi label="Discount Given" (open)="open({ kind: 'discount' })" valueSize="text-[24px]">
+            <dash-kpi label="Discount Given" (open)="open({ kind: 'discount' })" [valueMax]="24" [valueScale]="9">
               <span kpi-value>
                 {{ x.value | inr }}
                 @if (x.pctOfGross != null) {
@@ -309,17 +316,17 @@
         <!-- ─── Zone E: payment split ───────────────────────────────────── -->
         <ng-template dashBox="payment-split">
           @if (d.paymentSplit; as split) {
-            <div class="flex h-full flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-4">
+            <div class="flex h-full min-h-0 flex-col rounded-[0.875rem] border border-outline-variant/15 bg-surface-container-low px-5 py-4">
               <dash-box-title title="Payment Mode Split" />
               @if (split.length === 0) {
                 <p class="mt-3 text-sm text-on-surface-variant">No payments in this period yet.</p>
               } @else {
-                <ul class="mt-2.5 flex flex-1 flex-col justify-center gap-1">
+                <ul class="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                   @for (row of split; track row.mode) {
                     <li>
                       <button
                         type="button"
-                        class="grid w-full grid-cols-[6.5rem_1fr_3.5rem_5.5rem] items-center gap-3 rounded-md px-1 py-0.5 text-left text-[13px] hover:bg-surface-container-high/60"
+                        class="grid w-full grid-cols-[6.5rem_1fr_3.5rem_5.5rem] items-center gap-3 rounded-md px-1 py-px text-left text-[13px] leading-5 hover:bg-surface-container-high/60"
                         (click)="open({ kind: 'payments', mode: row.mode })"
                       >
                         <span class="truncate text-on-surface">{{ paymentLabel(row.mode) }}</span>
@@ -597,5 +604,11 @@
 }
 
 @if (drill(); as req) {
-  <app-drill-panel [request]="req" [period]="selection()" (closed)="drill.set(null)" (changed)="onPanelChanged()" />
+  <app-drill-panel
+    [request]="req"
+    [period]="selection()"
+    (closed)="drill.set(null)"
+    (changed)="onPanelChanged()"
+    (openAction)="drill.set(null); action.set($event)"
+  />
 }

@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
 import { API, apiLogin, authHeaders } from './lib';
 
 /**
@@ -33,13 +32,5 @@ test('§10.1/10.2/10.3 — performance endpoint computes profit, day-of-week, mo
   expect(Array.isArray(data.recommendations)).toBeTruthy();
 });
 
-test('§10 — dashboard renders the Business Performance section', async ({ page }) => {
-  await login(page);
-  await expect(page).toHaveURL(/\/dashboard/);
-  const section = page.locator('[data-testid="performance-section"]');
-  await expect(section).toBeVisible({ timeout: 10000 });
-  await expect(section.getByText('Total Profit')).toBeVisible();
-  await expect(section.getByText('Avg Profit %')).toBeVisible();
-  // Seven day-of-week tiles, each with a rating chip.
-  await expect(page.locator('[data-testid="dow-ratings"] > div')).toHaveCount(7);
-});
+// The dashboard's own profit card replaced the old "Business Performance"
+// panel; dashboard.spec.ts covers it. This endpoint still backs Reports.

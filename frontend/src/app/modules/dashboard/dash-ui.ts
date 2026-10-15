@@ -101,6 +101,7 @@ export function tierClasses(tier: Tier | null | undefined): string {
     <button
       type="button"
       class="kpi-card h-full w-full text-left rounded-[0.875rem] border px-5 pt-4 pb-4 flex flex-col transition-colors hover:border-primary/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      style="container-type: inline-size"
       [ngClass]="tierClass()"
       (click)="open.emit()"
     >
@@ -112,7 +113,10 @@ export function tierClasses(tier: Tier | null | undefined): string {
         }
         {{ label }}
       </span>
-      <span class="mt-1.5 font-headline font-bold tabular-nums leading-tight text-on-surface" [ngClass]="valueSize">
+      <span
+        class="mt-1.5 font-headline font-bold tabular-nums leading-tight text-on-surface"
+        [style.font-size]="'clamp(' + valueMin + 'px, ' + valueScale + 'cqi, ' + valueMax + 'px)'"
+      >
         <ng-content select="[kpi-value]"></ng-content>
       </span>
       <span class="mt-auto pt-2 flex flex-col gap-0.5 text-[12px]">
@@ -124,7 +128,14 @@ export function tierClasses(tier: Tier | null | undefined): string {
 export class KpiCardComponent {
   @Input({ required: true }) label!: string;
   @Input() tier: Tier = 'good';
-  @Input() valueSize = 'text-[28px]';
+  /**
+   * The big number scales with the card's own width (container units), so it
+   * fits however wide the owner has resized the box: `valueScale` is the share
+   * of the card width (cqi), clamped between `valueMin` and `valueMax` px.
+   */
+  @Input() valueMin = 18;
+  @Input() valueMax = 28;
+  @Input() valueScale = 15;
   @Output() open = new EventEmitter<void>();
 
   tierClass(): string {

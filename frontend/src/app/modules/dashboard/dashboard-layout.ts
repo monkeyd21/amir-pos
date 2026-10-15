@@ -62,7 +62,7 @@ export const BOXES: readonly BoxDef[] = [
   { id: 'returns', element: 'returns', title: 'Returns', zone: 'D', w: 4, h: 2, minW: 3, minH: 2 },
   { id: 'customers', element: 'customers', title: 'Customers Served', zone: 'D', w: 4, h: 2, minW: 3, minH: 2 },
   { id: 'discount', element: 'discount', title: 'Discount', zone: 'D', w: 4, h: 2, minW: 3, minH: 2 },
-  { id: 'payment-split', element: 'paymentSplit', title: 'Payment Mode Split', zone: 'E', w: 12, h: 2, minW: 4, minH: 2 },
+  { id: 'payment-split', element: 'paymentSplit', title: 'Payment Mode Split', zone: 'E', w: 12, h: 3, minW: 4, minH: 2 },
   { id: 'recent', element: 'recentTransactions', title: 'Recent Transactions', zone: 'F', w: 5, h: 7, minW: 4, minH: 4 },
   { id: 'staff', element: 'staff', title: 'Staff Performance', zone: 'F', w: 3, h: 7, minW: 3, minH: 3 },
   { id: 'alerts', element: 'alerts', title: 'Active Alerts', zone: 'F', w: 4, h: 7, minW: 3, minH: 3 },
