@@ -35,8 +35,8 @@ export function compare(
   if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
     return { pct: null, delta: null, direction: null, good: null, noData: true };
   }
-  const delta = current - previous;
-  const pct = Math.round((delta / Math.abs(previous)) * 1000) / 10;
+  const delta = Math.round((current - previous) * 100) / 100;
+  const pct = Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10;
   if (Math.abs(pct) <= FLAT_BAND_PCT) {
     return { pct, delta, direction: 'flat', good: null, noData: false };
   }

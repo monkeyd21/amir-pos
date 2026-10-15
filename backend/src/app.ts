@@ -37,10 +37,16 @@ import voucherRoutes from './modules/vouchers/routes';
 import historicalRoutes from './modules/historical/routes';
 import payableRoutes from './modules/payables/routes';
 import shopRoutes from './modules/shop/routes';
+import dashboardRoutes from './modules/dashboard/routes';
+import { dashboardChangeNotifier } from './modules/dashboard/events';
 import { shopController } from './modules/shop/controller';
 import { posController } from './modules/pos/controller';
 
 const app = express();
+
+// Dashboard §1.4: announce every successful write so open dashboards refetch.
+// Registered before everything else that writes, webhooks included.
+app.use(dashboardChangeNotifier);
 
 // Payment webhooks (need the raw body for signature verification) — these must
 // be registered before the JSON parser or the signature can never be checked.
@@ -99,6 +105,7 @@ app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/vouchers', voucherRoutes);
 app.use('/api/v1/historical', historicalRoutes);
 app.use('/api/v1/payables', payableRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 // ─── Public storefront API ───────────────────────────────────────────────
 // A separate namespace with its own authentication (shopper tokens, not staff
