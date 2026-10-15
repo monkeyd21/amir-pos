@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { formatIstDate } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
@@ -62,7 +63,7 @@ export class JournalEntriesComponent implements OnInit {
   }
 
   formatDate(date: string): string {
-    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return formatIstDate(date);
   }
 
   getAccountsSummary(entry: JournalEntry): string {

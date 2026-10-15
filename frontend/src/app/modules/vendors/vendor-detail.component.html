@@ -181,7 +181,7 @@
                   Rs. {{ (m.lineCost ?? 0) | number:'1.0-0' }}
                 </p>
                 <p class="text-[10px] text-on-surface-variant">
-                  {{ m.createdAt | date:'d MMM yyyy' }}
+                  {{ m.createdAt | date:'dd-MM-yyyy' }}
                 </p>
               </div>
             </div>
@@ -194,7 +194,7 @@
               >
                 {{ m.paymentMode | uppercase }}
                 @if (m.paymentMode === 'credit' && m.dueDate) {
-                  · due {{ m.dueDate | date:'d MMM' }}
+                  · due {{ m.dueDate | date:'dd-MM-yyyy' }}
                 }
               </span>
             }
@@ -229,7 +229,7 @@
                   Rs. {{ p.amount | number:'1.0-0' }}
                 </p>
                 <p class="text-[10px] text-on-surface-variant">
-                  {{ p.paymentDate | date:'d MMM yyyy' }}
+                  {{ p.paymentDate | date:'dd-MM-yyyy' }}
                 </p>
               </div>
             </div>

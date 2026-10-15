@@ -46,7 +46,7 @@ describe('one exchange per bill', () => {
       expect(prior!.id).toBe(7);
       expect(prior!.returnNumber).toBe('RT-0007');
       // 06:00 UTC is 11:30 IST on the same day.
-      expect(prior!.dateLabel).toBe('5 Sep 2026');
+      expect(prior!.dateLabel).toBe('05-09-2026');
       expect(prior!.createdAt).toBe('2026-09-05T06:00:00.000Z');
     });
 
@@ -55,7 +55,7 @@ describe('one exchange per bill', () => {
         ret({ type: 'exchange', createdAt: '2026-01-31T20:00:00.000Z' }),
       ]);
       // 20:00 UTC on 31 Jan is 01:30 IST on 1 Feb, and the IST day is what shows.
-      expect(prior!.dateLabel).toBe('1 Feb 2026');
+      expect(prior!.dateLabel).toBe('01-02-2026');
     });
 
     it('picks the exchange out of a mixed history of refunds', () => {
@@ -65,7 +65,7 @@ describe('one exchange per bill', () => {
         ret({ id: 3, type: 'return', createdAt: new Date('2026-09-04T06:00:00Z') }),
       ]);
       expect(prior!.id).toBe(2);
-      expect(prior!.dateLabel).toBe('3 Sep 2026');
+      expect(prior!.dateLabel).toBe('03-09-2026');
     });
 
     it('reports the EARLIEST exchange, the one that used up the allowance', () => {
@@ -74,7 +74,7 @@ describe('one exchange per bill', () => {
         ret({ id: 4, type: 'exchange', returnNumber: 'RT-0004', createdAt: new Date('2026-09-02T06:00:00Z') }),
       ]);
       expect(prior!.returnNumber).toBe('RT-0004');
-      expect(prior!.dateLabel).toBe('2 Sep 2026');
+      expect(prior!.dateLabel).toBe('02-09-2026');
     });
   });
 
@@ -103,7 +103,7 @@ describe('one exchange per bill', () => {
       ])!;
       const msg = oneExchangePerBillMessage('W-0007', prior);
       expect(msg).toContain('W-0007');
-      expect(msg).toContain('5 Sep 2026');
+      expect(msg).toContain('05-09-2026');
       expect(msg).toContain('RT-0007');
       expect(msg).toContain('one exchange per bill');
       expect(msg).toMatch(/manager or owner/i);

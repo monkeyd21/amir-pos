@@ -89,7 +89,7 @@ interface Voucher {
                 </div>
                 <div class="text-[11px] text-on-surface-variant mt-0.5">
                   <span *ngIf="v.customer">{{ v.customer.firstName }} {{ v.customer.lastName || '' }} · </span>
-                  <span *ngIf="v.expiresAt">expires {{ v.expiresAt | date: 'dd MMM yyyy' }} · </span>
+                  <span *ngIf="v.expiresAt">expires {{ v.expiresAt | date: 'dd-MM-yyyy' }} · </span>
                   <span *ngIf="v.notes">{{ v.notes }}</span>
                 </div>
               </div>

@@ -24,6 +24,7 @@ import {
   verifyExchangeOverrideGrant,
 } from '../../services/exchange-override';
 import { snapshotMrp, tagMrp } from './tag-mrp';
+import { formatDdMmYyyy } from '@clothing-erp/shared';
 import { resolveReturnReason } from './return-reason';
 import { pointsExpiryDate } from '../loyalty/expiry';
 import { markBasketsBilled } from '../floor-baskets/service';
@@ -64,10 +65,9 @@ async function nextBillNumber(
   return `${prefix}${String(seq.lastNumber).padStart(cfg.pad ?? 4, '0')}`;
 }
 
-// Format a trading-day value (UTC-midnight of the India day) for display, e.g.
-// "14 July 2026". Formatted in UTC because the stored value is UTC-midnight.
+// A trading-day value (UTC midnight of the India day) for messages: "14-07-2026".
 function formatBusinessDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return formatDdMmYyyy(d);
 }
 
 // §tz/§11.0 — the trading-day helpers (IST, shift-frozen business date, the

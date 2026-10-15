@@ -265,7 +265,7 @@
                     @for (hb of historicalBills; track hb.id) {
                       <tr class="hover:bg-surface-container-high/30">
                         <td class="px-4 py-2 font-mono text-xs">{{ hb.billNumber }} <span class="text-on-surface-variant/50">· {{ hb.fiscalYear }}</span></td>
-                        <td class="text-on-surface-variant text-xs">{{ hb.billDate ? (hb.billDate | date:'d MMM y') : '—' }}</td>
+                        <td class="text-on-surface-variant text-xs">{{ hb.billDate ? (hb.billDate | date:'dd-MM-yyyy') : '—' }}</td>
                         <td class="text-center text-on-surface-variant">{{ hb._count?.items ?? 0 }}</td>
                         <td class="text-right px-4 font-medium" [class]="(+hb.total) < 0 ? 'text-error' : 'text-on-surface'">{{ formatCurrency(hb.total) }}</td>
                       </tr>

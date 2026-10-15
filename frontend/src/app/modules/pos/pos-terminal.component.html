@@ -872,7 +872,7 @@
                 @if (selectedCustomer.dateOfBirth) {
                   <div class="flex items-center gap-1.5 mt-2 pl-11">
                     <span class="material-symbols-outlined text-[14px] text-pink-400">cake</span>
-                    <span class="text-[10px] text-on-surface-variant">Birthday {{ selectedCustomer.dateOfBirth | date:'d MMM' }}</span>
+                    <span class="text-[10px] text-on-surface-variant">Birthday {{ selectedCustomer.dateOfBirth | date:'dd-MM-yyyy' }}</span>
                   </div>
                 }
                 <!-- §5.4 — legacy customers: prompt to fill DOB + gender -->
@@ -1386,7 +1386,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-on-surface truncate">{{ heldCustomerName(held) }}</p>
-                  <p class="text-[11px] text-on-surface-variant">{{ cartSnapshotCount(held) }} item(s) · {{ held.createdAt | date:'d MMM, h:mm a' }}</p>
+                  <p class="text-[11px] text-on-surface-variant">{{ cartSnapshotCount(held) }} item(s) · {{ held.createdAt | date:'dd-MM-yyyy, h:mm a' }}</p>
                   @if (held.notes) {
                     <p class="text-[11px] text-on-surface-variant/70 italic truncate">{{ held.notes }}</p>
                   }
@@ -1600,7 +1600,7 @@
                       <span class="text-on-surface-variant font-normal">· {{ sale.customer.firstName }} {{ sale.customer.lastName }}</span>
                     }
                   </p>
-                  <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'d MMM, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
+                  <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'dd-MM-yyyy, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
                 </div>
                 <button (click)="startExchange(sale.id)" class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 text-[11px] font-bold hover:bg-amber-500/25 transition-colors" title="Exchange against this bill">
                   <span class="material-symbols-outlined text-base">swap_horiz</span>
@@ -1820,7 +1820,7 @@
                       class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-container-high/40 hover:bg-surface-container-high border border-outline-variant/10 transition-colors text-left">
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium text-on-surface truncate">{{ sale.saleNumber }}</p>
-                        <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'d MMM, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
+                        <p class="text-[11px] text-on-surface-variant">{{ sale.createdAt | date:'dd-MM-yyyy, h:mm a' }} · {{ formatCurrency(toNum(sale.total)) }}</p>
                       </div>
                       <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">swap_horiz</span>
                     </button>
@@ -1863,7 +1863,7 @@
                         {{ c.saleNumber }}
                         @if (c.customerName) { <span class="text-on-surface-variant font-normal">· {{ c.customerName }}</span> }
                       </p>
-                      <p class="text-[11px] text-on-surface-variant">{{ c.saleDate | date:'d MMM, h:mm a' }} · {{ formatCurrency(c.unitPrice) }} · {{ c.available }} returnable</p>
+                      <p class="text-[11px] text-on-surface-variant">{{ c.saleDate | date:'dd-MM-yyyy, h:mm a' }} · {{ formatCurrency(c.unitPrice) }} · {{ c.available }} returnable</p>
                     </div>
                     <span class="material-symbols-outlined text-amber-400 text-lg shrink-0">swap_horiz</span>
                   </button>

@@ -1,3 +1,4 @@
+import { formatIstDate } from '@clothing-erp/shared';
 import {
   Component,
   OnDestroy,
@@ -781,9 +782,6 @@ export class MobileSalesListScreen implements OnInit, OnDestroy {
           minute: '2-digit',
         });
     }
-    return then.toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatIstDate(then);
   }
 }

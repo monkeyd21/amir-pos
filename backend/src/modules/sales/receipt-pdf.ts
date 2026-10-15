@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { formatIstDate, formatIstTime } from '@clothing-erp/shared';
 import { loyaltyReceiptRows } from './receipt-loyalty';
 
 export interface ReceiptSale {
@@ -196,15 +197,10 @@ export function buildReceiptPdf(
     // Sale metadata
     doc.font('Helvetica').fontSize(8);
     // §bug1 — DATE = business (trading) date; TIME = actual billing time.
-    const billDate = new Date(sale.businessDate ?? sale.createdAt).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-    const billTime = new Date(sale.createdAt).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    // India time explicitly: the server runs UTC, and a bare
+    // toLocaleTimeString printed every bill 5h30m early.
+    const billDate = formatIstDate(sale.businessDate ?? sale.createdAt);
+    const billTime = formatIstTime(sale.createdAt);
     doc.text(`Bill: ${sale.saleNumber}`, { continued: false });
     doc.text(`Date: ${billDate}   Time: ${billTime}`);
     doc.text(`Cashier: ${sale.user.firstName} ${sale.user.lastName}`);

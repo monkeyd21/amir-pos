@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { formatIstDate } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
@@ -809,6 +810,6 @@ export class MobileHomeScreen implements OnInit {
     if (diffHr < 24) return diffHr + 'h ago';
     const diffDay = Math.floor(diffHr / 24);
     if (diffDay < 7) return diffDay + 'd ago';
-    return then.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return formatIstDate(then);
   }
 }

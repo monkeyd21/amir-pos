@@ -6,6 +6,9 @@ import {
   formatInr,
   formatInrCompact,
   formatIndianNumber,
+  formatIstDate,
+  formatIstDateTime,
+  formatIstTime,
   isReturnReasonCode,
   parseDdMmYyyy,
   returnReasonLabel,
@@ -109,5 +112,24 @@ describe('dashboard access (§11A)', () => {
 
   it('hides everything from an unknown role', () => {
     expect(canSeeOnDashboard('intruder', 'basket', 'today')).toBe(false);
+  });
+});
+
+describe('India-time date formatting', () => {
+  it('uses the India calendar day, not the device or UTC day', () => {
+    // 20:00 UTC on the 14th is 01:30 IST on the 15th.
+    expect(formatIstDate('2026-10-14T20:00:00.000Z')).toBe('15-10-2026');
+    expect(formatIstDateTime('2026-10-14T20:00:00.000Z')).toBe('15-10-2026, 1:30 am');
+  });
+
+  it('reads a stored DATE (UTC midnight) as that same day', () => {
+    expect(formatIstDate('2026-10-15T00:00:00.000Z')).toBe('15-10-2026');
+  });
+
+  it('writes noon and midnight the way people say them', () => {
+    expect(formatIstTime('2026-10-15T06:30:00.000Z')).toBe('12:00 pm');
+    expect(formatIstTime('2026-10-14T18:30:00.000Z')).toBe('12:00 am');
+    expect(formatIstDate(null)).toBe('');
+    expect(formatIstDate('nonsense')).toBe('');
   });
 });

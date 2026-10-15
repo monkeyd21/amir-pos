@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
+import { formatIstDate } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -476,13 +477,7 @@ export class PayablesMonthComponent implements OnInit, OnDestroy {
   }
 
   formatDate(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return iso ? formatIstDate(iso) : '—';
   }
 
   monthLabel(month: string): string {

@@ -54,7 +54,7 @@ interface AuditRow {
                   [class]="r.action.includes('override') ? 'bg-amber-500/15 text-amber-500' : 'bg-primary-container/20 text-primary'">
                   {{ r.action }}
                 </span>
-                <span class="text-[11px] text-on-surface-variant/70">{{ r.createdAt | date: 'dd MMM yyyy, HH:mm' }}</span>
+                <span class="text-[11px] text-on-surface-variant/70">{{ r.createdAt | date: 'dd-MM-yyyy, HH:mm' }}</span>
               </div>
               <div class="mt-2 text-xs text-on-surface-variant">
                 {{ r.entityType }}<span *ngIf="r.entityId">#{{ r.entityId }}</span>

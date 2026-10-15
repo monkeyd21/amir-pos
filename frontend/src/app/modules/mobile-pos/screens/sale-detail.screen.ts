@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { formatIstDateTime } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Capacitor } from '@capacitor/core';
@@ -1040,18 +1041,7 @@ export class MobileSaleDetailScreen implements OnInit {
     if (!iso) return '—';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '—';
-    return (
-      d.toLocaleDateString([], {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }) +
-      ', ' +
-      d.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    );
+    const weekday = d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+    return `${weekday}, ${formatIstDateTime(d)}`;
   }
 }

@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
+import { formatIstDate, formatIstTime } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
@@ -247,19 +248,10 @@ export class StockHistoryComponent implements OnInit, OnDestroy {
   }
 
   formatDate(iso: string): string {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return formatIstDate(iso);
   }
 
   formatTime(iso: string): string {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatIstTime(iso);
   }
 }

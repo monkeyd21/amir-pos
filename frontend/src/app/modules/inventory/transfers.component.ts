@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
+import { formatIstDate, formatIstTime } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
@@ -95,18 +96,11 @@ export class TransfersComponent implements OnInit, OnDestroy {
   }
 
   formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return formatIstDate(dateStr);
   }
 
   formatTime(dateStr: string): string {
-    return new Date(dateStr).toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatIstTime(dateStr);
   }
 
   get totalPages(): number {

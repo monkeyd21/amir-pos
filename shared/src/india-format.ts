@@ -108,3 +108,38 @@ export function validateLegacySaleDate(
   if (ymd < '2010-01-01') return { ok: false, error: `${formatDdMmYyyy(ymd)} is before 01-01-2010` };
   return { ok: true, ymd };
 }
+
+const IST_MS = 5.5 * 60 * 60 * 1000;
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+function istParts(value: string | Date): { d: Date } | null {
+  const t = value instanceof Date ? value.getTime() : Date.parse(value);
+  if (!Number.isFinite(t)) return null;
+  return { d: new Date(t + IST_MS) };
+}
+
+/**
+ * Any instant (or a stored DATE, which reads as UTC midnight) as the India
+ * calendar day, DD-MM-YYYY. Independent of the device's timezone.
+ */
+export function formatIstDate(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '';
+  const p = istParts(value);
+  if (!p) return '';
+  return `${pad2(p.d.getUTCDate())}-${pad2(p.d.getUTCMonth() + 1)}-${p.d.getUTCFullYear()}`;
+}
+
+/** The India clock time of an instant: "6:42 pm". */
+export function formatIstTime(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '';
+  const p = istParts(value);
+  if (!p) return '';
+  const h = p.d.getUTCHours();
+  return `${((h + 11) % 12) + 1}:${pad2(p.d.getUTCMinutes())} ${h < 12 ? 'am' : 'pm'}`;
+}
+
+/** DD-MM-YYYY, h:mm am|pm in India time. */
+export function formatIstDateTime(value: string | Date | null | undefined): string {
+  const date = formatIstDate(value);
+  return date ? `${date}, ${formatIstTime(value)}` : '';
+}

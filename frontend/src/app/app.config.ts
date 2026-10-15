@@ -1,4 +1,5 @@
 import { ApplicationConfig, isDevMode } from '@angular/core';
+import { DATE_PIPE_DEFAULT_OPTIONS } from '@angular/common';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
@@ -15,6 +16,9 @@ export const appConfig: ApplicationConfig = {
     // refresh the access token instead of bouncing the user to /login.
     provideHttpClient(withInterceptors([errorInterceptor, authInterceptor])),
     provideAnimationsAsync(),
+    // Dashboard spec checklist #16: dates read DD-MM-YYYY, in India time,
+    // wherever a template does not name its own format.
+    { provide: DATE_PIPE_DEFAULT_OPTIONS, useValue: { dateFormat: 'dd-MM-yyyy', timezone: '+0530' } },
     // App-shell service worker so the POS survives a COLD reload offline (loads
     // the cached SPA without the network). Production builds only; data still
     // flows through OfflineService. Registers once the app is stable.

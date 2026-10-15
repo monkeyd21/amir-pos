@@ -169,7 +169,7 @@ describe('one exchange per bill', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.priorExchange).toMatchObject({
         returnNumber: 'RT-0007',
-        dateLabel: '5 Sep 2026',
+        dateLabel: '05-09-2026',
       });
       // Part 1: the customer travels with the bill, so the exchange screen can
       // show who is being served without the cashier looking them up.

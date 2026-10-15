@@ -48,7 +48,7 @@
                 <span class="font-mono text-sm text-on-surface">{{ b.billNumber }}</span>
                 <span class="block text-[10px] text-on-surface-variant/60">was {{ b.originalBillNo }} · {{ b.fiscalYear }}</span>
               </td>
-              <td class="px-4 py-2.5 text-sm text-on-surface-variant">{{ b.billDate ? (b.billDate | date:'d MMM y') : '—' }}</td>
+              <td class="px-4 py-2.5 text-sm text-on-surface-variant">{{ b.billDate ? (b.billDate | date:'dd-MM-yyyy') : '—' }}</td>
               <td class="px-4 py-2.5 text-sm text-on-surface">
                 {{ custName(b) }}
                 @if (b.customerId) { <span class="material-symbols-outlined text-[13px] text-primary align-middle" title="Linked customer">link</span> }

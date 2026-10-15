@@ -244,7 +244,7 @@ describe('POS checkout with an exchange', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toContain('W-0001');
-    expect(res.body.error).toContain('5 Sep 2026');
+    expect(res.body.error).toContain('05-09-2026');
     expect(res.body.error).toMatch(/one exchange per bill/i);
     expect(prismaMock.sale.create).not.toHaveBeenCalled();
   });
@@ -276,7 +276,7 @@ describe('POS checkout with an exchange', () => {
     expect(override.entityId).toBe('1');
     expect(override.data.approverName).toBe('Farah Sheikh');
     expect(override.data.requestedByUserId).toBe(testUsers.cashier.userId);
-    expect(override.data.priorExchange.dateLabel).toBe('5 Sep 2026');
+    expect(override.data.priorExchange.dateLabel).toBe('05-09-2026');
   });
 });
 

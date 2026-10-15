@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { formatIstDateTime } from '@clothing-erp/shared';
 import { ApiService } from '../core/services/api.service';
 import { firstValueFrom } from 'rxjs';
 
@@ -640,15 +641,9 @@ ${policyBlock}
     }).format(amount || 0);
   }
 
+  /** DD-MM-YYYY, h:mm am in India time, whatever the device's clock says. */
   private formatDate(date: string): string {
-    return new Date(date).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+    return formatIstDateTime(date);
   }
 
   private formatPaymentMethod(method: string): string {

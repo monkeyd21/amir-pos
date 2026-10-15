@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { formatIstDateTime } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
@@ -420,10 +421,7 @@ export class MobileProfileScreen implements OnInit {
     try {
       const d = new Date(iso);
       if (isNaN(d.getTime())) return '';
-      return d.toLocaleString('en-IN', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
+      return formatIstDateTime(d);
     } catch {
       return '';
     }

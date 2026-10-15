@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { formatIstDate } from '@clothing-erp/shared';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -199,13 +200,7 @@ export class SalesListComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    return dateStr ? formatIstDate(dateStr) : '-';
   }
 
   formatCurrency(amount: number): string {

@@ -9,7 +9,7 @@ import { LoadingSpinnerComponent } from '../../shared/loading-spinner/loading-sp
 import { ReturnDialogComponent } from './return-dialog.component';
 import { ReceiptPrintService } from '../../shared/receipt-print.service';
 import { AuthService } from '../../core/services/auth.service';
-import { refundRule } from '@clothing-erp/shared';
+import { formatIstDateTime, refundRule } from '@clothing-erp/shared';
 
 interface SaleItem {
   id: number;
@@ -228,15 +228,7 @@ export class SaleDetailComponent implements OnInit {
   }
 
   formatDate(dateStr: string): string {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return dateStr ? formatIstDateTime(dateStr) : '-';
   }
 
   formatStatus(value: string): string {

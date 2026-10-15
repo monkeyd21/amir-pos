@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RETURN_REASONS } from '@clothing-erp/shared';
+import { RETURN_REASONS, formatIstDate } from '@clothing-erp/shared';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, forkJoin, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -837,13 +837,8 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
    */
   private formatShiftDate(value?: string): string {
     if (!value) return '';
-    return new Date(value).toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Kolkata',
-    });
+    const weekday = new Date(value).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+    return `${weekday}, ${formatIstDate(value)}`;
   }
 
   private initSession(): void {
