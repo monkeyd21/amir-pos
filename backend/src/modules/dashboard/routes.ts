@@ -7,9 +7,11 @@ import { AppError } from '../../middleware/errorHandler';
 import { dismiss, getDashboard, getLayout, resetLayout, saveLayout } from './service';
 import { onChange } from './events';
 import { drill, DrillKind } from './drill';
-import { stockList } from './inventory-reminder';
+import { stockList, stockTotals } from './inventory-reminder';
 import { resolveViewerPeriod } from './service';
 import { payableService } from '../payables/service';
+import { getSetting, setSetting } from '../settings/service';
+import { AlertSettings, DEFAULT_ALERT_SETTINGS } from './alerts';
 import prisma from '../../config/database';
 import { recordAudit } from '../../services/audit';
 
@@ -251,8 +253,40 @@ router.get('/stock', validate(stockSchema), async (req: AuthRequest, res: Respon
     seniorOnly(req);
     const { businessDate } = await resolveViewerPeriod(viewerOf(req), { period: 'today' });
     const days = Number(req.query.days ?? 60);
-    const rows = await stockList(req.user!.branchId, req.query.view as any, businessDate, days);
-    res.json({ success: true, data: { view: req.query.view, days, asOf: businessDate, rows } });
+    const view = req.query.view as 'low' | 'stagnant';
+    const [rows, totals] = await Promise.all([
+      stockList(req.user!.branchId, view, businessDate, days),
+      stockTotals(req.user!.branchId, view, businessDate, days),
+    ]);
+    res.json({ success: true, data: { view, days, asOf: businessDate, rows, totals } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** §8: the configurable alert thresholds (held-bill age, loyalty look-ahead). */
+router.get('/settings', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    seniorOnly(req);
+    const saved = await getSetting<Partial<AlertSettings>>('dashboardAlerts', {});
+    res.json({ success: true, data: { ...DEFAULT_ALERT_SETTINGS, ...saved } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const settingsSchema = z.object({
+  body: z.object({
+    heldBillHours: z.number().min(0.5).max(24),
+    loyaltyExpiryDays: z.number().int().min(1).max(60),
+  }),
+});
+
+router.put('/settings', validate(settingsSchema), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (req.user!.role !== 'owner') throw new AppError('Only the owner can change alert thresholds', 403);
+    await setSetting('dashboardAlerts', req.body);
+    res.json({ success: true, data: req.body });
   } catch (e) {
     next(e);
   }

@@ -1,21 +1,4 @@
-<div class="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true" [attr.aria-label]="title()">
-  <div class="absolute inset-0 bg-black/50 backdrop-blur-[2px]" (click)="close()"></div>
-
-  <aside class="relative flex h-full w-full flex-col bg-surface-container-low shadow-2xl ring-1 ring-outline-variant/20 sm:max-w-[30rem]">
-    <header class="flex items-center gap-3 border-b border-outline-variant/15 px-5 py-4">
-      <h2 class="min-w-0 flex-1 truncate font-headline text-lg font-bold text-on-surface">{{ title() }}</h2>
-      <button
-        #closeBtn
-        type="button"
-        class="grid h-9 w-9 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-        aria-label="Close"
-        (click)="close()"
-      >
-        <span class="material-symbols-outlined">close</span>
-      </button>
-    </header>
-
-    <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[14px] text-on-surface">
+<dash-side-panel [title]="title()" (closed)="close()">
       @if (loading()) {
         <div class="space-y-3" aria-busy="true">
           @for (i of [1, 2, 3, 4, 5]; track i) {
@@ -370,9 +353,7 @@
         }
         }
       }
-    </div>
-  </aside>
-</div>
+</dash-side-panel>
 
 <ng-template #billList let-bills="bills" let-mode="mode">
   @if (bills.length === 0) {

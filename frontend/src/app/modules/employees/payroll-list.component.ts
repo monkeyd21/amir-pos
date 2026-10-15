@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -231,10 +231,14 @@ export class PayrollListComponent implements OnInit, OnDestroy {
 
   constructor(
     private api: ApiService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    // The dashboard's "Salary run pending" links here with the month that is due.
+    const month = this.route.snapshot.queryParamMap.get('month');
+    if (month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month)) this.month = month;
     this.load();
   }
 

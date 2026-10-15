@@ -95,7 +95,26 @@ const WEEKDAY = [1.25, 0.8, 0.85, 0.9, 0.95, 1.1, 1.45]; // Sun..Sat
 
 async function wipe() {
   // Generated rows only: every one is reachable from a DEV- tagged sale, user,
-  // product or customer. Order follows the foreign keys.
+  // product or customer, or is a bill rung up against generated articles while
+  // testing. Order follows the foreign keys.
+  const touched = await prisma.sale.findMany({
+    where: { OR: [{ saleNumber: { startsWith: 'DEV-' } }, { items: { some: { variant: { sku: { startsWith: 'DEV-' } } } } }] },
+    select: { id: true },
+  });
+  const saleIds = touched.map((t) => t.id);
+  await prisma.$transaction([
+    prisma.upiCredit.deleteMany({}),
+    prisma.auditLog.deleteMany({ where: { entityType: 'sale', entityId: { in: saleIds.map(String) } } }),
+    prisma.commission.deleteMany({ where: { saleId: { in: saleIds } } }),
+    prisma.returnItem.deleteMany({ where: { returnRecord: { originalSaleId: { in: saleIds } } } }),
+    prisma.return.deleteMany({ where: { originalSaleId: { in: saleIds } } }),
+    prisma.loyaltyTransaction.deleteMany({ where: { saleId: { in: saleIds } } }),
+    prisma.payment.deleteMany({ where: { saleId: { in: saleIds } } }),
+    prisma.saleItem.deleteMany({ where: { saleId: { in: saleIds } } }),
+    prisma.pendingSaleItem.deleteMany({}),
+    prisma.pendingSale.deleteMany({}),
+    prisma.sale.deleteMany({ where: { id: { in: saleIds } } }),
+  ]);
   await prisma.$transaction([
     prisma.returnItem.deleteMany({ where: { returnRecord: { returnNumber: { startsWith: 'DEV-' } } } }),
     prisma.return.deleteMany({ where: { returnNumber: { startsWith: 'DEV-' } } }),
@@ -108,6 +127,13 @@ async function wipe() {
     prisma.heldTransaction.deleteMany({ where: { notes: 'DEV' } }),
     prisma.payablePayment.deleteMany({ where: { payable: { dedupeKey: { startsWith: 'DEV-' } } } }),
     prisma.payable.deleteMany({ where: { dedupeKey: { startsWith: 'DEV-' } } }),
+    prisma.upiCredit.deleteMany({}),
+    prisma.pendingSaleItem.deleteMany({}),
+    prisma.pendingSale.deleteMany({}),
+    prisma.floorBasketItem.deleteMany({}),
+    prisma.floorBasket.deleteMany({}),
+    prisma.inventoryWeeklySnapshot.deleteMany({}),
+    prisma.loyaltyTransaction.deleteMany({ where: { customer: { email: { endsWith: '@dev.local' } } } }),
     prisma.expenseDayMark.deleteMany({}),
     prisma.dashboardDismissal.deleteMany({}),
     prisma.attendance.deleteMany({ where: { user: { email: { startsWith: 'dev.' } } } }),
@@ -580,12 +606,88 @@ async function main() {
     });
   }
 
+  // ─── Dashboard subsystems: reorder levels, loyalty with expiry, pending
+  // sales, a UPI statement ───
+  console.log('Reorder levels, loyalty, pending sales, UPI credits…');
+  // Basics that are restocked by count: a few dupattas and kurtis.
+  await prisma.$executeRaw`
+    UPDATE products SET "reorderLevel" = 2
+    WHERE slug LIKE 'dev-%' AND id % 23 = 0`;
+
+  await prisma.loyaltyConfig.updateMany({ data: { pointsExpiryMonths: 12 } });
+  // Points earned on every identified bill, lapsing 12 months later.
+  await prisma.$executeRaw`
+    INSERT INTO loyalty_transactions ("customerId", "saleId", points, type, description, "expiresAt", "createdAt")
+    SELECT s."customerId", s.id, FLOOR(s.total / 100)::int, 'earned', 'Points earned from sale ' || s."saleNumber",
+           s."createdAt" + INTERVAL '12 months', s."createdAt"
+    FROM sales s
+    WHERE s."saleNumber" LIKE 'DEV-%' AND s."customerId" IS NOT NULL AND s.total >= 100`;
+  await prisma.$executeRaw`
+    UPDATE customers c SET "loyaltyPoints" = t.pts
+    FROM (SELECT "customerId", SUM(points) pts FROM loyalty_transactions GROUP BY "customerId") t
+    WHERE c.id = t."customerId" AND c.email LIKE '%@dev.local'`;
+
+  // Two pending sales: one from today, one left for three days.
+  const piece = () => pool[Math.floor(rnd() * pool.length)];
+  for (const [daysAgo, mode] of [[0, 'cash'], [3, 'upi']] as const) {
+    const v = piece();
+    const day = new Date(today.getTime() - daysAgo * DAY_MS);
+    const sku = await prisma.productVariant.findUniqueOrThrow({ where: { id: v.id }, select: { barcode: true } });
+    void sku;
+    await prisma.pendingSale.create({
+      data: {
+        branchId: BRANCH_ID,
+        number: `PS-DEV${daysAgo}`,
+        businessDate: day,
+        createdBy: salespeople[1].id,
+        paymentMode: mode,
+        amountReceived: v.price,
+        notes: daysAgo ? 'Owner was away; customer paid by UPI' : null,
+        createdAt: istInstant(day, 16, 10),
+        items: { create: [{ variantId: v.id, quantity: 1, tagPrice: v.price }] },
+      },
+    });
+    await prisma.inventory.update({
+      where: { variantId_branchId: { variantId: v.id, branchId: BRANCH_ID } },
+      data: { quantity: { decrement: 1 } },
+    }).catch(() => undefined);
+  }
+
+  // The UPI statement for the last two days: every UPI bill, plus three
+  // credits no bill explains.
+  const upiPays = await prisma.payment.findMany({
+    where: { method: 'upi', sale: { saleNumber: { startsWith: 'DEV-' }, businessDate: { gte: new Date(today.getTime() - DAY_MS) } } },
+    select: { amount: true, createdAt: true, id: true },
+  });
+  const stmt = upiPays.map((p, i) => ({
+    branchId: BRANCH_ID,
+    receivedAt: new Date(p.createdAt.getTime() + (1 + (i % 5)) * 60_000),
+    amount: p.amount,
+    reference: `4${String(870000000000 + p.id)}`,
+    payerName: pick(FIRST) + ' ' + pick(LAST),
+    source: 'import',
+    importBatch: 'DEV',
+    createdBy: manager.id,
+  }));
+  for (const [hh, amt] of [[12, 1450], [15, 899], [17, 2350]] as const) {
+    stmt.push({
+      branchId: BRANCH_ID,
+      receivedAt: istInstant(today, hh, 17),
+      amount: amt as any,
+      reference: `4${String(990000000000 + hh)}`,
+      payerName: pick(FIRST) + ' ' + pick(LAST),
+      source: 'import',
+      importBatch: 'DEV',
+      createdBy: manager.id,
+    });
+  }
+  await prisma.upiCredit.createMany({ data: stmt as any, skipDuplicates: true });
+
   // ─── Customer roll-ups ───
   await prisma.$executeRaw`
     UPDATE customers c SET
       "visitCount" = s.n,
       "totalSpent" = s.spent,
-      "loyaltyPoints" = FLOOR(s.spent / 100),
       "createdAt" = s.first
     FROM (
       SELECT "customerId", COUNT(*) n, SUM(total) spent, MIN("createdAt") first

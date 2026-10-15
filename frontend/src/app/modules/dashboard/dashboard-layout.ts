@@ -69,7 +69,7 @@ export const BOXES: readonly BoxDef[] = [
   { id: 'inventory-sold', element: 'inventorySold', title: 'Inventory Value Sold', zone: 'G', w: 12, h: 1, minW: 4, minH: 1 },
   { id: 'insight', element: 'insight', title: 'Insight', zone: 'H', w: 12, h: 1, minW: 6, minH: 1 },
   { id: 'eod', element: 'eod', title: 'Cash in Drawer', zone: 'I', w: 12, h: 1, minW: 6, minH: 1, conditional: true },
-  { id: 'actionable', element: 'actionable', title: 'Daily Actionable', zone: 'J', w: 12, h: 2, minW: 6, minH: 2 },
+  { id: 'actionable', element: 'actionable', title: 'Daily Actionable', zone: 'J', w: 12, h: 3, minW: 6, minH: 2 },
   { id: 'weekly-inventory', element: 'weeklyInventory', title: 'Weekly Inventory Reminder', zone: 'K', w: 12, h: 1, minW: 6, minH: 1 },
 ];
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RETURN_REASONS } from '@clothing-erp/shared';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap, of } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, forkJoin, takeUntil, switchMap, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { isValidPhone } from '../../shared/validation/phone';
 import { NotificationService } from '../../core/services/notification.service';
@@ -114,6 +114,8 @@ interface CartItem {
   discountLockTouched?: boolean;
   /** Agent/salesman who sold this line item. Defaults to current cashier. */
   agentId: number;
+  /** §7.2 — how agentId was learned: scanned on the floor, or picked at the till. */
+  attribution?: 'salesfloor' | 'counter';
   /** Cashier-set "sold as-is" flag — this line can't be returned (clearance/defective). */
   nonReturnable?: boolean;
   /** §2.3 — Owner Discretion Discount for this line, as a % of gross (0–15).
@@ -124,6 +126,16 @@ interface CartItem {
   /** §ghost-inventory — sold while out of stock; the count is topped up on
    *  checkout. Flags the line so the cashier sees it was oversold. */
   oversold?: boolean;
+}
+
+/** A salesfloor basket as the till sees it (`/floor-baskets`). */
+interface FloorBasketView {
+  id: number;
+  code: string;
+  salesperson: { id: number; name: string };
+  lines: { barcode: string; quantity: number }[];
+  pieces: number;
+  value: number;
 }
 
 interface EvaluatedLine {
@@ -613,7 +625,94 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.transactionAgentId == null) return;
     for (const item of this.cart) {
       item.agentId = this.transactionAgentId;
+      item.attribution = 'counter';
     }
+  }
+
+  /** A salesperson picked at the till replaces a floor attribution. */
+  setLineAgent(item: CartItem, agentId: number): void {
+    item.agentId = agentId;
+    item.attribution = 'counter';
+  }
+
+  // ─── §7.2 Salesfloor baskets ───
+
+  showBasketPanel = false;
+  basketLoading = false;
+  basketCode = '';
+  openBaskets: FloorBasketView[] = [];
+  /** Baskets pulled into this bill; marked billed in the checkout transaction. */
+  pulledBaskets: { id: number; code: string }[] = [];
+
+  openBasketPanel(): void {
+    this.showBasketPanel = true;
+    this.basketCode = '';
+    this.basketLoading = true;
+    this.api.get<ApiResponse<FloorBasketView[]>>('/floor-baskets').subscribe({
+      next: (res) => {
+        this.openBaskets = res.data ?? [];
+        this.basketLoading = false;
+      },
+      error: () => {
+        this.openBaskets = [];
+        this.basketLoading = false;
+      },
+    });
+  }
+
+  isPulled(id: number): boolean {
+    return this.pulledBaskets.some((b) => b.id === id);
+  }
+
+  /**
+   * Bring a basket's pieces into the cart. Each piece goes through the same
+   * lookup a scan does (price, clearance, stock), then carries the
+   * salesperson who scanned it on the floor.
+   */
+  pullBasket(code: string): void {
+    const c = (code || '').trim();
+    if (!/^\d{3}$/.test(c)) {
+      this.notify.error('A basket number is three digits');
+      return;
+    }
+    this.basketLoading = true;
+    this.api
+      .get<ApiResponse<FloorBasketView>>(`/floor-baskets/code/${c}`)
+      .pipe(
+        switchMap((res) => {
+          const basket = res.data;
+          if (this.isPulled(basket.id)) throw { error: { error: `Basket ${basket.code} is already in this bill` } };
+          const lookups = basket.lines.map((l) =>
+            this.api.get<ApiResponse<ProductVariant>>(`/pos/lookup/${encodeURIComponent(l.barcode)}`)
+          );
+          if (!lookups.length) return of({ basket, found: [] as ApiResponse<ProductVariant>[] });
+          return forkJoin(lookups).pipe(switchMap((found) => of({ basket, found })));
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: ({ basket, found }) => {
+          basket.lines.forEach((line, i) => {
+            const variant = found[i]?.data;
+            if (!variant) return;
+            for (let n = 0; n < line.quantity; n++) this.addToCart(variant);
+            const vid = variant.variantId || variant.id!;
+            const cartLine = this.cart.find((x) => x.variantId === vid);
+            if (cartLine) {
+              cartLine.agentId = basket.salesperson.id;
+              cartLine.attribution = 'salesfloor';
+            }
+          });
+          this.pulledBaskets = [...this.pulledBaskets, { id: basket.id, code: basket.code }];
+          this.basketLoading = false;
+          this.showBasketPanel = false;
+          this.notify.success(`Basket ${basket.code} added: ${basket.pieces} piece${basket.pieces === 1 ? '' : 's'} for ${basket.salesperson.name}`);
+        },
+        error: (err) => {
+          this.basketLoading = false;
+          this.notify.error(err?.error?.error || 'Could not pull that basket');
+        },
+      });
   }
 
   ngAfterViewInit(): void {
@@ -1934,6 +2033,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
         barcode: item.barcode,
         quantity: item.quantity,
         agentId: item.agentId || undefined,
+        attribution: item.attribution,
         nonReturnable: item.nonReturnable || undefined,
         discretionaryPct: item.discretionaryPct && item.discretionaryPct > 0 ? item.discretionaryPct : undefined,
       })),
@@ -1997,6 +2097,9 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
       (this.clearanceCashOutAuthorised ? this.clearanceOwnerPin.trim() : '');
     if (ownerPin) body.ownerPin = ownerPin;
 
+    // §7.2 — the floor baskets this bill came from are marked billed with it.
+    if (this.pulledBaskets.length) body.floorBasketIds = this.pulledBaskets.map((b) => b.id);
+
     // Exchange — returned goods credited against this purchase.
     const returnSelections = this.exchangeSale
       ? this.exchangeItems.filter((i) => i.selected && i.quantity > 0)
@@ -2056,6 +2159,7 @@ export class PosTerminalComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private resetCart(): void {
     this.cart = [];
+    this.pulledBaskets = [];
     this.showDiscretionaryPin = false;
     this.discretionaryOwnerPin = '';
     this.clearanceOwnerPin = '';

@@ -363,6 +363,19 @@
             class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
           <p class="text-[10px] text-on-surface-variant/60">Customer needs at least {{ loyalty.minRedeemPoints }} points to redeem</p>
         </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-body text-on-surface-variant uppercase tracking-wider">Points Expire After (months)</span>
+          <input type="number" [(ngModel)]="loyalty.pointsExpiryMonths" min="1" max="60" step="1" placeholder="Never"
+            data-testid="loyalty-expiry-months"
+            class="px-3 py-2.5 text-sm font-body bg-surface-container-high text-on-surface border border-outline-variant/20 rounded-lg focus:border-primary focus:outline-none" />
+          <p class="text-[10px] text-on-surface-variant/60">
+            @if (loyalty.pointsExpiryMonths) {
+              Points earned from now on lapse {{ loyalty.pointsExpiryMonths }} months after they are earned. Points already held keep no expiry.
+            } @else {
+              Empty: points never expire.
+            }
+          </p>
+        </label>
       </div>
 
       <div class="mt-5">

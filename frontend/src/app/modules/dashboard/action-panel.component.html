@@ -1,0 +1,305 @@
+<dash-side-panel [title]="title()" (closed)="closed.emit()">
+  @if (loading()) {
+    <div class="space-y-3" aria-busy="true">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="h-12 animate-pulse rounded-lg bg-surface-container-high/60"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <p class="rounded-lg bg-rose-500/10 px-4 py-3 text-rose-200 ring-1 ring-rose-400/25">{{ error() }}</p>
+  } @else {
+    @switch (kind) {
+      <!-- ─── Attendance ─────────────────────────────────────────── -->
+      @case ('attendance') {
+        <p class="mb-3 text-[13px] text-on-surface-variant">
+          {{ attendanceDate() | ddmmyyyy }} · saved to the Attendance register, which payroll reads.
+        </p>
+        @if (unmarkedCount() > 0) {
+          <div class="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+            <span class="text-on-surface-variant">Mark the rest:</span>
+            <button type="button" class="rounded-md px-2.5 py-1 font-semibold text-emerald-300 ring-1 ring-emerald-400/30 hover:bg-emerald-500/10" (click)="markRest('present')">All present</button>
+          </div>
+        }
+        <ul class="space-y-3">
+          @for (s of staff(); track s.userId) {
+            <li class="rounded-xl bg-surface-container-high/50 p-3">
+              <p class="flex items-baseline justify-between gap-2">
+                <span class="font-semibold">{{ s.name }}</span>
+                <span class="text-[11px] capitalize text-on-surface-variant">{{ s.role }}</span>
+              </p>
+              <div class="mt-2 flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-label]="'Attendance for ' + s.name">
+                @for (st of statuses; track st.id) {
+                  <button
+                    type="button"
+                    role="radio"
+                    [attr.aria-checked]="s.status === st.id"
+                    class="rounded-lg px-2.5 py-1.5 text-[12px] font-semibold ring-1 transition-colors"
+                    [ngClass]="s.status === st.id ? 'bg-primary-container text-on-primary-container ring-primary/40' : 'text-on-surface-variant ring-outline-variant/25 hover:text-on-surface'"
+                    (click)="setStatus(s.userId, st.id)"
+                  >
+                    {{ st.label }}
+                  </button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+        <button
+          type="button"
+          class="mt-5 w-full rounded-lg bg-primary-container py-2.5 text-sm font-semibold text-on-primary-container disabled:opacity-50"
+          [disabled]="busy()"
+          (click)="saveAttendance()"
+        >
+          Save attendance @if (unmarkedCount() > 0) { ({{ unmarkedCount() }} still unmarked) }
+        </button>
+      }
+
+      <!-- ─── Expenses ───────────────────────────────────────────── -->
+      @case ('expenses') {
+        <form class="space-y-3" (ngSubmit)="addExpense()">
+          <label class="block text-[12px] text-on-surface-variant">
+            Category
+            <select
+              name="cat"
+              class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20"
+              [(ngModel)]="expense.categoryId"
+            >
+              <option [ngValue]="null" disabled>Select a category</option>
+              @for (c of categories(); track c.id) {
+                <option [ngValue]="c.id">{{ c.name }}</option>
+              }
+            </select>
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block text-[12px] text-on-surface-variant">
+              Amount (₹)
+              <input name="amt" type="number" min="1" inputmode="decimal" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="expense.amount" />
+            </label>
+            <label class="block text-[12px] text-on-surface-variant">
+              Paid by
+              <select name="method" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm capitalize text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="expense.method">
+                @for (m of payMethods; track m) {
+                  <option [value]="m">{{ m === 'upi' ? 'UPI' : m }}</option>
+                }
+              </select>
+            </label>
+          </div>
+          <label class="block text-[12px] text-on-surface-variant">
+            Note (optional)
+            <input name="note" maxlength="300" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="expense.note" placeholder="e.g. tea and snacks" />
+          </label>
+          @if (expense.method === 'cash') {
+            <p class="text-[12px] text-on-surface-variant">Cash paid out of the till is taken off today's expected drawer cash.</p>
+          }
+          <button type="submit" class="w-full rounded-lg bg-primary-container py-2.5 text-sm font-semibold text-on-primary-container disabled:opacity-50" [disabled]="busy()">
+            Add expense
+          </button>
+        </form>
+        <div class="my-5 flex items-center gap-3 text-[12px] text-on-surface-variant">
+          <span class="h-px flex-1 bg-outline-variant/20"></span>or<span class="h-px flex-1 bg-outline-variant/20"></span>
+        </div>
+        <button type="button" class="w-full rounded-lg py-2.5 text-sm font-semibold text-on-surface ring-1 ring-outline-variant/30 hover:bg-surface-container-high disabled:opacity-50" [disabled]="busy()" (click)="noExpenseToday()">
+          No Expense Today
+        </button>
+        <p class="mt-2 text-[12px] leading-relaxed text-on-surface-variant">
+          A day left blank stays pending: a blank looks exactly like a forgotten entry, so it is never read as zero.
+        </p>
+      }
+
+      <!-- ─── Pending sales ─────────────────────────────────────── -->
+      @case ('pending-sales') {
+        @if (pending().length === 0) {
+          <p class="text-on-surface-variant">Nothing waiting to be billed.</p>
+        }
+        <ul class="space-y-3">
+          @for (p of pending(); track p.id) {
+            <li class="rounded-xl bg-surface-container-high/50 p-4">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="font-semibold">{{ p.number }}</span>
+                <span class="tabular-nums font-semibold">{{ p.amountReceived | inr }}</span>
+              </div>
+              <p class="mt-0.5 text-[12px] text-on-surface-variant">
+                {{ p.businessDate | ddmmyyyy }} · {{ timeIst(p.createdAt) }} · {{ paymentLabel(p.paymentMode) }} taken by {{ p.creator.firstName }}
+              </p>
+              <ul class="mt-2 text-[13px]">
+                @for (i of p.items; track i.id) {
+                  <li class="flex justify-between gap-3">
+                    <span class="truncate">{{ i.variant.product.name }} <span class="text-on-surface-variant">· {{ i.variant.size }}</span>@if (i.quantity > 1) { ×{{ i.quantity }} }</span>
+                    <span class="shrink-0 tabular-nums text-on-surface-variant">{{ i.tagPrice | inr }}</span>
+                  </li>
+                }
+              </ul>
+              @if (p.notes) {
+                <p class="mt-1 text-[12px] italic text-on-surface-variant">"{{ p.notes }}"</p>
+              }
+
+              @if (openId() === p.id && mode() === 'finalize') {
+                <form class="mt-3 space-y-2.5 border-t border-outline-variant/15 pt-3" (ngSubmit)="confirmFinalize(p)">
+                  <div class="flex gap-2">
+                    <input name="phone" inputmode="numeric" maxlength="10" placeholder="Customer mobile (optional)" class="min-w-0 flex-1 rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20" [(ngModel)]="finalize.phone" />
+                    <button type="button" class="rounded-lg px-3 text-[13px] font-semibold text-primary ring-1 ring-primary/30" (click)="lookupPhone()">Find</button>
+                  </div>
+                  @if (foundCustomer(); as c) {
+                    <p class="text-[13px] text-emerald-300">Customer: {{ c.name }}</p>
+                  } @else if (lookedUp()) {
+                    <input name="first" placeholder="New customer's first name" class="w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20" [(ngModel)]="finalize.firstName" />
+                  }
+                  <div class="grid grid-cols-2 gap-2">
+                    <label class="text-[12px] text-on-surface-variant">
+                      Discount (₹)
+                      <input name="disc" type="number" min="0" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="finalize.discount" />
+                    </label>
+                    <label class="text-[12px] text-on-surface-variant">
+                      Paid by
+                      <select name="fm" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="finalize.method">
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="card">Card</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p class="text-[12px] text-on-surface-variant">
+                    The bill is dated {{ p.businessDate | ddmmyyyy }}, the day the piece left. Stock is not taken off again.
+                  </p>
+                  <div class="flex gap-2">
+                    <button type="submit" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container disabled:opacity-50" [disabled]="busy()">Finalise bill</button>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-on-surface-variant" (click)="openId.set(null)">Cancel</button>
+                  </div>
+                </form>
+              } @else if (openId() === p.id && mode() === 'void') {
+                <form class="mt-3 space-y-2 border-t border-outline-variant/15 pt-3" (ngSubmit)="confirmVoid(p)">
+                  <input name="reason" maxlength="500" placeholder="Why is it being voided?" class="w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20" [(ngModel)]="voidReason" />
+                  <div class="flex gap-2">
+                    <button type="submit" class="rounded-lg px-4 py-2 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/40 hover:bg-rose-500/10 disabled:opacity-50" [disabled]="busy()">Void and restock</button>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-on-surface-variant" (click)="openId.set(null)">Cancel</button>
+                  </div>
+                </form>
+              } @else {
+                <div class="mt-3 flex gap-2">
+                  <button type="button" class="rounded-lg bg-primary-container px-3.5 py-1.5 text-[13px] font-semibold text-on-primary-container" (click)="openPending(p, 'finalize')">Finalise</button>
+                  <button type="button" class="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold text-rose-300 ring-1 ring-rose-400/30" (click)="openPending(p, 'void')">Void</button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      <!-- ─── Unmatched UPI credits ─────────────────────────────── -->
+      @case ('upi') {
+        <p class="mb-3 text-[13px] leading-relaxed text-on-surface-variant">
+          Money that reached the shop's UPI account with no bill or pending sale to explain it. It may be a sale nobody billed.
+        </p>
+        @if (credits().length === 0) {
+          <p class="text-on-surface-variant">Every credit is accounted for.</p>
+        }
+        <ul class="space-y-3">
+          @for (c of credits(); track c.id) {
+            <li class="rounded-xl bg-surface-container-high/50 p-4">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="font-headline text-lg font-bold tabular-nums">{{ c.amount | inr: 'paise' }}</span>
+                <span class="text-[12px] text-on-surface-variant">{{ c.receivedAt | ddmmyyyy }} {{ timeIst(c.receivedAt) }}</span>
+              </div>
+              <p class="text-[12px] text-on-surface-variant">
+                UTR {{ c.reference }}@if (c.payerName || c.payerVpa) { · {{ c.payerName || c.payerVpa }}}
+              </p>
+
+              @if (openId() === c.id && upiMode() === 'match') {
+                <div class="mt-3 border-t border-outline-variant/15 pt-3">
+                  @if (!candidates()) {
+                    <p class="text-[13px] text-on-surface-variant">Looking for bills…</p>
+                  } @else {
+                    @if (candidates()!.payments.length === 0 && candidates()!.pendingSales.length === 0) {
+                      <p class="text-[13px] text-on-surface-variant">No UPI bill or pending sale of about this amount within two days.</p>
+                    }
+                    <ul class="space-y-1.5">
+                      @for (p of candidates()!.payments; track p.paymentId) {
+                        <li>
+                          <button type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] ring-1 ring-outline-variant/20 hover:bg-surface-container-highest" (click)="matchTo(c, { paymentId: p.paymentId })">
+                            <span>
+                              <span class="font-semibold">{{ p.saleNumber }}</span> · {{ p.at | ddmmyyyy }} {{ timeIst(p.at) }}
+                              <span class="block text-[12px] text-on-surface-variant">{{ p.customer || 'Walk-in' }}@if (!p.exactAmount) { · <span class="text-amber-300">amount differs</span>}</span>
+                            </span>
+                            <span class="shrink-0 tabular-nums">{{ p.amount | inr: 'paise' }}</span>
+                          </button>
+                        </li>
+                      }
+                      @for (ps of candidates()!.pendingSales; track ps.id) {
+                        <li>
+                          <button type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] ring-1 ring-outline-variant/20 hover:bg-surface-container-highest" (click)="matchTo(c, { pendingSaleId: ps.id })">
+                            <span><span class="font-semibold">{{ ps.number }}</span> · pending sale · {{ paymentLabel(ps.paymentMode) }}</span>
+                            <span class="shrink-0 tabular-nums">{{ ps.amount | inr }}</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  <button type="button" class="mt-2 text-[13px] text-on-surface-variant underline" (click)="openId.set(null)">Cancel</button>
+                </div>
+              } @else if (openId() === c.id && upiMode() === 'pending') {
+                <div class="mt-3 space-y-2 border-t border-outline-variant/15 pt-3">
+                  <p class="text-[12px] text-on-surface-variant">Scan the pieces this payment was for. They come off stock now, and the sale waits for you to bill it.</p>
+                  <form class="flex gap-2" (ngSubmit)="addScan()">
+                    <input name="scan" placeholder="Scan or type a barcode" class="min-w-0 flex-1 rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20" [(ngModel)]="scanCode" />
+                    <button type="submit" class="rounded-lg px-3 text-[13px] font-semibold text-primary ring-1 ring-primary/30">Add</button>
+                  </form>
+                  @for (code of scanned(); track $index) {
+                    <p class="flex items-center justify-between rounded-md bg-surface-container-lowest px-3 py-1.5 font-mono text-[13px]">
+                      {{ code }}
+                      <button type="button" class="text-on-surface-variant" [attr.aria-label]="'Remove ' + code" (click)="removeScan($index)">
+                        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">close</span>
+                      </button>
+                    </p>
+                  }
+                  <div class="flex gap-2">
+                    <button type="button" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container disabled:opacity-50" [disabled]="busy() || !scanned().length" (click)="createPendingFromCredit(c)">Create pending sale</button>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-on-surface-variant" (click)="openId.set(null)">Cancel</button>
+                  </div>
+                </div>
+              } @else if (openId() === c.id && upiMode() === 'nonsale') {
+                <form class="mt-3 space-y-2 border-t border-outline-variant/15 pt-3" (ngSubmit)="markNonSale(c)">
+                  <input name="why" maxlength="300" placeholder="e.g. owner topped up the account" class="w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm ring-1 ring-outline-variant/20" [(ngModel)]="nonSaleReason" />
+                  <div class="flex gap-2">
+                    <button type="submit" class="rounded-lg px-4 py-2 text-sm font-semibold text-on-surface ring-1 ring-outline-variant/40 disabled:opacity-50" [disabled]="busy()">Not a sale</button>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-on-surface-variant" (click)="openId.set(null)">Cancel</button>
+                  </div>
+                </form>
+              } @else {
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button type="button" class="rounded-lg bg-primary-container px-3 py-1.5 text-[13px] font-semibold text-on-primary-container" (click)="openCredit(c, 'match')">Match</button>
+                  <button type="button" class="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-on-surface ring-1 ring-outline-variant/30" (click)="openCredit(c, 'pending')">Create pending sale</button>
+                  <button type="button" class="rounded-lg px-3 py-1.5 text-[13px] font-semibold text-on-surface-variant ring-1 ring-outline-variant/30" (click)="openCredit(c, 'nonsale')">Not a sale</button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+        <button type="button" class="mt-5 text-sm font-semibold text-primary hover:underline" (click)="goTo('/upi-credits')">Import a statement →</button>
+      }
+
+      <!-- ─── Loyalty points expiring ───────────────────────────── -->
+      @case ('loyalty') {
+        @if (loyalty(); as l) {
+          <p class="mb-3 text-[13px] text-on-surface-variant">Customers whose points lapse within {{ l.days }} days, soonest first.</p>
+          @if (l.customers.length === 0) {
+            <p class="text-on-surface-variant">Nobody's points lapse this week.</p>
+          }
+          <ul class="divide-y divide-outline-variant/10">
+            @for (c of l.customers; track c.id) {
+              <li class="flex items-center justify-between gap-3 py-2.5">
+                <span class="min-w-0">
+                  <span class="block truncate font-medium">{{ c.name }}</span>
+                  <span class="block text-[12px] text-on-surface-variant">{{ c.phone }} · lapses {{ c.expiresOn | ddmmyyyy }}</span>
+                </span>
+                <span class="shrink-0 text-right">
+                  <span class="block font-semibold tabular-nums text-violet-300">{{ c.expiring }} pts</span>
+                  <span class="block text-[11px] text-on-surface-variant">of {{ c.balance }}</span>
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+  }
+</dash-side-panel>

@@ -32,6 +32,7 @@ export class SidebarComponent {
     { icon: 'badge', label: 'Employees', path: '/employees' },
     { icon: 'account_balance_wallet', label: 'Payroll', path: '/employees/payroll' },
     { icon: 'receipt_long', label: 'Expenses', path: '/expenses' },
+    { icon: 'qr_code_2', label: 'UPI Credits', path: '/upi-credits' },
     { icon: 'account_balance', label: 'Accounting', path: '/accounting' },
     { icon: 'analytics', label: 'Reports', path: '/reports' },
     { icon: 'history', label: 'Audit Log', path: '/audit' },

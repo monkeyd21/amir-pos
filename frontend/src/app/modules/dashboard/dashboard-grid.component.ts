@@ -109,6 +109,8 @@ export const GAP_PX = 16;
         position: relative;
         min-width: 0;
         min-height: 0;
+        /* A box never paints over its neighbour, whatever size it is given. */
+        overflow: hidden;
         border-radius: 0.875rem;
         transition: box-shadow 150ms ease, opacity 150ms ease;
       }

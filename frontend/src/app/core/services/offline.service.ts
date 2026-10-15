@@ -27,6 +27,23 @@ export interface QueuedSale {
 }
 
 /**
+ * A pending sale (dashboard spec §15.5) captured with no network: the pieces
+ * scanned against the cached catalog, the money taken, the key it syncs under.
+ */
+export interface QueuedPendingSale {
+  clientRef: string;
+  createdAt: string;
+  payload: {
+    items: { barcode: string; quantity: number }[];
+    paymentMode: 'cash' | 'upi';
+    amountReceived: number;
+    notes?: string | null;
+  };
+  conflict?: boolean;
+  conflictError?: string;
+}
+
+/**
  * Keeps the POS working with no network. Caches the product catalog so the
  * cashier can still scan and price a bill, queues bills made offline with a
  * temporary number, and replays them when connectivity returns. Every queued
@@ -41,11 +58,14 @@ export class OfflineService {
   private readonly CATALOG_KEY = 'pos_catalog_v1';
   private readonly QUEUE_KEY = 'pos_offline_queue_v1';
   private readonly CUSTOMERS_KEY = 'pos_customers_v1';
+  private readonly PENDING_SALES_KEY = 'pos_offline_pending_sales_v1';
 
   /** Best-effort connectivity signal (navigator + online/offline events). */
   online$ = new BehaviorSubject<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   /** Number of bills waiting to sync. */
   pending$ = new BehaviorSubject<number>(this.loadQueue().length);
+  /** Number of pending sales (§15.5) captured offline and waiting to sync. */
+  pendingSales$ = new BehaviorSubject<number>(this.loadPendingSales().length);
   /** When the catalog was last refreshed from the server. */
   catalogSyncedAt$ = new BehaviorSubject<string | null>(this.getCatalog().syncedAt ?? null);
 
@@ -162,6 +182,7 @@ export class OfflineService {
    */
   async sync(): Promise<{ synced: number; remaining: number }> {
     if (!this.isOnline) return { synced: 0, remaining: this.pendingCount };
+    await this.syncPendingSales();
     let synced = 0;
     for (const sale of [...this.loadQueue()]) {
       try {
@@ -197,5 +218,52 @@ export class OfflineService {
   /** §11.6 — bills that failed to sync and need manager review. */
   conflicts(): QueuedSale[] {
     return this.loadQueue().filter((s) => s.conflict);
+  }
+
+  // ── Offline pending sales (§15.5) ────────────────────────────────
+  loadPendingSales(): QueuedPendingSale[] {
+    try {
+      return JSON.parse(localStorage.getItem(this.PENDING_SALES_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  private savePendingSales(q: QueuedPendingSale[]): void {
+    localStorage.setItem(this.PENDING_SALES_KEY, JSON.stringify(q));
+    this.pendingSales$.next(q.length);
+  }
+
+  queuePendingSale(entry: QueuedPendingSale): void {
+    this.savePendingSales([...this.loadPendingSales(), entry]);
+  }
+
+  /**
+   * Send queued pending sales. The server keys each on its clientRef, so a
+   * retry after a dropped response records it once. A refusal (an unknown
+   * barcode) is flagged for review rather than dropped: the piece did leave.
+   */
+  async syncPendingSales(): Promise<number> {
+    if (!this.isOnline) return 0;
+    let synced = 0;
+    for (const entry of [...this.loadPendingSales()]) {
+      if (entry.conflict) continue;
+      try {
+        await firstValueFrom(this.api.post('/pending-sales', { ...entry.payload, clientRef: entry.clientRef }));
+        this.savePendingSales(this.loadPendingSales().filter((e) => e.clientRef !== entry.clientRef));
+        synced++;
+      } catch (err: any) {
+        const status = err?.status ?? 0;
+        if (status >= 400 && status < 500) {
+          const msg = err?.error?.error || err?.message || 'Refused';
+          this.savePendingSales(
+            this.loadPendingSales().map((e) => (e.clientRef === entry.clientRef ? { ...e, conflict: true, conflictError: msg } : e))
+          );
+          continue;
+        }
+        break; // offline again, or the server is down: try on the next reconnect
+      }
+    }
+    return synced;
   }
 }

@@ -32,6 +32,15 @@ import { filter } from 'rxjs';
           <button
             type="button"
             class="mp-bottom-nav__item"
+            [class.is-active]="activeTab === 'floor'"
+            (click)="go('floor')"
+          >
+            <span class="material-symbols-outlined">shelves</span>
+            <span>Floor</span>
+          </button>
+          <button
+            type="button"
+            class="mp-bottom-nav__item"
             [class.is-active]="activeTab === 'cart'"
             (click)="go('cart')"
           >
@@ -65,7 +74,7 @@ import { filter } from 'rxjs';
   `,
 })
 export class MobilePosShellComponent implements OnInit {
-  activeTab: 'home' | 'cart' | 'sales' | 'profile' | 'other' = 'home';
+  activeTab: 'home' | 'floor' | 'cart' | 'sales' | 'profile' | 'other' = 'home';
   showNav = true;
 
   readonly cartCount = computed(() => this.cart.count());
@@ -119,13 +128,14 @@ export class MobilePosShellComponent implements OnInit {
       return;
     }
     this.showNav = true;
-    if (first === 'cart') this.activeTab = 'cart';
+    if (first === 'floor') this.activeTab = 'floor';
+    else if (first === 'cart') this.activeTab = 'cart';
     else if (first === 'sales') this.activeTab = 'sales';
     else if (first === 'profile') this.activeTab = 'profile';
     else this.activeTab = 'home';
   }
 
-  go(tab: 'home' | 'cart' | 'sales' | 'profile'): void {
+  go(tab: 'home' | 'floor' | 'cart' | 'sales' | 'profile'): void {
     this.router.navigate(['/mobile-pos', tab]);
   }
 }

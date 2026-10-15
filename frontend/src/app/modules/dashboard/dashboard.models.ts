@@ -154,6 +154,26 @@ export interface EodSummary {
   closedAt: string;
 }
 
+export interface ActionableItem {
+  key: 'attendance' | 'expenses' | 'salary' | 'pending_sales' | 'upi';
+  state: 'done' | 'pending' | 'hidden';
+  tier: Tier;
+  label: string;
+  detail: string | null;
+  month?: string;
+}
+
+export interface WeeklyReminder {
+  weekStart: string;
+  lowStock: number;
+  lowStockDelta: number | null;
+  stagnant: number;
+  frozenValue: number;
+  stagnantDays: number;
+  computedAt: string;
+  dismissKey: string;
+}
+
 export interface DashboardData {
   meta: DashboardMeta;
   sales?: SalesBlock;
@@ -169,6 +189,8 @@ export interface DashboardData {
   alerts?: DashboardAlert[];
   insight?: Insight | null;
   eod?: EodSummary | null;
+  actionable?: { items: ActionableItem[] };
+  weeklyInventory?: WeeklyReminder | null;
   access: Record<DashboardElement, AccessLevel>;
 }
 

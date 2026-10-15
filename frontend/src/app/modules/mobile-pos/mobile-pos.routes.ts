@@ -18,6 +18,12 @@ export const MOBILE_POS_ROUTES: Routes = [
           import('./screens/home.screen').then((m) => m.MobileHomeScreen),
       },
       {
+        // §7.2 / §15.5 — salesfloor scan baskets and pending sales.
+        path: 'floor',
+        loadComponent: () =>
+          import('./screens/floor.screen').then((m) => m.MobileFloorScreen),
+      },
+      {
         path: 'cart',
         loadComponent: () =>
           import('./screens/cart.screen').then((m) => m.MobileCartScreen),

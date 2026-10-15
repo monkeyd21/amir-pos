@@ -33,7 +33,15 @@ export interface StockRow {
   unitCost: number | null;
   costValue: number | null;
   lastSoldOn: string | null;
-  daysSinceSale: number | null;
+  /** Days without a sale: since the last sale, or since it arrived if it never sold. */
+  daysIdle: number | null;
+}
+
+export interface StockTotals {
+  skus: number;
+  pieces: number;
+  /** At landed cost; pieces with no cost add nothing. */
+  value: number;
 }
 
 const lowStockWhere = (branchId: number) => Prisma.sql`
@@ -71,6 +79,22 @@ function stagnantCte(branchId: number, asOf: Date, days: number) {
       WHERE i."branchId" = ${branchId} AND i.quantity > 0 AND v."isActive" = true
     )
     SELECT * FROM shelf WHERE since <= ${new Date(asOf.getTime() - days * 86400_000)}`;
+}
+
+/** Totals over the WHOLE list (the page shows at most 1,000 rows). */
+export async function stockTotals(branchId: number, view: StockView, asOfDay: string, days = 60): Promise<StockTotals> {
+  const [row] =
+    view === 'low'
+      ? await prisma.$queryRaw<any[]>`
+          SELECT COUNT(*) AS skus, COALESCE(SUM(i.quantity), 0) AS pieces,
+                 COALESCE(SUM(i.quantity * ${unitCostSql}), 0) AS value
+          FROM inventory i
+          JOIN product_variants v ON v.id = i."variantId" JOIN products p ON p.id = v."productId"
+          WHERE ${lowStockWhere(branchId)}`
+      : await prisma.$queryRaw<any[]>`
+          SELECT COUNT(*) AS skus, COALESCE(SUM(quantity), 0) AS pieces, COALESCE(SUM(quantity * unit_cost), 0) AS value
+          FROM (${stagnantCte(branchId, dateOnly(asOfDay), days)}) x`;
+  return { skus: Number(row.skus), pieces: Number(row.pieces), value: round2(Number(row.value)) };
 }
 
 export async function reminderCounts(branchId: number, asOfDay: string, stagnantDays = 60) {
@@ -111,6 +135,7 @@ export async function stockList(branchId: number, view: StockView, asOfDay: stri
   return rows.map((r) => {
     const unitCost = r.unit_cost != null ? Number(r.unit_cost) : null;
     const lastSold = r.last_sold ? ymdOf(new Date(r.last_sold)) : null;
+    const idleFrom = r.since ? ymdOf(new Date(r.since)) : lastSold;
     return {
       variantId: Number(r.variantId),
       productId: Number(r.product_id),
@@ -123,7 +148,7 @@ export async function stockList(branchId: number, view: StockView, asOfDay: stri
       unitCost,
       costValue: unitCost != null ? round2(unitCost * Number(r.quantity)) : null,
       lastSoldOn: lastSold,
-      daysSinceSale: lastSold ? Math.round((asOf.getTime() - dateOnly(lastSold).getTime()) / 86400_000) : null,
+      daysIdle: idleFrom ? Math.round((asOf.getTime() - dateOnly(idleFrom).getTime()) / 86400_000) : null,
     };
   });
 }

@@ -272,6 +272,7 @@ export const createProduct = async (data: {
   basePrice: number;
   costPrice: number;
   landingPrice?: number | null;
+  reorderLevel?: number | null;
   hsnCode?: string | null;
   cgstRate?: number;
   sgstRate?: number;
@@ -332,6 +333,7 @@ export const createProduct = async (data: {
       basePrice: data.basePrice,
       costPrice: data.costPrice,
       landingPrice: data.landingPrice ?? null,
+      reorderLevel: data.reorderLevel ?? null,
       // §gst — auto-assign the 4-digit HSN from the category when not given.
       hsnCode: data.hsnCode ?? hsnForCategory(category.name),
       cgstRate: data.cgstRate ?? 9,
@@ -410,6 +412,7 @@ export const updateProduct = async (id: number, data: {
   basePrice?: number;
   costPrice?: number;
   landingPrice?: number | null;
+  reorderLevel?: number | null;
   hsnCode?: string | null;
   cgstRate?: number;
   sgstRate?: number;

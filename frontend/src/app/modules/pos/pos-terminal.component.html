@@ -110,6 +110,18 @@
           <span>Bills</span>
         </button>
 
+        <!-- §7.2 — pull a salesperson's floor basket into this bill -->
+        <button
+          (click)="openBasketPanel()"
+          class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors"
+          [class]="pulledBaskets.length ? 'bg-primary-container/25 text-primary' : 'bg-surface-container-high/60 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'"
+          title="Pull a floor basket"
+          data-testid="pos-basket-button"
+        >
+          <span class="material-symbols-outlined text-base">shelves</span>
+          <span>Basket@if (pulledBaskets.length) { {{ pulledBaskets[0].code }} }</span>
+        </button>
+
         <!-- Exchange -->
         <button
           (click)="openExchangePanel()"
@@ -142,15 +154,14 @@
         }
 
         <!-- Back to Dashboard (owner/manager only — billing roles get bounced) -->
-        @if (!isBillingOnly) {
-          <a
-            routerLink="/dashboard"
-            class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
-          >
-            <span class="material-symbols-outlined text-lg">arrow_back</span>
-            <span>Dashboard</span>
-          </a>
-        }
+        <!-- Every role has a dashboard now, trimmed to what it may see (§11A). -->
+        <a
+          routerLink="/dashboard"
+          class="flex items-center gap-2 text-xs text-primary hover:text-primary-container transition-colors"
+        >
+          <span class="material-symbols-outlined text-lg">arrow_back</span>
+          <span>Dashboard</span>
+        </a>
 
         <!-- Sign out — always reachable from the POS terminal -->
         <button
@@ -442,7 +453,9 @@
                       <!-- Agent dropdown -->
                       <td class="px-2 py-3 text-center">
                         <select
-                          [(ngModel)]="item.agentId"
+                          [ngModel]="item.agentId"
+                          (ngModelChange)="setLineAgent(item, $event)"
+                          [title]="item.attribution === 'salesfloor' ? 'Scanned on the floor by this salesperson' : ''"
                           class="w-full px-1 py-1 text-[10px] font-body bg-surface-container-lowest text-on-surface border border-outline-variant/15 rounded focus:border-primary focus:outline-none cursor-pointer"
                         >
                           @for (agent of agents; track agent.id) {
@@ -1606,6 +1619,60 @@
     }
 
     <!-- ═══ Exchange slide-over ═══ -->
+    <!-- §7.2 — floor baskets waiting at the till -->
+    @if (showBasketPanel) {
+      <div class="fixed inset-0 z-[9000] flex justify-end">
+        <div class="absolute inset-0 bg-black/50" (click)="showBasketPanel = false"></div>
+        <div class="relative flex h-full w-full max-w-md flex-col bg-surface-container-low shadow-2xl">
+          <div class="flex items-center justify-between border-b border-outline-variant/10 px-5 py-4">
+            <h2 class="font-headline text-lg font-bold text-on-surface">Floor baskets</h2>
+            <button (click)="showBasketPanel = false" class="text-on-surface-variant hover:text-on-surface" aria-label="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            <form class="flex gap-2" (ngSubmit)="pullBasket(basketCode)">
+              <input
+                name="basketCode"
+                [(ngModel)]="basketCode"
+                inputmode="numeric"
+                maxlength="3"
+                placeholder="Basket number"
+                data-testid="pos-basket-code"
+                class="min-w-0 flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary"
+              />
+              <button type="submit" class="rounded-lg bg-primary-container px-4 text-sm font-bold text-on-primary-container" [disabled]="basketLoading">Pull</button>
+            </form>
+            <p class="text-[11px] leading-snug text-on-surface-variant">
+              Every piece in the basket is credited to the salesperson who scanned it.
+            </p>
+            @if (basketLoading) {
+              <div class="flex justify-center py-6"><div class="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary"></div></div>
+            }
+            @for (b of openBaskets; track b.id) {
+              <button
+                (click)="pullBasket(b.code)"
+                class="w-full rounded-xl border border-outline-variant/10 bg-surface-container-high/40 p-3 text-left hover:border-primary/30"
+                [disabled]="isPulled(b.id)"
+              >
+                <span class="flex items-baseline justify-between gap-3">
+                  <span class="font-headline text-xl font-bold tracking-widest text-on-surface">{{ b.code }}</span>
+                  <span class="text-sm font-semibold text-on-surface">{{ formatCurrency(b.value) }}</span>
+                </span>
+                <span class="block text-[12px] text-on-surface-variant">
+                  {{ b.salesperson.name }} · {{ b.pieces }} piece{{ b.pieces === 1 ? '' : 's' }}@if (isPulled(b.id)) { · in this bill }
+                </span>
+              </button>
+            } @empty {
+              @if (!basketLoading) {
+                <p class="py-6 text-center text-xs text-on-surface-variant/70">No open baskets on the floor.</p>
+              }
+            }
+          </div>
+        </div>
+      </div>
+    }
+
     @if (showExchangePanel) {
       <div class="fixed inset-0 z-[9000] flex justify-end" (click)="showExchangePanel = false">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>

@@ -91,6 +91,12 @@ export const routes: Routes = [
           import('./modules/audit/audit-log.component').then((m) => m.AuditLogComponent),
       },
       {
+        // Dashboard §15.2 — UPI statement import and matching.
+        path: 'upi-credits',
+        loadComponent: () =>
+          import('./modules/reconciliation/upi-credits.component').then((m) => m.UpiCreditsComponent),
+      },
+      {
         path: 'vouchers',
         loadComponent: () =>
           import('./modules/vouchers/voucher-list.component').then((m) => m.VoucherListComponent),

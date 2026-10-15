@@ -99,6 +99,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
   basePrice: number | null = null;
   costPrice: number | null = null;
   landingPrice: number | null = null;
+  /** §15.6 — reorder below this many pieces per variant; null = not tracked. */
+  reorderLevel: number | null = null;
   /** §13.1 — profit margin % over cost; two-way with Sale Price. */
   marginPercent: number | null = null;
 
@@ -412,6 +414,7 @@ export class ProductFormComponent implements OnInit, OnDestroy {
     this.basePrice = p.basePrice ?? null;
     this.costPrice = p.costPrice ?? null;
     this.landingPrice = p.landingPrice ?? null;
+    this.reorderLevel = p.reorderLevel ?? null;
     this.description = p.description || '';
     this.hsnCode = p.hsnCode || '';
     this.cgstRate = p.cgstRate !== undefined && p.cgstRate !== null ? Number(p.cgstRate) : 9;
@@ -966,6 +969,8 @@ export class ProductFormComponent implements OnInit, OnDestroy {
       basePrice: Number(this.basePrice),
       costPrice: Number(this.costPrice),
       landingPrice: this.landingPrice ? Number(this.landingPrice) : undefined,
+      // Sent as null when cleared, so an edit can switch tracking off.
+      reorderLevel: this.reorderLevel ? Math.max(1, Math.round(Number(this.reorderLevel))) : null,
       description: this.description.trim() || undefined,
       hsnCode: this.hsnCode.trim() || null,
       cgstRate: this.cgstRate !== null ? Number(this.cgstRate) : 0,

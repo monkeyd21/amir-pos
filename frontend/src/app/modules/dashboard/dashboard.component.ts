@@ -30,8 +30,17 @@ import {
   paymentLabel,
   timeIst,
 } from './dash-ui';
-import { DashboardAlert, DashboardData, PeriodSelection, RecentTransaction, StaffLine, Tier } from './dashboard.models';
+import {
+  ActionableItem,
+  DashboardAlert,
+  DashboardData,
+  PeriodSelection,
+  RecentTransaction,
+  StaffLine,
+  Tier,
+} from './dashboard.models';
 import { DrillPanelComponent, DrillRequest } from './drill-panel.component';
+import { ActionKind, ActionPanelComponent } from './action-panel.component';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -60,6 +69,7 @@ const PERIODS: { id: DashboardPeriod; label: string }[] = [
     IndianNumberPipe,
     DdMmYyyyPipe,
     DrillPanelComponent,
+    ActionPanelComponent,
   ],
   providers: [DashboardLiveService],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,10 +96,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly mobile = signal(false);
   readonly menuOpen = signal(false);
   readonly drill = signal<DrillRequest | null>(null);
+  readonly action = signal<ActionKind | null>(null);
   /** Re-evaluated every 30 s so "2 min ago" keeps moving. */
   readonly now = signal(Date.now());
 
   readonly role = this.auth.getCurrentUser()?.role ?? '';
+  /** §8 configurable thresholds, edited by the owner from the settings menu. */
+  alertSettings: { heldBillHours: number; loyaltyExpiryDays: number } | null = null;
   readonly senior = isDashboardSenior(this.role);
 
   private readonly refetch$ = new Subject<void>();
@@ -121,6 +134,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (d.inventorySold) ids.add('inventory-sold');
     if (d.insight) ids.add('insight');
     if (d.eod) ids.add('eod');
+    if (d.actionable) ids.add('actionable');
+    if (d.weeklyInventory) ids.add('weekly-inventory');
     return ids;
   });
 
@@ -270,6 +285,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.saveLayout$.next(boxes);
   }
 
+  toggleMenu(): void {
+    this.menuOpen.set(!this.menuOpen());
+    if (this.menuOpen() && this.role === 'owner' && !this.alertSettings) {
+      this.api.get<ApiResponse<{ heldBillHours: number; loyaltyExpiryDays: number }>>('/dashboard/settings').subscribe({
+        next: (res) => (this.alertSettings = { ...res.data }),
+      });
+    }
+  }
+
+  saveAlertSettings(): void {
+    const s = this.alertSettings;
+    if (!s) return;
+    this.api.put('/dashboard/settings', { heldBillHours: Number(s.heldBillHours), loyaltyExpiryDays: Number(s.loyaltyExpiryDays) }).subscribe({
+      next: () => {
+        this.notify.success('Alert thresholds saved');
+        this.menuOpen.set(false);
+        this.load();
+      },
+      error: (err) => this.notify.error(err?.error?.error || 'Could not save the thresholds'),
+    });
+  }
+
   resetLayout(): void {
     this.menuOpen.set(false);
     this.api.delete(`/dashboard/layout/${this.device()}`).subscribe({
@@ -349,6 +386,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       case 'user':
         this.open({ kind: 'staff', id: a.subject.id });
         break;
+      case 'loyalty':
+        this.action.set('loyalty');
+        break;
       default:
         break;
     }
@@ -365,7 +405,61 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return e.status === 'balanced' ? 'Balanced' : e.status === 'short' ? 'Short' : 'Over';
   }
 
-  goToPos(): void {
-    this.router.navigate(['/pos']);
+  // ─── Daily Actionable (§15) ───
+
+  openItem(item: ActionableItem): void {
+    switch (item.key) {
+      case 'attendance':
+        this.action.set('attendance');
+        break;
+      case 'expenses':
+        this.action.set('expenses');
+        break;
+      case 'pending_sales':
+        this.action.set('pending-sales');
+        break;
+      case 'upi':
+        this.action.set('upi');
+        break;
+      case 'salary':
+        // A full workflow: the payroll run itself, at the month that is due.
+        this.router.navigate(['/employees/payroll'], { queryParams: item.month ? { month: item.month } : {} });
+        break;
+    }
+  }
+
+  itemAction(item: ActionableItem): string {
+    return {
+      attendance: 'Mark now →',
+      expenses: 'Add · No Expense Today →',
+      salary: 'Open payroll →',
+      pending_sales: 'Review →',
+      upi: 'Match →',
+    }[item.key];
+  }
+
+  itemTone(item: ActionableItem): string {
+    if (item.state === 'done') return 'text-emerald-300';
+    if (item.tier === 'critical') return 'text-rose-300';
+    if (item.tier === 'attention') return 'text-amber-300';
+    return 'text-on-surface';
+  }
+
+  /** §1.3a: the widget takes the colour of its most urgent item. */
+  actionableWorst(): Tier {
+    const items = this.visibleItems();
+    if (items.some((i) => i.tier === 'critical')) return 'critical';
+    if (items.some((i) => i.tier === 'attention')) return 'attention';
+    return 'good';
+  }
+
+  visibleItems(): ActionableItem[] {
+    return (this.data()?.actionable?.items ?? []).filter((i) => i.state !== 'hidden');
+  }
+
+  // ─── Weekly inventory reminder (§15.6) ───
+
+  stockReport(view: 'low' | 'stagnant'): void {
+    this.router.navigate(['/dashboard/stock'], { queryParams: { view, ...(view === 'stagnant' ? { days: 60 } : {}) } });
   }
 }

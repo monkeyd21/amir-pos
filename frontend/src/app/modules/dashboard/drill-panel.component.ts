@@ -1,17 +1,4 @@
-import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  EventEmitter,
-  HostListener,
-  Input,
-  OnChanges,
-  Output,
-  ViewChild,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, inject, signal } from '@angular/core';
 import { NgClass, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,6 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { DdMmYyyyPipe, InrPipe, paymentLabel, timeIst } from './dash-ui';
 import { PeriodSelection } from './dashboard.models';
+import { SidePanelComponent } from './side-panel.component';
 
 export type DrillRequest =
   | { kind: 'sales' | 'bills' | 'discount' | 'profit' | 'returns' | 'customers' | 'eod' }
@@ -49,23 +37,21 @@ const TITLES: Record<DrillRequest['kind'], string> = {
  * dashboard to refresh. Only full workflows (resume billing at the till, the
  * full bill) navigate away.
  *
- * Rendered at the page root and fixed to the viewport, above the sidebar and
- * header, so nothing in the layout's stacking contexts can clip it.
+ * The frame (overlay, Esc, focus) is `dash-side-panel`.
  */
 @Component({
   selector: 'app-drill-panel',
   standalone: true,
-  imports: [NgClass, NgTemplateOutlet, FormsModule, InrPipe, DdMmYyyyPipe],
+  imports: [NgClass, NgTemplateOutlet, FormsModule, InrPipe, DdMmYyyyPipe, SidePanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './drill-panel.component.html',
 })
-export class DrillPanelComponent implements OnChanges, AfterViewInit {
+export class DrillPanelComponent implements OnChanges {
   @Input({ required: true }) request!: DrillRequest;
   @Input({ required: true }) period!: PeriodSelection;
   @Output() closed = new EventEmitter<void>();
   /** Something was changed from inside the panel: the dashboard refetches. */
   @Output() changed = new EventEmitter<void>();
-  @ViewChild('closeBtn') closeBtn?: ElementRef<HTMLButtonElement>;
 
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
@@ -87,11 +73,6 @@ export class DrillPanelComponent implements OnChanges, AfterViewInit {
     this.fetch();
   }
 
-  ngAfterViewInit(): void {
-    this.closeBtn?.nativeElement.focus();
-  }
-
-  @HostListener('document:keydown.escape')
   close(): void {
     this.closed.emit();
   }

@@ -209,7 +209,9 @@
   background: var(--mp-surface);
   border-top: 1px solid var(--mp-border);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  // As many equal columns as there are tabs.
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   padding-bottom: var(--mp-safe-bottom);
   z-index: 40;
 }

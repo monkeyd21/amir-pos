@@ -120,6 +120,7 @@ export class SettingsComponent implements OnInit {
     pointsPerAmount: 1,     // points earned per amountPerPoint
     redemptionValue: 1,     // Rs. discount per 1 point redeemed
     minRedeemPoints: 100,   // minimum points balance to be eligible for redemption
+    pointsExpiryMonths: null as number | null, // months a point stays valid; null = never expires
     tierThresholds: { silver: 1000, gold: 5000, platinum: 20000 } as Record<string, number>,
     earningMultipliers: { bronze: 1, silver: 1.5, gold: 2, platinum: 3 } as Record<string, number>,
   };
@@ -277,6 +278,7 @@ export class SettingsComponent implements OnInit {
             pointsPerAmount: Number(c.pointsPerAmount ?? 1),
             redemptionValue: Number(c.redemptionValue ?? 1),
             minRedeemPoints: Number(c.minRedeemPoints ?? 100),
+            pointsExpiryMonths: c.pointsExpiryMonths ?? null,
             tierThresholds: c.tierThresholds ?? this.loyalty.tierThresholds,
             earningMultipliers: c.earningMultipliers ?? this.loyalty.earningMultipliers,
           };
@@ -288,7 +290,12 @@ export class SettingsComponent implements OnInit {
   saveLoyaltyConfig(): void {
     if (this.savingLoyalty) return;
     this.savingLoyalty = true;
-    this.api.put<any>('/loyalty/config', this.loyalty).subscribe({
+    const expiry = Number(this.loyalty.pointsExpiryMonths);
+    this.api.put<any>('/loyalty/config', {
+      ...this.loyalty,
+      // Empty (or zero) switches expiry off; otherwise whole months.
+      pointsExpiryMonths: expiry > 0 ? Math.round(expiry) : null,
+    }).subscribe({
       next: () => {
         this.savingLoyalty = false;
         this.notification.success('Loyalty config saved');

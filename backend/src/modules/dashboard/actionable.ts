@@ -20,6 +20,8 @@ export interface ActionableItem {
   tier: Tier;
   label: string;
   detail: string | null;
+  /** Salary run: the month whose run is due, for the payroll link. */
+  month?: string;
 }
 
 // ─── Pure escalation rules (§15.3) ──────────────────────────────────────────
@@ -173,6 +175,7 @@ export async function dailyActionable(branchId: number, businessDate: string): P
         tier: salaryTier(daysBetween(due.payDate, businessDate)),
         label: `Salary run pending (${new Date(`${due.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', timeZone: 'UTC' })})`,
         detail: `${salaried.length - settled} of ${salaried.length} not finalised`,
+        month: due.month,
       }
     : { key: 'salary', state: 'hidden', tier: 'good', label: 'Salary run', detail: null };
 

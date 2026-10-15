@@ -65,13 +65,13 @@
           class="grid h-9 w-9 place-items-center rounded-xl text-on-surface-variant ring-1 ring-outline-variant/15 hover:bg-surface-container-high hover:text-on-surface"
           aria-label="Dashboard settings"
           [attr.aria-expanded]="menuOpen()"
-          (click)="menuOpen.set(!menuOpen())"
+          (click)="toggleMenu()"
         >
           <span class="material-symbols-outlined text-[20px]">tune</span>
         </button>
         @if (menuOpen()) {
           <div class="fixed inset-0 z-40" (click)="menuOpen.set(false)"></div>
-          <div class="absolute right-0 top-11 z-50 w-60 rounded-xl bg-surface-container-high p-1.5 shadow-2xl ring-1 ring-outline-variant/20">
+          <div class="absolute right-0 top-11 z-50 w-72 rounded-xl bg-surface-container-high p-1.5 shadow-2xl ring-1 ring-outline-variant/20">
             <p class="px-3 pb-1.5 pt-2 text-[11px] leading-snug text-on-surface-variant">
               Drag ≡ to rearrange a box, drag its corner to resize. Saved for you on this
               {{ mobile() ? 'phone' : 'screen size' }}.
@@ -84,6 +84,20 @@
               <span class="material-symbols-outlined text-[18px] text-on-surface-variant">restart_alt</span>
               Reset to default layout
             </button>
+            @if (role === 'owner' && alertSettings) {
+              <form class="mt-1 space-y-2 border-t border-outline-variant/20 px-3 pb-2 pt-3" (ngSubmit)="saveAlertSettings()">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Alert thresholds</p>
+                <label class="flex items-center justify-between gap-3 text-[13px] text-on-surface">
+                  Held bill older than (hours)
+                  <input name="held" type="number" min="0.5" max="24" step="0.5" class="w-16 rounded-md bg-surface-container-lowest px-2 py-1 text-right text-sm ring-1 ring-outline-variant/20" [(ngModel)]="alertSettings.heldBillHours" />
+                </label>
+                <label class="flex items-center justify-between gap-3 text-[13px] text-on-surface">
+                  Points expiring within (days)
+                  <input name="loy" type="number" min="1" max="60" step="1" class="w-16 rounded-md bg-surface-container-lowest px-2 py-1 text-right text-sm ring-1 ring-outline-variant/20" [(ngModel)]="alertSettings.loyaltyExpiryDays" />
+                </label>
+                <button type="submit" class="w-full rounded-lg bg-primary-container py-1.5 text-sm font-semibold text-on-primary-container">Save</button>
+              </form>
+            }
           </div>
         }
       </div>
@@ -503,15 +517,84 @@
                 {{ eodBadge() }}@if (e.status !== 'balanced') { {{ (e.variance < 0 ? -e.variance : e.variance) | inr }}}
               </span>
               @if (e.status === 'over') {
-                <span class="text-[12px] text-on-surface-variant">Cash no bill explains: check pending sales</span>
+                <span class="text-[12px] text-on-surface-variant">Cash no bill explains: check pending sales and unmatched payments</span>
               }
             </button>
+          }
+        </ng-template>
+        <!-- ─── Zone J: daily actionable (owner/manager, never blocks billing) ─── -->
+        <ng-template dashBox="actionable">
+          @if (d.actionable) {
+            <div
+              class="flex h-full min-h-0 flex-col rounded-[0.875rem] border px-5 py-4"
+              [ngClass]="actionableWorst() === 'critical' ? 'border-rose-400/40 bg-rose-500/[0.05]' : actionableWorst() === 'attention' ? 'border-amber-400/40 bg-amber-500/[0.05]' : 'border-outline-variant/15 bg-surface-container-low'"
+            >
+              <dash-box-title title="Daily Actionable">
+                <span class="text-[12px] text-on-surface-variant">Never blocks billing</span>
+              </dash-box-title>
+              <ul class="mt-2 grid min-h-0 flex-1 content-start gap-x-8 gap-y-1 overflow-y-auto md:grid-cols-2">
+                @for (item of visibleItems(); track item.key) {
+                  <li>
+                    <button
+                      type="button"
+                      class="flex w-full items-start gap-2.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-surface-container-high/50"
+                      [disabled]="item.state === 'done'"
+                      (click)="openItem(item)"
+                    >
+                      <span class="material-symbols-outlined mt-px text-[18px]" [ngClass]="itemTone(item)" aria-hidden="true">
+                        {{ item.state === 'done' ? 'check_circle' : item.tier === 'good' ? 'radio_button_unchecked' : 'warning' }}
+                      </span>
+                      <span class="min-w-0 flex-1">
+                        <span class="block text-[14px] font-semibold leading-snug" [ngClass]="itemTone(item)">{{ item.label }}</span>
+                        @if (item.detail) {
+                          <span class="block text-[12px] leading-snug text-on-surface-variant">{{ item.detail }}</span>
+                        }
+                      </span>
+                      @if (item.state !== 'done') {
+                        <span class="shrink-0 pt-0.5 text-[13px] font-semibold text-primary">{{ itemAction(item) }}</span>
+                      }
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        </ng-template>
+
+        <!-- ─── Zone K: weekly inventory reminder (lighter, weekly) ─────────── -->
+        <ng-template dashBox="weekly-inventory">
+          @if (d.weeklyInventory; as w) {
+            <div class="flex h-full flex-wrap items-center gap-x-8 gap-y-2 rounded-[0.875rem] border border-outline-variant/10 bg-surface-container-low/60 px-5 py-3 pr-12 text-[13px]">
+              <span class="w-full text-[12px] text-on-surface-variant xl:w-auto">Weekly inventory reminder</span>
+              <span class="flex flex-wrap items-baseline gap-x-2">
+                <span class="text-on-surface">Low stock: <b class="tabular-nums">{{ w.lowStock | indian }}</b> SKU{{ w.lowStock === 1 ? '' : 's' }}</span>
+                @if (w.lowStockDelta != null && w.lowStockDelta !== 0) {
+                  <span class="tabular-nums" [class.text-rose-300]="w.lowStockDelta > 0" [class.text-emerald-300]="w.lowStockDelta < 0">
+                    ({{ w.lowStockDelta > 0 ? '▲' : '▼' }} {{ w.lowStockDelta > 0 ? w.lowStockDelta : -w.lowStockDelta }} vs last week)
+                  </span>
+                }
+                <button type="button" class="font-semibold text-primary hover:underline" (click)="stockReport('low')">View report →</button>
+              </span>
+              <span class="flex flex-wrap items-baseline gap-x-2">
+                <span class="text-on-surface">
+                  Stagnant {{ w.stagnantDays }}+ days: <b class="tabular-nums">{{ w.stagnant | indian }}</b> SKUs · <b class="tabular-nums">{{ w.frozenValue | inr }}</b> frozen
+                </span>
+                <button type="button" class="font-semibold text-primary hover:underline" (click)="stockReport('stagnant')">View report →</button>
+              </span>
+              @if (senior) {
+                <button type="button" class="ml-auto text-[12px] text-on-surface-variant hover:text-on-surface" (click)="dismiss(w.dismissKey)">Dismiss for this week</button>
+              }
+            </div>
           }
         </ng-template>
       </app-dashboard-grid>
     </div>
   }
 </div>
+
+@if (action(); as kind) {
+  <app-action-panel [kind]="kind" (closed)="action.set(null)" (changed)="onPanelChanged()" />
+}
 
 @if (drill(); as req) {
   <app-drill-panel [request]="req" [period]="selection()" (closed)="drill.set(null)" (changed)="onPanelChanged()" />

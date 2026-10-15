@@ -1,0 +1,187 @@
+<div class="mx-auto max-w-[1200px] space-y-6">
+  <header class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="font-headline text-2xl font-bold text-on-surface">UPI credits</h1>
+      <p class="mt-1 max-w-2xl text-sm text-on-surface-variant">
+        Money that reached the shop's UPI account, matched to the bills it paid for. A credit no bill explains may be a sale
+        nobody billed, so it stays on the dashboard until someone matches it or says what it was.
+      </p>
+    </div>
+    <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-primary-container px-4 py-2.5 text-sm font-semibold text-on-primary-container">
+      <span class="material-symbols-outlined text-[20px]" aria-hidden="true">upload_file</span>
+      Import a statement (CSV)
+      <input type="file" accept=".csv,text/csv" class="sr-only" (change)="onFile($event)" data-testid="upi-import-file" />
+    </label>
+  </header>
+
+  @if (fileName()) {
+    <section class="space-y-4 rounded-2xl bg-surface-container-low p-5 ring-1 ring-outline-variant/15">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="font-headline text-lg font-bold text-on-surface">{{ fileName() }}</h2>
+        <span class="text-[13px] text-on-surface-variant">{{ dataRows().length }} rows</span>
+      </div>
+      <p class="text-[13px] text-on-surface-variant">Check which column holds what. Times are read as India time.</p>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        @for (f of fields; track f.key) {
+          <label class="block text-[12px] text-on-surface-variant">
+            {{ f.label }}@if (f.required) { <span class="text-rose-300">*</span> }
+            <select
+              class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20"
+              [ngModel]="map()[f.key] ?? ''"
+              (ngModelChange)="setColumn(f.key, $event)"
+            >
+              <option value="">{{ f.required ? 'Pick a column' : 'Not in this file' }}</option>
+              @for (h of header(); track $index) {
+                <option [value]="$index">{{ h || 'Column ' + ($index + 1) }}</option>
+              }
+            </select>
+          </label>
+        }
+      </div>
+
+      @if (parsed(); as p) {
+        <div class="overflow-x-auto rounded-xl ring-1 ring-outline-variant/15">
+          <table class="w-full min-w-[560px] text-[13px]">
+            <thead class="bg-surface-container text-left text-[11px] uppercase tracking-wider text-on-surface-variant">
+              <tr>
+                <th class="px-3 py-2 font-semibold">Received</th>
+                <th class="px-3 py-2 text-right font-semibold">Amount</th>
+                <th class="px-3 py-2 font-semibold">UTR</th>
+                <th class="px-3 py-2 font-semibold">Payer</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of preview(); track r.reference) {
+                <tr class="border-t border-outline-variant/10">
+                  <td class="px-3 py-2">{{ r.receivedAt | ddmmyyyy }} {{ timeIst(r.receivedAt) }}</td>
+                  <td class="px-3 py-2 text-right tabular-nums">{{ r.amount | inr: 'paise' }}</td>
+                  <td class="px-3 py-2 font-mono text-[12px]">{{ r.reference }}</td>
+                  <td class="px-3 py-2 text-on-surface-variant">{{ r.payerName || r.payerVpa || '—' }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="4" class="px-3 py-6 text-center text-on-surface-variant">No credits read with these columns.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[13px] text-on-surface">
+          <b>{{ p.rows.length }}</b> credit{{ p.rows.length === 1 ? '' : 's' }} to import@if (p.rows.length > 5) { (first 5 shown)}.
+          @if (p.skipped.length) {
+            <span class="text-on-surface-variant">{{ p.skipped.length }} row{{ p.skipped.length === 1 ? '' : 's' }} skipped:
+              @for (s of p.skipped.slice(0, 4); track s.line) { line {{ s.line }} ({{ s.reason }})@if (!$last) {, } }@if (p.skipped.length > 4) { …}
+            </span>
+          }
+        </p>
+        <div class="flex gap-2">
+          <button type="button" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container disabled:opacity-50" [disabled]="busy() || !p.rows.length" (click)="runImport()">
+            Import {{ p.rows.length }}
+          </button>
+          <button type="button" class="rounded-lg px-4 py-2 text-sm text-on-surface-variant" (click)="cancelImport()">Cancel</button>
+        </div>
+      }
+    </section>
+  }
+
+  <details class="rounded-2xl bg-surface-container-low px-5 py-4 ring-1 ring-outline-variant/15">
+    <summary class="cursor-pointer text-sm font-semibold text-on-surface">Add one credit by hand</summary>
+    <form class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" (ngSubmit)="addManual()">
+      <label class="text-[12px] text-on-surface-variant">Date
+        <input name="d" placeholder="DD-MM-YYYY" inputmode="numeric" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="manual.date" />
+      </label>
+      <label class="text-[12px] text-on-surface-variant">Time
+        <input name="t" placeholder="HH:MM" inputmode="numeric" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="manual.time" />
+      </label>
+      <label class="text-[12px] text-on-surface-variant">Amount (₹)
+        <input name="a" type="number" min="1" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="manual.amount" />
+      </label>
+      <label class="text-[12px] text-on-surface-variant">UTR
+        <input name="r" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 font-mono text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="manual.reference" />
+      </label>
+      <label class="text-[12px] text-on-surface-variant">Payer (optional)
+        <input name="p" class="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface ring-1 ring-outline-variant/20" [(ngModel)]="manual.payerName" />
+      </label>
+      <button type="submit" class="rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-semibold text-on-surface disabled:opacity-50 sm:col-span-2 lg:col-span-5 lg:justify-self-start" [disabled]="busy()">Add credit</button>
+    </form>
+  </details>
+
+  <section class="space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex rounded-xl bg-surface-container-low p-1 ring-1 ring-outline-variant/15" role="tablist">
+        @for (t of [{ id: 'unmatched', label: 'Unmatched' }, { id: 'matched', label: 'Matched' }, { id: 'non_sale', label: 'Not a sale' }]; track t.id) {
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="tab() === t.id"
+            class="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold"
+            [ngClass]="tab() === t.id ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'"
+            (click)="setTab($any(t.id))"
+          >
+            {{ t.label }}
+          </button>
+        }
+      </div>
+      @if (tab() === 'unmatched' && credits().length) {
+        <button type="button" class="rounded-lg bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container" (click)="resolving.set(true)">
+          Resolve {{ credits().length }}
+        </button>
+      }
+    </div>
+
+    <div class="overflow-x-auto rounded-xl ring-1 ring-outline-variant/15">
+      <table class="w-full min-w-[720px] text-[13px]">
+        <thead class="bg-surface-container-low text-left text-[11px] uppercase tracking-wider text-on-surface-variant">
+          <tr>
+            <th class="px-4 py-2.5 font-semibold">Received</th>
+            <th class="px-4 py-2.5 text-right font-semibold">Amount</th>
+            <th class="px-4 py-2.5 font-semibold">UTR</th>
+            <th class="px-4 py-2.5 font-semibold">Payer</th>
+            <th class="px-4 py-2.5 font-semibold">{{ tab() === 'non_sale' ? 'What it was' : tab() === 'matched' ? 'Paid for' : '' }}</th>
+            <th class="px-4 py-2.5"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+            @for (i of [1, 2, 3]; track i) {
+              <tr><td colspan="6" class="px-4 py-2"><div class="h-6 animate-pulse rounded bg-surface-container-high/60"></div></td></tr>
+            }
+          }
+          @for (c of credits(); track c.id) {
+            <tr class="border-t border-outline-variant/10">
+              <td class="px-4 py-2.5">{{ c.receivedAt | ddmmyyyy }} {{ timeIst(c.receivedAt) }}</td>
+              <td class="px-4 py-2.5 text-right font-semibold tabular-nums">{{ c.amount | inr: 'paise' }}</td>
+              <td class="px-4 py-2.5 font-mono text-[12px] text-on-surface-variant">{{ c.reference }}</td>
+              <td class="px-4 py-2.5 text-on-surface-variant">{{ c.payerName || c.payerVpa || '—' }}</td>
+              <td class="px-4 py-2.5">
+                @if (c.status === 'matched') {
+                  @if (c.matchedSale) {
+                    <a class="text-primary hover:underline" [routerLink]="['/sales', c.matchedSale.id]">{{ c.matchedSale.saleNumber }}</a>
+                  } @else if (c.matchedPendingSale) {
+                    <span>{{ c.matchedPendingSale.number }} <span class="text-on-surface-variant">(pending sale)</span></span>
+                  }
+                  <span class="block text-[11px] text-on-surface-variant">{{ methodLabel(c) }}</span>
+                } @else if (c.status === 'non_sale') {
+                  {{ c.nonSaleReason }}
+                }
+              </td>
+              <td class="px-4 py-2.5 text-right">
+                @if (c.status !== 'unmatched') {
+                  <button type="button" class="text-[12px] text-on-surface-variant underline hover:text-on-surface" (click)="reopen(c)">Undo</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            @if (!loading()) {
+              <tr><td colspan="6" class="px-4 py-10 text-center text-on-surface-variant">
+                {{ tab() === 'unmatched' ? 'Every credit is accounted for.' : 'Nothing here yet.' }}
+              </td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+@if (resolving()) {
+  <app-action-panel kind="upi" (closed)="resolving.set(false); load()" (changed)="load()" />
+}

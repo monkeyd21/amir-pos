@@ -10,6 +10,8 @@ export const createProductSchema = z.object({
     basePrice: z.number().positive('Base price must be positive'),
     costPrice: z.number().positive('Cost price must be positive'),
     landingPrice: z.number().positive().optional().nullable(),
+    // §15.6 — reorder below this many pieces per variant; empty = not restocked by count.
+    reorderLevel: z.number().int().min(1).max(999).optional().nullable(),
     hsnCode: z.string().max(10).optional().nullable(),
     cgstRate: z.number().min(0).max(50).optional(),
     sgstRate: z.number().min(0).max(50).optional(),
@@ -43,6 +45,8 @@ export const updateProductSchema = z.object({
     basePrice: z.number().positive().optional(),
     costPrice: z.number().positive().optional(),
     landingPrice: z.number().positive().optional().nullable(),
+    // §15.6 — reorder below this many pieces per variant; empty = not restocked by count.
+    reorderLevel: z.number().int().min(1).max(999).optional().nullable(),
     hsnCode: z.string().max(10).optional().nullable(),
     cgstRate: z.number().min(0).max(50).optional(),
     sgstRate: z.number().min(0).max(50).optional(),
