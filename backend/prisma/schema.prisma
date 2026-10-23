@@ -1575,14 +1575,19 @@ model HistoricalBillItem {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ─── Product imagery ─────────────────────────────────────────────────────────
-// The ERP had no image concept at all. `url` is a key in object storage (or a
-// relative path under /uploads in local dev) — never a data URI.
+// The ERP had no image concept at all. `url` is the absolute public address the
+// storefront and the ERP load the picture from, never a data URI.
 model ProductImage {
   id        Int      @id @default(autoincrement())
   productId Int
   // Optional narrowing: an image that shows one specific colour/size variant.
   variantId Int?
   url       String   @db.Text
+  // Where the file lives in our own media store (products/<id>/<uuid>.webp).
+  // NULL for an image that points at someone else's URL. Kept separately from
+  // `url` so moving the store (local disk today, object storage later) is a
+  // copy plus a url rewrite, keyed on this.
+  storageKey String?
   alt       String?
   width     Int?
   height    Int?

@@ -45,7 +45,7 @@
   </div>
 
   <!-- Product Info Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+  <div class="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-4 mb-10">
     <div class="bg-surface-container-high p-6 rounded-xl relative overflow-hidden">
       <div class="absolute left-0 top-1/4 bottom-1/4 w-[2px] bg-primary"></div>
       <p class="label-upper mb-2">Base Price</p>
@@ -81,6 +81,8 @@
       <p class="text-sm text-on-surface-variant leading-relaxed">{{ product.description }}</p>
     </div>
   }
+
+  <app-product-photos class="mb-10" [productId]="product.id" [productName]="product.name" [canEdit]="canEditPrices"></app-product-photos>
 
   <!-- Variant Totals — plain sum of each displayed variant's effective price
        (one per variant, not stock-weighted). Follows the in-stock-only filter. -->

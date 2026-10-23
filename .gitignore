@@ -38,3 +38,6 @@ storefront/next-env.d.ts
 
 # Agent worktrees (local only)
 .claude/worktrees/
+
+# Uploaded product photos in local development (services/media-storage.ts)
+backend/media/

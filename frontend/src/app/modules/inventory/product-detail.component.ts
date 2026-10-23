@@ -11,6 +11,7 @@ import { StockAdjustmentDialogComponent } from './stock-adjustment-dialog.compon
 import { BranchService } from '../../core/services/branch.service';
 import { AuthService } from '../../core/services/auth.service';
 import { BulkVariantGeneratorComponent } from './bulk-variant-generator.component';
+import { ProductPhotosComponent } from './product-photos.component';
 
 interface Variant {
   id: number;
@@ -60,7 +61,7 @@ interface VariantDraft {
 @Component({
   selector: 'app-product-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, LoadingSpinnerComponent, BulkVariantGeneratorComponent],
+  imports: [CommonModule, RouterModule, FormsModule, LoadingSpinnerComponent, BulkVariantGeneratorComponent, ProductPhotosComponent],
   styles: [`:host { display: block; }`],
   templateUrl: './product-detail.component.html',
 })

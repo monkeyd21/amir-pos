@@ -155,8 +155,13 @@ correct.
 - [x] Migration: `Size.ageLabel`, `Size.chestInches`, `Size.lengthInches`
 - [x] Seed the real size grid — 12 to 36, with age labels (replaces the demo Levi's/Nike sizes)
 - [x] Seed the system "Online Store" user + confirm which branch fulfils web orders
-- [ ] Choose and wire object storage for images (Cloudflare R2 preferred — free egress)
-- [ ] Bulk photo-upload tool in the ERP admin: scan barcode → shoot → upload → crop
+- [ ] Choose and wire object storage for images (Cloudflare R2 preferred — free egress).
+      Interim since 23-10-2026: local disk on the box, served by nginx
+      (`services/media-storage.ts`); the move is a second storage class plus a
+      copy keyed on `ProductImage.storageKey`.
+- [x] Photo upload in the ERP admin: the product page's Photos section (upload
+      from a phone camera or files, order, main photo, descriptions, delete)
+- [ ] Faster in-store flow: scan barcode → shoot → upload from the mobile POS
 - [ ] Backfill: decide the first ~100 SKUs to photograph and list
 
 ### Phase 2 — Shop API (`backend/src/modules/shop/`) `DONE`

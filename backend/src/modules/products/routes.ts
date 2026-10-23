@@ -11,7 +11,12 @@ import {
   updateVariantSchema,
   deleteVariantSchema,
   bulkCreateVariantsSchema,
+  imageUploadSchema,
+  updateImageSchema,
+  reorderImagesSchema,
+  deleteImageSchema,
 } from './validators';
+import { singleImageUpload } from '../../middleware/upload';
 
 const router = Router();
 
@@ -30,5 +35,12 @@ router.post('/:id/variants', authorize('owner', 'manager'), validate(createVaria
 router.post('/:id/variants/bulk', authorize('owner', 'manager'), validate(bulkCreateVariantsSchema), controller.bulkCreateVariants);
 router.put('/:id/variants/:variantId', authorize('owner', 'manager'), validate(updateVariantSchema), controller.updateVariant);
 router.delete('/:id/variants/:variantId', authorize('owner', 'manager'), validate(deleteVariantSchema), controller.deleteVariant);
+
+// Photo routes. '/images/order' is static, so it comes before '/images/:imageId'.
+router.get('/:id/images', validate(getProductSchema), controller.listImages);
+router.post('/:id/images', authorize('owner', 'manager'), singleImageUpload, validate(imageUploadSchema), controller.addImage);
+router.put('/:id/images/order', authorize('owner', 'manager'), validate(reorderImagesSchema), controller.reorderImages);
+router.patch('/:id/images/:imageId', authorize('owner', 'manager'), validate(updateImageSchema), controller.updateImage);
+router.delete('/:id/images/:imageId', authorize('owner', 'manager'), validate(deleteImageSchema), controller.deleteImage);
 
 export default router;

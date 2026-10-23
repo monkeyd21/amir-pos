@@ -140,3 +140,30 @@ export const bulkCreateVariantsSchema = z.object({
     notes: z.string().optional().nullable(),
   }),
 });
+
+const imageParams = z.object({
+  id: z.string().regex(/^\d+$/, 'ID must be a number'),
+  imageId: z.string().regex(/^\d+$/, 'Photo ID must be a number'),
+});
+
+export const imageUploadSchema = z.object({
+  params: z.object({ id: z.string().regex(/^\d+$/, 'ID must be a number') }),
+  body: z.object({ alt: z.string().max(200).optional().nullable() }),
+});
+
+export const updateImageSchema = z.object({
+  params: imageParams,
+  body: z
+    .object({
+      alt: z.string().max(200).optional().nullable(),
+      isPrimary: z.literal(true).optional(),
+    })
+    .refine((b) => b.alt !== undefined || b.isPrimary !== undefined, 'Nothing to change'),
+});
+
+export const reorderImagesSchema = z.object({
+  params: z.object({ id: z.string().regex(/^\d+$/, 'ID must be a number') }),
+  body: z.object({ ids: z.array(z.number().int().positive()).min(1).max(50) }),
+});
+
+export const deleteImageSchema = z.object({ params: imageParams });

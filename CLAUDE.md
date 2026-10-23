@@ -290,6 +290,19 @@ keeps the old copy and fails at runtime ("X is not a function") on anything
 new, while `ng build` passes. If a restart is not enough, delete
 `frontend/.angular/cache`.
 
+### 7i. Product photos: the browser shrinks, the server checks, nginx serves
+The product page's Photos section (`inventory/product-photos.component.ts`)
+re-encodes every photo in the browser to at most 2000px WebP
+(`photo-prepare.ts`): fast on shop Wi-Fi, upright, and stripped of EXIF so a
+phone's GPS position never reaches the website. The server keeps no image
+library; it reads the real format and size from the bytes
+(`products/image-meta.ts`) and refuses anything else. Files go through
+`services/media-storage.ts` under unique, never-reused keys, so URLs cache
+forever. The FIRST photo is the main one: `isPrimary` is rewritten to match
+position 0 on every change, because the storefront orders by it.
+Storage is local disk behind nginx for now (`docs/deploy-notes.md`); moving to
+object storage is a second `MediaStorage` plus a copy keyed on `storageKey`.
+
 ### 8. ts-node-dev sometimes misses file changes
 If you edit a file and don't see `[INFO] Restarting` in the backend log, force a restart. The `--respawn` flag isn't perfectly reliable. `touch` doesn't always work; you may need to modify file content (add/remove a blank line).
 
@@ -312,7 +325,7 @@ Always use fallback: `item.variant?.product?.name || item.productName || item.na
 | `auth` | JWT login/refresh | `POST /login` |
 | `branches` | Multi-branch config | CRUD |
 | `users` / `employees` | Staff management | `GET/POST/PUT /employees`, commission calc, attendance |
-| `products` | Products + variants | CRUD, variant management |
+| `products` | Products + variants + photos | CRUD, variant management, `/products/:id/images` (upload, order, main photo) |
 | `inventory` | Stock levels, transfers, **import** | `/inventory/import/{template,preview,execute}` for Excel upload |
 | `barcodes` | Barcode lookup/generation | Not the same as label printing |
 | `printing` | Label designer + template engine | `/printing/printers`, `/printing/templates`, TSPL/ZPL/EPL2/ESC-POS/PDF drivers |

@@ -93,8 +93,9 @@ decision, not a coding one. Set `SHOP_COD_ENABLED=true` once it is made.
 - **Order fulfilment UI.** Orders can be placed, paid and read back over the
   API, but there is no screen in the Angular admin yet for pick/pack/ship. That
   is Phase 6.
-- **Object storage for images.** `ProductImage.url` is stored and served as-is.
-  The bulk upload tool and CDN wiring are Phase 1 leftovers.
+- **Object storage for images.** Photos are uploaded on the ERP product page and
+  stored on the box for now, served by nginx (`docs/deploy-notes.md`). Object
+  storage and a CDN are still the plan.
 - **Size exchange flow.** The `Return` machinery exists; the customer-facing
   path into it does not. PLAN.md Q16 — likely the main support flow for
   kidswear.

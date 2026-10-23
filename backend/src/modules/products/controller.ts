@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import * as productService from './service';
+import * as images from './images';
 
 export const listProducts = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -114,6 +115,50 @@ export const deleteVariant = async (req: AuthRequest, res: Response, next: NextF
       parseInt(req.params.variantId, 10),
     );
     res.json({ success: true, message: result.message });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const productId = (req: AuthRequest) => parseInt(req.params.id, 10);
+const imageId = (req: AuthRequest) => parseInt(req.params.imageId, 10);
+
+export const listImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await images.listImages(productId(req)) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const image = await images.addImage(productId(req), req.file!.buffer, req.body.alt);
+    res.status(201).json({ success: true, data: image });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await images.updateImage(productId(req), imageId(req), req.body) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const reorderImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await images.reorderImages(productId(req), req.body.ids) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await images.deleteImage(productId(req), imageId(req)) });
   } catch (error) {
     next(error);
   }

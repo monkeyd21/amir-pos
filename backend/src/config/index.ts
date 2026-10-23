@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import path from 'path';
 dotenv.config();
 
 export const config = {
@@ -27,6 +28,13 @@ export const config = {
     provider: process.env.SMS_PROVIDER || 'none',
     apiKey: process.env.SMS_API_KEY || '',
     senderId: process.env.SMS_SENDER_ID || '',
+  },
+
+  // Uploaded pictures (services/media-storage.ts). In production nginx serves
+  // MEDIA_DIR at MEDIA_PUBLIC_URL; in development Express serves it itself.
+  media: {
+    dir: process.env.MEDIA_DIR || path.join(__dirname, '..', '..', 'media'),
+    publicUrl: process.env.MEDIA_PUBLIC_URL || `http://localhost:${process.env.PORT || '3000'}/media`,
   },
 
   app: {

@@ -118,6 +118,20 @@ app.use('/api/v1/floor-baskets', floorBasketRoutes);
 // JWTs). Nothing under /api/v1 becomes publicly reachable.
 app.use('/api/shop/v1', shopRoutes);
 
+// Uploaded photos. In production nginx serves MEDIA_DIR straight from disk so
+// image traffic never reaches Node; in development Express stands in for it.
+// The storefront runs on another origin, hence the cross-origin resource policy.
+if (config.nodeEnv !== 'production') {
+  app.use(
+    '/media',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(config.media.dir, { immutable: true, maxAge: '365d', fallthrough: false })
+  );
+}
+
 // Serve Angular frontend in production
 if (config.nodeEnv === 'production') {
   const publicPath = path.join(__dirname, '..', 'public');

@@ -101,9 +101,20 @@ more.
 - Postgres local: db `amir_pos`, role `amir`.
 - `.env` at `/opt/amir-pos/backend/.env` (chmod 600, never shipped — survives deploys).
 - `JWT_EXPIRES_IN` is `8h` in prod (was 15m — caused frequent logouts).
+- Product photos live in **`/opt/amir-pos/media`** (owned by `amir`), set by
+  `MEDIA_DIR` and `MEDIA_PUBLIC_URL=https://shop.sabihasethnic.com/media` in
+  `.env`. nginx serves that folder from disk at `shop.sabihasethnic.com/media/`
+  (`deploy/nginx-amir-shop.conf`), so Node never handles image traffic. It is
+  NOT a release artifact: deploys never touch it, and it belongs in any backup
+  alongside the database dump. Interim home until object storage; see
+  `backend/src/services/media-storage.ts` for the move.
+- Both units (`amir-pos`, `amir-shop`) must be **enabled**, not just started:
+  on 19-10-2026 a kernel-update reboot left the storefront down for four days
+  because `amir-shop` had only ever been started by hand.
 
 ## Domains
 - `erp.sabihasethnic.com` → nginx → Node on `127.0.0.1:3000`. HTTPS via Let's Encrypt (auto-renew).
+- `shop.sabihasethnic.com` → nginx → Next.js on `127.0.0.1:3001`, plus `/media/` straight from disk.
 - `sabihasethnic.com` + `www` → static "coming soon" page.
 
 ## Access
