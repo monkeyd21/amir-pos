@@ -2,20 +2,20 @@
 # Install:  sudo cp deploy/amir-pos.service /etc/systemd/system/
 #           sudo systemctl daemon-reload && sudo systemctl enable --now amir-pos
 [Unit]
-Description=Amir POS / ClothingERP (Node + Express + Prisma)
+Description=Sabiha's Ethnic / ClothingERP (Node + Express + Prisma)
 After=network.target postgresql.service
 Wants=postgresql.service
 
 [Service]
 Type=simple
-User=ubuntu
+User=amir
+Group=amir
 WorkingDirectory=/opt/amir-pos/backend
 # dotenv reads ./.env from WorkingDirectory, so /opt/amir-pos/backend/.env is loaded.
 ExecStart=/usr/bin/node dist/server.js
 Restart=always
 RestartSec=3
-# Give Node a sane heap ceiling on the free ARM box.
-Environment=NODE_OPTIONS=--max-old-space-size=1024
+Environment=NODE_OPTIONS=--max-old-space-size=2048
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=amir-pos

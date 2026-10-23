@@ -73,7 +73,14 @@ mv /tmp/amir-shop-staging/release app
 id -u amir >/dev/null 2>&1 && chown -R amir:amir /opt/amir-shop || true
 
 echo '▶ Restarting amir-shop'
-systemctl restart amir-shop 2>/dev/null || echo '  (unit not installed yet)'
+# enable as well as restart: the unit was once only ever started by hand, so a
+# kernel-update reboot on 19-10-2026 left the website down for four days.
+if systemctl cat amir-shop >/dev/null 2>&1; then
+  systemctl enable amir-shop >/dev/null 2>&1
+  systemctl restart amir-shop
+else
+  echo '  (unit not installed yet)'
+fi
 rm -rf /tmp/amir-shop-release.tar.gz /tmp/amir-shop-staging"
 
 echo "▶ Smoke check"
